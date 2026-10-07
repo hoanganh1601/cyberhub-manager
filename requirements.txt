@@ -1,0 +1,3 @@
+# HA-01 — Hoàng Anh: pin dependency sau khi cả nhóm thống nhất môi trường.
+# Dự kiến: customtkinter, Pillow, mysql-connector-python, python-dotenv, pytest.
+
