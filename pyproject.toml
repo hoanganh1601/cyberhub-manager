@@ -22,6 +22,9 @@ dev = [
     "pytest-cov==7.1.0",
 ] # thư viện chỉ dùng khi phát triển test
 
+[project.scripts]
+cyberhub-manager = "cyberhub_manager.app:main"
+
 [tool.setuptools.packages.find]
 where = ["src"] # tìm package trong thư mục src
 
