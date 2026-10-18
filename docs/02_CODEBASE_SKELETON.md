@@ -22,7 +22,10 @@ cyberhub-manager/                   # repository/thư mục project
 │   ├── 06_KICKOFF_CHECKLIST.md
 │   ├── linear_import.csv
 │   └── diagrams/
-│       ├── erd.md                # Mermaid/ảnh ERD và cardinality
+│       ├── erd.md                # mục lục thiết kế cơ sở dữ liệu
+│       ├── conceptual_erd.md     # thực thể, quan hệ và cardinality
+│       ├── logical_erd.md        # thuộc tính, khóa và chuẩn hóa
+│       ├── physical_erd.md       # kiểu MySQL, constraint và index
 │       ├── class_diagram.md      # Domain/service class diagram
 │       └── activity_diagrams.md  # Nạp tiền, mở phiên, checkout
 ├── scripts/
