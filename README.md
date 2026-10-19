@@ -178,3 +178,29 @@ UI → Service → Repository → Database
 7. [CSV nhập task vào Linear](docs/linear_import.csv)
 
 Mọi thay đổi tên bảng, field, service contract hoặc theme phải được cập nhật trong tài liệu liên quan trước khi merge.
+
+## Connection và transaction — HA-04
+Cấu hình kết nối được đọc từ `.env`.
+
+Service mở transaction bằng `with transaction() as conn` và truyền
+cùng `conn` cho các repository tham gia một nghiệp vụ.
+
+Repository không tự commit, rollback hoặc đóng connection.
+Transaction manager chịu trách nhiệm commit khi thành công,
+rollback khi có lỗi và trả connection về pool khi kết thúc.
+
+### Kiểm thử transaction
+
+Yêu cầu MySQL đang chạy, có database `cyberhub_manager_test`
+và tài khoản `MYSQL_USER` được cấp quyền trên database này.
+
+```powershell
+python -m pytest tests/integration/test_transaction_manager.py -q
+```
+
+Kiểm thử tự chuyển kết nối sang database kiểm thử, không cần sửa `.env`.
+
+Ba kiểm thử xác nhận:
+- Thành công thì commit toàn bộ thay đổi.
+- Có exception thì rollback toàn bộ thay đổi.
+- Connection được trả về pool sau cả hai trường hợp.
