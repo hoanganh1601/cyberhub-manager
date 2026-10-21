@@ -22,10 +22,7 @@ cyberhub-manager/                   # repository/thư mục project
 │   ├── 06_KICKOFF_CHECKLIST.md
 │   ├── linear_import.csv
 │   └── diagrams/
-│       ├── erd.md                # mục lục thiết kế cơ sở dữ liệu
-│       ├── conceptual_erd.md     # thực thể, quan hệ và cardinality
-│       ├── logical_erd.md        # thuộc tính, khóa và chuẩn hóa
-│       ├── physical_erd.md       # kiểu MySQL, constraint và index
+│       ├── erd.md                # Mermaid/ảnh ERD và cardinality
 │       ├── class_diagram.md      # Domain/service class diagram
 │       └── activity_diagrams.md  # Nạp tiền, mở phiên, checkout
 ├── scripts/
@@ -41,7 +38,6 @@ cyberhub-manager/                   # repository/thư mục project
 │       ├── config.py             # đọc cấu hình
 │       ├── domain/
 │       │   ├── models.py         # dataclass/entity
-│       │   ├── dtos.py           # dataclass/DTO
 │       │   ├── enums.py          # status/role/type
 │       │   └── exceptions.py     # lỗi nghiệp vụ
 │       ├── database/
@@ -57,8 +53,6 @@ cyberhub-manager/                   # repository/thư mục project
 │       ├── services/
 │       │   ├── auth_service.py
 │       │   ├── customer_service.py
-│       │   ├── contracts.py       # Protocol và ServiceBundle
-│       │   ├── mocks/             # mock services + dữ liệu demo cho UI (LI-02)
 │       │   ├── wallet_service.py
 │       │   ├── machine_service.py
 │       │   ├── session_service.py
@@ -86,7 +80,6 @@ cyberhub-manager/                   # repository/thư mục project
 └── tests/
     ├── conftest.py               # DB tạm và fixtures
     ├── unit/
-    │   ├── test_mock_factory.py  # contract, scenario, bundle độc lập
     │   ├── test_wallet_service.py
     │   └── test_session_service.py
     ├── integration/
@@ -112,11 +105,11 @@ Chiều import bắt buộc: `ui -> services -> repositories -> database`; `doma
 ## 2.3. Model và enum thống nhất
 
 ### Model tối thiểu
-- `Store`: id, code, name, address, status, created_at, updated_at.
+
 - `Employee`: id, code, full_name, store_id, username, role, status.
 - `Customer`: id, code, full_name, phone, status, account.
 - `Account`: id, code, customer_id, username, balance, status; số dư chỉ đổi qua service.
-- `Machine`: id, code, store_id, name, status, hourly_rate, is_active, updated_at.
+- `Machine`: id, code, store_id, name, status, hourly_rate.
 - `UsageSession`: id, code, customer_id, machine_id, opened_by, closed_by, started_at, ended_at, hourly_rate, cost, status.
 - `AccountTransaction`: id, code, account_id, employee_id, session_id, type, amount, method, created_at.
 - `Invoice`: id, code, session_id, customer_id, employee_id, store_id, usage_cost, settlement_amount, total_amount, status, created_at.
@@ -126,16 +119,13 @@ Chiều import bắt buộc: `ui -> services -> repositories -> database`; `doma
 | Enum | Giá trị |
 |---|---|
 | `Role` | `ADMIN`, `MANAGER`, `STAFF` |
-| `StoreStatus` | `ACTIVE`, `INACTIVE` |
-| `EmployeeStatus` | `ACTIVE`, `INACTIVE`, `LOCKED` |
-| `CustomerStatus` | `ACTIVE`, `INACTIVE` |
-| `AccountStatus` | `ACTIVE`, `LOCKED` |
+| `CommonStatus` | `ACTIVE`, `INACTIVE`, `LOCKED` theo entity |
 | `MachineStatus` | `AVAILABLE`, `IN_USE`, `MAINTENANCE` |
 | `SessionStatus` | `ACTIVE`, `COMPLETED`, `CANCELLED` |
 | `TransactionType` | `TOP_UP`, `PROMOTION`, `USAGE_PAYMENT`, `DEBT_SETTLEMENT` |
 | `PaymentMethod` | `CASH`, `TRANSFER`, `ACCOUNT_BALANCE`, `PROMOTION` |
 | `InvoiceStatus` | `PAID`, `VOID` |
-| `MachineArchiveAction` | `DELETED`, `ARCHIVED` |
+
 Không dùng chuỗi tự gõ rải rác ngoài enum.
 
 ## 2.4. Public contract giữa UI và service
@@ -146,47 +136,24 @@ Tên dưới đây phải chốt trước khi Linh và Ngát làm song song. Có
 |---|---|---|---|---|
 | `AuthService` | `login` | username, password | `EmployeeSession` | `AuthenticationError` |
 | `CustomerService` | `create_customer` | full_name, phone, username, password | `Customer` | `ValidationError`, `ConflictError` |
-| `CustomerService` | `get_customer` | customer_id | `Customer` | `NotFoundError` |
 | `CustomerService` | `search_customers` | keyword | list `CustomerSummary` | — |
 | `CustomerService` | `update_customer` | customer_id, full_name, phone | `Customer` | `NotFoundError`, `ConflictError` |
-| `CustomerService` | `set_customer_status` | customer_id, status, actor | `Customer` | `NotFoundError`, `PermissionDeniedError`, `ConflictError` |
+| `CustomerService` | `set_customer_status` | customer_id, status, actor | `Customer` | `NotFoundError`, `PermissionDenied`, `ConflictError` |
 | `WalletService` | `top_up` | customer_id, amount, method, employee_id | `TopUpResult` | `ValidationError`, `NotFoundError` |
 | `WalletService` | `get_history` | customer_id | list `TransactionSummary` | — |
 | `MachineService` | `list_machines` | store_id | list `MachineSummary` gồm dữ liệu phiên live | — |
-| `MachineService` | `create_machine` | code, store_id, name, hourly_rate, actor | `Machine` | `ValidationError`, `PermissionDeniedError`, `ConflictError` |
-| `MachineService` | `update_machine` | machine_id, name, hourly_rate, actor | `Machine` | `NotFoundError`, `PermissionDeniedError`, `ConflictError` |
-| `MachineService` | `set_maintenance` | machine_id, enabled, actor | `Machine` | `PermissionDeniedError`, `ConflictError` |
-| `MachineService` | `archive_machine` | machine_id, actor | `MachineArchiveResult` | `NotFoundError`, `PermissionDeniedError`, `ConflictError` |
-| `SessionService` | `preview_open` | customer_id, machine_id, actor | `OpenSessionPreview` | `NotFoundError`, `ConflictError` |
-| `SessionService` | `open_session` | customer_id, machine_id, actor | `SessionSummary` | `NotFoundError`, `ConflictError`, `InsufficientBalanceError` |
-| `SessionService` | `preview_checkout` | machine_id, current_time | `CheckoutPreview` | `NotFoundError` |
-| `SessionService` | `complete_checkout` | machine_id, actor, settlement_amount, method | `CheckoutResult` | `SettlementRequiredError`, `ConflictError` |
+| `MachineService` | `create_machine` | code, store_id, name, hourly_rate, actor | `Machine` | `ValidationError`, `PermissionDenied`, `ConflictError` |
+| `MachineService` | `update_machine` | machine_id, name, hourly_rate, actor | `Machine` | `NotFoundError`, `PermissionDenied`, `ConflictError` |
+| `MachineService` | `set_maintenance` | machine_id, enabled, actor | `Machine` | `PermissionDenied`, `ConflictError` |
+| `MachineService` | `archive_machine` | machine_id, actor | `Machine` hoặc kết quả xóa | `NotFoundError`, `PermissionDenied`, `ConflictError` |
+| `SessionService` | `preview_open` | customer_id, machine_id, actor | minimum balance, estimated minutes | `ConflictError`, `InsufficientBalance` |
+| `SessionService` | `open_session` | customer_id, machine_id, actor | `SessionSummary` | như trên |
+| `SessionService` | `preview_checkout` | machine_id, current_time | minutes, cost, projected balance, settlement required | `NotFoundError` |
+| `SessionService` | `complete_checkout` | machine_id, actor, settlement amount/method | `CheckoutResult` + invoice | `SettlementRequired`, `ConflictError` |
 | `ReportService` | `list_invoices` | store_id, filters | list `InvoiceSummary` | — |
 | `ReportService` | `daily_revenue` | store_id, date range | list `DailyRevenue` | `ValidationError` |
-| `ReportService` | `get_invoice` | invoice_id | `InvoiceDetail` | `NotFoundError` |
 
 Quy ước output: service trả dataclass/DTO, không trả raw MySQL cursor row/dictionary, tuple không tên hoặc widget.
-Tên Protocol dùng chung gồm `AuthServiceProtocol`,
-`CustomerServiceProtocol`, `WalletServiceProtocol`,
-`MachineServiceProtocol`, `SessionServiceProtocol` và
-`ReportServiceProtocol`.
-
-`ServiceBundle` chứa sáu trường `auth`, `customers`, `wallet`,
-`machines`, `sessions` và `reports`.
-
-`preview_open` trả `can_open=False` khi khách chỉ thiếu số dư.
-`open_session` kiểm tra lại và có thể phát sinh
-`InsufficientBalanceError`.
-
-Checkout không cần bù sử dụng `settlement_amount=0` và `method=None`.
-Nếu cần bù, `method` phải là `PaymentMethod.CASH` hoặc
-`PaymentMethod.TRANSFER`.
-
-`set_customer_status` với `INACTIVE` đồng thời khóa account; với
-`ACTIVE` đồng thời mở account. Thao tác này không tự kết thúc phiên
-đang chạy.
-DTO được khai báo trong `domain/dtos.py` bằng dataclass `frozen=True`.
-Domain model và DTO công khai không chứa `password` hoặc `password_hash`.
 
 Quy ước quyền và xóa máy:
 
@@ -203,17 +170,9 @@ Quy ước quyền và xóa máy:
 | `NotFoundError` | Toast/dialog và refresh dữ liệu |
 | `ConflictError` | Dialog cảnh báo; enable lại nút thao tác |
 | `PermissionDeniedError` | Dialog lỗi quyền; ghi log |
-| `ServiceUnavailableError` | Thông báo không tải được dữ liệu và cho phép thử lại |
 | `InsufficientBalanceError` | Hiện số dư tối thiểu, nút chuyển sang nạp tiền |
 | `SettlementRequiredError` | Giữ checkout dialog, focus ô tiền bù |
 | Lỗi hệ thống khác | Message “Có lỗi hệ thống”; log stack trace; không show SQL/traceback cho user |
-
-Mọi business exception kế thừa `ApplicationError`, có các thuộc tính:
-
-- `code: str`
-- `message: str`
-- `field_errors: dict[str, str]`
-- `details: dict[str, object]`
 
 ## 2.6. Transaction boundary
 
