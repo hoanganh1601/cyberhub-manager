@@ -204,3 +204,29 @@ Ba kiểm thử xác nhận:
 - Thành công thì commit toàn bộ thay đổi.
 - Có exception thì rollback toàn bộ thay đổi.
 - Connection được trả về pool sau cả hai trường hợp.
+
+## Migration và dữ liệu demo (PowerShell)
+
+Cần chạy MySQL bằng Docker, cấu hình kết nối trong `.env`, và tạo sẵn database `cyberhub_manager_migration_test` với quyền cho `cyberhub_app`. Đây là database trong MySQL, không phải thư mục của dự án.
+
+Chạy migration:
+
+```powershell
+python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration_test'; from scripts.init_db import run_migrations; run_migrations()"
+```
+
+Thêm dữ liệu demo (chương trình sẽ yêu cầu nhập mật khẩu demo):
+
+```powershell
+python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration_test'; from scripts.seed_db import run_seed; run_seed(expected_database='cyberhub_manager_migration_test')"
+```
+
+Có thể chạy lại migration và seed: migration đã áp dụng sẽ được bỏ qua; seed không tạo bản ghi trùng.
+
+Chỉ khi muốn **xóa dữ liệu nghiệp vụ** trong database thử nghiệm, chạy:
+
+```powershell
+python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration_test'; from scripts.reset_demo import run_reset; run_reset(expected_database='cyberhub_manager_migration_test')"
+```
+
+Để xác nhận, nhập chính xác `RESET cyberhub_manager_migration_test`. Reset giữ nguyên cấu trúc bảng và lịch sử migration, nhưng xóa dữ liệu nghiệp vụ trong database này. Có thể chạy seed lại để lấy lại dữ liệu demo ban đầu; dữ liệu phát sinh sau đó không được khôi phục bằng seed. **Không chạy reset trên database chứa dữ liệu cần giữ.**
