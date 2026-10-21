@@ -22,7 +22,7 @@ def transaction() -> Iterator[PooledMySQLConnection]:
     except BaseException:
         logger.exception("Giao dịch gặp lỗi; thực hiện roolback.")
         try:
-            conn.roolback()
+            conn.rollback()
         except Exception:
             logger.exception("Không thể rollback giao dịch.")
         raise
