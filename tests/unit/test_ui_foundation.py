@@ -500,4 +500,3 @@ def test_get_field_errors_safe_no_fields() -> None:
     assert get_field_errors_safe(err) == {}
 
     assert get_field_errors_safe(None) == {}
-
