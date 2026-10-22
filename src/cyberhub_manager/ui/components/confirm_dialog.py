@@ -38,8 +38,8 @@ class ConfirmDialog(ctk.CTkToplevel):
         title: str,
         message: str,
         *,
-        confirm_label: str = "Xác nhận",
-        cancel_label: str = "Hủy",
+        confirm_label: str = "Confirm",
+        cancel_label: str = "Cancel",
         is_danger: bool = False,
     ) -> None:
         super().__init__(parent)
@@ -144,8 +144,8 @@ class ConfirmDialog(ctk.CTkToplevel):
         title: str,
         message: str,
         *,
-        confirm_label: str = "Xác nhận",
-        cancel_label: str = "Hủy",
+        confirm_label: str = "Confirm",
+        cancel_label: str = "Cancel",
         is_danger: bool = False,
     ) -> bool:
         """Hiển thị hộp thoại modal và chặn cho tới khi người dùng phản hồi.

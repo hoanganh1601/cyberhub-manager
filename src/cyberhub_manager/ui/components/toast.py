@@ -13,6 +13,11 @@ from typing import Any
 import customtkinter as ctk
 
 from ..theme import (
+    BG_DANGER_SUBTLE,
+    BG_INFO_SUBTLE,
+    BG_MUTED_SUBTLE,
+    BG_SUCCESS_SUBTLE,
+    BG_WARNING_SUBTLE,
     BORDER,
     DANGER,
     FONT_BODY,
@@ -84,7 +89,7 @@ class ToastNotification(ctk.CTkFrame):
             height=24,
             font=FONT_CAPTION,
             fg_color="transparent",
-            hover_color="#1E293B",
+            hover_color=BG_MUTED_SUBTLE,
             text_color=TEXT_SECONDARY,
             command=self.dismiss,
         )
@@ -96,13 +101,13 @@ class ToastNotification(ctk.CTkFrame):
 
     def _resolve_kind(self, kind: str) -> tuple[str, str, str]:
         if kind == "success":
-            return "✓", "#0A2918", SUCCESS
+            return "✓", BG_SUCCESS_SUBTLE, SUCCESS
         if kind == "warning":
-            return "⚠", "#352309", WARNING
+            return "⚠", BG_WARNING_SUBTLE, WARNING
         if kind == "error":
-            return "✕", "#331317", DANGER
+            return "✕", BG_DANGER_SUBTLE, DANGER
         # Default info
-        return "ℹ", "#0C2A38", INFO
+        return "ℹ", BG_INFO_SUBTLE, INFO
 
     def dismiss(self) -> None:
         """Đóng và gỡ bỏ toast."""

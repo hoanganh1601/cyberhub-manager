@@ -177,6 +177,11 @@ class MachineCard(ctk.CTkFrame):
         """Đặt trạng thái bận cho nút bấm thao tác trên card."""
         self._action_btn.set_busy(busy)
 
+    @property
+    def action_button(self) -> ActionButton:
+        """Truy xuất nút thao tác footer."""
+        return self._action_btn
+
     def render(self, machine: MachineSummary, actor: EmployeeSession) -> None:
         """Hiển thị toàn bộ thông tin máy theo DTO MachineSummary và quyền của actor."""
         self._machine = machine

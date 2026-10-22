@@ -134,9 +134,14 @@ class FormField(ctk.CTkFrame):
         return self._entry.get()
 
     def set_value(self, value: str) -> None:
-        """Thiết lập giá trị chuỗi."""
+        """Thiết lập giá trị chuỗi, hỗ trợ an toàn ngay cả khi entry đang disabled."""
+        is_disabled = (self._entry.cget("state") == "disabled")
+        if is_disabled:
+            self._entry.configure(state="normal")
         self._entry.delete(0, "end")
         self._entry.insert(0, value)
+        if is_disabled:
+            self._entry.configure(state="disabled")
 
     def set_error(self, message: str | None) -> None:
         """Gắn thông báo lỗi hoặc xóa lỗi.

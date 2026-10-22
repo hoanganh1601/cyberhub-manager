@@ -11,9 +11,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 try:
-    from zoneinfo import ZoneInfo
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
     VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
-except Exception:
+except ZoneInfoNotFoundError:
     # Fallback cho môi trường thiếu tzdata (Windows/môi trường rút gọn)
     VN_TZ = timezone(timedelta(hours=7), name="Asia/Ho_Chi_Minh")
 
@@ -33,13 +33,17 @@ def format_money(amount: int) -> str:
     return f"{formatted} VND"
 
 
-def format_datetime(value: datetime) -> str:
-    """Format mốc thời gian UTC thành chuỗi HH:mm dd/MM/yyyy theo giờ Việt Nam.
+def format_datetime(value: datetime, *, allow_naive: bool = True) -> str:
+    """Format mốc thời gian thành chuỗi HH:mm dd/MM/yyyy theo giờ Việt Nam.
 
-    Nếu value là naive datetime (chưa có tzinfo), coi như đã là UTC.
-    Không đổi hai lần nếu đầu vào đã ở múi giờ địa phương.
+    Quy định: Handoff yêu cầu datetime qua service/DTO là timezone-aware (thường là UTC).
+    - Nếu allow_naive=False và value là naive datetime: ném ValueError để bắt lỗi biên.
+    - Nếu allow_naive=True (fallback cho dữ liệu legacy): coi naive là UTC.
+    - Không đổi hai lần nếu đầu vào đã ở múi giờ địa phương (Asia/Ho_Chi_Minh).
     """
     if value.tzinfo is None:
+        if not allow_naive:
+            raise ValueError("Datetime must be timezone-aware (missing tzinfo).")
         value = value.replace(tzinfo=timezone.utc)
 
     local_dt = value.astimezone(VN_TZ)

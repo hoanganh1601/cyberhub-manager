@@ -95,23 +95,38 @@ class ActionButton(ctk.CTkButton):
             border_color=border_color,
         )
 
+    @property
+    def is_busy(self) -> bool:
+        """Kiểm tra nút có đang trong trạng thái bận (busy) hay không."""
+        return self._is_busy
+
+    @property
+    def is_enabled(self) -> bool:
+        """Kiểm tra nút có đang được kích hoạt hay không."""
+        return self._is_enabled
+
     def _on_click(self) -> None:
-        """Bộ điều phối click: ngăn chặn khi đang busy hoặc disable."""
+        """Bộ điều phối click: ngăn chặn khi đang busy hoặc disable.
+
+        Lưu ý: ActionButton không tự chuyển busy. Caller (màn hình / service handler)
+        chịu trách nhiệm gọi `button.set_busy(True)` trước khi gọi service async/chờ,
+        và đảm bảo `finally: button.set_busy(False)`.
+        """
         if self._is_busy or not self._is_enabled:
             return
         if self._external_command:
             self._external_command()
 
-    def set_busy(self, busy: bool) -> None:
+    def set_busy(self, busy: bool, *, busy_text: str = "Processing…") -> None:
         """Đặt trạng thái đang xử lý.
 
-        Khi busy=True: hiện 'Đang xử lý…', disable nút, chặn double click.
-        Khi busy=False: phục hồi nhãn ban đầu và trạng thái enabled.
+        Khi busy=True: hiện 'Processing…' (hoặc busy_text tùy biến), disable nút, chặn double click.
+        Khi busy=False: phục hồi nhãn ban đầu (hoặc nhãn mới nhất đã configure) và trạng thái enabled.
         """
         self._is_busy = busy
         if busy:
             super().configure(
-                text="Đang xử lý…",
+                text=busy_text,
                 state="disabled",
             )
         else:
@@ -127,8 +142,12 @@ class ActionButton(ctk.CTkButton):
             super().configure(state="normal" if enabled else "disabled")
 
     def configure(self, **kwargs: Any) -> None:
-        if "text" in kwargs and not self._is_busy:
+        """Cấu hình lại widget, đồng bộ nhãn gốc ngay cả khi đang busy."""
+        if "text" in kwargs:
             self._original_text = kwargs["text"]
+            if self._is_busy:
+                # Không ghi đè chữ hiển thị khi đang busy; lưu lại để phục hồi khi set_busy(False)
+                kwargs.pop("text")
         if "command" in kwargs:
             self._external_command = kwargs.pop("command")
         if "kind" in kwargs:

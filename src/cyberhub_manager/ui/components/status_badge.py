@@ -23,6 +23,11 @@ from ...domain.enums import (
     StoreStatus,
 )
 from ..theme import (
+    BG_DANGER_SUBTLE,
+    BG_INFO_SUBTLE,
+    BG_MUTED_SUBTLE,
+    BG_SUCCESS_SUBTLE,
+    BG_WARNING_SUBTLE,
     BORDER,
     DANGER,
     DISABLED,
@@ -33,6 +38,45 @@ from ..theme import (
     TEXT_MUTED,
     WARNING,
 )
+
+
+_STYLE_MAPPING: dict[tuple[type, str], tuple[str, str, str, str]] = {
+    # MachineStatus
+    (MachineStatus, MachineStatus.AVAILABLE.value): ("Trống", "●", SUCCESS, BG_SUCCESS_SUBTLE),
+    (MachineStatus, MachineStatus.IN_USE.value): ("Đang dùng", "●", DANGER, BG_DANGER_SUBTLE),
+    (MachineStatus, MachineStatus.MAINTENANCE.value): ("Bảo trì", "▲", WARNING, BG_WARNING_SUBTLE),
+
+    # CustomerStatus
+    (CustomerStatus, CustomerStatus.ACTIVE.value): ("Hoạt động", "●", SUCCESS, BG_SUCCESS_SUBTLE),
+    (CustomerStatus, CustomerStatus.INACTIVE.value): ("Ngừng hoạt động", "○", DISABLED, BG_MUTED_SUBTLE),
+
+    # AccountStatus
+    (AccountStatus, AccountStatus.ACTIVE.value): ("Hoạt động", "●", SUCCESS, BG_SUCCESS_SUBTLE),
+    (AccountStatus, AccountStatus.LOCKED.value): ("Đã khóa", "🔒", DANGER, BG_DANGER_SUBTLE),
+
+    # SessionStatus
+    (SessionStatus, SessionStatus.ACTIVE.value): ("Đang chạy", "●", INFO, BG_INFO_SUBTLE),
+    (SessionStatus, SessionStatus.COMPLETED.value): ("Hoàn thành", "✓", SUCCESS, BG_SUCCESS_SUBTLE),
+    (SessionStatus, SessionStatus.CANCELLED.value): ("Đã hủy", "✕", DISABLED, BG_MUTED_SUBTLE),
+
+    # InvoiceStatus
+    (InvoiceStatus, InvoiceStatus.PAID.value): ("Đã thanh toán", "✓", SUCCESS, BG_SUCCESS_SUBTLE),
+    (InvoiceStatus, InvoiceStatus.VOID.value): ("Đã hủy", "✕", DANGER, BG_DANGER_SUBTLE),
+
+    # EmployeeStatus
+    (EmployeeStatus, EmployeeStatus.ACTIVE.value): ("Hoạt động", "●", SUCCESS, BG_SUCCESS_SUBTLE),
+    (EmployeeStatus, EmployeeStatus.INACTIVE.value): ("Nghỉ việc", "○", DISABLED, BG_MUTED_SUBTLE),
+    (EmployeeStatus, EmployeeStatus.LOCKED.value): ("Đã khóa", "🔒", DANGER, BG_DANGER_SUBTLE),
+
+    # StoreStatus
+    (StoreStatus, StoreStatus.ACTIVE.value): ("Hoạt động", "●", SUCCESS, BG_SUCCESS_SUBTLE),
+    (StoreStatus, StoreStatus.INACTIVE.value): ("Ngừng HĐ", "○", DISABLED, BG_MUTED_SUBTLE),
+
+    # Role
+    (Role, Role.ADMIN.value): ("Admin", "★", DANGER, BG_DANGER_SUBTLE),
+    (Role, Role.MANAGER.value): ("Quản lý", "◆", INFO, BG_INFO_SUBTLE),
+    (Role, Role.STAFF.value): ("Nhân viên", "●", SUCCESS, BG_SUCCESS_SUBTLE),
+}
 
 
 class StatusBadge(ctk.CTkFrame):
@@ -85,62 +129,12 @@ class StatusBadge(ctk.CTkFrame):
         )
 
     def _resolve_status_style(self, status: Any) -> tuple[str, str, str, str]:
-        # MachineStatus
-        if status == MachineStatus.AVAILABLE:
-            return "Trống", "●", SUCCESS, "#0A2918"
-        if status == MachineStatus.IN_USE:
-            return "Đang dùng", "●", DANGER, "#331317"
-        if status == MachineStatus.MAINTENANCE:
-            return "Bảo trì", "▲", WARNING, "#352309"
+        # Phân nhánh theo đúng type Enum trước để tránh StrEnum so sánh bằng nhau qua giá trị chuỗi
+        if isinstance(status, Enum):
+            lookup_key = (type(status), status.value)
+            if lookup_key in _STYLE_MAPPING:
+                return _STYLE_MAPPING[lookup_key]
 
-        # CustomerStatus
-        if status == CustomerStatus.ACTIVE:
-            return "Hoạt động", "●", SUCCESS, "#0A2918"
-        if status == CustomerStatus.INACTIVE:
-            return "Ngừng hoạt động", "○", DISABLED, "#1E293B"
-
-        # AccountStatus
-        if status == AccountStatus.ACTIVE:
-            return "Hoạt động", "●", SUCCESS, "#0A2918"
-        if status == AccountStatus.LOCKED:
-            return "Đã khóa", "🔒", DANGER, "#331317"
-
-        # SessionStatus
-        if status == SessionStatus.ACTIVE:
-            return "Đang chạy", "●", INFO, "#0C2A38"
-        if status == SessionStatus.COMPLETED:
-            return "Hoàn thành", "✓", SUCCESS, "#0A2918"
-        if status == SessionStatus.CANCELLED:
-            return "Đã hủy", "✕", DISABLED, "#1E293B"
-
-        # InvoiceStatus
-        if status == InvoiceStatus.PAID:
-            return "Đã thanh toán", "✓", SUCCESS, "#0A2918"
-        if status == InvoiceStatus.VOID:
-            return "Đã hủy", "✕", DANGER, "#331317"
-
-        # EmployeeStatus
-        if status == EmployeeStatus.ACTIVE:
-            return "Hoạt động", "●", SUCCESS, "#0A2918"
-        if status == EmployeeStatus.INACTIVE:
-            return "Nghỉ việc", "○", DISABLED, "#1E293B"
-        if status == EmployeeStatus.LOCKED:
-            return "Đã khóa", "🔒", DANGER, "#331317"
-
-        # StoreStatus
-        if status == StoreStatus.ACTIVE:
-            return "Hoạt động", "●", SUCCESS, "#0A2918"
-        if status == StoreStatus.INACTIVE:
-            return "Ngừng HĐ", "○", DISABLED, "#1E293B"
-
-        # Role
-        if status == Role.ADMIN:
-            return "Admin", "★", DANGER, "#331317"
-        if status == Role.MANAGER:
-            return "Quản lý", "◆", INFO, "#0C2A38"
-        if status == Role.STAFF:
-            return "Nhân viên", "●", SUCCESS, "#0A2918"
-
-        # Trạng thái không xác định
+        # Trạng thái không xác định hoặc chuỗi chưa có phân loại nghiệp vụ cụ thể
         status_str = str(status) if status is not None else "Không xác định"
-        return status_str, "•", TEXT_MUTED, "#1E293B"
+        return status_str, "•", TEXT_MUTED, BG_MUTED_SUBTLE

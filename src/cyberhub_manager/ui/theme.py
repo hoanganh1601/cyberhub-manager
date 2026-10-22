@@ -19,6 +19,14 @@ BG_SURFACE = "#172033"        # Nền card, panel, dialog
 BG_SURFACE_HOVER = "#22304A"  # Nền hover/selected surface
 BG_TABLE_HEADER = "#1E293B"   # Nền header bảng dữ liệu
 BG_ALERT_DANGER = "#3B1822"   # Nền cảnh báo đỏ nhạt (cho số dư âm)
+BG_ROW_ALT = "#151D2E"        # Nền xen kẽ (sọc) dòng bảng dữ liệu
+
+# Subtle badge, toast & status background tokens
+BG_SUCCESS_SUBTLE = "#0A2918" # Nền xanh nhạt cho badge/toast thành công
+BG_DANGER_SUBTLE = "#331317"  # Nền đỏ nhạt cho badge/toast lỗi
+BG_WARNING_SUBTLE = "#352309" # Nền cam/vàng nhạt cho badge/toast cảnh báo
+BG_INFO_SUBTLE = "#0C2A38"    # Nền xanh cyan nhạt cho badge/toast thông tin
+BG_MUTED_SUBTLE = "#1E293B"   # Nền xám nhạt cho badge/toast trung tính, inactive
 
 # Border & divider
 BORDER = "#334155"            # Viền input, card divider, table divider

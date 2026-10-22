@@ -16,6 +16,7 @@ import customtkinter as ctk
 
 from ..state import ViewState
 from ..theme import (
+    BG_ROW_ALT,
     BG_SURFACE,
     BG_SURFACE_HOVER,
     BG_TABLE_HEADER,
@@ -105,6 +106,11 @@ class DataTable(ctk.CTkFrame):
         else:
             self.set_state(ViewState.EMPTY)
 
+    @property
+    def selected_key(self) -> int | str | None:
+        """Key của dòng đang được chọn."""
+        return self._selected_key
+
     def set_columns(self, columns: list[TableColumn]) -> None:
         """Thiết lập danh sách cột và vẽ lại header."""
         self._columns = list(columns)
@@ -115,6 +121,10 @@ class DataTable(ctk.CTkFrame):
     def set_rows(self, rows: list[TableRow]) -> None:
         """Cập nhật dữ liệu các dòng. Tự động chuyển sang READY nếu có dữ liệu, EMPTY nếu rỗng."""
         self._rows = list(rows)
+        # Nếu dòng đang chọn không còn tồn tại trong danh sách mới, hủy chọn
+        if self._selected_key is not None and self._selected_key not in {r.key for r in self._rows}:
+            self._selected_key = None
+
         if not self._rows:
             self.set_state(ViewState.EMPTY)
         else:
@@ -140,7 +150,7 @@ class DataTable(ctk.CTkFrame):
         self._status_frame.pack(fill="both", expand=True, pady=40)
 
         if state == ViewState.LOADING:
-            text = message or "Đang tải dữ liệu…"
+            text = message or "Loading data…"
             label = ctk.CTkLabel(
                 self._status_frame,
                 text=f"⏳  {text}",
@@ -150,7 +160,7 @@ class DataTable(ctk.CTkFrame):
             label.pack(pady=20)
 
         elif state == ViewState.EMPTY:
-            text = message or "Chưa có dữ liệu phù hợp"
+            text = message or "No matching data found"
             label = ctk.CTkLabel(
                 self._status_frame,
                 text=f"📋  {text}",
@@ -160,7 +170,7 @@ class DataTable(ctk.CTkFrame):
             label.pack(pady=20)
 
         elif state == ViewState.ERROR:
-            text = message or "Không thể tải dữ liệu"
+            text = message or "Unable to load data"
             label = ctk.CTkLabel(
                 self._status_frame,
                 text=f"⚠  {text}",
@@ -172,7 +182,7 @@ class DataTable(ctk.CTkFrame):
             if on_retry:
                 retry_btn = ActionButton(
                     self._status_frame,
-                    text="Thử lại",
+                    text="Retry",
                     kind="secondary",
                     width=100,
                     command=on_retry,
@@ -216,7 +226,7 @@ class DataTable(ctk.CTkFrame):
         for idx, row in enumerate(self._rows):
             is_selected = (row.key == self._selected_key)
             row_bg = BG_SURFACE_HOVER if is_selected else (
-                "#151D2E" if idx % 2 == 1 else "transparent"
+                BG_ROW_ALT if idx % 2 == 1 else "transparent"
             )
 
             row_frame = ctk.CTkFrame(
@@ -234,7 +244,7 @@ class DataTable(ctk.CTkFrame):
             for col in self._columns:
                 cell_text = row.cells.get(col.key, "")
                 anchor = "w" if col.align == "left" else ("e" if col.align == "right" else "center")
-                
+
                 cell_lbl = ctk.CTkLabel(
                     row_frame,
                     text=cell_text,
@@ -278,7 +288,7 @@ class DataTable(ctk.CTkFrame):
             if old_frame.winfo_exists():
                 # Tìm lại màu ban đầu theo index
                 old_idx = next((i for i, r in enumerate(self._rows) if r.key == old_key), 0)
-                old_bg = "#151D2E" if old_idx % 2 == 1 else "transparent"
+                old_bg = BG_ROW_ALT if old_idx % 2 == 1 else "transparent"
                 old_frame.configure(fg_color=old_bg)
 
         # Đổi màu dòng đang chọn

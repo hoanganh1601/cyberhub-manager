@@ -17,10 +17,12 @@ from cyberhub_manager.domain.dtos import (
 from cyberhub_manager.domain.enums import (
     AccountStatus,
     CustomerStatus,
+    EmployeeStatus,
     InvoiceStatus,
     MachineStatus,
     Role,
     SessionStatus,
+    StoreStatus,
 )
 from cyberhub_manager.ui.components import (
     ActionButton,
@@ -37,6 +39,23 @@ from cyberhub_manager.ui.formatters import (
     format_datetime,
     format_duration,
     format_money,
+)
+from cyberhub_manager.ui.messages import (
+    MSG_PROCESSING,
+    MSG_LOADING,
+    MSG_NO_DATA,
+    MSG_UNABLE_TO_LOAD,
+    MSG_RETRY,
+    MSG_CONFIRM,
+    MSG_CANCEL,
+    MSG_INVALID_CREDENTIALS,
+    get_user_friendly_error,
+    get_field_errors_safe,
+)
+from cyberhub_manager.domain.exceptions import (
+    AuthenticationError,
+    ValidationError,
+    ServiceUnavailableError,
 )
 from cyberhub_manager.ui.state import FormState, ViewState
 from cyberhub_manager.ui.theme import (
@@ -106,14 +125,31 @@ def test_format_money() -> None:
     assert format_money(1000000) == "1.000.000 VND"
 
 
-def test_format_datetime() -> None:
-    # 09:00 UTC -> 16:00 VN (+07:00)
+def test_format_datetime_utc_aware() -> None:
+    # UTC-aware: 09:00 UTC -> 16:00 VN (+07:00)
     dt_utc = datetime(2026, 10, 18, 9, 0, 0, tzinfo=timezone.utc)
     assert format_datetime(dt_utc) == "16:00 18/10/2026"
 
-    # Naive datetime được coi là UTC
+
+def test_format_datetime_vn_aware() -> None:
+    # VN-aware datetime (UTC+7) không bị double-convert
+    from datetime import timedelta
+    vn_tz = timezone(timedelta(hours=7))
+    dt_vn = datetime(2026, 10, 18, 16, 0, 0, tzinfo=vn_tz)
+    assert format_datetime(dt_vn) == "16:00 18/10/2026"
+
+
+def test_format_datetime_naive_fallback() -> None:
+    # Naive datetime fallback: coi như UTC (allow_naive=True mặc định)
     dt_naive = datetime(2026, 10, 18, 9, 0, 0)
     assert format_datetime(dt_naive) == "16:00 18/10/2026"
+
+
+def test_format_datetime_naive_strict_raises() -> None:
+    # allow_naive=False phải raise ValueError để bắt lỗi biên DB
+    dt_naive = datetime(2026, 10, 18, 9, 0, 0)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        format_datetime(dt_naive, allow_naive=False)
 
 
 def test_format_duration() -> None:
@@ -137,21 +173,53 @@ def test_action_button_busy_and_double_click(tk_root) -> None:
     btn._on_click()
     assert len(calls) == 1
 
-    # Khi bận: chặn gọi thêm callback
+    # Khi bận: hiển thị "Processing…" (tiếng Anh), chặn gọi thêm callback
     btn.set_busy(True)
-    assert btn.cget("text") == "Đang xử lý…"
+    assert btn.cget("text") == "Processing…"
+    assert btn.is_busy is True
     btn._on_click()
     assert len(calls) == 1
 
     # Thoát bận: phục hồi text ban đầu
     btn.set_busy(False)
     assert btn.cget("text") == "Xác nhận"
+    assert btn.is_busy is False
     btn._on_click()
     assert len(calls) == 2
 
 
+def test_action_button_configure_while_busy(tk_root) -> None:
+    """configure(text=...) khi đang busy phải lưu nhãn gốc mới, không đổi text hiển thị."""
+    btn = ActionButton(tk_root, text="Mở máy", kind="success")
+    btn.set_busy(True)
+    assert btn.cget("text") == "Processing…"
+
+    # Giả sử card render lại khi đang busy: đổi text qua configure
+    btn.configure(text="Bật lại")
+    # Hiển thị vẫn là "Processing…" vì đang busy
+    assert btn.cget("text") == "Processing…"
+
+    # Sau khi thoát busy: phải hiện nhãn mới nhất "Bật lại", không phải "Mở máy" cũ
+    btn.set_busy(False)
+    assert btn.cget("text") == "Bật lại"
+
+
+def test_action_button_disabled(tk_root) -> None:
+    """set_enabled(False) phải chặn click; set_enabled(True) mở lại."""
+    calls = []
+    btn = ActionButton(tk_root, text="Nút tắt", kind="secondary", command=lambda: calls.append(1))
+    btn.set_enabled(False)
+    assert btn.is_enabled is False
+    btn._on_click()
+    assert len(calls) == 0
+
+    btn.set_enabled(True)
+    btn._on_click()
+    assert len(calls) == 1
+
+
 # ==============================================================================
-# 5. TEST STATUS BADGE
+# 5. TEST STATUS BADGE — bao gồm kiểm tra StrEnum trùng giá trị
 # ==============================================================================
 def test_status_badge_enum_mapping(tk_root) -> None:
     b1 = StatusBadge(tk_root, MachineStatus.AVAILABLE)
@@ -167,6 +235,59 @@ def test_status_badge_enum_mapping(tk_root) -> None:
     b4 = StatusBadge(tk_root, AccountStatus.LOCKED)
     assert "Đã khóa" in b4._label.cget("text")
     assert "🔒" in b4._label.cget("text")
+
+
+def test_status_badge_strenum_collision(tk_root) -> None:
+    """
+    P0 — NG01-01: StrEnum INACTIVE có giá trị chuỗi giống nhau ở nhiều enum.
+    Phải dùng type(status) để phân biệt, không được dùng == so sánh chuỗi đơn.
+    """
+    # Xác nhận va chạm StrEnum thực sự tồn tại
+    assert CustomerStatus.INACTIVE == EmployeeStatus.INACTIVE  # cùng giá trị chuỗi
+    assert CustomerStatus.INACTIVE == StoreStatus.INACTIVE
+
+    # CustomerStatus.INACTIVE -> "Ngừng hoạt động"
+    bc = StatusBadge(tk_root, CustomerStatus.INACTIVE)
+    assert "Ngừng hoạt động" in bc._label.cget("text")
+
+    # EmployeeStatus.INACTIVE -> "Nghỉ việc" (không được hiện "Ngừng hoạt động")
+    be = StatusBadge(tk_root, EmployeeStatus.INACTIVE)
+    assert "Nghỉ việc" in be._label.cget("text")
+    assert "Ngừng hoạt động" not in be._label.cget("text")
+
+    # StoreStatus.INACTIVE -> "Ngừng HĐ"
+    bs = StatusBadge(tk_root, StoreStatus.INACTIVE)
+    assert "Ngừng HĐ" in bs._label.cget("text")
+    assert "Nghỉ việc" not in bs._label.cget("text")
+
+    # AccountStatus.ACTIVE -> "Hoạt động" với icon ●, không bị nhầm sang MachineStatus
+    ba = StatusBadge(tk_root, AccountStatus.ACTIVE)
+    assert "Hoạt động" in ba._label.cget("text")
+
+    # EmployeeStatus.LOCKED -> Đã khóa (icon 🔒, giống AccountStatus.LOCKED — không va nhau vì key type khác)
+    bl = StatusBadge(tk_root, EmployeeStatus.LOCKED)
+    assert "Đã khóa" in bl._label.cget("text")
+    assert "🔒" in bl._label.cget("text")
+
+
+def test_status_badge_invoice_status(tk_root) -> None:
+    bi = StatusBadge(tk_root, InvoiceStatus.PAID)
+    assert "Đã thanh toán" in bi._label.cget("text")
+
+    bv = StatusBadge(tk_root, InvoiceStatus.VOID)
+    assert "Đã hủy" in bv._label.cget("text")
+
+
+def test_status_badge_role(tk_root) -> None:
+    br = StatusBadge(tk_root, Role.ADMIN)
+    assert "Admin" in br._label.cget("text")
+    assert "★" in br._label.cget("text")
+
+    bm = StatusBadge(tk_root, Role.MANAGER)
+    assert "Quản lý" in bm._label.cget("text")
+
+    bs2 = StatusBadge(tk_root, Role.STAFF)
+    assert "Nhân viên" in bs2._label.cget("text")
 
 
 # ==============================================================================
@@ -195,6 +316,17 @@ def test_form_field_password_toggle(tk_root) -> None:
 
     f._toggle_password_visibility()
     assert f._entry.cget("show") == "*"
+
+
+def test_form_field_set_value_while_disabled(tk_root) -> None:
+    """set_value() khi entry đang disabled phải không raise và lưu giá trị đúng."""
+    f = FormField(tk_root, label="Disabled field")
+    f.set_enabled(False)
+    # Không raise lỗi
+    f.set_value("new_value")
+    # Sau khi enable lại, get_value() phải trả về giá trị đã set
+    f.set_enabled(True)
+    assert f.get_value() == "new_value"
 
 
 # ==============================================================================
@@ -230,6 +362,43 @@ def test_data_table_states_and_selection(tk_root) -> None:
     assert tbl._state == ViewState.ERROR
 
 
+def test_data_table_set_rows_clears_stale_selection(tk_root) -> None:
+    """set_rows() với danh sách mới không chứa key đang chọn phải hủy selected_key."""
+    cols = [TableColumn("id", "ID", width=60)]
+    rows = [TableRow(1, {"id": "1"}), TableRow(2, {"id": "2"})]
+    tbl = DataTable(tk_root, columns=cols, rows=rows)
+
+    tbl._select_row(2)
+    assert tbl.selected_key == 2
+
+    # Cập nhật danh sách mới không còn key=2
+    new_rows = [TableRow(1, {"id": "1"}), TableRow(3, {"id": "3"})]
+    tbl.set_rows(new_rows)
+    assert tbl.selected_key is None
+
+
+def test_data_table_default_messages(tk_root) -> None:
+    """Các trạng thái LOADING/EMPTY/ERROR phải dùng thông báo tiếng Anh mặc định."""
+    cols = [TableColumn("id", "ID", width=60)]
+    tbl = DataTable(tk_root, columns=cols)
+
+    tbl.set_state(ViewState.LOADING)
+    # Tìm label trong status_frame
+    children_text = [w.cget("text") for w in tbl._status_frame.winfo_children()
+                     if hasattr(w, "cget")]
+    assert any("Loading data" in t for t in children_text)
+
+    tbl.set_state(ViewState.EMPTY)
+    children_text = [w.cget("text") for w in tbl._status_frame.winfo_children()
+                     if hasattr(w, "cget")]
+    assert any("No matching data found" in t for t in children_text)
+
+    tbl.set_state(ViewState.ERROR)
+    children_text = [w.cget("text") for w in tbl._status_frame.winfo_children()
+                     if hasattr(w, "cget")]
+    assert any("Unable to load data" in t for t in children_text)
+
+
 # ==============================================================================
 # 8. TEST MACHINE CARD
 # ==============================================================================
@@ -261,3 +430,53 @@ def test_machine_card_rendering_and_negative_balance(tk_root) -> None:
     assert card_manager._maintenance_text_label.winfo_manager() == ""
     assert card_manager._action_btn.winfo_manager() == "pack"
     assert card_manager._action_btn.cget("text") == "Bật lại"
+
+
+# ==============================================================================
+# 9. TEST MESSAGES MODULE — English feedback strings
+# ==============================================================================
+def test_default_message_constants() -> None:
+    """Các constant trong messages.py phải là tiếng Anh nhất quán."""
+    assert MSG_PROCESSING == "Processing…"
+    assert MSG_LOADING == "Loading data…"
+    assert MSG_NO_DATA == "No matching data found"
+    assert MSG_UNABLE_TO_LOAD == "Unable to load data"
+    assert MSG_RETRY == "Retry"
+    assert MSG_CONFIRM == "Confirm"
+    assert MSG_CANCEL == "Cancel"
+    assert MSG_INVALID_CREDENTIALS == "Invalid username or password"
+
+
+def test_get_user_friendly_error_auth() -> None:
+    err = AuthenticationError()
+    msg = get_user_friendly_error(err)
+    assert "Invalid username or password" in msg
+
+
+def test_get_user_friendly_error_validation() -> None:
+    err = ValidationError(field_errors={"phone": "Invalid phone"})
+    msg = get_user_friendly_error(err)
+    assert "Invalid data provided" in msg
+    fields = get_field_errors_safe(err)
+    assert fields == {"phone": "Invalid phone"}
+
+
+def test_get_user_friendly_error_unavailable() -> None:
+    err = ServiceUnavailableError()
+    msg = get_user_friendly_error(err)
+    assert "temporarily unavailable" in msg.lower() or "Unable" in msg
+
+
+def test_get_user_friendly_error_unknown_exception() -> None:
+    err = RuntimeError("some internal error")
+    msg = get_user_friendly_error(err)
+    # Không được để lộ "some internal error" hoặc stack trace
+    assert "some internal error" not in msg
+    assert len(msg) > 0
+
+
+def test_get_field_errors_safe_no_fields() -> None:
+    err = ServiceUnavailableError()
+    assert get_field_errors_safe(err) == {}
+
+    assert get_field_errors_safe(None) == {}
