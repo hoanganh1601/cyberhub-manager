@@ -89,24 +89,24 @@ class ConfirmDialog(ctk.CTkToplevel):
         button_row = ctk.CTkFrame(container, fg_color="transparent")
         button_row.pack(fill="x", padx=PADDING_CONTENT, pady=(0, PADDING_CONTENT))
 
-        cancel_btn = ActionButton(
+        self._cancel_btn = ActionButton(
             button_row,
             text=cancel_label,
             kind="secondary",
             width=100,
             command=self._on_cancel,
         )
-        cancel_btn.pack(side="right", padx=(SPACING_SM, 0))
+        self._cancel_btn.pack(side="right", padx=(SPACING_SM, 0))
 
         confirm_kind = "danger" if is_danger else "primary"
-        confirm_btn = ActionButton(
+        self._confirm_btn = ActionButton(
             button_row,
             text=confirm_label,
             kind=confirm_kind,
             width=110,
             command=self._on_confirm,
         )
-        confirm_btn.pack(side="right")
+        self._confirm_btn.pack(side="right")
 
         # Định vị giữa cửa sổ cha
         self.update_idletasks()

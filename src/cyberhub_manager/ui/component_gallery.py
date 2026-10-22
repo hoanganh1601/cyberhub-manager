@@ -47,12 +47,14 @@ from .components import (
 from .formatters import format_datetime, format_money
 from .state import ViewState
 from .theme import (
+    ACCENT_HOVER,
     APP_MIN_HEIGHT,
     APP_MIN_WIDTH,
     BG_APP,
     BG_SIDEBAR,
     BG_SURFACE,
     BORDER,
+    DANGER,
     FONT_BODY,
     FONT_BODY_STRONG,
     FONT_CAPTION,
@@ -259,7 +261,7 @@ class ComponentGalleryApp(ctk.CTk):
             values=["STAFF (Nhân viên)", "MANAGER (Quản lý)"],
             command=self._on_actor_changed,
             font=FONT_CAPTION,
-            selected_color="#2563EB",
+            selected_color=ACCENT_HOVER,
         )
         self._actor_seg.set("STAFF (Nhân viên)")
         self._actor_seg.pack(side="left")
@@ -428,7 +430,7 @@ class ComponentGalleryApp(ctk.CTk):
                 err_box,
                 text=f"⚠ Error loading machines: {err.message}",
                 font=FONT_BODY_STRONG,
-                text_color="#F87171",
+                text_color=DANGER,
             ).pack(pady=(0, SPACING_SM))
             ActionButton(err_box, text="Retry", kind="primary", command=self._render_machine_cards).pack()
             return
@@ -580,7 +582,7 @@ class ComponentGalleryApp(ctk.CTk):
         self._f_pass.pack(fill="x", pady=(0, SPACING_MD))
 
         self._f_err = FormField(inputs_box, label="Số điện thoại (Mô phỏng lỗi validation viền DANGER)", initial_value="0912")
-        self._f_err.set_error("Số điện thoại phải gồm đúng 10 chữ số")
+        self._f_err.set_error("Phone number must have 10 digits")
         self._f_err.pack(fill="x", pady=(0, SPACING_MD))
 
         # Nút chuyển đổi lỗi

@@ -61,7 +61,13 @@ from cyberhub_manager.ui.state import FormState, ViewState
 from cyberhub_manager.ui.theme import (
     ACCENT,
     BG_APP,
+    BG_DANGER_SUBTLE,
+    BG_INFO_SUBTLE,
+    BG_MUTED_SUBTLE,
+    BG_ROW_ALT,
+    BG_SUCCESS_SUBTLE,
     BG_SURFACE,
+    BG_WARNING_SUBTLE,
     BORDER,
     DANGER,
     FONT_BODY,
@@ -88,6 +94,12 @@ def test_theme_tokens() -> None:
     assert ACCENT == "#3B82F6"
     assert SUCCESS == "#22C55E"
     assert DANGER == "#EF4444"
+    assert BG_ROW_ALT == "#151D2E"
+    assert BG_SUCCESS_SUBTLE == "#0A2918"
+    assert BG_DANGER_SUBTLE == "#331317"
+    assert BG_WARNING_SUBTLE == "#352309"
+    assert BG_INFO_SUBTLE == "#0C2A38"
+    assert BG_MUTED_SUBTLE == "#1E293B"
     assert FONT_TITLE_XL[1] == 28
     assert FONT_BODY[1] == 14
 
@@ -218,6 +230,25 @@ def test_action_button_disabled(tk_root) -> None:
     assert len(calls) == 1
 
 
+def test_action_button_caller_exception_finally(tk_root) -> None:
+    """Caller chịu trách nhiệm bọc service call trong try...finally: set_busy(False)."""
+    btn = ActionButton(tk_root, text="Submit", kind="primary")
+
+    def failing_handler():
+        btn.set_busy(True)
+        try:
+            raise RuntimeError("Service network failure")
+        finally:
+            btn.set_busy(False)
+
+    with pytest.raises(RuntimeError, match="Service network failure"):
+        failing_handler()
+
+    # Sau exception, busy phải được giải phóng và nút sẵn sàng click lại
+    assert btn.is_busy is False
+    assert btn.cget("text") == "Submit"
+
+
 # ==============================================================================
 # 5. TEST STATUS BADGE — bao gồm kiểm tra StrEnum trùng giá trị
 # ==============================================================================
@@ -344,7 +375,10 @@ def test_form_field_set_value_while_disabled(tk_root) -> None:
     f.set_enabled(False)
     # Không raise lỗi
     f.set_value("new_value")
-    # Sau khi enable lại, get_value() phải trả về giá trị đã set
+    # Trạng thái entry vẫn được giữ là disabled
+    assert f._entry.cget("state") == "disabled"
+    assert f.get_value() == "new_value"
+    # Sau khi enable lại, get_value() vẫn trả về giá trị đã set
     f.set_enabled(True)
     assert f.get_value() == "new_value"
 
@@ -391,10 +425,17 @@ def test_data_table_set_rows_clears_stale_selection(tk_root) -> None:
     tbl._select_row(2)
     assert tbl.selected_key == 2
 
-    # Cập nhật danh sách mới không còn key=2
+    # Cập nhật danh sách mới không còn key=2 -> selected_key bị hủy (None)
     new_rows = [TableRow(1, {"id": "1"}), TableRow(3, {"id": "3"})]
     tbl.set_rows(new_rows)
     assert tbl.selected_key is None
+
+    # Cập nhật danh sách mới vẫn chứa key đang chọn -> giữ nguyên selected_key
+    tbl._select_row(1)
+    assert tbl.selected_key == 1
+    new_rows_retaining = [TableRow(1, {"id": "1_updated"}), TableRow(4, {"id": "4"})]
+    tbl.set_rows(new_rows_retaining)
+    assert tbl.selected_key == 1
 
 
 def test_data_table_default_messages(tk_root) -> None:
@@ -417,6 +458,15 @@ def test_data_table_default_messages(tk_root) -> None:
     children_text = [w.cget("text") for w in tbl._status_frame.winfo_children()
                      if hasattr(w, "cget")]
     assert any("Unable to load data" in t for t in children_text)
+
+    # Test error with on_retry button
+    retried = []
+    tbl.set_state(ViewState.ERROR, on_retry=lambda: retried.append(True))
+    retry_btn = next((w for w in tbl._status_frame.winfo_children() if isinstance(w, ActionButton)), None)
+    assert retry_btn is not None
+    assert retry_btn.cget("text") == "Retry"
+    retry_btn._on_click()
+    assert retried == [True]
 
 
 # ==============================================================================
@@ -450,6 +500,38 @@ def test_machine_card_rendering_and_negative_balance(tk_root) -> None:
     assert card_manager._maintenance_text_label.winfo_manager() == ""
     assert card_manager._action_btn.winfo_manager() == "pack"
     assert card_manager._action_btn.cget("text") == "Bật lại"
+
+
+def test_machine_card_rerender_while_busy(tk_root) -> None:
+    """Khi card đang busy mà có event cập nhật trạng thái AVAILABLE -> IN_USE,
+    sau khi set_busy(False) nút phải hiển thị nhãn mới 'Checkout' thay vì 'Mở máy' cũ."""
+    ref = datetime(2026, 10, 18, 9, 0, 0, tzinfo=timezone.utc)
+    staff = EmployeeSession(1, "NV01", "Nhân viên A", "staff", 1, "CH01", "Hub", Role.STAFF)
+
+    pc01_avail = MachineSummary(1, "PC01", 1, "Máy 01", MachineStatus.AVAILABLE, 10000, True, ref, None)
+    card = MachineCard(tk_root, pc01_avail, staff)
+    card.pack()
+    assert card._action_btn.cget("text") == "Mở máy"
+
+    # Giả lập caller kích hoạt mở máy và đặt card busy
+    card.set_busy(True)
+    assert card._action_btn.is_busy is True
+    assert card._action_btn.cget("text") == "Processing…"
+
+    # Server trả về kết quả máy đã được mở: card được render lại sang IN_USE
+    s = SessionSummary(1, "SS01", 1, "KH01", "Khách A", 1, "PC01", "Máy 01", ref, 10000, SessionStatus.ACTIVE)
+    active = ActiveSessionSummary(s, 10000, 0, 0, 10000, ref)
+    pc01_in_use = MachineSummary(1, "PC01", 1, "Máy 01", MachineStatus.IN_USE, 10000, True, ref, active)
+    card.render(pc01_in_use, staff)
+
+    # Trong khi còn busy, text vẫn hiển thị 'Processing…'
+    assert card._action_btn.cget("text") == "Processing…"
+
+    # Caller hoàn tất thao tác trong finally block
+    card.set_busy(False)
+    assert card._action_btn.is_busy is False
+    # Phải cập nhật đúng nhãn mới 'Checkout' của trạng thái IN_USE, không giữ 'Mở máy'
+    assert card._action_btn.cget("text") == "Checkout"
 
 
 # ==============================================================================
@@ -500,3 +582,13 @@ def test_get_field_errors_safe_no_fields() -> None:
     assert get_field_errors_safe(err) == {}
 
     assert get_field_errors_safe(None) == {}
+
+
+def test_confirm_dialog_default_labels(tk_root) -> None:
+    """ConfirmDialog phải dùng 'Confirm' và 'Cancel' mặc định theo chuẩn tiếng Anh."""
+    dlg = ConfirmDialog(tk_root, title="Confirm", message="Are you sure?")
+    try:
+        assert dlg._confirm_btn.cget("text") == "Confirm"
+        assert dlg._cancel_btn.cget("text") == "Cancel"
+    finally:
+        dlg.destroy()
