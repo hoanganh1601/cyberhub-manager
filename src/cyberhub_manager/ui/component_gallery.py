@@ -28,6 +28,10 @@ from ..domain.enums import (
     Role,
     SessionStatus,
 )
+from ..domain.exceptions import ApplicationError
+from ..services.contracts import ServiceBundle
+from ..services.mocks.factory import build_mock_services
+from ..services.mocks.scenarios import MockScenario
 from .components import (
     ActionButton,
     ConfirmDialog,
@@ -209,6 +213,8 @@ class ComponentGalleryApp(ctk.CTk):
         self.minsize(APP_MIN_WIDTH, APP_MIN_HEIGHT)
         self.configure(fg_color=BG_APP)
 
+        self._scenario: MockScenario = MockScenario.SUCCESS
+        self._services: ServiceBundle = build_mock_services(self._scenario)
         self._current_actor: EmployeeSession = ACTOR_STAFF
         self._machine_cards: list[MachineCard] = []
 
@@ -256,6 +262,28 @@ class ComponentGalleryApp(ctk.CTk):
         )
         self._actor_seg.set("STAFF (Nhân viên)")
         self._actor_seg.pack(side="left")
+
+        # Scenario Switcher ở header
+        scenario_box = ctk.CTkFrame(self._header, fg_color="transparent")
+        scenario_box.pack(side="right", padx=(0, SPACING_LG))
+
+        scenario_hint = ctk.CTkLabel(
+            scenario_box,
+            text="Mock Scenario:",
+            font=FONT_CAPTION,
+            text_color=TEXT_SECONDARY,
+        )
+        scenario_hint.pack(side="left", padx=(0, SPACING_SM))
+
+        self._scenario_opt = ctk.CTkOptionMenu(
+            scenario_box,
+            values=[s.value for s in MockScenario],
+            command=self._on_scenario_changed,
+            font=FONT_CAPTION,
+            width=170,
+        )
+        self._scenario_opt.set(self._scenario.value)
+        self._scenario_opt.pack(side="left")
 
         # 2. Body chứa Sidebar và Content area
         self._body = ctk.CTkFrame(self, fg_color="transparent")
@@ -328,15 +356,27 @@ class ComponentGalleryApp(ctk.CTk):
         """Xử lý khi người dùng đổi vai trò để xem thay đổi phân quyền."""
         if "MANAGER" in value:
             self._current_actor = ACTOR_MANAGER
-            ToastManager.show(self, "Đã chuyển sang vai trò: MANAGER (Có quyền quản trị)", kind="info")
+            ToastManager.show(self, "Switched role to: MANAGER (Administrative privileges)", kind="info")
         else:
             self._current_actor = ACTOR_STAFF
-            ToastManager.show(self, "Đã chuyển sang vai trò: STAFF (Nhân viên vận hành)", kind="info")
+            ToastManager.show(self, "Switched role to: STAFF (Operator privileges)", kind="info")
 
         # Cập nhật lại các MachineCard
         for card in self._machine_cards:
             if card._machine:
                 card.render(card._machine, self._current_actor)
+
+    def _on_scenario_changed(self, value: str) -> None:
+        """Đổi kịch bản Mock services (SUCCESS, EMPTY, VALIDATION_ERROR, CONFLICT, UNAVAILABLE)."""
+        self._scenario = MockScenario(value)
+        self._services = build_mock_services(self._scenario)
+        ToastManager.show(self, f"Mock Scenario set to: {self._scenario.value}", kind="info")
+        self._refresh_gallery_data()
+
+    def _refresh_gallery_data(self) -> None:
+        """Đồng bộ lại dữ liệu của các tab sau khi đổi kịch bản mock."""
+        self._render_machine_cards()
+        self._load_table_data()
 
     # --------------------------------------------------------------------------
     # TAB 1: MACHINE CARDS
@@ -355,8 +395,8 @@ class ComponentGalleryApp(ctk.CTk):
 
         desc = ctk.CTkLabel(
             frame,
-            text="Hiển thị theo fixture mục 9: PC01 (trống), PC02 (âm 10.000 VND), PC03 (bảo trì), PC05 (đang dùng). "
-                 "Đổi vai trò STAFF ↔ MANAGER ở góc trên để thấy sự thay đổi quyền của nút 'Bật lại'.",
+            text="Dữ liệu nạp từ Mock Services chung (LI-02). Hỗ trợ đổi kịch bản Mock (SUCCESS / EMPTY / CONFLICT / UNAVAILABLE) "
+                 "và đổi vai trò STAFF ↔ MANAGER để kiểm tra quyền và luồng nghiệp vụ. Nút 'Bật lại' chỉ mở cho MANAGER.",
             font=FONT_BODY,
             text_color=TEXT_SECONDARY,
             anchor="w",
@@ -365,18 +405,48 @@ class ComponentGalleryApp(ctk.CTk):
         )
         desc.pack(fill="x", pady=(0, SPACING_LG))
 
-        # Grid chứa 4 thẻ máy
-        grid = ctk.CTkFrame(frame, fg_color="transparent")
-        grid.pack(fill="both", expand=True)
+        self._machines_grid = ctk.CTkFrame(frame, fg_color="transparent")
+        self._machines_grid.pack(fill="both", expand=True)
+        self._machines_grid.columnconfigure(0, weight=1)
+        self._machines_grid.columnconfigure(1, weight=1)
 
-        machines = [MACHINE_PC01, MACHINE_PC02, MACHINE_PC03, MACHINE_PC05]
+        self._render_machine_cards()
+        return frame
 
-        for idx, m in enumerate(machines):
+    def _render_machine_cards(self) -> None:
+        for widget in self._machines_grid.winfo_children():
+            widget.destroy()
+        self._machine_cards.clear()
+
+        try:
+            machines = self._services.machines.list_machines(store_id=1)
+        except ApplicationError as err:
+            err_box = ctk.CTkFrame(self._machines_grid, fg_color="transparent")
+            err_box.pack(pady=SPACING_XL)
+            ctk.CTkLabel(
+                err_box,
+                text=f"⚠ Error loading machines: {err.message}",
+                font=FONT_BODY_STRONG,
+                text_color="#F87171",
+            ).pack(pady=(0, SPACING_SM))
+            ActionButton(err_box, text="Retry", kind="primary", command=self._render_machine_cards).pack()
+            return
+
+        if not machines:
+            ctk.CTkLabel(
+                self._machines_grid,
+                text="No machines available in this scenario (EMPTY)",
+                font=FONT_BODY,
+                text_color=TEXT_MUTED,
+            ).pack(pady=SPACING_XL)
+            return
+
+        # Render tối đa 4 máy mẫu (PC01, PC02, PC03, PC05)
+        for idx, m in enumerate(machines[:4]):
             col = idx % 2
             row = idx // 2
-
             card = MachineCard(
-                grid,
+                self._machines_grid,
                 machine=m,
                 actor=self._current_actor,
                 on_open=self._handle_card_open,
@@ -388,29 +458,50 @@ class ComponentGalleryApp(ctk.CTk):
             card.grid(row=row, column=col, padx=SPACING_MD, pady=SPACING_MD, sticky="nsew")
             self._machine_cards.append(card)
 
-        grid.columnconfigure(0, weight=1)
-        grid.columnconfigure(1, weight=1)
-
-        return frame
-
     def _handle_card_open(self, machine_id: int) -> None:
-        ToastManager.show(self, f"Thao tác: Mở phiên cho Máy ID={machine_id}", kind="success")
+        try:
+            session = self._services.sessions.open_session(
+                customer_id=1,
+                machine_id=machine_id,
+                actor=self._current_actor,
+            )
+            ToastManager.show(self, f"Session opened: {session.code} on Machine ID={machine_id}", kind="success")
+            self._render_machine_cards()
+        except ApplicationError as err:
+            ToastManager.show(self, f"Open session failed: {err.message}", kind="error")
 
     def _handle_card_checkout(self, machine_id: int) -> None:
-        confirmed = ConfirmDialog.ask(
-            self,
-            title="Xác nhận Checkout",
-            message=f"Bạn có chắc muốn kết thúc phiên sử dụng của Máy ID={machine_id}?",
-            confirm_label="Checkout ngay",
-            is_danger=True,
-        )
-        if confirmed:
-            ToastManager.show(self, f"Checkout thành công cho Máy ID={machine_id}", kind="success")
-        else:
-            ToastManager.show(self, "Đã hủy thao tác checkout", kind="info")
+        try:
+            preview = self._services.sessions.preview_checkout(
+                machine_id=machine_id,
+                current_time=REF_TIME,
+            )
+            confirmed = ConfirmDialog.ask(
+                self,
+                title="Confirm Checkout",
+                message=f"End session for Machine ID={machine_id}?\nTotal cost: {format_money(preview.total_amount)}",
+                confirm_label="Checkout",
+                is_danger=True,
+            )
+            if confirmed:
+                self._services.sessions.complete_checkout(
+                    machine_id=machine_id,
+                    actor=self._current_actor,
+                    settlement_amount=0,
+                )
+                ToastManager.show(self, f"Checkout completed for Machine ID={machine_id}", kind="success")
+                self._render_machine_cards()
+            else:
+                ToastManager.show(self, "Checkout cancelled", kind="info")
+        except ApplicationError as err:
+            ToastManager.show(self, f"Checkout failed: {err.message}", kind="error")
 
     def _handle_card_maintenance(self, machine_id: int) -> None:
-        ToastManager.show(self, f"Quản lý đã kích hoạt: Bật lại Máy ID={machine_id}", kind="warning")
+        try:
+            ToastManager.show(self, f"Manager action triggered for Machine ID={machine_id}", kind="warning")
+            self._render_machine_cards()
+        except ApplicationError as err:
+            ToastManager.show(self, f"Action failed: {err.message}", kind="error")
 
     # --------------------------------------------------------------------------
     # TAB 2: BUTTONS & INPUTS
@@ -425,7 +516,7 @@ class ComponentGalleryApp(ctk.CTk):
         btn_section = ctk.CTkFrame(frame, fg_color=BG_SURFACE, corner_radius=8, border_width=1, border_color=BORDER)
         btn_section.pack(fill="x", pady=(0, SPACING_LG), padx=2)
 
-        btn_title = ctk.CTkLabel(btn_section, text="Các kiểu ActionButton (Hover / Normal / Busy chống double-click)", font=FONT_TITLE_MD, text_color=TEXT_PRIMARY, anchor="w")
+        btn_title = ctk.CTkLabel(btn_section, text="Các kiểu ActionButton (Hover / Normal / Busy chống double-click / Disabled)", font=FONT_TITLE_MD, text_color=TEXT_PRIMARY, anchor="w")
         btn_title.pack(fill="x", padx=PADDING_CONTENT, pady=(SPACING_MD, SPACING_MD))
 
         btn_row = ctk.CTkFrame(btn_section, fg_color="transparent")
@@ -445,6 +536,9 @@ class ComponentGalleryApp(ctk.CTk):
 
         b_ghost = ActionButton(btn_row, text="Ghost", kind="ghost")
         b_ghost.pack(side="left", padx=SPACING_SM)
+
+        b_dis = ActionButton(btn_row, text="Disabled", kind="secondary", state="disabled")
+        b_dis.pack(side="left", padx=SPACING_SM)
 
         # Thử nút Busy
         self._test_busy_btn = ActionButton(
@@ -490,17 +584,17 @@ class ComponentGalleryApp(ctk.CTk):
     def _trigger_busy_demo(self) -> None:
         """Mô phỏng tác vụ mạng bất đồng bộ 1.5 giây với nút bấm chuyển trạng thái busy."""
         self._test_busy_btn.set_busy(True)
-        ToastManager.show(self, "Nút đang ở trạng thái BUSY (đã chặn double click)…", kind="info")
+        ToastManager.show(self, "Processing request...", kind="info")
         self.after(1500, lambda: [
             self._test_busy_btn.set_busy(False),
-            ToastManager.show(self, "Tác vụ hoàn thành! Nút đã phục hồi nhãn gốc.", kind="success")
+            ToastManager.show(self, "Task completed successfully!", kind="success")
         ])
 
     def _toggle_input_error(self) -> None:
         if self._f_err._error_label.winfo_ismapped():
             self._f_err.set_error(None)
         else:
-            self._f_err.set_error("Số điện thoại không đúng định dạng 10 số!")
+            self._f_err.set_error("Phone number must have 10 digits")
 
     # --------------------------------------------------------------------------
     # TAB 3: DATA TABLE
@@ -513,8 +607,8 @@ class ComponentGalleryApp(ctk.CTk):
 
         desc = ctk.CTkLabel(
             frame,
-            text="Hiển thị danh sách khách hàng mẫu (KH001 → KH005). Cột tiền căn phải, format VND. "
-                 "Hỗ trợ 4 trạng thái ViewState: READY, LOADING, EMPTY, ERROR. Thử click chọn dòng bên dưới.",
+            text="Dữ liệu nạp từ Mock CustomerService. Hỗ trợ 4 trạng thái ViewState: READY, LOADING, EMPTY, ERROR. "
+                 "Đổi Scenario ở header hoặc dùng các nút chuyển trạng thái bên dưới để kiểm tra.",
             font=FONT_BODY,
             text_color=TEXT_SECONDARY,
             anchor="w",
@@ -525,16 +619,16 @@ class ComponentGalleryApp(ctk.CTk):
         toolbar = ctk.CTkFrame(frame, fg_color="transparent")
         toolbar.pack(fill="x", pady=(0, SPACING_SM))
 
-        btn_ready = ActionButton(toolbar, text="Trạng thái READY", kind="secondary", width=130, command=self._set_table_ready)
+        btn_ready = ActionButton(toolbar, text="Load Mock Data", kind="primary", width=140, command=self._load_table_data)
         btn_ready.pack(side="left", padx=(0, SPACING_SM))
 
-        btn_loading = ActionButton(toolbar, text="Trạng thái LOADING", kind="secondary", width=140, command=self._set_table_loading)
+        btn_loading = ActionButton(toolbar, text="State: LOADING", kind="secondary", width=130, command=self._set_table_loading)
         btn_loading.pack(side="left", padx=SPACING_SM)
 
-        btn_empty = ActionButton(toolbar, text="Trạng thái EMPTY", kind="secondary", width=130, command=self._set_table_empty)
+        btn_empty = ActionButton(toolbar, text="State: EMPTY", kind="secondary", width=120, command=self._set_table_empty)
         btn_empty.pack(side="left", padx=SPACING_SM)
 
-        btn_error = ActionButton(toolbar, text="Trạng thái ERROR", kind="secondary", width=130, command=self._set_table_error)
+        btn_error = ActionButton(toolbar, text="State: ERROR", kind="secondary", width=120, command=self._set_table_error)
         btn_error.pack(side="left", padx=SPACING_SM)
 
         # Cột bảng
@@ -548,22 +642,7 @@ class ComponentGalleryApp(ctk.CTk):
             TableColumn(key="acc_status", label="Trạng thái TK", align="center", width=130),
         ]
 
-        self._table_rows = [
-            TableRow(
-                key=c.customer_id,
-                cells={
-                    "code": c.customer_code,
-                    "name": c.full_name,
-                    "phone": c.phone,
-                    "username": c.username,
-                    "balance": format_money(c.balance),
-                    "cust_status": "● Hoạt động" if c.customer_status == CustomerStatus.ACTIVE else "○ Ngừng HĐ",
-                    "acc_status": "● Hoạt động" if c.account_status == AccountStatus.ACTIVE else "🔒 Đã khóa",
-                },
-            )
-            for c in CUSTOMERS_FIXTURE
-        ]
-
+        self._table_rows: list[TableRow] = []
         self._table = DataTable(
             frame,
             columns=self._table_columns,
@@ -572,28 +651,55 @@ class ComponentGalleryApp(ctk.CTk):
         )
         self._table.pack(fill="both", expand=True)
 
+        self._load_table_data()
         return frame
 
-    def _set_table_ready(self) -> None:
-        self._table.set_rows(self._table_rows)
+    def _load_table_data(self) -> None:
+        self._table.set_state(ViewState.LOADING, message="Loading data…")
+        try:
+            customers = self._services.customers.search_customers("")
+            if not customers:
+                self._table.set_state(ViewState.EMPTY, message="No matching data found")
+                return
+            rows = [
+                TableRow(
+                    key=c.customer_id,
+                    cells={
+                        "code": c.customer_code,
+                        "name": c.full_name,
+                        "phone": c.phone,
+                        "username": c.username,
+                        "balance": format_money(c.balance),
+                        "cust_status": "● Hoạt động" if c.customer_status == CustomerStatus.ACTIVE else "○ Ngừng HĐ",
+                        "acc_status": "● Hoạt động" if c.account_status == AccountStatus.ACTIVE else "🔒 Đã khóa",
+                    },
+                )
+                for c in customers
+            ]
+            self._table_rows = rows
+            self._table.set_rows(rows)
+        except ApplicationError as err:
+            self._table.set_state(
+                ViewState.ERROR,
+                message=f"Unable to load data ({err.message})",
+                on_retry=self._load_table_data,
+            )
 
     def _set_table_loading(self) -> None:
-        self._table.set_state(ViewState.LOADING, message="Đang tải danh sách khách hàng từ hệ thống…")
+        self._table.set_state(ViewState.LOADING, message="Loading data…")
 
     def _set_table_empty(self) -> None:
-        self._table.set_state(ViewState.EMPTY, message="Chưa có khách hàng nào phù hợp với bộ lọc")
+        self._table.set_state(ViewState.EMPTY, message="No matching data found")
 
     def _set_table_error(self) -> None:
         self._table.set_state(
             ViewState.ERROR,
-            message="Không thể kết nối đến máy chủ dữ liệu!",
-            on_retry=self._set_table_ready,
+            message="Unable to load data",
+            on_retry=self._load_table_data,
         )
 
     def _on_table_row_select(self, row_key: int | str) -> None:
-        cust = next((c for c in CUSTOMERS_FIXTURE if c.customer_id == row_key), None)
-        cust_name = cust.full_name if cust else f"ID={row_key}"
-        ToastManager.show(self, f"Đã chọn dòng khách hàng: {cust_name} (ID: {row_key})", kind="info")
+        ToastManager.show(self, f"Selected customer ID: {row_key}", kind="info")
 
     # --------------------------------------------------------------------------
     # TAB 4: BADGES & FEEDBACK
@@ -611,8 +717,9 @@ class ComponentGalleryApp(ctk.CTk):
         badge_title = ctk.CTkLabel(badge_sec, text="Toàn bộ các biến thể StatusBadge (Có chữ + Icon + Màu token)", font=FONT_TITLE_MD, text_color=TEXT_PRIMARY, anchor="w")
         badge_title.pack(fill="x", padx=PADDING_CONTENT, pady=(SPACING_MD, SPACING_MD))
 
-        b_row = ctk.CTkFrame(badge_sec, fg_color="transparent")
-        b_row.pack(fill="x", padx=PADDING_CONTENT, pady=(0, PADDING_CONTENT))
+        # Dùng lưới 2 hàng x 5 cột để tránh bị tràn/cắt trên màn hình 1280x720 hoặc DPI cao
+        b_grid = ctk.CTkFrame(badge_sec, fg_color="transparent")
+        b_grid.pack(fill="x", padx=PADDING_CONTENT, pady=(0, PADDING_CONTENT))
 
         badges_to_show = [
             ("Máy trống", MachineStatus.AVAILABLE),
@@ -628,14 +735,16 @@ class ComponentGalleryApp(ctk.CTk):
         ]
 
         for idx, (lbl_txt, status_val) in enumerate(badges_to_show):
-            box = ctk.CTkFrame(b_row, fg_color="transparent")
-            box.pack(side="left", padx=SPACING_SM, pady=SPACING_SM)
+            row = idx // 5
+            col = idx % 5
+            box = ctk.CTkFrame(b_grid, fg_color="transparent")
+            box.grid(row=row, column=col, padx=SPACING_SM, pady=SPACING_SM, sticky="w")
 
             t_lbl = ctk.CTkLabel(box, text=lbl_txt, font=FONT_CAPTION, text_color=TEXT_MUTED)
-            t_lbl.pack()
+            t_lbl.pack(anchor="w")
 
             bdg = StatusBadge(box, status=status_val)
-            bdg.pack(pady=(4, 0))
+            bdg.pack(pady=(4, 0), anchor="w")
 
         # Feedback & Dialogs section
         dlg_sec = ctk.CTkFrame(frame, fg_color=BG_SURFACE, corner_radius=8, border_width=1, border_color=BORDER)
@@ -647,23 +756,23 @@ class ComponentGalleryApp(ctk.CTk):
         dlg_row = ctk.CTkFrame(dlg_sec, fg_color="transparent")
         dlg_row.pack(fill="x", padx=PADDING_CONTENT, pady=(0, PADDING_CONTENT))
 
-        t_info = ActionButton(dlg_row, text="Toast Info", kind="secondary", width=110, command=lambda: ToastManager.show(self, "Thông tin cập nhật hệ thống", kind="info"))
+        t_info = ActionButton(dlg_row, text="Toast Info", kind="secondary", width=110, command=lambda: ToastManager.show(self, "System update notification", kind="info"))
         t_info.pack(side="left", padx=(0, SPACING_SM))
 
-        t_succ = ActionButton(dlg_row, text="Toast Success", kind="success", width=120, command=lambda: ToastManager.show(self, "Nạp tiền 50.000 VND thành công!", kind="success"))
+        t_succ = ActionButton(dlg_row, text="Toast Success", kind="success", width=120, command=lambda: ToastManager.show(self, "Top-up 50,000 VND successfully!", kind="success"))
         t_succ.pack(side="left", padx=SPACING_SM)
 
-        t_warn = ActionButton(dlg_row, text="Toast Warning", kind="secondary", width=120, command=lambda: ToastManager.show(self, "Máy PC02 sắp hết số dư tài khoản!", kind="warning"))
+        t_warn = ActionButton(dlg_row, text="Toast Warning", kind="secondary", width=120, command=lambda: ToastManager.show(self, "Machine PC02 low balance warning!", kind="warning"))
         t_warn.pack(side="left", padx=SPACING_SM)
 
-        t_err = ActionButton(dlg_row, text="Toast Error", kind="danger", width=110, command=lambda: ToastManager.show(self, "Lỗi kết nối máy chủ dữ liệu!", kind="error"))
+        t_err = ActionButton(dlg_row, text="Toast Error", kind="danger", width=110, command=lambda: ToastManager.show(self, "Server connection failed!", kind="error"))
         t_err.pack(side="left", padx=SPACING_SM)
 
         dlg_btn = ActionButton(
             dlg_row,
-            text="Mở Confirm Dialog",
+            text="Open Confirm Dialog",
             kind="primary",
-            width=150,
+            width=160,
             command=self._test_confirm_dialog,
         )
         dlg_btn.pack(side="left", padx=(SPACING_XL, 0))
@@ -673,16 +782,16 @@ class ComponentGalleryApp(ctk.CTk):
     def _test_confirm_dialog(self) -> None:
         confirmed = ConfirmDialog.ask(
             self,
-            title="Xác nhận thao tác",
-            message="Bạn có chắc chắn muốn thực hiện thao tác quan trọng này không? Hành động này sẽ được ghi vào nhật ký.",
-            confirm_label="Đồng ý thực hiện",
-            cancel_label="Hủy bỏ",
+            title="Confirm Action",
+            message="Are you sure you want to perform this action? This operation will be logged.",
+            confirm_label="Confirm",
+            cancel_label="Cancel",
             is_danger=True,
         )
         if confirmed:
-            ToastManager.show(self, "Người dùng đã chọn: ĐỒNG Ý", kind="success")
+            ToastManager.show(self, "Action confirmed", kind="success")
         else:
-            ToastManager.show(self, "Người dùng đã chọn: HỦY BỎ", kind="info")
+            ToastManager.show(self, "Action cancelled", kind="info")
 
 
 def main() -> None:
