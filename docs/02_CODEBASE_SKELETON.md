@@ -58,6 +58,7 @@ cyberhub-manager/                   # repository/thư mục project
 │       │   ├── auth_service.py
 │       │   ├── customer_service.py
 │       │   ├── contracts.py       # Protocol và ServiceBundle
+│       │   ├── mocks/             # mock services + dữ liệu demo cho UI (LI-02)
 │       │   ├── wallet_service.py
 │       │   ├── machine_service.py
 │       │   ├── session_service.py
@@ -85,6 +86,7 @@ cyberhub-manager/                   # repository/thư mục project
 └── tests/
     ├── conftest.py               # DB tạm và fixtures
     ├── unit/
+    │   ├── test_mock_factory.py  # contract, scenario, bundle độc lập
     │   ├── test_wallet_service.py
     │   └── test_session_service.py
     ├── integration/

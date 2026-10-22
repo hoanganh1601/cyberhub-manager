@@ -209,9 +209,10 @@ classDiagram
 invariant.
 
 ## 2. Service interface và abstraction
-Các `ServiceProtocol` và `ServiceBundle` dưới đây là contract đã được chốt cho
-LI02, chưa phải implementation có sẵn trong code LI01. Concrete service sẽ
-implements các interface này ở những task tiếp theo.
+Các `ServiceProtocol` và `ServiceBundle` được khai báo tại
+`services/contracts.py` (LI-02). Mock services trong `services/mocks/` đã
+implements đủ sáu Protocol; service thật sẽ implements cùng contract ở các task
+LI-03 đến LI-08.
 
 ```mermaid
 classDiagram
@@ -257,7 +258,6 @@ classDiagram
     }
 
     class ServiceBundle {
-    <<planned>>
     +auth: AuthServiceProtocol
     +customers: CustomerServiceProtocol
     +wallet: WalletServiceProtocol
@@ -273,6 +273,73 @@ classDiagram
     ServiceBundle o-- ReportServiceProtocol
 
 ```
+### 2.1. Mock implementation (LI-02)
+
+```mermaid
+classDiagram
+    direction TB
+
+    class AuthServiceProtocol { <<interface>> }
+    class CustomerServiceProtocol { <<interface>> }
+    class WalletServiceProtocol { <<interface>> }
+    class MachineServiceProtocol { <<interface>> }
+    class SessionServiceProtocol { <<interface>> }
+    class ReportServiceProtocol { <<interface>> }
+
+    class MockServiceBase {
+        #_data: MockDataStore
+        #_clock: MockClock
+        #_scenario: MockScenario
+        #_check_scenario(operation: str)
+        #_require_actor(actor: EmployeeSession): Employee
+        #_require_manager(actor: EmployeeSession): Employee
+        #_require_store(actor: EmployeeSession, store_id: int)
+    }
+    class MockDataStore {
+        +customers: dict~int, Customer~
+        +machines: dict~int, Machine~
+        +sessions: dict~int, UsageSession~
+        +transactions: dict~int, AccountTransaction~
+        +invoices: dict~int, Invoice~
+        +next_id(kind: str): int
+        +to_machine_summary(machine: Machine, at: datetime): MachineSummary
+    }
+    class MockClock {
+        +now(): datetime
+        +advance(hours, minutes, seconds): datetime
+        +set(value: datetime)
+        +reset()
+    }
+    class MockScenario {
+        <<enumeration>>
+        SUCCESS
+        EMPTY
+        VALIDATION_ERROR
+        CONFLICT
+        UNAVAILABLE
+    }
+
+    MockServiceBase <|-- MockAuthService
+    MockServiceBase <|-- MockCustomerService
+    MockServiceBase <|-- MockWalletService
+    MockServiceBase <|-- MockMachineService
+    MockServiceBase <|-- MockSessionService
+    MockServiceBase <|-- MockReportService
+
+    AuthServiceProtocol <|.. MockAuthService
+    CustomerServiceProtocol <|.. MockCustomerService
+    WalletServiceProtocol <|.. MockWalletService
+    MachineServiceProtocol <|.. MockMachineService
+    SessionServiceProtocol <|.. MockSessionService
+    ReportServiceProtocol <|.. MockReportService
+
+    MockServiceBase --> MockDataStore : dùng chung trong bundle
+    MockServiceBase --> MockClock : dùng chung trong bundle
+    MockServiceBase --> MockScenario
+```
+
+`build_mock_services(scenario, clock)` tạo một `MockDataStore` mới, nạp dữ liệu
+demo, rồi trả `ServiceBundle` chứa sáu mock service dùng chung store và clock đó.
 
 ## 3. DTO (các object trao đổi giữa service và UI)
 
