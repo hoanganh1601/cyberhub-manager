@@ -290,6 +290,26 @@ def test_status_badge_role(tk_root) -> None:
     assert "Nhân viên" in bs2._label.cget("text")
 
 
+def test_status_badge_raw_string_fallback(tk_root) -> None:
+    """Nếu truyền raw str 'INACTIVE', không được đoán nhầm thành CustomerStatus."""
+    raw_badge = StatusBadge(tk_root, status="INACTIVE")
+    text = raw_badge._label.cget("text")
+    # Phải hiển thị fallback chuỗi gốc + bullet, không lấy nhãn "Ngừng hoạt động"
+    assert "INACTIVE" in text
+    assert "Ngừng hoạt động" not in text
+    assert "Nghỉ việc" not in text
+
+
+def test_status_badge_set_status(tk_root) -> None:
+    """set_status() thay đổi nhãn và màu sắc tương ứng."""
+    badge = StatusBadge(tk_root, status=MachineStatus.AVAILABLE)
+    assert "Trống" in badge._label.cget("text")
+
+    badge.set_status(MachineStatus.MAINTENANCE)
+    assert "Bảo trì" in badge._label.cget("text")
+    assert "▲" in badge._label.cget("text")
+
+
 # ==============================================================================
 # 6. TEST FORM FIELD
 # ==============================================================================
@@ -480,3 +500,4 @@ def test_get_field_errors_safe_no_fields() -> None:
     assert get_field_errors_safe(err) == {}
 
     assert get_field_errors_safe(None) == {}
+
