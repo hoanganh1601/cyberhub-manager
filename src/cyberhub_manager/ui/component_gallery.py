@@ -25,6 +25,7 @@ from ..domain.enums import (
     CustomerStatus,
     InvoiceStatus,
     MachineStatus,
+    PaymentMethod,
     Role,
     SessionStatus,
 )
@@ -465,29 +466,42 @@ class ComponentGalleryApp(ctk.CTk):
                 machine_id=machine_id,
                 actor=self._current_actor,
             )
-            ToastManager.show(self, f"Session opened: {session.code} on Machine ID={machine_id}", kind="success")
+            ToastManager.show(self, f"Session opened: {session.session_code} on Machine ID={machine_id}", kind="success")
             self._render_machine_cards()
         except ApplicationError as err:
             ToastManager.show(self, f"Open session failed: {err.message}", kind="error")
 
     def _handle_card_checkout(self, machine_id: int) -> None:
         try:
+            # Lấy mốc thời gian hiện tại từ mock clock nếu có, fallback về now UTC
+            clock = getattr(getattr(self._services, "sessions", None), "_clock", None)
+            now = clock.now() if clock else datetime.now(timezone.utc)
             preview = self._services.sessions.preview_checkout(
                 machine_id=machine_id,
-                current_time=REF_TIME,
+                current_time=now,
             )
+            msg = (
+                f"End session for Machine ID={machine_id}?\n"
+                f"Usage cost: {format_money(preview.usage_cost)}"
+            )
+            if preview.settlement_required > 0:
+                msg += f"\nSettlement required: {format_money(preview.settlement_required)}"
+
             confirmed = ConfirmDialog.ask(
                 self,
                 title="Confirm Checkout",
-                message=f"End session for Machine ID={machine_id}?\nTotal cost: {format_money(preview.total_amount)}",
+                message=msg,
                 confirm_label="Checkout",
                 is_danger=True,
             )
             if confirmed:
+                settlement = preview.settlement_required
+                method = PaymentMethod.CASH if settlement > 0 else None
                 self._services.sessions.complete_checkout(
                     machine_id=machine_id,
                     actor=self._current_actor,
-                    settlement_amount=0,
+                    settlement_amount=settlement,
+                    method=method,
                 )
                 ToastManager.show(self, f"Checkout completed for Machine ID={machine_id}", kind="success")
                 self._render_machine_cards()
