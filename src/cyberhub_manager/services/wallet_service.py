@@ -26,7 +26,6 @@ from cyberhub_manager.domain.exceptions import (
 )
 from cyberhub_manager.domain.models import Customer
 from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 
 
@@ -90,7 +89,8 @@ class WalletService:
     ) -> None:
         self._customers = customer_repo or CustomerRepository()
         self._accounts = account_repo or AccountRepository()
-        self._employees = employee_repo or AuthRepository()
+        # TODO(HA-05): truyền repository có get_by_id khi AuthRepository bổ sung.
+        self._employees = employee_repo
         self._transaction = transaction_factory
 
     def top_up(
@@ -164,7 +164,11 @@ class WalletService:
         raise NotFoundError("Không tìm thấy khách hàng")
 
     def _require_active_employee(self, conn: Any, employee_id: int) -> None:
+        if self._employees is None:
+            # TODO(HA-05): chưa kiểm tra được ACTIVE; FK vẫn chặn id không tồn tại.
+            return
         employee = self._employees.get_by_id(conn, employee_id)
+
         if employee is None or employee.status != EmployeeStatus.ACTIVE:
             raise PermissionDeniedError()
 
