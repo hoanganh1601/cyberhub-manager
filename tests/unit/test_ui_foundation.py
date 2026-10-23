@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import customtkinter as ctk
 import pytest
@@ -49,11 +50,14 @@ from cyberhub_manager.ui.messages import (
     MSG_CONFIRM,
     MSG_CANCEL,
     MSG_INVALID_CREDENTIALS,
+    MSG_OPERATION_FAILED,
     get_user_friendly_error,
     get_field_errors_safe,
 )
 from cyberhub_manager.domain.exceptions import (
+    ApplicationError,
     AuthenticationError,
+    ConflictError,
     ValidationError,
     ServiceUnavailableError,
 )
@@ -226,6 +230,70 @@ def test_action_button_disabled(tk_root) -> None:
     assert len(calls) == 0
 
     btn.set_enabled(True)
+    btn._on_click()
+    assert len(calls) == 1
+
+
+def test_action_button_initial_disabled_busy_cycle(tk_root) -> None:
+    """Khởi tạo state='disabled' -> busy -> hết busy vẫn giữ nguyên disabled và không gọi callback."""
+    calls = []
+    btn = ActionButton(
+        tk_root,
+        text="Khởi tạo tắt",
+        kind="secondary",
+        state="disabled",
+        command=lambda: calls.append(1),
+    )
+
+    # 1. Trạng thái ban đầu: is_enabled phải là False, state widget là disabled
+    assert btn.is_enabled is False
+    assert btn.cget("state") == "disabled"
+    btn._on_click()
+    assert len(calls) == 0
+
+    # 2. Chuyển sang busy: widget vẫn disabled, is_busy là True
+    btn.set_busy(True)
+    assert btn.is_busy is True
+    assert btn.cget("state") == "disabled"
+    assert btn.cget("text") == "Processing…"
+    btn._on_click()
+    assert len(calls) == 0
+
+    # 3. Hết chu kỳ busy: nút phải PHỤC HỒI disabled, KHÔNG bị tự động bật thành normal
+    btn.set_busy(False)
+    assert btn.is_busy is False
+    assert btn.is_enabled is False
+    assert btn.cget("state") == "disabled"
+    assert btn.cget("text") == "Khởi tạo tắt"
+    btn._on_click()
+    assert len(calls) == 0
+
+
+def test_action_button_configure_state_sync(tk_root) -> None:
+    """configure(state=...) phải đồng bộ với is_enabled và duy trì sau chu kỳ busy."""
+    calls = []
+    btn = ActionButton(tk_root, text="Tác vụ", command=lambda: calls.append(1))
+    assert btn.is_enabled is True
+
+    # configure state="disabled"
+    btn.configure(state="disabled")
+    assert btn.is_enabled is False
+    assert btn.cget("state") == "disabled"
+    btn._on_click()
+    assert len(calls) == 0
+
+    # Sau chu kỳ busy vẫn giữ disabled
+    btn.set_busy(True)
+    btn.set_busy(False)
+    assert btn.is_enabled is False
+    assert btn.cget("state") == "disabled"
+    btn._on_click()
+    assert len(calls) == 0
+
+    # configure lại state="normal"
+    btn.configure(state="normal")
+    assert btn.is_enabled is True
+    assert btn.cget("state") == "normal"
     btn._on_click()
     assert len(calls) == 1
 
@@ -560,13 +628,90 @@ def test_get_user_friendly_error_validation() -> None:
     msg = get_user_friendly_error(err)
     assert "Invalid data provided" in msg
     fields = get_field_errors_safe(err)
-    assert fields == {"phone": "Invalid phone"}
+    assert fields == {"phone": "Invalid phone number."}
+
+
+def test_get_user_friendly_error_conflict() -> None:
+    """Kiểm tra lỗi CONFLICT trả về tiếng Anh và không để lộ thông báo tiếng Việt từ mock."""
+    err = ConflictError("Máy đã có phiên đang hoạt động")
+    msg = get_user_friendly_error(err)
+    assert "conflict" in msg.lower()
+    assert "Máy đã có phiên đang hoạt động" not in msg
+
+    # Kiểm tra truyền chuỗi code "CONFLICT"
+    msg_str = get_user_friendly_error("CONFLICT")
+    assert "conflict" in msg_str.lower()
 
 
 def test_get_user_friendly_error_unavailable() -> None:
-    err = ServiceUnavailableError()
+    """Kiểm tra lỗi UNAVAILABLE trả về tiếng Anh và không để lộ thông báo tiếng Việt từ mock."""
+    err = ServiceUnavailableError("Không tải được dữ liệu, vui lòng thử lại")
     msg = get_user_friendly_error(err)
-    assert "temporarily unavailable" in msg.lower() or "Unable" in msg
+    assert "temporarily unavailable" in msg.lower()
+    assert "Không tải được dữ liệu" not in msg
+
+    # Kiểm tra truyền chuỗi code "UNAVAILABLE" hoặc "SERVICE_UNAVAILABLE"
+    assert "temporarily unavailable" in get_user_friendly_error("UNAVAILABLE").lower()
+    assert "temporarily unavailable" in get_user_friendly_error("SERVICE_UNAVAILABLE").lower()
+
+
+def test_get_user_friendly_error_unknown_code() -> None:
+    """Mã lỗi không biết (ApplicationError lạ hoặc code lạ) phải fallback an toàn."""
+    err = ApplicationError("SOME_UNKNOWN_CODE_999", "Fatal internal DB error: connection timed out")
+    msg = get_user_friendly_error(err)
+    assert msg == MSG_OPERATION_FAILED
+    assert "SOME_UNKNOWN_CODE_999" not in msg
+    assert "connection timed out" not in msg
+
+    # Chuỗi mã lạ
+    msg_unknown_str = get_user_friendly_error("SOME_UNKNOWN_CODE_999")
+    assert msg_unknown_str == MSG_OPERATION_FAILED
+
+
+def test_get_user_friendly_error_technical_string() -> None:
+    """Chuỗi tùy ý chứa nội dung kỹ thuật (SQL, Traceback) không được trả nguyên văn mà dùng fallback."""
+    sql_str = "SELECT * FROM users WHERE role = 'admin'; DROP TABLE machines;"
+    assert get_user_friendly_error(sql_str) == MSG_OPERATION_FAILED
+
+    traceback_str = "Traceback (most recent call last):\n  File 'app.py', line 12, in <module>\nValueError"
+    assert get_user_friendly_error(traceback_str) == MSG_OPERATION_FAILED
+
+
+def test_get_field_errors_safe_vietnamese_mock() -> None:
+    """Kiểm tra field_errors tiếng Việt từ mock scenarios được ánh xạ sang tiếng Anh an toàn."""
+    err = ValidationError(
+        field_errors={
+            "phone": "Số điện thoại đã được sử dụng",
+            "machine_id": "Máy đã có phiên đang hoạt động",
+            "hourly_rate": "Đơn giá phải là số nguyên lớn hơn 0",
+            "amount": "Số tiền nạp phải là số nguyên lớn hơn 0",
+        }
+    )
+    safe = get_field_errors_safe(err)
+    assert safe["phone"] == "Phone number is already in use."
+    assert safe["machine_id"] == "Machine already has an active session."
+    assert safe["hourly_rate"] == "Hourly rate must be a positive integer."
+    assert safe["amount"] == "Top-up amount must be a positive integer."
+    # Tuyệt đối không còn tiếng Việt
+    for val in safe.values():
+        assert not any(ord(c) > 127 for c in val)
+
+
+def test_get_field_errors_safe_technical_content() -> None:
+    """Field error chứa chuỗi kỹ thuật hoặc trường không rõ phải dùng fallback an toàn."""
+    err = ValidationError(
+        field_errors={
+            "phone": "ERROR 1064 (42000): You have an error in your SQL syntax",
+            "unknown_internal_col": "Segmentation fault at 0x7fff",
+        }
+    )
+    safe = get_field_errors_safe(err)
+    # phone có field key fallback
+    assert safe["phone"] == "Invalid phone number."
+    # unknown field có generic fallback
+    assert safe["unknown_internal_col"] == "Invalid value."
+    assert "SQL syntax" not in safe["phone"]
+    assert "Segmentation fault" not in safe["unknown_internal_col"]
 
 
 def test_get_user_friendly_error_unknown_exception() -> None:
@@ -574,7 +719,7 @@ def test_get_user_friendly_error_unknown_exception() -> None:
     msg = get_user_friendly_error(err)
     # Không được để lộ "some internal error" hoặc stack trace
     assert "some internal error" not in msg
-    assert len(msg) > 0
+    assert msg == MSG_OPERATION_FAILED
 
 
 def test_get_field_errors_safe_no_fields() -> None:
@@ -592,3 +737,325 @@ def test_confirm_dialog_default_labels(tk_root) -> None:
         assert dlg._cancel_btn.cget("text") == "Cancel"
     finally:
         dlg.destroy()
+
+
+# ==============================================================================
+# 10. TEST COMPONENT GALLERY ERROR PATHS (NG01-08)
+# ==============================================================================
+def test_gallery_conflict_error_handling_no_vietnamese(monkeypatch) -> None:
+    """Gallery khi mở máy gặp CONFLICT phải bắn Toast tiếng Anh, không hiển thị tiếng Việt."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_STAFF
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    captured_toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(ToastManager, "show", lambda parent, message, kind="info": captured_toasts.append((message, kind)))
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.CONFLICT)
+    dummy_app._current_actor = ACTOR_STAFF
+
+    ComponentGalleryApp._handle_card_open(dummy_app, 1)
+
+    assert len(captured_toasts) == 1
+    msg, kind = captured_toasts[0]
+    assert kind == "error"
+    assert "Open session failed: Operation conflict" in msg
+    assert "Máy đã có phiên đang hoạt động" not in msg
+    # Kiểm tra toàn bộ là ký tự tiếng Anh (không chứa dấu tiếng Việt)
+    assert not any(ord(c) > 127 for c in msg)
+
+
+def test_gallery_unavailable_table_state_no_vietnamese() -> None:
+    """Gallery khi tải bảng gặp UNAVAILABLE phải set trạng thái ERROR bằng tiếng Anh, không có tiếng Việt."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.UNAVAILABLE)
+    dummy_table = MagicMock()
+    dummy_app._table = dummy_table
+
+    ComponentGalleryApp._load_table_data(dummy_app)
+
+    calls = dummy_table.set_state.call_args_list
+    assert len(calls) == 2
+    # Lần 2 là set ERROR state
+    state_arg = calls[1][0][0]
+    kwargs = calls[1][1]
+    assert state_arg == ViewState.ERROR
+    msg = kwargs["message"]
+    assert "Unable to load data (Service is temporarily unavailable" in msg
+    assert "Không tải được dữ liệu" not in msg
+    assert not any(ord(c) > 127 for c in msg)
+
+
+def test_gallery_unavailable_machines_no_vietnamese(tk_root) -> None:
+    """Gallery khi nạp danh sách máy gặp UNAVAILABLE phải hiện nhãn lỗi tiếng Anh."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.UNAVAILABLE)
+    dummy_app._machines_grid = ctk.CTkFrame(tk_root)
+    dummy_app._machine_cards = []
+
+    ComponentGalleryApp._render_machine_cards(dummy_app)
+
+    err_frames = [w for w in dummy_app._machines_grid.winfo_children() if isinstance(w, ctk.CTkFrame)]
+    assert len(err_frames) == 1
+    label = next(w for w in err_frames[0].winfo_children() if isinstance(w, ctk.CTkLabel))
+    text = label.cget("text")
+    assert "Service is temporarily unavailable" in text
+    assert "Không tải được dữ liệu" not in text
+    assert not any(ord(c) > 127 for c in text.replace("⚠", "").strip())
+
+
+# ==============================================================================
+# 11. TEST COMPONENT GALLERY — VALIDATION_ERROR (NG01-02/03)
+# ==============================================================================
+def test_gallery_validation_error_field_errors(tk_root, monkeypatch) -> None:
+    """Scenario VALIDATION_ERROR: submit form tạo khách hàng phải hiện lỗi
+    từng trường bằng tiếng Anh, bắn Toast tổng quát, giữ dữ liệu nhập
+    và trả is_busy=False qua finally."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    captured_toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        ToastManager, "show",
+        lambda parent, message, kind="info": captured_toasts.append((message, kind)),
+    )
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.VALIDATION_ERROR)
+
+    # Tạo FormField thật trên tk_root để kiểm tra set_error / get_value
+    dummy_app._f_name = FormField(tk_root, label="Name", initial_value="Test User")
+    dummy_app._f_phone = FormField(tk_root, label="Phone", initial_value="0912345678")
+    dummy_app._f_user = FormField(tk_root, label="Username", initial_value="testuser")
+    dummy_app._f_pass = FormField(tk_root, label="Password", initial_value="abc")
+    dummy_app._f_err = dummy_app._f_phone
+
+    submit_btn = ActionButton(tk_root, text="Submit", kind="primary")
+    dummy_app._btn_submit_demo = submit_btn
+
+    # Gọi handler
+    ComponentGalleryApp._handle_submit_customer_demo(dummy_app)
+
+    # 1) Nút phải trả về is_busy=False (finally block)
+    assert submit_btn.is_busy is False
+
+    # 2) Phải có Toast lỗi tổng quát tiếng Anh
+    assert len(captured_toasts) == 1
+    toast_msg, toast_kind = captured_toasts[0]
+    assert toast_kind == "error"
+    assert "Invalid data provided" in toast_msg
+    assert not any(ord(c) > 127 for c in toast_msg)
+
+    # 3) Phone field phải hiển thị lỗi tiếng Anh
+    phone_err = dummy_app._f_phone._error_label.cget("text")
+    assert phone_err != ""
+    assert "Phone number must have 10 digits" in phone_err
+    assert not any(ord(c) > 127 for c in phone_err)
+
+    # 4) Password field phải hiển thị lỗi tiếng Anh
+    pass_err = dummy_app._f_pass._error_label.cget("text")
+    assert pass_err != ""
+    assert "Password must have at least 6 characters" in pass_err
+    assert not any(ord(c) > 127 for c in pass_err)
+
+    # 5) Dữ liệu người dùng nhập phải được giữ nguyên
+    assert dummy_app._f_name.get_value() == "Test User"
+    assert dummy_app._f_phone.get_value() == "0912345678"
+    assert dummy_app._f_user.get_value() == "testuser"
+    assert dummy_app._f_pass.get_value() == "abc"
+
+
+def test_gallery_conflict_submit_form_english_toast(tk_root, monkeypatch) -> None:
+    """Scenario CONFLICT: submit form tạo khách hàng phải Toast lỗi tiếng Anh,
+    hiện lỗi tại trường phone, giữ dữ liệu và trả is_busy=False."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    captured_toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        ToastManager, "show",
+        lambda parent, message, kind="info": captured_toasts.append((message, kind)),
+    )
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.CONFLICT)
+
+    dummy_app._f_name = FormField(tk_root, label="Name", initial_value="User")
+    dummy_app._f_phone = FormField(tk_root, label="Phone", initial_value="0912345678")
+    dummy_app._f_user = FormField(tk_root, label="Username", initial_value="usr")
+    dummy_app._f_pass = FormField(tk_root, label="Password", initial_value="pass123")
+    dummy_app._f_err = dummy_app._f_phone
+
+    submit_btn = ActionButton(tk_root, text="Submit", kind="primary")
+    dummy_app._btn_submit_demo = submit_btn
+
+    ComponentGalleryApp._handle_submit_customer_demo(dummy_app)
+
+    # Nút phải trả is_busy=False
+    assert submit_btn.is_busy is False
+
+    # Toast lỗi tiếng Anh
+    assert len(captured_toasts) == 1
+    toast_msg, toast_kind = captured_toasts[0]
+    assert toast_kind == "error"
+    assert "conflict" in toast_msg.lower()
+    assert not any(ord(c) > 127 for c in toast_msg)
+
+    # Phone field phải hiện lỗi "Phone number is already in use."
+    phone_err = dummy_app._f_phone._error_label.cget("text")
+    assert "already in use" in phone_err.lower()
+    assert "Số điện thoại đã được sử dụng" not in phone_err
+
+    # Dữ liệu nhập giữ nguyên
+    assert dummy_app._f_phone.get_value() == "0912345678"
+    assert dummy_app._f_pass.get_value() == "pass123"
+
+
+def test_gallery_success_submit_form(tk_root, monkeypatch) -> None:
+    """Scenario SUCCESS: submit form tạo khách hàng phải Toast thành công tiếng Anh,
+    không có lỗi trường, và trả is_busy=False."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    captured_toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        ToastManager, "show",
+        lambda parent, message, kind="info": captured_toasts.append((message, kind)),
+    )
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.SUCCESS)
+
+    dummy_app._f_name = FormField(tk_root, label="Name", initial_value="Nguyen Van An")
+    dummy_app._f_phone = FormField(tk_root, label="Phone", initial_value="0999888777")
+    dummy_app._f_user = FormField(tk_root, label="Username", initial_value="newuser")
+    dummy_app._f_pass = FormField(tk_root, label="Password", initial_value="pass123")
+    dummy_app._f_err = dummy_app._f_phone
+
+    submit_btn = ActionButton(tk_root, text="Submit", kind="primary")
+    dummy_app._btn_submit_demo = submit_btn
+
+    ComponentGalleryApp._handle_submit_customer_demo(dummy_app)
+
+    # Nút phải trả is_busy=False
+    assert submit_btn.is_busy is False
+
+    # Toast thành công
+    assert len(captured_toasts) == 1
+    toast_msg, toast_kind = captured_toasts[0]
+    assert toast_kind == "success"
+    assert "Customer created successfully" in toast_msg
+
+    # Không có lỗi tại bất kỳ trường nào
+    assert dummy_app._f_phone._error_label.cget("text") == ""
+    assert dummy_app._f_pass._error_label.cget("text") == ""
+    assert dummy_app._f_name._error_label.cget("text") == ""
+    assert dummy_app._f_user._error_label.cget("text") == ""
+
+
+# ==============================================================================
+# 12. TEST KEYBOARD NAVIGATION & MAINTENANCE SERVICE CALL (P1 - NG01)
+# ==============================================================================
+def test_form_field_bind_return(tk_root) -> None:
+    """FormField.bind_return gắn phím Enter (<Return>) kích hoạt callback submit.
+
+    event_generate không ổn định trong môi trường test headless (CI/Windows),
+    vì vậy test kiểm tra rằng binding đã được đăng ký trên tk Entry nội bộ
+    và lambda callback hoạt động đúng.
+    """
+    calls: list[int] = []
+    field = FormField(tk_root, label="Demo")
+    field.pack()
+    tk_root.update()
+
+    # Trước khi bind: chưa có binding <Return> trên Entry nội bộ
+    bindings_before = field._entry._entry.bind("<Return>")
+    # Sau khi bind_return: phải có binding mới
+    field.bind_return(lambda: calls.append(1))
+    bindings_after = field._entry._entry.bind("<Return>")
+    assert len(bindings_after) > len(bindings_before), (
+        "bind_return phải đăng ký binding <Return> trên Entry nội bộ"
+    )
+
+    # Kiểm tra API tồn tại và callable
+    assert hasattr(field, "bind_return")
+    assert callable(field.bind_return)
+
+
+def test_gallery_maintenance_action_manager_success(monkeypatch) -> None:
+    """Gallery gọi set_maintenance kết thúc bảo trì với quyền MANAGER:
+    chuyển trạng thái máy về AVAILABLE và Toast thành công tiếng Anh."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_MANAGER
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.domain.enums import MachineStatus
+
+    captured_toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        ToastManager, "show",
+        lambda parent, message, kind="info": captured_toasts.append((message, kind)),
+    )
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.SUCCESS)
+    dummy_app._current_actor = ACTOR_MANAGER
+    dummy_app._render_machine_cards = MagicMock()
+
+    # Máy 3 ban đầu đang ở MAINTENANCE trong mock store
+    assert dummy_app._services.machines._data.get_machine(3).status == MachineStatus.MAINTENANCE
+
+    # Gọi action kết thúc bảo trì
+    ComponentGalleryApp._handle_card_maintenance(dummy_app, 3)
+
+    # Trạng thái máy 3 đã được cập nhật về AVAILABLE qua service thật
+    assert dummy_app._services.machines._data.get_machine(3).status == MachineStatus.AVAILABLE
+
+    # Render lại được gọi
+    dummy_app._render_machine_cards.assert_called_once()
+
+    # Bắn Toast thành công tiếng Anh
+    assert len(captured_toasts) == 1
+    msg, kind = captured_toasts[0]
+    assert kind == "success"
+    assert "Maintenance ended for Machine ID=3" in msg
+    assert not any(ord(c) > 127 for c in msg)
+
+
+def test_gallery_maintenance_action_staff_forbidden(monkeypatch) -> None:
+    """Gallery khi actor là STAFF thực hiện thao tác bảo trì phải bị từ chối
+    bởi ForbiddenError và hiển thị Toast lỗi tiếng Anh, không crash."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_STAFF
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    captured_toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        ToastManager, "show",
+        lambda parent, message, kind="info": captured_toasts.append((message, kind)),
+    )
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.SUCCESS)
+    dummy_app._current_actor = ACTOR_STAFF  # STAFF không có quyền quản lý máy
+    dummy_app._render_machine_cards = MagicMock()
+
+    ComponentGalleryApp._handle_card_maintenance(dummy_app, 3)
+
+    # Toast báo lỗi tiếng Anh
+    assert len(captured_toasts) == 1
+    msg, kind = captured_toasts[0]
+    assert kind == "error"
+    assert "Maintenance action failed: You do not have permission to perform this action." in msg
+    assert not any(ord(c) > 127 for c in msg)

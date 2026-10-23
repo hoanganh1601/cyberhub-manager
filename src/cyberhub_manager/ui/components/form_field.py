@@ -9,7 +9,7 @@ Quy định: docs/07_DTO_UI_HANDOFF.md mục 7 và docs/03_UI_THEME.md mục 3.4
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import customtkinter as ctk
 
@@ -169,3 +169,7 @@ class FormField(ctk.CTkFrame):
     def focus(self) -> None:
         """Đặt focus vào ô nhập liệu."""
         self._entry.focus_set()
+
+    def bind_return(self, callback: Callable[[], None]) -> None:
+        """Gắn callback kích hoạt khi nhấn phím Enter (<Return>) trên ô nhập liệu."""
+        self._entry.bind("<Return>", lambda _event: callback())

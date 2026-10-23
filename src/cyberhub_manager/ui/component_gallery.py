@@ -7,6 +7,7 @@ Khởi chạy độc lập (không cần Docker, MySQL hay file .env):
 
 from __future__ import annotations
 
+import logging
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -45,6 +46,7 @@ from .components import (
     ToastManager,
 )
 from .formatters import format_datetime, format_money
+from .messages import get_field_errors_safe, get_user_friendly_error
 from .state import ViewState
 from .theme import (
     ACCENT_HOVER,
@@ -72,6 +74,8 @@ from .theme import (
     WIDTH_SIDEBAR,
     setup_theme,
 )
+
+logger = logging.getLogger(__name__)
 
 # Mốc tham chiếu chuẩn theo mục 9: 2026-10-18T09:00:00+00:00 UTC (16:00 giờ VN)
 REF_TIME = datetime(2026, 10, 18, 9, 0, 0, tzinfo=timezone.utc)
@@ -424,11 +428,13 @@ class ComponentGalleryApp(ctk.CTk):
         try:
             machines = self._services.machines.list_machines(store_id=1)
         except ApplicationError as err:
+            logger.warning("Failed to load machines: %s (code=%s)", err, getattr(err, "code", None))
+            error_msg = get_user_friendly_error(err)
             err_box = ctk.CTkFrame(self._machines_grid, fg_color="transparent")
             err_box.pack(pady=SPACING_XL)
             ctk.CTkLabel(
                 err_box,
-                text=f"⚠ Error loading machines: {err.message}",
+                text=f"⚠ Error loading machines: {error_msg}",
                 font=FONT_BODY_STRONG,
                 text_color=DANGER,
             ).pack(pady=(0, SPACING_SM))
@@ -471,7 +477,8 @@ class ComponentGalleryApp(ctk.CTk):
             ToastManager.show(self, f"Session opened: {session.session_code} on Machine ID={machine_id}", kind="success")
             self._render_machine_cards()
         except ApplicationError as err:
-            ToastManager.show(self, f"Open session failed: {err.message}", kind="error")
+            logger.warning("Failed to open session for machine %s: %s (code=%s)", machine_id, err, getattr(err, "code", None))
+            ToastManager.show(self, f"Open session failed: {get_user_friendly_error(err)}", kind="error")
 
     def _handle_card_checkout(self, machine_id: int) -> None:
         try:
@@ -510,14 +517,26 @@ class ComponentGalleryApp(ctk.CTk):
             else:
                 ToastManager.show(self, "Checkout cancelled", kind="info")
         except ApplicationError as err:
-            ToastManager.show(self, f"Checkout failed: {err.message}", kind="error")
+            logger.warning("Failed to checkout machine %s: %s (code=%s)", machine_id, err, getattr(err, "code", None))
+            ToastManager.show(self, f"Checkout failed: {get_user_friendly_error(err)}", kind="error")
 
     def _handle_card_maintenance(self, machine_id: int) -> None:
+        """Thực hiện thao tác kết thúc bảo trì (Bật lại máy) qua ServiceBundle theo quyền P0."""
         try:
-            ToastManager.show(self, f"Manager action triggered for Machine ID={machine_id}", kind="warning")
+            self._services.machines.set_maintenance(
+                machine_id=machine_id,
+                enabled=False,
+                actor=self._current_actor,
+            )
+            ToastManager.show(
+                self,
+                f"Maintenance ended for Machine ID={machine_id}. Machine is now available.",
+                kind="success",
+            )
             self._render_machine_cards()
         except ApplicationError as err:
-            ToastManager.show(self, f"Action failed: {err.message}", kind="error")
+            logger.warning("Failed maintenance action for machine %s: %s (code=%s)", machine_id, err, getattr(err, "code", None))
+            ToastManager.show(self, f"Maintenance action failed: {get_user_friendly_error(err)}", kind="error")
 
     # --------------------------------------------------------------------------
     # TAB 2: BUTTONS & INPUTS
@@ -565,35 +584,81 @@ class ComponentGalleryApp(ctk.CTk):
         )
         self._test_busy_btn.pack(side="left", padx=(SPACING_LG, 0))
 
-        # Nhóm Inputs
+        # Nhóm Inputs & Demo Form Validation
         input_section = ctk.CTkFrame(frame, fg_color=BG_SURFACE, corner_radius=8, border_width=1, border_color=BORDER)
         input_section.pack(fill="x", pady=(0, SPACING_LG), padx=2)
 
-        input_title = ctk.CTkLabel(input_section, text="Các dạng FormField (Bình thường, Password ẩn/hiện, Lỗi viền đỏ)", font=FONT_TITLE_MD, text_color=TEXT_PRIMARY, anchor="w")
-        input_title.pack(fill="x", padx=PADDING_CONTENT, pady=(SPACING_MD, SPACING_MD))
+        input_title = ctk.CTkLabel(
+            input_section,
+            text="Demo FormField & Validation qua ServiceBundle (Tạo khách hàng)",
+            font=FONT_TITLE_MD,
+            text_color=TEXT_PRIMARY,
+            anchor="w",
+        )
+        input_title.pack(fill="x", padx=PADDING_CONTENT, pady=(SPACING_MD, 4))
+
+        input_desc = ctk.CTkLabel(
+            input_section,
+            text="Form kết nối trực tiếp với ServiceBundle. Đổi sang kịch bản VALIDATION_ERROR để xem hiển thị lỗi từng trường "
+                 "(Phone/Password) và Toast tiếng Anh; đổi sang CONFLICT để xem báo trùng số điện thoại; đổi sang SUCCESS để tạo thành công.",
+            font=FONT_BODY,
+            text_color=TEXT_SECONDARY,
+            anchor="w",
+            wraplength=980,
+            justify="left",
+        )
+        input_desc.pack(fill="x", padx=PADDING_CONTENT, pady=(0, SPACING_MD))
 
         inputs_box = ctk.CTkFrame(input_section, fg_color="transparent")
         inputs_box.pack(fill="x", padx=PADDING_CONTENT, pady=(0, PADDING_CONTENT))
 
-        self._f_user = FormField(inputs_box, label="Tên đăng nhập (Bình thường)", placeholder="Nhập tên đăng nhập…", initial_value="hoanganh_dev")
+        self._f_name = FormField(inputs_box, label="Họ và tên", placeholder="Nhập họ và tên…", initial_value="Nguyễn Văn An")
+        self._f_name.pack(fill="x", pady=(0, SPACING_MD))
+
+        self._f_phone = FormField(inputs_box, label="Số điện thoại", placeholder="Nhập số điện thoại 10 số (bắt đầu bằng 0)…", initial_value="0912345678")
+        self._f_phone.pack(fill="x", pady=(0, SPACING_MD))
+        self._f_err = self._f_phone  # Giữ alias cho tương thích ngược
+
+        self._f_user = FormField(inputs_box, label="Tên đăng nhập", placeholder="Nhập tên đăng nhập…", initial_value="an.nv")
         self._f_user.pack(fill="x", pady=(0, SPACING_MD))
 
         self._f_pass = FormField(inputs_box, label="Mật khẩu (Có nút Hiện / Ẩn)", is_password=True, initial_value="matkhau123")
         self._f_pass.pack(fill="x", pady=(0, SPACING_MD))
 
-        self._f_err = FormField(inputs_box, label="Số điện thoại (Mô phỏng lỗi validation viền DANGER)", initial_value="0912")
-        self._f_err.set_error("Phone number must have 10 digits")
-        self._f_err.pack(fill="x", pady=(0, SPACING_MD))
+        # Điều hướng bàn phím: Gắn sự kiện Enter trên các trường để submit form
+        for field in (self._f_name, self._f_phone, self._f_user, self._f_pass):
+            field.bind_return(self._handle_submit_customer_demo)
 
-        # Nút chuyển đổi lỗi
+        # Hàng nút thao tác Form
+        form_btn_row = ctk.CTkFrame(inputs_box, fg_color="transparent")
+        form_btn_row.pack(fill="x", pady=(SPACING_SM, 0))
+
+        self._btn_submit_demo = ActionButton(
+            form_btn_row,
+            text="Tạo khách hàng (Submit Demo)",
+            kind="primary",
+            width=220,
+            command=self._handle_submit_customer_demo,
+        )
+        self._btn_submit_demo.pack(side="left", padx=(0, SPACING_SM))
+
         toggle_err_btn = ActionButton(
-            inputs_box,
+            form_btn_row,
             text="Bật/Tắt lỗi ở ô SĐT",
             kind="secondary",
             width=160,
             command=self._toggle_input_error,
         )
-        toggle_err_btn.pack(side="left", pady=(SPACING_SM, 0))
+        toggle_err_btn.pack(side="left", padx=SPACING_SM)
+
+        clear_err_btn = ActionButton(
+            form_btn_row,
+            text="Xóa thông báo lỗi",
+            kind="ghost",
+            width=140,
+            command=self._clear_form_errors,
+        )
+        clear_err_btn.pack(side="left", padx=SPACING_SM)
 
         return frame
 
@@ -606,11 +671,66 @@ class ComponentGalleryApp(ctk.CTk):
             ToastManager.show(self, "Task completed successfully!", kind="success")
         ])
 
+    def _handle_submit_customer_demo(self) -> None:
+        """Thử nghiệm submit form gọi create_customer qua ServiceBundle.
+
+        Hỗ trợ kiểm chứng MockScenario.VALIDATION_ERROR (báo lỗi trường phone/password),
+        MockScenario.CONFLICT (báo lỗi trùng phone), và MockScenario.SUCCESS.
+        Sau lỗi: giữ nguyên dữ liệu người dùng đã nhập, trả nút về is_busy=False trong finally.
+        """
+        self._clear_form_errors()
+        self._btn_submit_demo.set_busy(True)
+
+        name = self._f_name.get_value()
+        phone = self._f_phone.get_value()
+        username = self._f_user.get_value()
+        password = self._f_pass.get_value()
+
+        try:
+            cust = self._services.customers.create_customer(
+                full_name=name,
+                phone=phone,
+                username=username,
+                password=password,
+            )
+            ToastManager.show(
+                self,
+                f"Customer created successfully: {cust.code} ({cust.full_name})",
+                kind="success",
+            )
+        except ApplicationError as err:
+            logger.warning(
+                "Submit customer demo failed: %s (code=%s, fields=%s)",
+                err,
+                getattr(err, "code", None),
+                getattr(err, "field_errors", None),
+            )
+            safe_field_errors = get_field_errors_safe(err)
+            if "phone" in safe_field_errors:
+                self._f_phone.set_error(safe_field_errors["phone"])
+            if "password" in safe_field_errors:
+                self._f_pass.set_error(safe_field_errors["password"])
+            if "full_name" in safe_field_errors:
+                self._f_name.set_error(safe_field_errors["full_name"])
+            if "username" in safe_field_errors:
+                self._f_user.set_error(safe_field_errors["username"])
+
+            general_msg = get_user_friendly_error(err)
+            ToastManager.show(self, general_msg, kind="error")
+        finally:
+            self._btn_submit_demo.set_busy(False)
+
+    def _clear_form_errors(self) -> None:
+        self._f_name.set_error(None)
+        self._f_phone.set_error(None)
+        self._f_user.set_error(None)
+        self._f_pass.set_error(None)
+
     def _toggle_input_error(self) -> None:
-        if self._f_err._error_label.winfo_ismapped():
-            self._f_err.set_error(None)
+        if self._f_phone._error_label.winfo_ismapped():
+            self._f_phone.set_error(None)
         else:
-            self._f_err.set_error("Phone number must have 10 digits")
+            self._f_phone.set_error("Phone number must have 10 digits")
 
     # --------------------------------------------------------------------------
     # TAB 3: DATA TABLE
@@ -695,9 +815,11 @@ class ComponentGalleryApp(ctk.CTk):
             self._table_rows = rows
             self._table.set_rows(rows)
         except ApplicationError as err:
+            logger.warning("Failed to load customer table data: %s (code=%s)", err, getattr(err, "code", None))
+            error_msg = get_user_friendly_error(err)
             self._table.set_state(
                 ViewState.ERROR,
-                message=f"Unable to load data ({err.message})",
+                message=f"Unable to load data ({error_msg})",
                 on_retry=self._load_table_data,
             )
 

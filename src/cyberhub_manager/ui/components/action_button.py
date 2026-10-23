@@ -48,7 +48,8 @@ class ActionButton(ctk.CTkButton):
         self._original_text = text
         self._kind = kind
         self._is_busy = False
-        self._is_enabled = True
+        initial_state = kwargs.get("state", "normal")
+        self._is_enabled = (initial_state != "disabled")
         self._external_command = command
 
         fg_color, hover_color, text_color, border_width, border_color = self._resolve_colors(kind)
@@ -148,6 +149,11 @@ class ActionButton(ctk.CTkButton):
             if self._is_busy:
                 # Không ghi đè chữ hiển thị khi đang busy; lưu lại để phục hồi khi set_busy(False)
                 kwargs.pop("text")
+        if "state" in kwargs:
+            new_state = kwargs.pop("state")
+            self._is_enabled = (new_state != "disabled")
+            if not self._is_busy:
+                kwargs["state"] = new_state
         if "command" in kwargs:
             self._external_command = kwargs.pop("command")
         if "kind" in kwargs:

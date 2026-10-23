@@ -39,33 +39,126 @@ ERROR_CODE_MESSAGES: dict[str, str] = {
     "INSUFFICIENT_BALANCE": "Insufficient balance to perform this operation.",
     "SETTLEMENT_REQUIRED": "Outstanding balance settlement is required before proceeding.",
     "SERVICE_UNAVAILABLE": "Service is temporarily unavailable. Please try again later.",
+    "UNAVAILABLE": "Service is temporarily unavailable. Please try again later.",
 }
+
+# ==============================================================================
+# 3. ÁNH XẠ MÃ / NỘI DUNG LỖI TRƯỜNG (FIELD ERROR MAPPINGS TO ENGLISH)
+# ==============================================================================
+FIELD_ERROR_MESSAGES: dict[str, str] = {
+    # Mã lỗi chuẩn (contract codes)
+    "REQUIRED": "This field is required.",
+    "INVALID_FORMAT": "Invalid format.",
+    "ALREADY_EXISTS": "Already exists.",
+    "NOT_FOUND": "Not found.",
+    "INVALID_VALUE": "Invalid value.",
+    "MIN_LENGTH": "Value is too short.",
+    "MAX_LENGTH": "Value is too long.",
+    "DUPLICATE": "Already in use.",
+    "OUT_OF_RANGE": "Value is out of range.",
+    "INVALID_PHONE": "Phone number must have 10 digits starting with 0.",
+    "INVALID_PASSWORD": "Password must have at least 6 characters.",
+    "INVALID_FULL_NAME": "Full name must be between 2 and 100 characters.",
+    "INVALID_AMOUNT": "Amount must be a positive integer.",
+    "INVALID_HOURLY_RATE": "Hourly rate must be a positive integer.",
+    "PHONE_TAKEN": "Phone number is already in use.",
+    "MACHINE_BUSY": "Machine already has an active session.",
+    "MACHINE_CODE_TAKEN": "Machine code already exists.",
+    "INSUFFICIENT_FUNDS": "Insufficient balance.",
+
+    # Các câu lỗi mock tiếng Việt hiện hữu trong mock service / scenarios (chuẩn hóa contract)
+    "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0": "Phone number must have 10 digits starting with 0.",
+    "Mật khẩu phải có ít nhất 6 ký tự": "Password must have at least 6 characters.",
+    "Họ tên phải có từ 2 đến 100 ký tự": "Full name must be between 2 and 100 characters.",
+    "Số tiền nạp phải là số nguyên lớn hơn 0": "Top-up amount must be a positive integer.",
+    "Đơn giá phải là số nguyên lớn hơn 0": "Hourly rate must be a positive integer.",
+    "Số điện thoại đã được sử dụng": "Phone number is already in use.",
+    "Máy đã có phiên đang hoạt động": "Machine already has an active session.",
+    "Mã máy đã tồn tại": "Machine code already exists.",
+    "Thời gian tính phí phải có timezone": "Calculation time must include timezone.",
+    "Trạng thái khách hàng không hợp lệ": "Invalid customer status.",
+    "Thời gian không hợp lệ": "Invalid date or time.",
+    "ID phải là số nguyên dương": "ID must be a positive integer.",
+    "Tên đăng nhập hoặc mật khẩu không đúng": "Invalid username or password.",
+    "Số dư không đủ": "Insufficient balance.",
+    "Cần thanh toán phần tiền còn thiếu": "Outstanding balance settlement is required.",
+    "Dịch vụ hiện không khả dụng": "Service is temporarily unavailable.",
+    "Không tải được dữ liệu, vui lòng thử lại": "Service is temporarily unavailable.",
+    "Invalid phone": "Invalid phone number.",
+}
+
+# Fallback thông báo tiếng Anh chuẩn theo tên trường (field key) khi mã lỗi trường không nằm trong bảng trên
+FIELD_KEY_DEFAULT_MESSAGES: dict[str, str] = {
+    "phone": "Invalid phone number.",
+    "password": "Invalid password.",
+    "full_name": "Invalid full name.",
+    "amount": "Invalid amount.",
+    "hourly_rate": "Invalid hourly rate.",
+    "machine_id": "Invalid machine selection.",
+    "code": "Invalid code.",
+    "username": "Invalid username.",
+    "customer_id": "Invalid customer.",
+    "balance": "Invalid balance.",
+    "status": "Invalid status.",
+    "role": "Invalid role.",
+    "store_id": "Invalid store.",
+    "current_time": "Invalid time.",
+    "settlement_amount": "Invalid settlement amount.",
+    "method": "Invalid payment method.",
+    "date_from": "Invalid start date.",
+    "date_to": "Invalid end date.",
+}
+
+MSG_FIELD_INVALID_FALLBACK = "Invalid value."
 
 
 def get_user_friendly_error(error: Exception | str | None) -> str:
     """Chuyển đổi exception hoặc error code sang câu tiếng Anh an toàn cho người dùng.
 
-    Không bao giờ để lộ SQL query, stack trace hoặc lỗi kỹ thuật sâu ra giao diện.
+    Chỉ ánh xạ ApplicationError.code hoặc mã lỗi nghiệp vụ đã thống nhất sang tiếng Anh.
+    Mã không xác định hoặc exception hệ thống sẽ dùng fallback chung an toàn (MSG_OPERATION_FAILED),
+    tuyệt đối không bao giờ để lộ SQL query, stack trace, exception message nội bộ hoặc tiếng Việt ra giao diện.
     """
     if error is None:
         return ""
+
     if isinstance(error, ApplicationError):
-        if error.code in ERROR_CODE_MESSAGES:
-            return ERROR_CODE_MESSAGES[error.code]
-        # Nếu có thông điệp tiếng Anh an toàn định sẵn
-        return error.message or MSG_OPERATION_FAILED
+        code = getattr(error, "code", None)
+        if code and code in ERROR_CODE_MESSAGES:
+            return ERROR_CODE_MESSAGES[code]
+        return MSG_OPERATION_FAILED
 
     if isinstance(error, str):
         if error in ERROR_CODE_MESSAGES:
             return ERROR_CODE_MESSAGES[error]
-        return error
+        return MSG_OPERATION_FAILED
 
-    # Fallback cho các ngoại lệ chưa định danh hoặc lỗi hệ thống
     return MSG_OPERATION_FAILED
 
 
 def get_field_errors_safe(error: Exception | None) -> dict[str, str]:
-    """Trích xuất lỗi từng trường nếu có từ ApplicationError/ValidationError."""
-    if isinstance(error, ApplicationError) and error.field_errors:
-        return dict(error.field_errors)
-    return {}
+    """Trích xuất và ánh xạ lỗi từng trường sang thông báo tiếng Anh an toàn cho người dùng.
+
+    Tra cứu theo bảng mã/chuỗi chuẩn hóa (FIELD_ERROR_MESSAGES),
+    nếu không khớp sẽ fallback theo tên trường (FIELD_KEY_DEFAULT_MESSAGES),
+    hoặc fallback chung (MSG_FIELD_INVALID_FALLBACK).
+    Không bao giờ trả raw message hoặc chuỗi tự do không xác định.
+    """
+    if not isinstance(error, ApplicationError) or not error.field_errors:
+        return {}
+
+    safe_errors: dict[str, str] = {}
+    for field_key, raw_msg in error.field_errors.items():
+        if not isinstance(raw_msg, str):
+            safe_errors[field_key] = FIELD_KEY_DEFAULT_MESSAGES.get(field_key, MSG_FIELD_INVALID_FALLBACK)
+            continue
+
+        raw_str = raw_msg.strip()
+        if raw_str in FIELD_ERROR_MESSAGES:
+            safe_errors[field_key] = FIELD_ERROR_MESSAGES[raw_str]
+        elif field_key in FIELD_KEY_DEFAULT_MESSAGES:
+            safe_errors[field_key] = FIELD_KEY_DEFAULT_MESSAGES[field_key]
+        else:
+            safe_errors[field_key] = MSG_FIELD_INVALID_FALLBACK
+
+    return safe_errors
