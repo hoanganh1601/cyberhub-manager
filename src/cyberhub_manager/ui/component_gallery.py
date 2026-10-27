@@ -326,9 +326,10 @@ class ComponentGalleryApp(ctk.CTk):
         for key, label in self._tabs:
             btn = ActionButton(
                 self._sidebar,
-                text=label,
+                text=f"  {label}",
                 kind="ghost",
                 height=38,
+                anchor="w",
                 command=lambda k=key: self._show_tab(k),
             )
             btn.pack(fill="x", padx=SPACING_SM, pady=2)
