@@ -84,6 +84,17 @@ FIELD_ERROR_MESSAGES: dict[str, str] = {
     "Cần thanh toán phần tiền còn thiếu": "Outstanding balance settlement is required.",
     "Dịch vụ hiện không khả dụng": "Service is temporarily unavailable.",
     "Không tải được dữ liệu, vui lòng thử lại": "Service is temporarily unavailable.",
+    # Lỗi nghiệp vụ từ LI-03 (CustomerService) và LI-04 (WalletService)
+    "USERNAME_TAKEN": "Username is already in use.",
+    "INVALID_USERNAME": "Username must be 4-30 characters (letters, numbers, underscore, dot).",
+    "PASSWORD_TOO_LONG": "Password is too long (maximum 72 bytes).",
+    "MAX_TOP_UP_EXCEEDED": "Top-up amount must not exceed 100,000,000 VND.",
+    "INVALID_METHOD": "Payment method must be cash or transfer.",
+    "Tên đăng nhập đã được sử dụng": "Username is already in use.",
+    "Tên đăng nhập phải dài 4-30 ký tự và chỉ gồm chữ, số, dấu gạch dưới hoặc dấu chấm": "Username must be 4-30 characters (letters, numbers, underscore, dot).",
+    "Mật khẩu quá dài": "Password is too long (maximum 72 bytes).",
+    "Số tiền nạp không được vượt quá 100.000.000": "Top-up amount must not exceed 100,000,000 VND.",
+    "Phương thức chỉ được là tiền mặt hoặc chuyển khoản": "Payment method must be cash or transfer.",
     "Invalid phone": "Invalid phone number.",
 }
 

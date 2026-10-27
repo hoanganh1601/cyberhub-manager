@@ -678,6 +678,9 @@ class ComponentGalleryApp(ctk.CTk):
         MockScenario.CONFLICT (báo lỗi trùng phone), và MockScenario.SUCCESS.
         Sau lỗi: giữ nguyên dữ liệu người dùng đã nhập, trả nút về is_busy=False trong finally.
         """
+        if getattr(self._btn_submit_demo, "is_busy", False):
+            return
+
         self._clear_form_errors()
         self._btn_submit_demo.set_busy(True)
 

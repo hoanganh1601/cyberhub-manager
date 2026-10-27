@@ -143,30 +143,33 @@ Linh tạo `ApplicationError` gốc với `code: str`, `message: str`, `field_er
 
 | Exception | Code | Ngát xử lý |
 |---|---|---|
-| `ValidationError` | `VALIDATION_ERROR` | Gắn `field_errors` vào đúng field; giữ giá trị nhập |
-| `AuthenticationError` | `AUTH_INVALID_CREDENTIALS` | Thông báo chung; giữ username, xóa password |
-| `NotFoundError` | `NOT_FOUND` | Thông báo đối tượng không còn tồn tại, refresh danh sách |
-| `ConflictError` | `CONFLICT` | Dialog cảnh báo, giữ form, cho refresh/thử lại |
-| `PermissionDeniedError` | `PERMISSION_DENIED` | Báo không có quyền, không thực hiện thay đổi |
+| `ValidationError` | `VALIDATION_ERROR` | Gắn `field_errors` bằng tiếng Anh vào đúng field (`get_field_errors_safe()`); giữ giá trị nhập, kèm Toast lỗi tổng quát |
+| `AuthenticationError` | `AUTH_INVALID_CREDENTIALS` | Toast/thông báo "Invalid username or password."; giữ username, xóa password |
+| `NotFoundError` | `NOT_FOUND` | Toast thông báo tài nguyên không tồn tại, refresh danh sách |
+| `ConflictError` | `CONFLICT` | Xử lý theo ngữ cảnh: (1) Trùng dữ liệu form: đánh dấu trường qua `field_errors` kèm Toast lỗi; (2) Tranh chấp máy/phiên: Toast cảnh báo và tự refresh dữ liệu; (3) Chặn luồng cần xác nhận: Dialog cảnh báo |
+| `PermissionDeniedError` | `PERMISSION_DENIED` | Toast báo "You do not have permission to perform this action.", không thực hiện thay đổi |
 | `InsufficientBalanceError` | `INSUFFICIENT_BALANCE` | Giữ dialog mở phiên, tải preview mới, hiện CTA nạp tiền |
 | `SettlementRequiredError` | `SETTLEMENT_REQUIRED` | Giữ checkout, tải preview mới, focus field tiền bù |
-| `ServiceUnavailableError` | `SERVICE_UNAVAILABLE` | Thông báo không tải được dữ liệu, có nút Thử lại |
+| `ServiceUnavailableError` | `SERVICE_UNAVAILABLE` | ViewState.ERROR hoặc Toast "Service is temporarily unavailable.", có nút Retry |
 
-Tên field lỗi: `full_name`, `phone`, `username`, `password`, `amount`, `method`, `code`, `name`, `hourly_rate`, `customer_id`, `machine_id`, `settlement_amount`, `date_from`, `date_to`. Ví dụ lỗi trùng SĐT: `ConflictError`, code CONFLICT, `field_errors={"phone": "Số điện thoại đã được sử dụng"}`; UI vừa đánh dấu field vừa hiển thị thông báo phù hợp.
+Tên field lỗi: `full_name`, `phone`, `username`, `password`, `amount`, `method`, `code`, `name`, `hourly_rate`, `customer_id`, `machine_id`, `settlement_amount`, `date_from`, `date_to`. Ví dụ lỗi trùng SĐT: `ConflictError`, code CONFLICT, `field_errors={"phone": "Số điện thoại đã được sử dụng"}`; UI dùng `get_field_errors_safe()` ánh xạ sang "Phone number is already in use." để vừa đánh dấu field vừa hiển thị Toast lỗi tiếng Anh an toàn.
 
-Lỗi xác thực luôn dùng nội dung "Tên đăng nhập hoặc mật khẩu không đúng". Ngoại lệ kỹ thuật ngoài dự kiến được log và hiển thị thông báo chung; không dùng repr(exception) làm text trên UI.
+**Quy chuẩn ngôn ngữ phản hồi & thông báo lỗi:**
+- Toàn bộ Toast, validation errors, dialog xác nhận (`Confirm`, `Cancel`), trạng thái ViewState (`Loading data…`, `No matching data found`, `Unable to load data`, `Retry`) đều hiển thị bằng **tiếng Anh nhất quán** thông qua module `cyberhub_manager.ui.messages`.
+- Backend/service có thể trả mã lỗi hoặc chuỗi mô tả nội bộ tiếng Việt. UI không để lộ raw traceback, exception message nội bộ hay câu SQL ra màn hình người dùng.
+- `ConfirmDialog.ask(parent, ...)` phục vụ **xác nhận hành động trước khi thực thi** (thao tác nguy hiểm / tốn phí). NG-01 không tạo thêm `AlertDialog` riêng; các màn nghiệp vụ tự quyết định khi nào cần popup chặn luồng.
 
 ## 7. UI state và component API
 
 Ngát tạo `ui/state.py` chứa `ViewState`: `LOADING`, `READY`, `EMPTY`, `ERROR`. Trạng thái submit là cờ `is_submitting: bool` riêng của form, không phải trạng thái máy/tài khoản.
 
-| Trạng thái | Hiển thị | Hành vi |
+| Trạng thái | Hiển thị (Tiếng Anh) | Hành vi |
 |---|---|---|
-| LOADING | "Đang tải dữ liệu…" | Disable action phụ thuộc dữ liệu |
+| LOADING | "Loading data…" | Disable action phụ thuộc dữ liệu |
 | READY | Dữ liệu thật hoặc mock hợp lệ | Enable action theo dữ liệu và quyền |
-| EMPTY | "Chưa có dữ liệu phù hợp" | Cho thay bộ lọc hoặc tạo mới nếu có quyền |
-| ERROR | Thông báo thân thiện + "Thử lại" | Retry cùng service operation |
-| is_submitting=True | "Đang xử lý…" | Disable submit, chặn double click; giữ dữ liệu form |
+| EMPTY | "No matching data found" | Cho thay bộ lọc hoặc tạo mới nếu có quyền |
+| ERROR | "Unable to load data" + "Retry" | Retry cùng service operation |
+| is_submitting=True | "Processing…" | Disable submit, chặn double click/Enter; giữ dữ liệu form |
 
 Sau cả thành công và thất bại phải thoát trạng thái submitting. Đóng view hủy lịch refresh của view; tránh đăng ký hai vòng refresh. Refresh nền thất bại có thể giữ snapshot trước và đánh dấu đã cũ, không giả vờ snapshot đó vừa được cập nhật.
 
@@ -174,14 +177,14 @@ API ngoài tối thiểu của component để người khác dùng ổn định
 
 | Component/module | API chốt |
 |---|---|
-| `ui/components/form_field.py` | `FormField.get_value() -> str`, `set_value(value: str)`, `set_error(message: str \| None)`, `set_enabled(enabled: bool)`; password field có hiện/ẩn |
-| `ui/components/data_table.py` | `DataTable.set_columns(columns)`, `set_rows(rows)`, `set_state(state, message=None)`, `set_on_select(callback)` |
+| `ui/components/form_field.py` | `FormField.get_value() -> str`, `set_value(value: str)`, `set_error(message: str \| None)`, `set_enabled(enabled: bool)`, `bind_return(callback)`; password field có hiện/ẩn |
+| `ui/components/data_table.py` | `DataTable.set_columns(columns)`, `set_rows(rows)`, `set_state(state, message=None, on_retry=None)`, `set_on_select(callback)` |
 | Dữ liệu bảng trong `data_table.py` | `TableColumn(key: str, label: str, align: str)` với align left/right/center; `TableRow(key: int \| str, cells: dict[str, str])`; callback nhận row key, không nhận vị trí dòng |
 | `ui/components/machine_card.py` | `MachineCard.render(machine: MachineSummary, actor: EmployeeSession)`, `set_busy(busy: bool)`, `set_on_open(callback)`, `set_on_checkout(callback)`, `set_on_maintenance(callback)`; callback nhận machine_id |
-| `ui/components/toast.py` | `ToastManager.show(message: str, kind: str = "info")`; kind info/success/warning/error |
-| `ui/components/action_button.py` mới | `ActionButton.set_busy(busy: bool)`, `set_enabled(enabled: bool)`; busy giữ nhãn gốc để phục hồi |
-| `ui/components/status_badge.py` mới | `StatusBadge.set_status(status)` nhận enum nghiệp vụ, tự chọn nhãn/icon/token |
-| `ui/components/confirm_dialog.py` mới | `ConfirmDialog.ask(parent, title: str, message: str) -> bool`; gọi từ UI thread, không thực hiện nghiệp vụ |
+| `ui/components/toast.py` | `ToastManager.show(target_or_message, message=None, *, kind="info", duration_ms=3500)`; hỗ trợ cả `show(msg, kind=...)` (gắn vào root window) và `show(parent, msg, kind=...)` (khuyến nghị cho Dialog/Toplevel để toast gắn đúng cửa sổ cha) |
+| `ui/components/action_button.py` | `ActionButton.set_busy(busy: bool)`, `set_enabled(enabled: bool)`; busy giữ nhãn gốc để phục hồi, tự động chặn click khi đang busy |
+| `ui/components/status_badge.py` | `StatusBadge.set_status(status)` nhận enum nghiệp vụ, tự chọn nhãn/icon/token |
+| `ui/components/confirm_dialog.py` | `ConfirmDialog.ask(parent, title: str, message: str, confirm_label="Confirm", cancel_label="Cancel", is_danger=False) -> bool`; gọi từ UI thread, không thực hiện nghiệp vụ |
 
 `TableRow` và `TableColumn` là cấu trúc trình bày nội bộ UI, được adapter của view tạo từ DTO; đây không phải dictionary thô do service trả về. Mọi hàm callback nhận ID ổn định, không phụ thuộc thứ tự sắp xếp bảng. Có thể thêm phương thức phụ, không đổi API trên mà không cập nhật giao kèo.
 

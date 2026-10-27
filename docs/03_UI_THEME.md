@@ -6,7 +6,10 @@ Tên hiển thị chính thức trên giao diện: **CyberHub Manager**. Tagline
 
 Tên theme: **Cyber Ops Dark**. Giao diện tối, tương phản cao, tập trung giúp nhân viên nhận biết trạng thái máy nhanh. Dùng `CustomTkinter` và chỉ định nghĩa token tại `ui/theme.py`; không hard-code màu/font trong từng view.
 
-Ngôn ngữ UI: tiếng Việt. Tên biến/code: tiếng Anh.
+**Quy chuẩn ngôn ngữ hiển thị:**
+- **Tiếng Việt:** Tiêu đề màn hình, nhãn trường (form labels), gợi ý placeholder, tiêu đề cột bảng dữ liệu, điều hướng thanh bên (sidebar/menu), nội dung trợ giúp và caption.
+- **Tiếng Anh:** Thông báo hệ thống (Toast notifications), nút xác nhận dialog (`Confirm`, `Cancel`), trạng thái ViewState (`Loading data…`, `No matching data found`, `Unable to load data`, `Retry`), thông báo lỗi nghiệp vụ (`ApplicationError`) và phản hồi lỗi từng trường (`field_errors`).
+- **Code, tài liệu kỹ thuật, tên biến:** Tiếng Anh.
 
 ## 3.2. Design tokens
 

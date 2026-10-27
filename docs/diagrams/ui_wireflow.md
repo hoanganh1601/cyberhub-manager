@@ -152,7 +152,7 @@ Toàn bộ thông báo phản hồi hiển thị cho người dùng (Toast, dial
 | `ValidationError` | `VALIDATION_ERROR` | Gắn thông báo lỗi viền đỏ `DANGER` vào đúng `FormField` qua `set_error("Invalid data provided. Please check the highlighted fields.")`; giữ nguyên dữ liệu đã nhập. |
 | `AuthenticationError` | `AUTH_INVALID_CREDENTIALS` | Giữ nguyên username, xóa sạch mật khẩu, hiển thị thông báo lỗi `Invalid username or password`. |
 | `NotFoundError` | `NOT_FOUND` | Hiển thị Toast cảnh báo `Requested resource was not found.`; tự động refresh tải lại danh sách. |
-| `ConflictError` | `CONFLICT` | Mở warning dialog `Operation conflict. Another transaction or update may have occurred.`; giữ nguyên dữ liệu form để người dùng kiểm tra hoặc đổi giá trị. |
+| `ConflictError` | `CONFLICT` | Xử lý theo ngữ cảnh: Form trùng dữ liệu đánh dấu trường + Toast lỗi `Operation conflict. Another transaction or update may have occurred.`; máy đã có phiên thì Toast cảnh báo và tự refresh; xung đột chặn luồng phức tạp mở dialog cảnh báo. Giữ nguyên dữ liệu form. |
 | `PermissionDeniedError` | `PERMISSION_DENIED` | Hiển thị Toast cảnh báo `You do not have permission to perform this action.`; không thực thi thao tác. |
 | `InsufficientBalanceError` | `INSUFFICIENT_BALANCE` | Giữ dialog mở phiên, tải lại preview mới nhất, hiện Toast `Insufficient balance to perform this operation.` kèm CTA nạp tiền. |
 | `SettlementRequiredError` | `SETTLEMENT_REQUIRED` | Giữ dialog checkout, tải lại preview mới, hiện thông báo `Outstanding balance settlement is required before proceeding.` và focus con trỏ vào ô nhập tiền bù. |

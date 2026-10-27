@@ -697,6 +697,53 @@ def test_get_field_errors_safe_vietnamese_mock() -> None:
         assert not any(ord(c) > 127 for c in val)
 
 
+def test_get_field_errors_safe_li03_li04_errors() -> None:
+    """Kiểm tra các lỗi nghiệp vụ từ LI-03 (CustomerService) và LI-04 (WalletService)
+    được ánh xạ chính xác sang câu tiếng Anh rõ nghĩa (P0 translation)."""
+    # 1) Kiểm tra chuỗi tiếng Việt nghiệp vụ từ LI-03 / LI-04
+    err_vietnamese = ValidationError(
+        field_errors={
+            "username": "Tên đăng nhập đã được sử dụng",
+            "password": "Mật khẩu quá dài",
+            "amount": "Số tiền nạp không được vượt quá 100.000.000",
+            "method": "Phương thức chỉ được là tiền mặt hoặc chuyển khoản",
+        }
+    )
+    safe_vn = get_field_errors_safe(err_vietnamese)
+    assert safe_vn["username"] == "Username is already in use."
+    assert safe_vn["password"] == "Password is too long (maximum 72 bytes)."
+    assert safe_vn["amount"] == "Top-up amount must not exceed 100,000,000 VND."
+    assert safe_vn["method"] == "Payment method must be cash or transfer."
+
+    # Lỗi định dạng username LI-03
+    err_user_fmt = ValidationError(
+        field_errors={
+            "username": "Tên đăng nhập phải dài 4-30 ký tự và chỉ gồm chữ, số, dấu gạch dưới hoặc dấu chấm",
+        }
+    )
+    safe_fmt = get_field_errors_safe(err_user_fmt)
+    assert safe_fmt["username"] == "Username must be 4-30 characters (letters, numbers, underscore, dot)."
+
+    # 2) Kiểm tra mã lỗi contract codes tương ứng
+    err_codes = ValidationError(
+        field_errors={
+            "username": "USERNAME_TAKEN",
+            "password": "PASSWORD_TOO_LONG",
+            "amount": "MAX_TOP_UP_EXCEEDED",
+            "method": "INVALID_METHOD",
+        }
+    )
+    safe_codes = get_field_errors_safe(err_codes)
+    assert safe_codes["username"] == "Username is already in use."
+    assert safe_codes["password"] == "Password is too long (maximum 72 bytes)."
+    assert safe_codes["amount"] == "Top-up amount must not exceed 100,000,000 VND."
+    assert safe_codes["method"] == "Payment method must be cash or transfer."
+
+    # Tuyệt đối không còn tiếng Việt trong kết quả
+    for val in list(safe_vn.values()) + list(safe_fmt.values()) + list(safe_codes.values()):
+        assert not any(ord(c) > 127 for c in val)
+
+
 def test_get_field_errors_safe_technical_content() -> None:
     """Field error chứa chuỗi kỹ thuật hoặc trường không rõ phải dùng fallback an toàn."""
     err = ValidationError(
@@ -963,6 +1010,29 @@ def test_gallery_success_submit_form(tk_root, monkeypatch) -> None:
     assert dummy_app._f_pass._error_label.cget("text") == ""
     assert dummy_app._f_name._error_label.cget("text") == ""
     assert dummy_app._f_user._error_label.cget("text") == ""
+
+
+def test_gallery_submit_handler_ignores_when_busy(tk_root) -> None:
+    """Khi nút submit đang ở trạng thái busy (is_busy=True), việc gọi handler
+    (chẳng hạn do nhấn phím Enter trên FormField) phải return ngay lập tức
+    và không được gọi tiếp service create_customer."""
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = MagicMock()
+
+    submit_btn = ActionButton(tk_root, text="Submit", kind="primary")
+    submit_btn.set_busy(True)
+    assert submit_btn.is_busy is True
+    dummy_app._btn_submit_demo = submit_btn
+
+    # Gọi handler khi nút đang busy
+    ComponentGalleryApp._handle_submit_customer_demo(dummy_app)
+
+    # Khẳng định create_customer không hề bị gọi
+    dummy_app._services.customers.create_customer.assert_not_called()
+    # Nút vẫn giữ nguyên cờ busy ban đầu (không bị reset bởi finally do thoát sớm)
+    assert submit_btn.is_busy is True
 
 
 # ==============================================================================
