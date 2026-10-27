@@ -58,6 +58,14 @@ def test_active_employee_is_found_and_unknown_username_is_not(auth_context):
 
     record = repo.get_active_by_username(conn, username)
 
+    session = repo.get_active_session_by_id(conn, employee_id)
+    assert session is not None
+    assert session.employee_id == employee_id
+    assert session.store_id == store_id
+    assert session.role == Role.MANAGER
+    assert not hasattr(session, "password_hash")
+    assert repo.get_active_session_by_id(conn, 0) is None
+
     assert record is not None
     assert record.session.employee_id == employee_id
     assert record.session.store_id == store_id
@@ -68,7 +76,7 @@ def test_active_employee_is_found_and_unknown_username_is_not(auth_context):
 
 @pytest.mark.parametrize("status", ["INACTIVE", "LOCKED"])
 def test_inactive_or_locked_employee_is_not_found(auth_context, status):
-    conn, username, _, employee_id, _ = auth_context
+    conn, username, store_id, employee_id, _ = auth_context
 
     cursor = conn.cursor()
     try:
@@ -81,9 +89,10 @@ def test_inactive_or_locked_employee_is_not_found(auth_context, status):
         cursor.close()
 
     assert AuthRepository().get_active_by_username(conn, username) is None
+    assert AuthRepository().get_active_session_by_id(conn, employee_id) is None
 
 def test_employee_of_inactive_store_is_not_found(auth_context):
-    conn, username, store_id, _, _ = auth_context
+    conn, username, store_id, employee_id, _ = auth_context
 
     cursor = conn.cursor()
     try:
@@ -96,3 +105,4 @@ def test_employee_of_inactive_store_is_not_found(auth_context):
         cursor.close()
 
     assert AuthRepository().get_active_by_username(conn, username) is None
+    assert AuthRepository().get_active_session_by_id(conn, employee_id) is None
