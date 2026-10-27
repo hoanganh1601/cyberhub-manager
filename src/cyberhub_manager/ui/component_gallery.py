@@ -30,7 +30,7 @@ from ..domain.enums import (
     Role,
     SessionStatus,
 )
-from ..domain.exceptions import ApplicationError
+from ..domain.exceptions import ApplicationError, ConflictError
 from ..services.contracts import ServiceBundle
 from ..services.mocks.factory import build_mock_services
 from ..services.mocks.scenarios import MockScenario
@@ -478,7 +478,10 @@ class ComponentGalleryApp(ctk.CTk):
             self._render_machine_cards()
         except ApplicationError as err:
             logger.warning("Failed to open session for machine %s: %s (code=%s)", machine_id, err, getattr(err, "code", None))
-            ToastManager.show(self, f"Open session failed: {get_user_friendly_error(err)}", kind="error")
+            err_msg = get_user_friendly_error(err)
+            title = "Conflict Warning" if getattr(err, "code", None) == "CONFLICT" else "Error"
+            ConfirmDialog.alert(self, title=title, message=f"Open session failed: {err_msg}", is_danger=True)
+            ToastManager.show(self, f"Open session failed: {err_msg}", kind="error")
 
     def _handle_card_checkout(self, machine_id: int) -> None:
         try:
@@ -518,7 +521,9 @@ class ComponentGalleryApp(ctk.CTk):
                 ToastManager.show(self, "Checkout cancelled", kind="info")
         except ApplicationError as err:
             logger.warning("Failed to checkout machine %s: %s (code=%s)", machine_id, err, getattr(err, "code", None))
-            ToastManager.show(self, f"Checkout failed: {get_user_friendly_error(err)}", kind="error")
+            err_msg = get_user_friendly_error(err)
+            ConfirmDialog.alert(self, title="Checkout Error", message=f"Checkout failed: {err_msg}", is_danger=True)
+            ToastManager.show(self, f"Checkout failed: {err_msg}", kind="error")
 
     def _handle_card_maintenance(self, machine_id: int) -> None:
         """Thực hiện thao tác kết thúc bảo trì (Bật lại máy) qua ServiceBundle theo quyền P0."""
@@ -536,7 +541,10 @@ class ComponentGalleryApp(ctk.CTk):
             self._render_machine_cards()
         except ApplicationError as err:
             logger.warning("Failed maintenance action for machine %s: %s (code=%s)", machine_id, err, getattr(err, "code", None))
-            ToastManager.show(self, f"Maintenance action failed: {get_user_friendly_error(err)}", kind="error")
+            err_msg = get_user_friendly_error(err)
+            title = "Permission Denied" if getattr(err, "code", None) == "PERMISSION_DENIED" else "Maintenance Error"
+            ConfirmDialog.alert(self, title=title, message=f"Maintenance action failed: {err_msg}", is_danger=True)
+            ToastManager.show(self, f"Maintenance action failed: {err_msg}", kind="error")
 
     # --------------------------------------------------------------------------
     # TAB 2: BUTTONS & INPUTS
@@ -719,6 +727,13 @@ class ComponentGalleryApp(ctk.CTk):
                 self._f_user.set_error(safe_field_errors["username"])
 
             general_msg = get_user_friendly_error(err)
+            if getattr(err, "code", None) == "CONFLICT" or isinstance(err, ConflictError):
+                ConfirmDialog.alert(
+                    self,
+                    title="Conflict Warning",
+                    message=f"Operation conflict: {general_msg}",
+                    is_danger=True,
+                )
             ToastManager.show(self, general_msg, kind="error")
         finally:
             self._btn_submit_demo.set_busy(False)
@@ -918,6 +933,15 @@ class ComponentGalleryApp(ctk.CTk):
         )
         dlg_btn.pack(side="left", padx=(SPACING_XL, 0))
 
+        warn_btn = ActionButton(
+            dlg_row,
+            text="Open Warning Dialog",
+            kind="danger",
+            width=160,
+            command=self._test_warning_dialog,
+        )
+        warn_btn.pack(side="left", padx=SPACING_SM)
+
         return frame
 
     def _test_confirm_dialog(self) -> None:
@@ -933,6 +957,15 @@ class ComponentGalleryApp(ctk.CTk):
             ToastManager.show(self, "Action confirmed", kind="success")
         else:
             ToastManager.show(self, "Action cancelled", kind="info")
+
+    def _test_warning_dialog(self) -> None:
+        ConfirmDialog.alert(
+            self,
+            title="Conflict Warning",
+            message="Operation conflict: Another transaction or update may have occurred. Please review and try again.",
+            button_label="Close",
+            is_danger=True,
+        )
 
 
 def main() -> None:

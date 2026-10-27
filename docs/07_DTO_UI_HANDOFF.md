@@ -184,7 +184,7 @@ API ngoài tối thiểu của component để người khác dùng ổn định
 | `ui/components/toast.py` | `ToastManager.show(target_or_message, message=None, *, kind="info", duration_ms=3500)`; hỗ trợ cả `show(msg, kind=...)` (gắn vào root window) và `show(parent, msg, kind=...)` (khuyến nghị cho Dialog/Toplevel để toast gắn đúng cửa sổ cha) |
 | `ui/components/action_button.py` | `ActionButton.set_busy(busy: bool)`, `set_enabled(enabled: bool)`; busy giữ nhãn gốc để phục hồi, tự động chặn click khi đang busy |
 | `ui/components/status_badge.py` | `StatusBadge.set_status(status)` nhận enum nghiệp vụ, tự chọn nhãn/icon/token |
-| `ui/components/confirm_dialog.py` | `ConfirmDialog.ask(parent, title: str, message: str, confirm_label="Confirm", cancel_label="Cancel", is_danger=False) -> bool`; gọi từ UI thread, không thực hiện nghiệp vụ |
+| `ui/components/confirm_dialog.py` | `ConfirmDialog.ask(parent, title: str, message: str, confirm_label="Confirm", cancel_label="Cancel", is_danger=False) -> bool` (xác nhận thao tác); `ConfirmDialog.alert(parent, title: str, message: str, *, button_label="Close", is_danger=True)` (cảnh báo lỗi/xung đột nghiệp vụ, 1 nút đóng) |
 
 `TableRow` và `TableColumn` là cấu trúc trình bày nội bộ UI, được adapter của view tạo từ DTO; đây không phải dictionary thô do service trả về. Mọi hàm callback nhận ID ổn định, không phụ thuộc thứ tự sắp xếp bảng. Có thể thêm phương thức phụ, không đổi API trên mà không cập nhật giao kèo.
 

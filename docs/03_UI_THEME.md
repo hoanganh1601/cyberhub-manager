@@ -108,10 +108,11 @@ Mỗi dialog chỉ có một primary action. Khi đang xử lý: disable action 
 
 ### Dialog và feedback
 
-- Info/success không dùng popup nếu toast đủ rõ.
-- Validation hiển thị tại field; business conflict dùng warning dialog.
-- Xác nhận bắt buộc cho checkout và chuyển bảo trì.
-- Toast ở góc trên phải, tự đóng sau 3–5 giây; lỗi nghiêm trọng cần người dùng bấm đóng.
+- **Info / Success**: Không dùng popup modal nếu Toast đã đủ rõ nghĩa (tránh làm gián đoạn thao tác).
+- **Validation**: Lỗi nhập liệu hiển thị trực tiếp viền đỏ và thông báo ngay tại field tương ứng.
+- **Lỗi nghiệp vụ & xung đột (Business Conflict / Serious Error)**: Phải hiển thị qua **Warning/Error Dialog** (`ConfirmDialog.alert()`), modal chặn tương tác cửa sổ cha, yêu cầu người dùng đọc rõ lý do và bấm nút đóng để tiếp tục.
+- **Xác nhận thao tác**: Bắt buộc dùng `ConfirmDialog.ask()` cho các thao tác nguy hiểm hoặc ảnh hưởng tiền/dữ liệu (checkout, kết thúc/bật bảo trì, đăng xuất, khóa tài khoản).
+- **Toast**: Hiển thị góc trên bên phải, tự đóng sau 3–5 giây cho các thông báo nền, cập nhật trạng thái nhanh.
 
 ## 3.5. Machine card — component quan trọng nhất
 

@@ -781,7 +781,26 @@ def test_confirm_dialog_default_labels(tk_root) -> None:
     dlg = ConfirmDialog(tk_root, title="Confirm", message="Are you sure?")
     try:
         assert dlg._confirm_btn.cget("text") == "Confirm"
+        assert dlg._cancel_btn is not None
         assert dlg._cancel_btn.cget("text") == "Cancel"
+    finally:
+        dlg.destroy()
+
+
+def test_confirm_dialog_alert_mode(tk_root) -> None:
+    """ConfirmDialog khi ở chế độ alert/warning chỉ có 1 nút đóng (không có nút Cancel)."""
+    dlg = ConfirmDialog(
+        tk_root,
+        title="Conflict Warning",
+        message="Business conflict occurred",
+        confirm_label="Close",
+        cancel_label=None,
+        is_danger=True,
+    )
+    try:
+        assert dlg._cancel_btn is None
+        assert dlg._confirm_btn.cget("text") == "Close"
+        assert dlg._confirm_btn._kind == "danger"
     finally:
         dlg.destroy()
 
