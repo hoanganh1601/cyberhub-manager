@@ -809,27 +809,33 @@ def test_confirm_dialog_alert_mode(tk_root) -> None:
 # 10. TEST COMPONENT GALLERY ERROR PATHS (NG01-08)
 # ==============================================================================
 def test_gallery_conflict_error_handling_no_vietnamese(monkeypatch) -> None:
-    """Gallery khi mở máy gặp CONFLICT phải bắn Toast tiếng Anh, không hiển thị tiếng Việt."""
     from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_STAFF
     from cyberhub_manager.services.mocks.factory import build_mock_services
     from cyberhub_manager.services.mocks.scenarios import MockScenario
 
-    captured_toasts: list[tuple[str, str]] = []
-    monkeypatch.setattr(ToastManager, "show", lambda parent, message, kind="info": captured_toasts.append((message, kind)))
+    alerts: list[str] = []
+    toasts: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        ConfirmDialog, "alert",
+        lambda _parent, **kwargs: alerts.append(kwargs["message"]),
+    )
+    monkeypatch.setattr(
+        ToastManager, "show",
+        lambda _parent, message, kind="info": toasts.append((message, kind)),
+    )
 
     dummy_app = MagicMock(spec=ComponentGalleryApp)
     dummy_app._services = build_mock_services(MockScenario.CONFLICT)
     dummy_app._current_actor = ACTOR_STAFF
+    dummy_app._render_machine_cards = MagicMock()
 
     ComponentGalleryApp._handle_card_open(dummy_app, 1)
 
-    assert len(captured_toasts) == 1
-    msg, kind = captured_toasts[0]
-    assert kind == "error"
-    assert "Open session failed: Operation conflict" in msg
-    assert "Máy đã có phiên đang hoạt động" not in msg
-    # Kiểm tra toàn bộ là ký tự tiếng Anh (không chứa dấu tiếng Việt)
-    assert not any(ord(c) > 127 for c in msg)
+    assert len(alerts) == 1
+    assert "Open session failed: Operation conflict" in alerts[0]
+    assert not any(ord(char) > 127 for char in alerts[0])
+    assert toasts == []
+    dummy_app._render_machine_cards.assert_called_once()
 
 
 def test_gallery_unavailable_table_state_no_vietnamese() -> None:
@@ -1105,6 +1111,11 @@ def test_gallery_maintenance_action_manager_success(monkeypatch) -> None:
     # Máy 3 ban đầu đang ở MAINTENANCE trong mock store
     assert dummy_app._services.machines._data.get_machine(3).status == MachineStatus.MAINTENANCE
 
+    # Giả lập người dùng chọn Confirm
+    monkeypatch.setattr(
+        ConfirmDialog, "ask", lambda *_args, **_kwargs: True
+    )
+
     # Gọi action kết thúc bảo trì
     ComponentGalleryApp._handle_card_maintenance(dummy_app, 3)
 
@@ -1140,6 +1151,9 @@ def test_gallery_maintenance_action_staff_forbidden(monkeypatch) -> None:
     dummy_app._current_actor = ACTOR_STAFF  # STAFF không có quyền quản lý máy
     dummy_app._render_machine_cards = MagicMock()
 
+    monkeypatch.setattr(
+        ConfirmDialog, "ask", lambda *_args, **_kwargs: True
+    )
     ComponentGalleryApp._handle_card_maintenance(dummy_app, 3)
 
     # Toast báo lỗi tiếng Anh
@@ -1148,3 +1162,27 @@ def test_gallery_maintenance_action_staff_forbidden(monkeypatch) -> None:
     assert kind == "error"
     assert "Maintenance action failed: You do not have permission to perform this action." in msg
     assert not any(ord(c) > 127 for c in msg)
+
+def test_gallery_maintenance_action_cancel_keeps_machine_unchanged(monkeypatch) -> None:
+    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_MANAGER
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.services.mocks.scenarios import MockScenario
+
+    confirm = MagicMock(return_value=False)
+    toast = MagicMock()
+    monkeypatch.setattr(ConfirmDialog, "ask", confirm)
+    monkeypatch.setattr(ToastManager, "show", toast)
+
+    dummy_app = MagicMock(spec=ComponentGalleryApp)
+    dummy_app._services = build_mock_services(MockScenario.SUCCESS)
+    dummy_app._current_actor = ACTOR_MANAGER
+    dummy_app._render_machine_cards = MagicMock()
+
+    assert dummy_app._services.machines._data.get_machine(3).status == MachineStatus.MAINTENANCE
+
+    ComponentGalleryApp._handle_card_maintenance(dummy_app, 3)
+
+    confirm.assert_called_once()
+    assert dummy_app._services.machines._data.get_machine(3).status == MachineStatus.MAINTENANCE
+    dummy_app._render_machine_cards.assert_not_called()
+    toast.assert_not_called()

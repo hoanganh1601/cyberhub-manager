@@ -102,7 +102,7 @@ Mỗi dialog chỉ có một primary action. Khi đang xử lý: disable action 
 ### Data table
 
 - Header nền `#1E293B`; row cao tối thiểu 40 px; zebra rất nhẹ hoặc hover.
-- Empty state phải ghi rõ “Chưa có dữ liệu phù hợp”.
+- Empty state phải ghi rõ “No matching data found”.
 - Loading state dùng skeleton/text, không để bảng trống gây hiểu nhầm.
 - Cột tiền căn phải; tên/mô tả căn trái; trạng thái dùng badge.
 
@@ -110,7 +110,7 @@ Mỗi dialog chỉ có một primary action. Khi đang xử lý: disable action 
 
 - **Info / Success**: Không dùng popup modal nếu Toast đã đủ rõ nghĩa (tránh làm gián đoạn thao tác).
 - **Validation**: Lỗi nhập liệu hiển thị trực tiếp viền đỏ và thông báo ngay tại field tương ứng.
-- **Lỗi nghiệp vụ & xung đột (Business Conflict / Serious Error)**: Phải hiển thị qua **Warning/Error Dialog** (`ConfirmDialog.alert()`), modal chặn tương tác cửa sổ cha, yêu cầu người dùng đọc rõ lý do và bấm nút đóng để tiếp tục.
+- **Lỗi nghiệp vụ và xung đột**: Lỗi có `field_errors` được đánh dấu tại trường và hiển thị một Toast tiếng Anh. Tranh chấp máy/phiên hoặc lỗi chặn luồng dùng `ConfirmDialog.alert()`; sau khi đóng dialog, tải lại dữ liệu liên quan. Không hiển thị cả dialog và Toast cho cùng một lỗi.
 - **Xác nhận thao tác**: Bắt buộc dùng `ConfirmDialog.ask()` cho các thao tác nguy hiểm hoặc ảnh hưởng tiền/dữ liệu (checkout, kết thúc/bật bảo trì, đăng xuất, khóa tài khoản).
 - **Toast**: Hiển thị góc trên bên phải, tự đóng sau 3–5 giây cho các thông báo nền, cập nhật trạng thái nhanh.
 

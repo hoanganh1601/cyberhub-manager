@@ -478,11 +478,23 @@ class ComponentGalleryApp(ctk.CTk):
             ToastManager.show(self, f"Session opened: {session.session_code} on Machine ID={machine_id}", kind="success")
             self._render_machine_cards()
         except ApplicationError as err:
-            logger.warning("Failed to open session for machine %s: %s (code=%s)", machine_id, err, getattr(err, "code", None))
+            logger.warning(
+                "Failed to open session for machine %s: %s (code=%s)",
+                machine_id, err, getattr(err, "code", None),
+            )
             err_msg = get_user_friendly_error(err)
-            title = "Conflict Warning" if getattr(err, "code", None) == "CONFLICT" else "Error"
-            ConfirmDialog.alert(self, title=title, message=f"Open session failed: {err_msg}", is_danger=True)
-            ToastManager.show(self, f"Open session failed: {err_msg}", kind="error")
+            if getattr(err, "code", None) == "CONFLICT":
+                ConfirmDialog.alert(
+                    self,
+                    title="Conflict Warning",
+                    message=f"Open session failed: {err_msg}",
+                    is_danger=True,
+                )
+                self._render_machine_cards()
+            else:
+                ToastManager.show(
+                    self, f"Open session failed: {err_msg}", kind="error"
+                )
 
     def _handle_card_checkout(self, machine_id: int) -> None:
         try:
@@ -528,6 +540,14 @@ class ComponentGalleryApp(ctk.CTk):
 
     def _handle_card_maintenance(self, machine_id: int) -> None:
         """Thực hiện thao tác kết thúc bảo trì (Bật lại máy) qua ServiceBundle theo quyền P0."""
+        if not ConfirmDialog.ask(
+            self,
+            title = "End Maintenance",
+            message = f"Are you sure you want to end maintenance for Machine ID={machine_id}?",
+            confirm_label = "End Maintenance",
+            cancel_label = "Cancel",
+        ):
+            return
         try:
             self._services.machines.set_maintenance(
                 machine_id=machine_id,
@@ -728,14 +748,19 @@ class ComponentGalleryApp(ctk.CTk):
                 self._f_user.set_error(safe_field_errors["username"])
 
             general_msg = get_user_friendly_error(err)
-            if getattr(err, "code", None) == "CONFLICT" or isinstance(err, ConflictError):
+            is_conflict = (
+                getattr(err, "code", None) == "CONFLICT" or isinstance(err, ConflictError)
+            )
+            if is_conflict and not safe_field_errors:
+                # Nếu là lỗi trùng số điện thoại nhưng không có field_errors, hiển thị alert
                 ConfirmDialog.alert(
                     self,
                     title="Conflict Warning",
                     message=f"Operation conflict: {general_msg}",
                     is_danger=True,
                 )
-            ToastManager.show(self, general_msg, kind="error")
+            else:
+                ToastManager.show(self, general_msg, kind = 'error')
         finally:
             self._btn_submit_demo.set_busy(False)
 

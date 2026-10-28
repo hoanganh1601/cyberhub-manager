@@ -146,7 +146,7 @@ Linh tạo `ApplicationError` gốc với `code: str`, `message: str`, `field_er
 | `ValidationError` | `VALIDATION_ERROR` | Gắn `field_errors` bằng tiếng Anh vào đúng field (`get_field_errors_safe()`); giữ giá trị nhập, kèm Toast lỗi tổng quát |
 | `AuthenticationError` | `AUTH_INVALID_CREDENTIALS` | Toast/thông báo "Invalid username or password."; giữ username, xóa password |
 | `NotFoundError` | `NOT_FOUND` | Toast thông báo tài nguyên không tồn tại, refresh danh sách |
-| `ConflictError` | `CONFLICT` | Xử lý theo ngữ cảnh: (1) Trùng dữ liệu form: đánh dấu trường qua `field_errors` kèm Toast lỗi; (2) Tranh chấp máy/phiên: Toast cảnh báo và tự refresh dữ liệu; (3) Chặn luồng cần xác nhận: Dialog cảnh báo |
+| `ConflictError` | `CONFLICT` | Trùng dữ liệu form: đánh dấu trường theo `field_errors` và hiện một Toast tiếng Anh. Tranh chấp máy/phiên: hiện `ConfirmDialog.alert()`, đóng dialog rồi refresh dữ liệu. Conflict khác chặn luồng: hiện dialog cảnh báo. Không hiện thêm Toast trùng nội dung dialog. |
 | `PermissionDeniedError` | `PERMISSION_DENIED` | Toast báo "You do not have permission to perform this action.", không thực hiện thay đổi |
 | `InsufficientBalanceError` | `INSUFFICIENT_BALANCE` | Giữ dialog mở phiên, tải preview mới, hiện CTA nạp tiền |
 | `SettlementRequiredError` | `SETTLEMENT_REQUIRED` | Giữ checkout, tải preview mới, focus field tiền bù |
