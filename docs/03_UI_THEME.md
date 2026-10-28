@@ -6,7 +6,10 @@ Tên hiển thị chính thức trên giao diện: **CyberHub Manager**. Tagline
 
 Tên theme: **Cyber Ops Dark**. Giao diện tối, tương phản cao, tập trung giúp nhân viên nhận biết trạng thái máy nhanh. Dùng `CustomTkinter` và chỉ định nghĩa token tại `ui/theme.py`; không hard-code màu/font trong từng view.
 
-Ngôn ngữ UI: tiếng Việt. Tên biến/code: tiếng Anh.
+**Quy chuẩn ngôn ngữ hiển thị:**
+- **Tiếng Việt:** Tiêu đề màn hình, nhãn trường (form labels), gợi ý placeholder, tiêu đề cột bảng dữ liệu, điều hướng thanh bên (sidebar/menu), nội dung trợ giúp và caption.
+- **Tiếng Anh:** Thông báo hệ thống (Toast notifications), nút xác nhận dialog (`Confirm`, `Cancel`), trạng thái ViewState (`Loading data…`, `No matching data found`, `Unable to load data`, `Retry`), thông báo lỗi nghiệp vụ (`ApplicationError`) và phản hồi lỗi từng trường (`field_errors`).
+- **Code, tài liệu kỹ thuật, tên biến:** Tiếng Anh.
 
 ## 3.2. Design tokens
 
@@ -99,16 +102,17 @@ Mỗi dialog chỉ có một primary action. Khi đang xử lý: disable action 
 ### Data table
 
 - Header nền `#1E293B`; row cao tối thiểu 40 px; zebra rất nhẹ hoặc hover.
-- Empty state phải ghi rõ “Chưa có dữ liệu phù hợp”.
+- Empty state phải ghi rõ “No matching data found”.
 - Loading state dùng skeleton/text, không để bảng trống gây hiểu nhầm.
 - Cột tiền căn phải; tên/mô tả căn trái; trạng thái dùng badge.
 
 ### Dialog và feedback
 
-- Info/success không dùng popup nếu toast đủ rõ.
-- Validation hiển thị tại field; business conflict dùng warning dialog.
-- Xác nhận bắt buộc cho checkout và chuyển bảo trì.
-- Toast ở góc trên phải, tự đóng sau 3–5 giây; lỗi nghiêm trọng cần người dùng bấm đóng.
+- **Info / Success**: Không dùng popup modal nếu Toast đã đủ rõ nghĩa (tránh làm gián đoạn thao tác).
+- **Validation**: Lỗi nhập liệu hiển thị trực tiếp viền đỏ và thông báo ngay tại field tương ứng.
+- **Lỗi nghiệp vụ và xung đột**: Lỗi có `field_errors` được đánh dấu tại trường và hiển thị một Toast tiếng Anh. Tranh chấp máy/phiên hoặc lỗi chặn luồng dùng `ConfirmDialog.alert()`; sau khi đóng dialog, tải lại dữ liệu liên quan. Không hiển thị cả dialog và Toast cho cùng một lỗi.
+- **Xác nhận thao tác**: Bắt buộc dùng `ConfirmDialog.ask()` cho các thao tác nguy hiểm hoặc ảnh hưởng tiền/dữ liệu (checkout, kết thúc/bật bảo trì, đăng xuất, khóa tài khoản).
+- **Toast**: Hiển thị góc trên bên phải, tự đóng sau 3–5 giây cho các thông báo nền, cập nhật trạng thái nhanh.
 
 ## 3.5. Machine card — component quan trọng nhất
 
