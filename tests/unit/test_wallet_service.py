@@ -8,12 +8,12 @@ import pytest
 from mysql.connector import errorcode
 from mysql.connector.errors import IntegrityError, InterfaceError
 
-from cyberhub_manager.domain.dtos import TransactionSummary
+from cyberhub_manager.domain.dtos import EmployeeSession, TransactionSummary
 from cyberhub_manager.domain.enums import (
     AccountStatus,
     CustomerStatus,
-    EmployeeStatus,
     PaymentMethod,
+    Role,
     TransactionType,
 )
 from cyberhub_manager.domain.exceptions import (
@@ -33,9 +33,27 @@ from cyberhub_manager.services.wallet_service import (
 CUSTOMER_ID = 1
 ACCOUNT_ID = 10
 EMPLOYEE_ID = 5
+STORE_ID = 3
+OTHER_STORE_ID = 4
 
 
 # ----- Đồ giả ----------------------------------------------------------------
+
+
+def make_actor(employee_id=EMPLOYEE_ID, store_id=STORE_ID, role=Role.STAFF):
+    return EmployeeSession(
+        employee_id=employee_id,
+        employee_code="NV005",
+        full_name="Nhân viên test",
+        username="staff05",
+        store_id=store_id,
+        store_code="CH01",
+        store_name="Cửa hàng test",
+        role=role,
+    )
+
+
+STAFF = make_actor()
 
 
 def make_customer(balance=5_000, account_status=AccountStatus.ACTIVE):
@@ -60,8 +78,10 @@ def make_customer(balance=5_000, account_status=AccountStatus.ACTIVE):
 class FakeCustomerRepository:
     def __init__(self, customer):
         self.customer = customer
+        self.calls = 0
 
     def get_by_id(self, conn, customer_id):
+        self.calls += 1
         if self.customer is not None and self.customer.id == customer_id:
             return self.customer
         return None
@@ -114,14 +134,18 @@ class FakeAccountRepository:
         return self.history[:limit]
 
 
-class FakeEmployeeRepository:
-    def __init__(self, status):
-        self.status = status
+class FakeAuthRepository:
+    """Giả HA-05: trả None khi nhân viên hoặc cửa hàng không còn ACTIVE."""
 
-    def get_by_id(self, conn, employee_id):
-        if self.status is None:
+    def __init__(self, current):
+        self.current = current
+        self.lookups = []
+
+    def get_active_session_by_id(self, conn, employee_id):
+        self.lookups.append(employee_id)
+        if self.current is None or self.current.employee_id != employee_id:
             return None
-        return SimpleNamespace(id=employee_id, status=self.status)
+        return self.current
 
 
 class FakeTransaction:
@@ -141,17 +165,24 @@ class FakeTransaction:
             raise
 
 
-def build_wallet(customer=None, employee_repo=None):
+def build_wallet(customer=None, actor=STAFF, current=STAFF, with_provider=True):
+    """actor: provider trả về gì; current: HA-05 tra DB thấy gì."""
+
     customer = customer if customer is not None else make_customer()
+    customers = FakeCustomerRepository(customer)
     accounts = FakeAccountRepository(customer.account)
+    auth = FakeAuthRepository(current)
     tx = FakeTransaction()
     service = WalletService(
-        customer_repo=FakeCustomerRepository(customer),
+        customer_repo=customers,
         account_repo=accounts,
-        employee_repo=employee_repo or FakeEmployeeRepository(EmployeeStatus.ACTIVE),
+        auth_repo=auth,
+        actor_provider=(lambda: actor) if with_provider else None,
         transaction_factory=tx,
     )
-    return SimpleNamespace(service=service, accounts=accounts, tx=tx)
+    return SimpleNamespace(
+        service=service, customers=customers, accounts=accounts, auth=auth, tx=tx
+    )
 
 
 @pytest.fixture
@@ -274,24 +305,71 @@ def test_top_up_raises_not_found_for_unknown_customer(wallet):
     assert wallet.accounts.credits == []
 
 
-@pytest.mark.parametrize("status", [None, EmployeeStatus.INACTIVE, EmployeeStatus.LOCKED])
-def test_top_up_rejects_employee_that_is_missing_or_not_active(status):
-    wallet = build_wallet(employee_repo=FakeEmployeeRepository(status))
+# ----- Actor -----------------------------------------------------------------
+
+DENIED_ACTORS = pytest.mark.parametrize(
+    "options",
+    [
+        {"with_provider": False},
+        {"actor": None},
+        # HA-05 trả None khi nhân viên INACTIVE/LOCKED hoặc cửa hàng INACTIVE.
+        {"current": None},
+        {"current": make_actor(store_id=OTHER_STORE_ID)},
+    ],
+    ids=["no-provider", "provider-none", "not-active", "store-changed"],
+)
+
+
+def assert_nothing_touched(wallet):
+    assert wallet.customers.calls == 0
+    assert wallet.accounts.credits == []
+    assert wallet.accounts.inserted == []
+
+
+@DENIED_ACTORS
+def test_top_up_denies_invalid_actor_without_writing(options):
+    wallet = build_wallet(**options)
 
     with pytest.raises(PermissionDeniedError):
         wallet.service.top_up(CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID)
 
-    assert wallet.accounts.credits == []
+    assert_nothing_touched(wallet)
+    assert wallet.tx.rolled_back is True
 
 
-def test_top_up_accepts_active_employee():
-    wallet = build_wallet(employee_repo=FakeEmployeeRepository(EmployeeStatus.ACTIVE))
+@DENIED_ACTORS
+def test_get_history_denies_invalid_actor(options):
+    wallet = build_wallet(**options)
 
+    with pytest.raises(PermissionDeniedError):
+        wallet.service.get_history(CUSTOMER_ID)
+
+    assert wallet.customers.calls == 0
+
+
+def test_top_up_denies_employee_id_different_from_actor(wallet):
+    with pytest.raises(PermissionDeniedError):
+        wallet.service.top_up(
+            CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID + 1
+        )
+
+    assert_nothing_touched(wallet)
+    assert wallet.auth.lookups == []
+
+
+def test_top_up_rechecks_actor_against_database(wallet):
     result = wallet.service.top_up(
         CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID
     )
 
+    assert wallet.auth.lookups == [EMPLOYEE_ID]
     assert result.balance_after == 15_000
+
+
+def test_get_history_rechecks_actor_against_database(wallet):
+    wallet.service.get_history(CUSTOMER_ID)
+
+    assert wallet.auth.lookups == [EMPLOYEE_ID]
 
 
 def test_top_up_maps_missing_employee_foreign_key_to_permission_error(wallet):

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from typing import Any, Protocol
+from typing import Any
 from uuid import uuid4
 
 from mysql.connector import Error as MySQLError
@@ -16,8 +16,12 @@ from mysql.connector import errorcode
 from mysql.connector.errors import IntegrityError
 
 from cyberhub_manager.database.transaction import transaction
-from cyberhub_manager.domain.dtos import TopUpResult, TransactionSummary
-from cyberhub_manager.domain.enums import EmployeeStatus, PaymentMethod
+from cyberhub_manager.domain.dtos import (
+    EmployeeSession,
+    TopUpResult,
+    TransactionSummary,
+)
+from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import (
     NotFoundError,
     PermissionDeniedError,
@@ -26,6 +30,7 @@ from cyberhub_manager.domain.exceptions import (
 )
 from cyberhub_manager.domain.models import Customer
 from cyberhub_manager.repositories.account_repository import AccountRepository
+from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 
 
@@ -37,10 +42,8 @@ TRANSACTION_CODE_PREFIX = "TX-"
 TRANSACTION_CODE_HEX_LENGTH = 17
 
 
-class EmployeeLookup(Protocol):
-    """Repository nhân viên do HA-05 bàn giao; kết quả cần có thuộc tính status."""
-
-    def get_by_id(self, conn: Any, employee_id: int) -> Any | None: ...
+# Trả phiên đăng nhập hiện tại; None nghĩa là chưa đăng nhập.
+ActorProvider = Callable[[], EmployeeSession | None]
 
 
 def new_transaction_code() -> str:
@@ -84,13 +87,15 @@ class WalletService:
         self,
         customer_repo: CustomerRepository | None = None,
         account_repo: AccountRepository | None = None,
-        employee_repo: EmployeeLookup | None = None,
+        auth_repo: AuthRepository | None = None,
+        actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
     ) -> None:
         self._customers = customer_repo or CustomerRepository()
         self._accounts = account_repo or AccountRepository()
-        # TODO(HA-05): truyền repository có get_by_id khi AuthRepository bổ sung.
-        self._employees = employee_repo
+        self._auth = auth_repo or AuthRepository()
+        # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
+        self._actor_provider = actor_provider
         self._transaction = transaction_factory
 
     def top_up(
@@ -108,8 +113,9 @@ class WalletService:
 
         try:
             with self._transaction() as conn:
+                # Xác thực actor trước khi đọc khách hay đụng tới số dư.
+                actor = self._require_actor(conn, employee_id)
                 customer = self._get_customer(conn, customer_id)
-                self._require_active_employee(conn, employee_id)
 
                 # Khóa dòng account trước khi đọc số dư để hai lần nạp đồng
                 # thời không ghi đè nhau. Account LOCKED vẫn được nạp để trả nợ.
@@ -126,7 +132,7 @@ class WalletService:
                     conn,
                     code=new_transaction_code(),
                     account_id=account.id,
-                    employee_id=employee_id,
+                    employee_id=actor.employee_id,
                     amount=amount,
                     method=method,
                 )
@@ -148,9 +154,11 @@ class WalletService:
             balance_after=balance_before + amount,
             transaction=summary,
         )
+
     def get_history(self, customer_id: int) -> list[TransactionSummary]:
         try:
             with self._transaction() as conn:
+                self._require_actor(conn)
                 customer = self._get_customer(conn, customer_id)
                 return self._accounts.list_transactions(conn, customer.account.id)
         except MySQLError as exc:
@@ -163,14 +171,21 @@ class WalletService:
                 return customer
         raise NotFoundError("Không tìm thấy khách hàng")
 
-    def _require_active_employee(self, conn: Any, employee_id: int) -> None:
-        if self._employees is None:
-            # TODO(HA-05): chưa kiểm tra được ACTIVE; FK vẫn chặn id không tồn tại.
-            return
-        employee = self._employees.get_by_id(conn, employee_id)
-
-        if employee is None or employee.status != EmployeeStatus.ACTIVE:
+    def _require_actor(
+        self, conn: Any, employee_id: int | None = None
+    ) -> EmployeeSession:
+        actor = self._actor_provider() if self._actor_provider else None
+        if actor is None:
             raise PermissionDeniedError()
+        if employee_id is not None and (
+            not _is_positive_id(employee_id) or employee_id != actor.employee_id
+        ):
+            raise PermissionDeniedError()
+        # Tra lại DB: nhân viên/cửa hàng có thể đã bị khóa hoặc nhân viên đã chuyển cửa hàng.
+        current = self._auth.get_active_session_by_id(conn, actor.employee_id)
+        if current is None or current.store_id != actor.store_id:
+            raise PermissionDeniedError()
+        return current
 
     def _get_created_transaction(
         self, conn: Any, account_id: int, transaction_id: int

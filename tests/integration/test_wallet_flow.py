@@ -23,6 +23,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.repositories.account_repository import AccountRepository
+from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.security import hash_password
 from cyberhub_manager.services.wallet_service import WalletService
@@ -57,6 +58,12 @@ def wallet_db(monkeypatch):
             "INSERT INTO stores (code, name, address) VALUES (%s, %s, %s)",
             ("ST-" + token[:16], "LI04 Test Store", "Test address"),
         )
+        # Cửa hàng thứ hai để thử trường hợp nhân viên bị chuyển cửa hàng.
+        other_store_id = _execute(
+            conn,
+            "INSERT INTO stores (code, name, address) VALUES (%s, %s, %s)",
+            ("SX-" + token[:16], "LI04 Other Store", "Test address"),
+        )
         employee_id = _execute(
             conn,
             """
@@ -86,11 +93,19 @@ def wallet_db(monkeypatch):
             password_hash=password_hash,
         )
 
+    # Phiên đăng nhập thật của nhân viên vừa tạo, đóng vai actor của UI.
+    with transaction() as conn:
+        actor = AuthRepository().get_active_session_by_id(conn, employee_id)
+
     try:
         yield SimpleNamespace(
+            store_id=store_id,
+            other_store_id=other_store_id,
             employee_id=employee_id,
             customer_id=customer_id,
             account_id=account_id,
+            actor=actor,
+            service=WalletService(actor_provider=lambda: actor),
         )
     finally:
         # Xóa bảng con trước bảng cha để không vướng khóa ngoại.
@@ -104,6 +119,7 @@ def wallet_db(monkeypatch):
             _execute(conn, "DELETE FROM customers WHERE id = %s", (customer_id,))
             _execute(conn, "DELETE FROM employees WHERE id = %s", (employee_id,))
             _execute(conn, "DELETE FROM stores WHERE id = %s", (store_id,))
+            _execute(conn, "DELETE FROM stores WHERE id = %s", (other_store_id,))
 
 
 def _balance(account_id):
@@ -121,7 +137,7 @@ def _transaction_count(account_id):
 
 
 def test_top_up_credits_balance_and_records_transaction(wallet_db):
-    result = WalletService().top_up(
+    result = wallet_db.service.top_up(
         wallet_db.customer_id, 50_000, PaymentMethod.CASH, wallet_db.employee_id
     )
 
@@ -144,7 +160,7 @@ def test_top_up_credits_balance_and_records_transaction(wallet_db):
 
 
 def test_get_history_returns_newest_first(wallet_db):
-    service = WalletService()
+    service = wallet_db.service
     first = service.top_up(
         wallet_db.customer_id, 10_000, PaymentMethod.CASH, wallet_db.employee_id
     )
@@ -164,7 +180,7 @@ def test_get_history_returns_newest_first(wallet_db):
 
 
 def test_get_history_returns_empty_list_without_transactions(wallet_db):
-    assert WalletService().get_history(wallet_db.customer_id) == []
+    assert wallet_db.service.get_history(wallet_db.customer_id) == []
 
 
 def test_top_up_allows_locked_account(wallet_db):
@@ -173,7 +189,7 @@ def test_top_up_allows_locked_account(wallet_db):
             conn, wallet_db.account_id, AccountStatus.LOCKED
         )
 
-    result = WalletService().top_up(
+    result = wallet_db.service.top_up(
         wallet_db.customer_id, 15_000, PaymentMethod.CASH, wallet_db.employee_id
     )
 
@@ -190,7 +206,7 @@ def test_top_up_rolls_back_balance_when_transaction_insert_fails(
     monkeypatch.setattr(AccountRepository, "insert_top_up_transaction", fail_insert)
 
     with pytest.raises(RuntimeError):
-        WalletService().top_up(
+        wallet_db.service.top_up(
             wallet_db.customer_id, 10_000, PaymentMethod.CASH, wallet_db.employee_id
         )
 
@@ -198,9 +214,9 @@ def test_top_up_rolls_back_balance_when_transaction_insert_fails(
     assert _transaction_count(wallet_db.account_id) == 0
 
 
-def test_top_up_unknown_employee_is_denied_and_rolled_back(wallet_db):
+def test_top_up_employee_id_not_matching_actor_is_denied(wallet_db):
     with pytest.raises(PermissionDeniedError):
-        WalletService().top_up(
+        wallet_db.service.top_up(
             wallet_db.customer_id, 10_000, PaymentMethod.CASH, UNKNOWN_ID
         )
 
@@ -210,21 +226,77 @@ def test_top_up_unknown_employee_is_denied_and_rolled_back(wallet_db):
 
 def test_top_up_unknown_customer_raises_not_found(wallet_db):
     with pytest.raises(NotFoundError):
-        WalletService().top_up(
+        wallet_db.service.top_up(
             UNKNOWN_ID, 10_000, PaymentMethod.CASH, wallet_db.employee_id
         )
 
 
 def test_get_history_unknown_customer_raises_not_found(wallet_db):
     with pytest.raises(NotFoundError):
-        WalletService().get_history(UNKNOWN_ID)
+        wallet_db.service.get_history(UNKNOWN_ID)
 
 
 def test_top_up_invalid_amount_leaves_data_unchanged(wallet_db):
     with pytest.raises(ValidationError):
-        WalletService().top_up(
+        wallet_db.service.top_up(
             wallet_db.customer_id, 0, PaymentMethod.CASH, wallet_db.employee_id
         )
 
     assert _balance(wallet_db.account_id) == 0
     assert _transaction_count(wallet_db.account_id) == 0
+
+
+# ----- Actor không hợp lệ ----------------------------------------------------
+
+
+def _update(sql, params):
+    with transaction() as conn:
+        _execute(conn, sql, params)
+
+
+def _assert_denied_and_unchanged(service, wallet_db):
+    with pytest.raises(PermissionDeniedError):
+        service.top_up(
+            wallet_db.customer_id, 10_000, PaymentMethod.CASH, wallet_db.employee_id
+        )
+    with pytest.raises(PermissionDeniedError):
+        service.get_history(wallet_db.customer_id)
+
+    assert _balance(wallet_db.account_id) == 0
+    assert _transaction_count(wallet_db.account_id) == 0
+
+
+def test_without_actor_provider_is_denied(wallet_db):
+    _assert_denied_and_unchanged(WalletService(), wallet_db)
+
+
+def test_provider_returning_none_is_denied(wallet_db):
+    _assert_denied_and_unchanged(WalletService(actor_provider=lambda: None), wallet_db)
+
+
+@pytest.mark.parametrize("status", ["INACTIVE", "LOCKED"])
+def test_inactive_or_locked_employee_is_denied(wallet_db, status):
+    _update(
+        "UPDATE employees SET status = %s WHERE id = %s",
+        (status, wallet_db.employee_id),
+    )
+
+    _assert_denied_and_unchanged(wallet_db.service, wallet_db)
+
+
+def test_inactive_store_is_denied(wallet_db):
+    _update(
+        "UPDATE stores SET status = 'INACTIVE' WHERE id = %s",
+        (wallet_db.store_id,),
+    )
+
+    _assert_denied_and_unchanged(wallet_db.service, wallet_db)
+
+
+def test_employee_moved_to_other_store_is_denied(wallet_db):
+    _update(
+        "UPDATE employees SET store_id = %s WHERE id = %s",
+        (wallet_db.other_store_id, wallet_db.employee_id),
+    )
+
+    _assert_denied_and_unchanged(wallet_db.service, wallet_db)
