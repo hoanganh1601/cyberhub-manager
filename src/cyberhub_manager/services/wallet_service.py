@@ -63,7 +63,10 @@ def _amount_error(amount: object) -> str | None:
 
 
 def _method_error(method: object) -> str | None:
-    if method not in TOP_UP_METHODS:
+    if (
+        not isinstance(method, PaymentMethod)
+        or method not in TOP_UP_METHODS
+    ):
         return "Phương thức chỉ được là tiền mặt hoặc chuyển khoản"
     return None
 
@@ -106,8 +109,7 @@ class WalletService:
         employee_id: int,
     ) -> TopUpResult:
         _validate_top_up(amount, method)
-        # UI có thể truyền chuỗi "CASH"; repository cần enum để đọc .value.
-        method = PaymentMethod(method)
+
         if not _is_positive_id(employee_id):
             raise PermissionDeniedError()
 

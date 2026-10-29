@@ -231,7 +231,16 @@ def test_top_up_accepts_amount_boundaries(wallet, amount):
 
 @pytest.mark.parametrize(
     "method",
-    [PaymentMethod.ACCOUNT_BALANCE, PaymentMethod.PROMOTION, None, "MOMO"],
+    [
+        PaymentMethod.ACCOUNT_BALANCE,
+        PaymentMethod.PROMOTION,
+        None,
+        "CASH",
+        "TRANSFER",
+        "MOMO",
+        [],
+        {},
+    ],
 )
 def test_top_up_rejects_invalid_method(wallet, method):
     with pytest.raises(ValidationError) as exc_info:
@@ -239,6 +248,8 @@ def test_top_up_rejects_invalid_method(wallet, method):
 
     assert set(exc_info.value.field_errors) == {"method"}
     assert wallet.tx.calls == 0
+    assert wallet.accounts.credits == []
+    assert wallet.accounts.inserted == []
 
 
 def test_top_up_reports_amount_and_method_errors_together(wallet):
@@ -248,11 +259,11 @@ def test_top_up_reports_amount_and_method_errors_together(wallet):
     assert set(exc_info.value.field_errors) == {"amount", "method"}
 
 
-def test_top_up_accepts_method_as_string(wallet):
-    result = wallet.service.top_up(CUSTOMER_ID, 10_000, "TRANSFER", EMPLOYEE_ID)
+# def test_top_up_accepts_method_as_string(wallet):
+#     result = wallet.service.top_up(CUSTOMER_ID, 10_000, "TRANSFER", EMPLOYEE_ID)
 
-    assert wallet.accounts.inserted[0]["method"] is PaymentMethod.TRANSFER
-    assert result.transaction.method is PaymentMethod.TRANSFER
+#     assert wallet.accounts.inserted[0]["method"] is PaymentMethod.TRANSFER
+#     assert result.transaction.method is PaymentMethod.TRANSFER
 
 
 @pytest.mark.parametrize("employee_id", [0, -1, True, "5", None])
