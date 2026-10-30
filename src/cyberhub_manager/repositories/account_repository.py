@@ -196,3 +196,91 @@ class AccountRepository:
             )
             for row in rows
         ]
+
+    def insert_usage_payment_transaction(
+        self,
+        conn: PooledMySQLConnection,
+        *,
+        code: str,
+        account_id: int,
+        employee_id: int,
+        session_id: int,
+        usage_cost: int,
+    ) -> int:
+        """Record a session charge without committing."""
+        if isinstance(usage_cost, bool) or not isinstance(usage_cost, int) or usage_cost <= 0:
+            raise ValueError("Usage cost must be a positive integer")
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                INSERT INTO account_transactions
+                    (code, account_id, employee_id, session_id,
+                     type, amount, method)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    code,
+                    account_id,
+                    employee_id,
+                    session_id,
+                    TransactionType.USAGE_PAYMENT.value,
+                    -usage_cost,
+                    PaymentMethod.ACCOUNT_BALANCE.value,
+                ),
+            )
+            transaction_id = cursor.lastrowid
+            if not transaction_id:
+                raise RuntimeError("Failed to retrieve the new transaction ID")
+            return int(transaction_id)
+        finally:
+            cursor.close()
+
+    def insert_debt_settlement_transaction(
+        self,
+        conn: PooledMySQLConnection,
+        *,
+        code: str,
+        account_id: int,
+        employee_id: int,
+        session_id: int,
+        settlement_amount: int,
+        method: PaymentMethod,
+    ) -> int:
+        """Record a cash or transfer settlement without committing."""
+        if (
+            isinstance(settlement_amount, bool)
+            or not isinstance(settlement_amount, int)
+            or settlement_amount <= 0
+        ):
+            raise ValueError("Settlement amount must be a positive integer")
+        if method not in (PaymentMethod.CASH, PaymentMethod.TRANSFER):
+            raise ValueError("Settlement method must be CASH or TRANSFER")
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                INSERT INTO account_transactions
+                    (code, account_id, employee_id, session_id,
+                     type, amount, method)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    code,
+                    account_id,
+                    employee_id,
+                    session_id,
+                    TransactionType.DEBT_SETTLEMENT.value,
+                    settlement_amount,
+                    method.value,
+                ),
+            )
+            transaction_id = cursor.lastrowid
+            if not transaction_id:
+                raise RuntimeError("Failed to retrieve the new transaction ID")
+            return int(transaction_id)
+        finally:
+            cursor.close()
+

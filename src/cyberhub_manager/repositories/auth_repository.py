@@ -5,6 +5,7 @@ from cyberhub_manager.domain.dtos import EmployeeSession
 from mysql.connector.pooling import PooledMySQLConnection
 from cyberhub_manager.domain.enums import Role
 
+"""Return a session only when the employee and store are active"""
 @dataclass(frozen = True, slots = True)
 class AuthRecord:
     """Authentication data for the service layer; never expose it to the UI."""
@@ -58,3 +59,48 @@ class AuthRepository:
             role = Role(row["role"]),
         )
         return AuthRecord(session = session, password_hash = row["password_hash"])
+
+    def get_active_session_by_id(
+        self,
+        conn: PooledMySQLConnection,
+        employee_id: int,
+    ) -> EmployeeSession | None:
+        """Return active employee session, or None if login is unavailable."""
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                """
+                SELECT
+                    e.id AS employee_id,
+                    e.code AS employee_code,
+                    e.full_name,
+                    e.username,
+                    e.store_id,
+                    e.role,
+                    s.code AS store_code,
+                    s.name AS store_name
+                FROM employees AS e
+                JOIN stores AS s ON s.id = e.store_id
+                WHERE e.id = %s
+                  AND e.status = 'ACTIVE'
+                  AND s.status = 'ACTIVE'
+                """,
+                (employee_id,),
+            )
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+
+        if row is None:
+            return None
+
+        return EmployeeSession(
+            employee_id = row["employee_id"],
+            employee_code = row["employee_code"],
+            full_name = row["full_name"],
+            username = row["username"],
+            store_id = row["store_id"],
+            store_code = row["store_code"],
+            store_name = row["store_name"],
+            role = Role(row["role"]),
+        )

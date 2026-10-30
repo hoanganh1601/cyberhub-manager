@@ -90,7 +90,7 @@ Không xóa cứng máy đã phát sinh phiên; dùng trạng thái/bảo trì �
 | WAL-02 | Cập nhật số dư và lịch sử | Cộng số dư + tạo giao dịch trong cùng transaction; lỗi thì rollback cả hai |
 | WAL-03 | Phương thức | MVP hỗ trợ `CASH` và `TRANSFER` dạng ghi nhận, không tích hợp cổng thật |
 | WAL-04 | Khuyến mãi P1 | Áp dụng đúng một chính sách đang hiệu lực có mốc cao nhất; ghi giao dịch bonus riêng |
-| WAL-05 | Lịch sử | Hiển thị thời gian, loại, số tiền, nhân viên, phương thức và ghi chú |
+| WAL-05 | Lịch sử | Hiển thị thời gian, loại, số tiền, nhân viên và phương thức; P0 không lưu ghi chú tự do, UI dùng loại giao dịch để hiển thị mô tả |
 | WAL-06 | Hai loại số dư P1 | Tách số dư chính/khuyến mãi; trừ khuyến mãi trước; số dư khuyến mãi không rút hoặc hoàn tiền mặt |
 
 ### SES — Phiên sử dụng
