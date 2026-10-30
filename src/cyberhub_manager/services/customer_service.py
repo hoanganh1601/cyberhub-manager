@@ -28,10 +28,12 @@ from cyberhub_manager.domain.exceptions import (
 )
 from cyberhub_manager.domain.models import Customer
 from cyberhub_manager.repositories.account_repository import AccountRepository
+from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.security import hash_password
 
 MANAGER_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
+ActorProvider = Callable[[], EmployeeSession | None]
 
 # "CUS-"/"ACC-" + 16 ký tự hex = 20 ký tự, vừa cột code VARCHAR(20).
 CUSTOMER_CODE_PREFIX = "CUS-"
@@ -117,12 +119,6 @@ def _conflict_from(exc: IntegrityError) -> ConflictError | None:
     return None
 
 
-def _require_manager(actor: EmployeeSession) -> None:
-    # TODO(HA-05): đối chiếu actor với nhân viên ACTIVE trong DB khi có get_by_id.
-    if getattr(actor, "role", None) not in MANAGER_ROLES:
-        raise PermissionDeniedError()
-
-
 class CustomerService:
     """Triển khai CustomerServiceProtocol trên MySQL."""
 
@@ -130,10 +126,14 @@ class CustomerService:
         self,
         customer_repo: CustomerRepository | None = None,
         account_repo: AccountRepository | None = None,
+        auth_repo: AuthRepository | None = None,
+        actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
     ) -> None:
         self._customers = customer_repo or CustomerRepository()
         self._accounts = account_repo or AccountRepository()
+        self._auth = auth_repo or AuthRepository()
+        self._actor_provider = actor_provider
         self._transaction = transaction_factory
 
     def create_customer(
@@ -159,6 +159,7 @@ class CustomerService:
 
         with self._database() as conn:
             # Customer và account cùng một transaction: lỗi ở account thì rollback cả customer.
+            self._require_actor(conn)
             customer_id = self._customers.create(
                 conn,
                 code=_new_code(CUSTOMER_CODE_PREFIX),
@@ -176,10 +177,12 @@ class CustomerService:
 
     def get_customer(self, customer_id: int) -> Customer:
         with self._database() as conn:
+            self._require_actor(conn)
             return self._get_customer(conn, customer_id)
 
     def search_customers(self, keyword: str) -> list[CustomerSummary]:
         with self._database() as conn:
+            self._require_actor(conn)
             return self._customers.search(conn, _clean(keyword))
 
     def update_customer(
@@ -198,6 +201,7 @@ class CustomerService:
         )
 
         with self._database() as conn:
+            self._require_actor(conn)
             self._get_customer(conn, customer_id)
             # Không dựa vào rowcount: MySQL trả 0 khi dữ liệu mới giống dữ liệu cũ.
             self._customers.update_profile(
@@ -211,11 +215,13 @@ class CustomerService:
         status: CustomerStatus,
         actor: EmployeeSession,
     ) -> Customer:
-        _require_manager(actor)
         if not isinstance(status, CustomerStatus):
             raise ValidationError(
-                field_errors={"status": "Trạng thái khách hàng không hợp lệ"}
+                field_errors={
+                    "status": "Trạng thái khách hàng không hợp lệ"
+                }
             )
+
         account_status = (
             AccountStatus.ACTIVE
             if status == CustomerStatus.ACTIVE
@@ -223,11 +229,69 @@ class CustomerService:
         )
 
         with self._database() as conn:
+            self._require_actor(
+                conn,
+                actor,
+                manager_only=True,
+            )
+
             customer = self._get_customer(conn, customer_id)
-            # Đổi customer và account cùng transaction; không tự kết thúc phiên đang chạy.
-            self._customers.set_status(conn, customer.id, status)
-            self._accounts.set_status(conn, customer.account.id, account_status)
+
+            # Update customer and account atomically.
+            self._customers.set_status(
+                conn,
+                customer.id,
+                status,
+            )
+            self._accounts.set_status(
+                conn,
+                customer.account.id,
+                account_status,
+            )
+
             return self._get_customer(conn, customer.id)
+
+    def _require_actor(
+        self,
+        conn: Any,
+        requested_actor: EmployeeSession | None = None,
+        *,
+        manager_only: bool = False,
+    ) -> EmployeeSession:
+        """Validate the current actor against the active database record."""
+
+        actor = (
+            self._actor_provider()
+            if self._actor_provider is not None
+            else None
+        )
+
+        if (
+            not isinstance(actor, EmployeeSession)
+            or not _is_positive_id(actor.employee_id)
+            or not _is_positive_id(actor.store_id)
+        ):
+            raise PermissionDeniedError()
+
+        if requested_actor is not None and (
+            not isinstance(requested_actor, EmployeeSession)
+            or requested_actor.employee_id != actor.employee_id
+            or requested_actor.store_id != actor.store_id
+        ):
+            raise PermissionDeniedError()
+
+        current_actor = self._auth.get_active_session_by_id(
+            conn,
+            actor.employee_id,
+        )
+
+        if current_actor is None or current_actor.store_id != actor.store_id:
+            raise PermissionDeniedError()
+
+        if manager_only and current_actor.role not in MANAGER_ROLES:
+            raise PermissionDeniedError()
+
+        return current_actor
 
     @contextmanager
     def _database(self) -> Iterator[Any]:

@@ -123,6 +123,16 @@ def db(monkeypatch):
             _execute(conn, "DELETE FROM stores WHERE id = %s", (store_id,))
 
 
+def _customer_service(db, actor=None) -> CustomerService:
+    """Build CustomerService with a trusted logged-in actor."""
+
+    current_actor = db.staff if actor is None else actor
+
+    return CustomerService(
+        actor_provider=lambda: current_actor,
+    )
+
+
 def _create(db, **overrides):
     values = {
         "full_name": "LI03 Test Customer",
@@ -131,7 +141,7 @@ def _create(db, **overrides):
         "password": PASSWORD,
     }
     values.update(overrides)
-    customer = CustomerService().create_customer(**values)
+    customer = _customer_service(db).create_customer(**values)
     db.customer_ids.append(customer.id)
     return customer
 
@@ -174,7 +184,12 @@ def test_create_customer_creates_customer_and_account_together(db):
     phone = _unique_phone()
     username = _unique_username()
 
-    customer = _create(db, full_name="  Nguyễn Văn A  ", phone=phone, username=username)
+    customer = _create(
+        db,
+        full_name = "  Nguyễn Văn A  ",
+        phone = phone,
+        username = username
+    )
 
     assert customer.code.startswith("CUS-") and len(customer.code) == 20
     assert customer.full_name == "Nguyễn Văn A"
@@ -194,7 +209,7 @@ def test_create_customer_creates_customer_and_account_together(db):
 
 def test_create_customer_rejects_invalid_input(db):
     with pytest.raises(ValidationError) as exc_info:
-        CustomerService().create_customer("A", "123", "ab", "123")
+        _customer_service(db).create_customer("A", "123", "ab", "123")
 
     assert set(exc_info.value.field_errors) == {"full_name", "phone", "username", "password"}
 
@@ -223,7 +238,7 @@ def test_create_customer_duplicate_username_rolls_back_customer(db):
 def test_get_customer_returns_customer_with_account(db):
     created = _create(db)
 
-    customer = CustomerService().get_customer(created.id)
+    customer = _customer_service(db).get_customer(created.id)
 
     assert customer.id == created.id
     assert customer.account.id == created.account.id
@@ -231,12 +246,12 @@ def test_get_customer_returns_customer_with_account(db):
 
 def test_get_customer_unknown_raises_not_found(db):
     with pytest.raises(NotFoundError):
-        CustomerService().get_customer(UNKNOWN_ID)
+        _customer_service(db).get_customer(UNKNOWN_ID)
 
 
 def test_search_customers_matches_code_name_phone_and_username(db):
     created = _create(db, full_name="LI03 Tìm Kiếm")
-    service = CustomerService()
+    service = _customer_service(db)
 
     for keyword in (
         created.code,
@@ -250,14 +265,14 @@ def test_search_customers_matches_code_name_phone_and_username(db):
 
 
 def test_search_customers_without_match_returns_empty_list(db):
-    assert CustomerService().search_customers("li03-khong-co-" + uuid4().hex) == []
+    assert _customer_service(db).search_customers("li03-khong-co-" + uuid4().hex) == []
 
 
 def test_update_customer_changes_profile(db):
     created = _create(db)
     new_phone = _unique_phone()
 
-    updated = CustomerService().update_customer(created.id, "  Tên Mới  ", new_phone)
+    updated = _customer_service(db).update_customer(created.id, "  Tên Mới  ", new_phone)
 
     assert updated.full_name == "Tên Mới"
     assert updated.phone == new_phone
@@ -266,7 +281,7 @@ def test_update_customer_changes_profile(db):
 def test_update_customer_with_same_values_succeeds(db):
     created = _create(db)
 
-    updated = CustomerService().update_customer(created.id, created.full_name, created.phone)
+    updated = _customer_service(db).update_customer(created.id, created.full_name, created.phone)
 
     assert updated.full_name == created.full_name
 
@@ -276,19 +291,19 @@ def test_update_customer_duplicate_phone_raises_conflict(db):
     second = _create(db)
 
     with pytest.raises(ConflictError) as exc_info:
-        CustomerService().update_customer(second.id, second.full_name, first.phone)
+        _customer_service(db).update_customer(second.id, second.full_name, first.phone)
 
     assert set(exc_info.value.field_errors) == {"phone"}
 
 
 def test_update_customer_unknown_raises_not_found(db):
     with pytest.raises(NotFoundError):
-        CustomerService().update_customer(UNKNOWN_ID, "Tên Hợp Lệ", _unique_phone())
+        _customer_service(db).update_customer(UNKNOWN_ID, "Tên Hợp Lệ", _unique_phone())
 
 
 def test_set_customer_status_locks_and_unlocks_account_together(db):
     created = _create(db)
-    service = CustomerService()
+    service = _customer_service(db, db.manager)
 
     inactive = service.set_customer_status(created.id, CustomerStatus.INACTIVE, db.manager)
     assert inactive.status == CustomerStatus.INACTIVE
@@ -303,9 +318,13 @@ def test_set_customer_status_rejects_staff(db):
     created = _create(db)
 
     with pytest.raises(PermissionDeniedError):
-        CustomerService().set_customer_status(created.id, CustomerStatus.INACTIVE, db.staff)
+        _customer_service(db, db.staff).set_customer_status(
+            created.id,
+            CustomerStatus.INACTIVE,
+            db.staff,
+        )
 
-    assert CustomerService().get_customer(created.id).status == CustomerStatus.ACTIVE
+    assert _customer_service(db).get_customer(created.id).status == CustomerStatus.ACTIVE
 
 
 def test_set_customer_status_rolls_back_when_account_update_fails(db, monkeypatch):
@@ -317,11 +336,65 @@ def test_set_customer_status_rolls_back_when_account_update_fails(db, monkeypatc
     monkeypatch.setattr(AccountRepository, "set_status", fail_set_status)
 
     with pytest.raises(RuntimeError):
-        CustomerService().set_customer_status(created.id, CustomerStatus.INACTIVE, db.manager)
+        _customer_service(db, db.manager).set_customer_status(
+            created.id,
+            CustomerStatus.INACTIVE,
+            db.manager,
+        )
 
-    assert CustomerService().get_customer(created.id).status == CustomerStatus.ACTIVE
+    assert _customer_service(db).get_customer(created.id).status == CustomerStatus.ACTIVE
 
 
 def test_set_customer_status_unknown_raises_not_found(db):
     with pytest.raises(NotFoundError):
-        CustomerService().set_customer_status(UNKNOWN_ID, CustomerStatus.INACTIVE, db.manager)
+        _customer_service(db, db.manager).set_customer_status(
+            UNKNOWN_ID,
+            CustomerStatus.INACTIVE,
+            db.manager,
+        )
+
+
+def test_customer_operation_rejects_missing_session(db):
+    with pytest.raises(PermissionDeniedError):
+        CustomerService().get_customer(UNKNOWN_ID)
+
+
+def test_set_customer_status_rejects_forged_manager_role(db):
+    created = _create(db)
+
+    forged_manager = _actor(
+        db.employees["staff"],
+        Role.MANAGER,
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        _customer_service(db, forged_manager).set_customer_status(
+            created.id,
+            CustomerStatus.INACTIVE,
+            forged_manager,
+        )
+
+    assert (
+        _customer_service(db).get_customer(created.id).status
+        == CustomerStatus.ACTIVE
+    )
+
+def test_set_customer_status_rejects_locked_employee(db):
+    created = _create(db)
+
+    locked_actor = _actor(
+        db.employees["locked"],
+        Role.MANAGER,
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        _customer_service(db, locked_actor).set_customer_status(
+            created.id,
+            CustomerStatus.INACTIVE,
+            locked_actor,
+        )
+
+    assert (
+        _customer_service(db).get_customer(created.id).status
+        == CustomerStatus.ACTIVE
+    )
