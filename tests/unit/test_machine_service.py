@@ -31,13 +31,29 @@ STORE_ID = 1
 OTHER_STORE_ID = 2
 NOW = datetime(2026, 10, 23, 8, 0, tzinfo=timezone.utc)
 
+ROLE_EMPLOYEE_IDS = {
+    Role.MANAGER: 1,
+    Role.ADMIN: 2,
+    Role.STAFF: 3,
+}
 
-def make_actor(role=Role.MANAGER, store_id=STORE_ID):
+def make_actor(
+    role=Role.MANAGER,
+    store_id=STORE_ID,
+    *,
+    employee_id=None,
+):
+    resolved_employee_id = (
+        ROLE_EMPLOYEE_IDS[role]
+        if employee_id is None
+        else employee_id
+    )
+
     return EmployeeSession(
-        employee_id=1,
+        employee_id=resolved_employee_id,
         employee_code="NV001",
-        full_name="Quản lý test",
-        username="manager01",
+        full_name="LI05 Actor",
+        username="li05.actor",
         store_id=store_id,
         store_code="CH001",
         store_name="Cửa hàng test",
@@ -94,9 +110,26 @@ def make_session(machine_id, *, minutes=10, hourly_rate=6_000):
     )
 
 
+class FakeAuthRepository:
+    def __init__(self, actor, *, active=True):
+        self.actor = actor
+        self.active = active
+
+    def get_active_session_by_id(
+        self,
+        conn,
+        employee_id,
+    ):
+        if (
+            not self.active
+            or self.actor is None
+            or self.actor.employee_id != employee_id
+        ):
+            return None
+
+        return self.actor
+
 # ----- Đồ giả ----------------------------------------------------------------
-
-
 class FakeMachineRepository:
     def __init__(self, machines=()):
         self.machines = {machine.id: machine for machine in machines}
@@ -185,16 +218,38 @@ class FakeTransaction:
             raise
 
 
-def build_service(machines=(), sessions=(), customer=None):
+def build_service(
+    machines=(),
+    sessions=(),
+    customer=None,
+    *,
+    actor=None,
+    database_actor=None,
+    actor_is_active=True,
+):
     repo = FakeMachineRepository(machines)
     tx = FakeTransaction()
+
+    trusted_actor = actor or make_actor()
+    current_actor = (
+        trusted_actor
+        if database_actor is None
+        else database_actor
+    )
+
     service = MachineService(
         machine_repo=repo,
         session_repo=FakeSessionRepository(sessions),
         customer_repo=FakeCustomerRepository(customer),
+        auth_repo=FakeAuthRepository(
+            current_actor,
+            active=actor_is_active,
+        ),
+        actor_provider=lambda: trusted_actor,
         transaction_factory=tx,
         clock=lambda: NOW,
     )
+
     return service, repo, tx
 
 
@@ -254,31 +309,41 @@ def test_list_machines_rejects_in_use_machine_without_session():
     ids=["create", "update", "maintenance", "archive"],
 )
 def test_staff_cannot_manage_machines(operation):
-    service, repo, tx = build_service(machines=[make_machine(1)])
-
+    actor = make_actor(role=Role.STAFF)
+    service, repo, _tx = build_service(
+        machines=[make_machine(1)],
+        actor=actor,
+    )
     with pytest.raises(PermissionDeniedError):
-        operation(service, make_actor(Role.STAFF))
-
-    assert tx.calls == 0
+        operation(service, actor)
     assert repo.wrote() == []
 
 
 @pytest.mark.parametrize("role", [Role.MANAGER, Role.ADMIN])
 def test_manager_and_admin_share_machine_permissions(role):
-    service, _repo, _tx = build_service()
+    actor = make_actor(role)
+    service, _repo, _tx = build_service(actor=actor)
 
-    machine = service.create_machine("PC09", STORE_ID, "Máy", 5_000, make_actor(role))
+    machine = service.create_machine(
+        "PC09",
+        STORE_ID,
+        "Máy",
+        5_000,
+        actor,
+    )
 
     assert machine.code == "PC09"
 
 
-def test_create_machine_rejects_other_store_before_touching_database():
-    service, _repo, tx = build_service()
+def test_create_machine_rejects_other_store_before_write():
+    service, repo, tx = build_service()
 
     with pytest.raises(PermissionDeniedError):
         service.create_machine("PC09", OTHER_STORE_ID, "Máy", 5_000, make_actor())
 
-    assert tx.calls == 0
+    assert tx.calls == 1
+    assert tx.rolled_back is True
+    assert repo.wrote() == []
 
 
 @pytest.mark.parametrize(

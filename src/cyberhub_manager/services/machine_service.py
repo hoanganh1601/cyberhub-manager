@@ -32,11 +32,13 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Machine, UsageSession
+from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 
 MANAGER_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
+ActorProvider = Callable[[], EmployeeSession | None]
 
 CODE_TAKEN = "Mã máy đã tồn tại"
 WRONG_STORE = "Bạn chỉ được thao tác dữ liệu của cửa hàng hiện tại"
@@ -53,7 +55,6 @@ def _utc_now() -> datetime:
 
 
 # ----- Validate từng trường, trả thông báo lỗi hoặc None --------------------
-
 
 def _clean(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
@@ -89,21 +90,6 @@ def _raise_if_errors(errors: dict[str, str | None]) -> None:
 def _is_positive_id(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
-
-# ----- Quyền và phạm vi cửa hàng ---------------------------------------------
-
-
-def _require_manager(actor: EmployeeSession) -> None:
-    # TODO(HA-05): đối chiếu actor với nhân viên ACTIVE trong DB khi có get_by_id.
-    if getattr(actor, "role", None) not in MANAGER_ROLES:
-        raise PermissionDeniedError()
-
-
-def _require_store(actor: EmployeeSession, store_id: int) -> None:
-    if actor.store_id != store_id:
-        raise PermissionDeniedError(WRONG_STORE)
-
-
 class MachineService:
     """Triển khai MachineServiceProtocol trên MySQL."""
 
@@ -112,25 +98,47 @@ class MachineService:
         machine_repo: MachineRepository | None = None,
         session_repo: SessionRepository | None = None,
         customer_repo: CustomerRepository | None = None,
+        auth_repo: AuthRepository | None = None,
+        actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
         clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         self._machines = machine_repo or MachineRepository()
         self._sessions = session_repo or SessionRepository()
         self._customers = customer_repo or CustomerRepository()
+        self._auth = auth_repo or AuthRepository()
+        self._actor_provider = actor_provider
         self._transaction = transaction_factory
         self._clock = clock
 
     def list_machines(self, store_id: int) -> list[MachineSummary]:
         now = self._clock()
+
         with self._database() as conn:
-            machines = self._machines.list_by_store(conn, store_id)
+            self._require_actor(
+                conn,
+                requested_store_id=store_id,
+            )
+
+            machines = self._machines.list_by_store(
+                conn,
+                store_id,
+            )
             sessions = {
                 session.machine_id: session
-                for session in self._sessions.list_active_by_store(conn, store_id)
+                for session in self._sessions.list_active_by_store(
+                    conn,
+                    store_id,
+                )
             }
+
             return [
-                self._to_summary(conn, machine, sessions.get(machine.id), now)
+                self._to_summary(
+                    conn,
+                    machine,
+                    sessions.get(machine.id),
+                    now,
+                )
                 for machine in machines
             ]
 
@@ -142,10 +150,9 @@ class MachineService:
         hourly_rate: int,
         actor: EmployeeSession,
     ) -> Machine:
-        _require_manager(actor)
-        _require_store(actor, store_id)
         code = _clean(code)
         name = _clean(name)
+
         _raise_if_errors(
             {
                 "code": _code_error(code),
@@ -155,13 +162,22 @@ class MachineService:
         )
 
         with self._database() as conn:
+            self._require_actor(
+                conn,
+                actor,
+                requested_store_id=store_id,
+                manager_only=True,
+            )
+
+
             machine_id = self._machines.create(
                 conn,
-                code=code,
-                store_id=store_id,
-                name=name,
-                hourly_rate=hourly_rate,
+                code = code,
+                store_id = store_id,
+                name = name,
+                hourly_rate = hourly_rate,
             )
+
             return self._get_machine(conn, machine_id)
 
     def update_machine(
@@ -171,26 +187,43 @@ class MachineService:
         hourly_rate: int,
         actor: EmployeeSession,
     ) -> Machine:
-        _require_manager(actor)
         name = _clean(name)
 
         with self._database() as conn:
-            machine = self._get_machine(conn, machine_id, for_update=True)
-            _require_store(actor, machine.store_id)
+            current_actor = self._require_actor(
+                conn,
+                actor,
+                manager_only=True,
+            )
+
+            machine = self._get_machine(
+                conn,
+                machine_id,
+                for_update=True,
+            )
+
+            if current_actor.store_id != machine.store_id:
+                raise PermissionDeniedError(WRONG_STORE)
+
             _raise_if_errors(
                 {
                     "name": _name_error(name),
                     "hourly_rate": _hourly_rate_error(hourly_rate),
                 }
             )
+
             if not machine.is_active:
                 raise ConflictError(UPDATE_ARCHIVED)
 
-            # Máy IN_USE vẫn sửa được: phiên đang chạy giữ đơn giá snapshot riêng.
+            # The active session keeps its hourly-rate snapshot.
             if not self._machines.update_info(
-                conn, machine.id, name=name, hourly_rate=hourly_rate
+                conn,
+                machine.id,
+                name=name,
+                hourly_rate=hourly_rate,
             ):
                 raise ConflictError(UPDATE_ARCHIVED)
+
             return self._get_machine(conn, machine.id)
 
     def set_maintenance(
@@ -199,22 +232,42 @@ class MachineService:
         enabled: bool,
         actor: EmployeeSession,
     ) -> Machine:
-        _require_manager(actor)
-
         with self._database() as conn:
-            machine = self._get_machine(conn, machine_id, for_update=True)
-            _require_store(actor, machine.store_id)
+            current_actor = self._require_actor(
+                conn,
+                actor,
+                manager_only=True,
+            )
+
+            machine = self._get_machine(
+                conn,
+                machine_id,
+                for_update=True,
+            )
+
+            if current_actor.store_id != machine.store_id:
+                raise PermissionDeniedError(WRONG_STORE)
+
             if not isinstance(enabled, bool):
                 raise ValidationError(
-                    field_errors={"enabled": "Giá trị bảo trì không hợp lệ"}
+                    field_errors={
+                        "enabled": "Giá trị bảo trì không hợp lệ"
+                    }
                 )
+
             if machine.status == MachineStatus.IN_USE:
                 raise ConflictError(MAINTENANCE_IN_USE)
+
             if not machine.is_active:
                 raise ConflictError(MAINTENANCE_ARCHIVED)
 
-            if not self._machines.set_maintenance(conn, machine.id, enabled):
+            if not self._machines.set_maintenance(
+                conn,
+                machine.id,
+                enabled,
+            ):
                 raise ConflictError(MAINTENANCE_IN_USE)
+
             return self._get_machine(conn, machine.id)
 
     def archive_machine(
@@ -222,23 +275,90 @@ class MachineService:
         machine_id: int,
         actor: EmployeeSession,
     ) -> MachineArchiveResult:
-        _require_manager(actor)
-
         with self._database() as conn:
-            machine = self._get_machine(conn, machine_id, for_update=True)
-            _require_store(actor, machine.store_id)
+            current_actor = self._require_actor(
+                conn,
+                actor,
+                manager_only=True,
+            )
+
+            machine = self._get_machine(
+                conn,
+                machine_id,
+                for_update=True,
+            )
+
+            if current_actor.store_id != machine.store_id:
+                raise PermissionDeniedError(WRONG_STORE)
+
             if machine.status == MachineStatus.IN_USE:
                 raise ConflictError(ARCHIVE_IN_USE)
 
-            # Repository tự chọn: chưa có lịch sử phiên thì xóa cứng, có thì archive.
             try:
-                action = self._machines.archive_or_delete(conn, machine.id)
+                action = self._machines.archive_or_delete(
+                    conn,
+                    machine.id,
+                )
             except ConflictError as exc:
-                # Repository báo lỗi bằng tiếng Anh; UI cần thông báo tiếng Việt.
                 raise ConflictError(ARCHIVE_IN_USE) from exc
+
             if action is None:
                 raise NotFoundError(MACHINE_NOT_FOUND)
-            return MachineArchiveResult(machine_id=machine.id, action=action)
+
+            return MachineArchiveResult(
+                machine_id = machine.id,
+                action = action,
+            )
+
+    def _require_actor(
+        self,
+        conn: Any,
+        requested_actor: EmployeeSession | None = None,
+        *,
+        requested_store_id: int | None = None,
+        manager_only: bool = False,
+    ) -> EmployeeSession:
+        """Validate actor identity, store scope, and current database role."""
+
+        actor = (
+            self._actor_provider()
+            if self._actor_provider is not None
+            else None
+        )
+
+        if (
+            not isinstance(actor, EmployeeSession)
+            or not _is_positive_id(actor.employee_id)
+            or not _is_positive_id(actor.store_id)
+        ):
+            raise PermissionDeniedError()
+
+        if requested_actor is not None and (
+            not isinstance(requested_actor, EmployeeSession)
+            or requested_actor.employee_id != actor.employee_id
+            or requested_actor.store_id != actor.store_id
+        ):
+            raise PermissionDeniedError()
+
+        current_actor = self._auth.get_active_session_by_id(
+            conn,
+            actor.employee_id,
+        )
+
+        if current_actor is None or current_actor.store_id != actor.store_id:
+            raise PermissionDeniedError()
+
+        if (
+            requested_store_id is not None
+            and current_actor.store_id != requested_store_id
+        ):
+            raise PermissionDeniedError(WRONG_STORE)
+
+        if manager_only and current_actor.role not in MANAGER_ROLES:
+            raise PermissionDeniedError()
+
+        return current_actor
+
 
     @contextmanager
     def _database(self) -> Iterator[Any]:
@@ -275,6 +395,10 @@ class MachineService:
             if session is None:
                 raise ConflictError(INCONSISTENT_SESSION)
             active_session = self._to_active_session(conn, machine, session, now)
+
+        elif session is not None:
+                raise ConflictError(INCONSISTENT_SESSION)
+
         return MachineSummary(
             machine_id=machine.id,
             machine_code=machine.code,
