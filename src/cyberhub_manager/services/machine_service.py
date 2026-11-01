@@ -31,7 +31,7 @@ from cyberhub_manager.domain.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from cyberhub_manager.domain.models import Machine, UsageSession
+from cyberhub_manager.domain.models import Machine, UsageSession, estimate_live_usage
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
@@ -422,10 +422,8 @@ class MachineService:
         if customer is None:
             raise ConflictError(INCONSISTENT_SESSION)
 
-        # Đồng hồ máy app có thể lệch vài giây so với started_at; không để thời gian âm.
-        at = max(now, session.started_at)
-        estimated_cost = session.calculate_cost(at)
         balance = customer.account.balance
+        estimate = estimate_live_usage(session, balance, now)
         return ActiveSessionSummary(
             session=SessionSummary(
                 session_id=session.id,
@@ -441,8 +439,8 @@ class MachineService:
                 status=session.status,
             ),
             account_balance=balance,
-            elapsed_seconds=session.elapsed_seconds(at),
-            estimated_cost=estimated_cost,
-            projected_balance=balance - estimated_cost,
-            as_of=at,
+            elapsed_seconds=estimate.elapsed_seconds,
+            estimated_cost=estimate.estimated_cost,
+            projected_balance=estimate.projected_balance,
+            as_of=estimate.as_of,
         )

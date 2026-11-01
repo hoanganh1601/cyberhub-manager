@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime
+from dataclasses import dataclass
 
 from .enums import (
     AccountStatus,
@@ -55,6 +56,20 @@ def _require_datetime(value: datetime, field: str) -> None:
             field_errors={field: "Thời gian không hợp lệ"}
         )
 
+# SES-01: số dư tối thiểu đủ chơi 30 phút.
+MINIMUM_SESSION_MINUTES = 30
+
+
+def minimum_balance(hourly_rate: int) -> int:
+    """Số dư tối thiểu đủ chơi MINIMUM_SESSION_MINUTES phút, làm tròn lên."""
+
+    return (MINIMUM_SESSION_MINUTES * hourly_rate + 59) // 60
+
+
+def estimate_play_minutes(balance: int, hourly_rate: int) -> int:
+    """SES-04: floor(số dư × 60 / đơn giá giờ); số dư âm thì 0 phút."""
+
+    return max(0, balance * 60 // hourly_rate)
 
 class Entity(ABC):
     """Lớp trừu tượng cho entity có định danh và mã nghiệp vụ."""
@@ -786,6 +801,32 @@ class UsageSession(Entity):
             raise ValidationError(
                 field_errors={"status": "Phiên CANCELLED phải có thời gian kết thúc"}
             )
+
+
+@dataclass(frozen=True)
+class LiveEstimate:
+    """Tạm tính của phiên đang chạy tại một thời điểm (SES-05)."""
+
+    as_of: datetime
+    elapsed_seconds: int
+    estimated_cost: int
+    projected_balance: int
+
+
+def estimate_live_usage(
+    session: UsageSession, balance: int, now: datetime
+) -> LiveEstimate:
+    """Dùng cùng công thức SES-07 với checkout; projected_balance < 0 là cảnh báo SES-06."""
+
+    # Đồng hồ máy app có thể lệch vài giây so với started_at; không để thời gian âm.
+    at = max(now, session.started_at)
+    cost = session.calculate_cost(at)
+    return LiveEstimate(
+        as_of=at,
+        elapsed_seconds=session.elapsed_seconds(at),
+        estimated_cost=cost,
+        projected_balance=balance - cost,
+    )
 
 
 class AccountTransaction(Entity):

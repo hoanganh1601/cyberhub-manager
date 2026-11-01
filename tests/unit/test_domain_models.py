@@ -19,8 +19,10 @@ from cyberhub_manager.domain.models import (
     Account,
     Customer,
     Invoice,
+    LiveEstimate,
     Machine,
     UsageSession,
+    estimate_live_usage,
 )
 
 
@@ -195,3 +197,50 @@ def test_invoice_can_be_voided_only_once() -> None:
 
     with pytest.raises(ConflictError):
         invoice.void()
+
+
+# make_session(): bắt đầu lúc NOW, đơn giá 30_000đ/giờ = 500đ/phút.
+@pytest.mark.parametrize(
+    ("offset_seconds", "elapsed", "cost"),
+    [
+        (0, 0, 500),  # vừa mở vẫn tính tối thiểu 1 phút
+        (1, 1, 500),
+        (60, 60, 500),  # đúng 1 phút chưa sang phút thứ 2
+        (61, 61, 1_000),  # quá 1 giây tính thêm 1 phút
+    ],
+)
+def test_live_estimate_rounds_like_checkout(
+    offset_seconds: int, elapsed: int, cost: int
+) -> None:
+    estimate = estimate_live_usage(
+        make_session(), 10_000, NOW + timedelta(seconds=offset_seconds)
+    )
+
+    assert estimate == LiveEstimate(
+        as_of=NOW + timedelta(seconds=offset_seconds),
+        elapsed_seconds=elapsed,
+        estimated_cost=cost,
+        projected_balance=10_000 - cost,
+    )
+
+
+def test_live_estimate_clamps_clock_before_start() -> None:
+    estimate = estimate_live_usage(make_session(), 10_000, NOW - timedelta(seconds=5))
+
+    assert estimate.as_of == NOW
+    assert estimate.elapsed_seconds == 0
+    assert estimate.estimated_cost == 500
+
+
+@pytest.mark.parametrize(
+    ("offset_seconds", "projected"),
+    [(60, 0), (61, -500)],  # về đúng 0 chưa cảnh báo; âm là cảnh báo SES-06
+)
+def test_live_estimate_projected_balance_boundary(
+    offset_seconds: int, projected: int
+) -> None:
+    estimate = estimate_live_usage(
+        make_session(), 500, NOW + timedelta(seconds=offset_seconds)
+    )
+
+    assert estimate.projected_balance == projected

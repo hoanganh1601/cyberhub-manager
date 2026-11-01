@@ -35,17 +35,12 @@ from cyberhub_manager.domain.models import (
     Invoice,
     Machine,
     UsageSession,
+    MINIMUM_SESSION_MINUTES,
+    estimate_play_minutes,
+    minimum_balance,
 )
 
 from .base import MockServiceBase, cash_method_error, raise_if_errors
-
-MINIMUM_SESSION_MINUTES = 30
-
-
-def minimum_balance(hourly_rate: int) -> int:
-    """Số dư tối thiểu đủ chơi MINIMUM_SESSION_MINUTES phút, làm tròn lên."""
-
-    return (MINIMUM_SESSION_MINUTES * hourly_rate + 59) // 60
 
 
 def _conflict(field: str, message: str) -> ConflictError:
@@ -72,7 +67,7 @@ class MockSessionService(MockServiceBase):
             balance=balance,
             hourly_rate=rate,
             minimum_balance=required,
-            estimated_minutes=max(0, balance * 60 // rate),
+            estimated_minutes=estimate_play_minutes(balance, rate),
             can_open=can_open,
             blocked_reason=(
                 None
