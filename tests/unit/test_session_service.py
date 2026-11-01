@@ -15,7 +15,9 @@ from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import (
     AccountStatus,
     CustomerStatus,
+    InvoiceStatus,
     MachineStatus,
+    PaymentMethod,
     Role,
     SessionStatus,
 )
@@ -25,19 +27,33 @@ from cyberhub_manager.domain.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     ServiceUnavailableError,
+    SettlementRequiredError,
     ValidationError,
 )
-from cyberhub_manager.domain.models import Account, Customer, Machine, UsageSession
+from cyberhub_manager.domain.models import (
+    Account,
+    Customer,
+    Invoice,
+    Machine,
+    UsageSession,
+)
 from cyberhub_manager.services.contracts import SessionServiceProtocol
 from cyberhub_manager.services.session_service import (
     ACCOUNT_LOCKED,
+    ALREADY_CHECKED_OUT,
+    BALANCE_CHANGED,
     CUSTOMER_BUSY,
     CUSTOMER_INACTIVE,
     MACHINE_ARCHIVED,
     MACHINE_BUSY,
     MACHINE_MAINTENANCE,
+    METHOD_INVALID,
+    METHOD_NOT_ALLOWED,
     NO_ACTIVE_SESSION,
     NOT_ENOUGH_BALANCE,
+    SETTLEMENT_INVALID,
+    SETTLEMENT_NOT_ENOUGH,
+    SETTLEMENT_TOO_LARGE,
     SessionService,
 )
 
@@ -47,6 +63,8 @@ NOW = datetime(2026, 10, 31, 8, 0, tzinfo=timezone.utc)
 # Đơn giá 6_000đ/giờ => tối thiểu 30 phút = 3_000đ.
 RATE = 6_000
 MINIMUM = 3_000
+# Giờ MySQL ghi invoices.created_at trong test checkout.
+INVOICE_CREATED_AT = datetime(2026, 10, 31, 8, 1, 2, tzinfo=timezone.utc)
 
 ROLE_EMPLOYEE_IDS = {Role.ADMIN: 1, Role.MANAGER: 2, Role.STAFF: 3}
 
@@ -125,6 +143,41 @@ def make_session(session_id=100, *, customer_id=5, machine_id=1):
     )
 
 
+def copy_customer(customer, *, balance=None):
+    account = customer.account
+    return Customer(
+        id=customer.id,
+        code=customer.code,
+        full_name=customer.full_name,
+        phone=customer.phone,
+        status=customer.status,
+        account=Account(
+            id=account.id,
+            code=account.code,
+            customer_id=account.customer_id,
+            username=account.username,
+            balance=account.balance if balance is None else balance,
+            status=account.status,
+        ),
+    )
+
+
+def copy_session(session):
+    return UsageSession(
+        id=session.id,
+        code=session.code,
+        customer_id=session.customer_id,
+        machine_id=session.machine_id,
+        opened_by=session.opened_by,
+        closed_by=session.closed_by,
+        started_at=session.started_at,
+        ended_at=session.ended_at,
+        hourly_rate=session.hourly_rate,
+        cost=session.cost,
+        status=session.status,
+    )
+
+
 # ----- Đồ giả ----------------------------------------------------------------
 class FakeDatabase:
     """Kho dữ liệu chung của các repository giả; lỗi trong transaction thì rollback."""
@@ -140,14 +193,35 @@ class FakeDatabase:
         self.rollbacks = 0
         self.create_error = None
         self.fail_mark_in_use = False
+        self.transactions = []
+        self.invoices = {}
+        # (tên bước, exception): bước đó ném lỗi để thử rollback.
+        self.fail_at = None
+
+    def write(self, step, *args):
+        self.writes.append((step, *args))
+        if self.fail_at is not None and self.fail_at[0] == step:
+            raise self.fail_at[1]
 
     @contextmanager
     def transaction(self):
-        machines, sessions = dict(self.machines), dict(self.sessions)
+        snapshot = (
+            dict(self.machines),
+            dict(self.sessions),
+            dict(self.customers),
+            list(self.transactions),
+            dict(self.invoices),
+        )
         try:
             yield object()
         except BaseException:
-            self.machines, self.sessions = machines, sessions
+            (
+                self.machines,
+                self.sessions,
+                self.customers,
+                self.transactions,
+                self.invoices,
+            ) = snapshot
             self.rollbacks += 1
             raise
         self.commits += 1
@@ -180,6 +254,19 @@ class FakeMachineRepository:
             machine_id,
             store_id=old.store_id,
             status=MachineStatus.IN_USE,
+            is_active=old.is_active,
+            hourly_rate=old.hourly_rate,
+        )
+        return True
+
+    def mark_available(self, conn, machine_id):
+        self.db.write("mark_available", machine_id)
+        old = self.db.machines[machine_id]
+        if old.status != MachineStatus.IN_USE:
+            return False
+        self.db.machines[machine_id] = make_machine(
+            machine_id,
+            store_id=old.store_id,
             is_active=old.is_active,
             hourly_rate=old.hourly_rate,
         )
@@ -222,12 +309,20 @@ class FakeSessionRepository:
         )
         return session_id
 
+    def complete(self, conn, session):
+        self.db.write("complete_session", session.id)
+        stored = self.db.sessions.get(session.id)
+        if stored is None or not stored.is_active():
+            return False
+        self.db.sessions[session.id] = copy_session(session)
+        return True
+
     def _find_active(self, *, machine_id=None, customer_id=None):
         for session in self.db.sessions.values():
             if session.is_active() and (
                 session.machine_id == machine_id or session.customer_id == customer_id
             ):
-                return session
+                return copy_session(session)
         return None
 
 
@@ -236,7 +331,8 @@ class FakeCustomerRepository:
         self.db = db
 
     def get_by_id(self, conn, customer_id):
-        return self.db.customers.get(customer_id)
+        customer = self.db.customers.get(customer_id)
+        return None if customer is None else copy_customer(customer)
 
 
 class FakeAccountRepository:
@@ -246,10 +342,91 @@ class FakeAccountRepository:
     def get_by_id(self, conn, account_id, *, for_update=False):
         if for_update:
             self.db.locks.append(("account", account_id))
+        customer = self._owner(account_id)
+        return None if customer is None else copy_customer(customer).account
+
+    def credit_balance(self, conn, account_id, amount):
+        self.db.write("credit_balance", amount)
+        customer = self._owner(account_id)
+        self.db.customers[customer.id] = copy_customer(
+            customer, balance=customer.account.balance + amount
+        )
+        return True
+
+    def debit_balance(self, conn, account_id, amount):
+        self.db.write("debit_balance", amount)
+        customer = self._owner(account_id)
+        if customer.account.balance < amount:
+            return False
+        self.db.customers[customer.id] = copy_customer(
+            customer, balance=customer.account.balance - amount
+        )
+        return True
+
+    def insert_debt_settlement_transaction(
+        self, conn, *, code, account_id, employee_id, session_id, settlement_amount,
+        method,
+    ):
+        self.db.write("settlement_transaction", settlement_amount)
+        self.db.transactions.append(
+            ("DEBT_SETTLEMENT", account_id, session_id, settlement_amount, method)
+        )
+        return len(self.db.transactions)
+
+    def insert_usage_payment_transaction(
+        self, conn, *, code, account_id, employee_id, session_id, usage_cost
+    ):
+        self.db.write("usage_transaction", usage_cost)
+        self.db.transactions.append(
+            (
+                "USAGE_PAYMENT",
+                account_id,
+                session_id,
+                -usage_cost,
+                PaymentMethod.ACCOUNT_BALANCE,
+            )
+        )
+        return len(self.db.transactions)
+
+    def _owner(self, account_id):
         for customer in self.db.customers.values():
             if customer.account.id == account_id:
-                return customer.account
+                return customer
         return None
+
+
+class FakeInvoiceRepository:
+    def __init__(self, db):
+        self.db = db
+
+    def create(
+        self, conn, *, code, session_id, customer_id, employee_id, store_id,
+        usage_cost, settlement_amount,
+    ):
+        self.db.write("create_invoice", session_id)
+        if any(i.session_id == session_id for i in self.db.invoices.values()):
+            raise IntegrityError(
+                msg="Duplicate entry for key 'invoices.uq_invoices_session'",
+                errno=errorcode.ER_DUP_ENTRY,
+            )
+        invoice_id = max(self.db.invoices, default=0) + 1
+        self.db.invoices[invoice_id] = Invoice(
+            id=invoice_id,
+            code=code,
+            session_id=session_id,
+            customer_id=customer_id,
+            employee_id=employee_id,
+            store_id=store_id,
+            usage_cost=usage_cost,
+            settlement_amount=settlement_amount,
+            total_amount=usage_cost,
+            status=InvoiceStatus.PAID,
+            created_at=INVOICE_CREATED_AT,
+        )
+        return invoice_id
+
+    def get_by_id(self, conn, invoice_id):
+        return self.db.invoices.get(invoice_id)
 
 
 def build_service(
@@ -276,6 +453,7 @@ def build_service(
         customer_repo=FakeCustomerRepository(db),
         account_repo=FakeAccountRepository(db),
         auth_repo=FakeAuthRepository(db),
+        invoice_repo=FakeInvoiceRepository(db),
         actor_provider=lambda: actor,
         transaction_factory=db.transaction,
         clock=clock,
@@ -779,3 +957,341 @@ def test_preview_checkout_rechecks_actor_in_database(actor, employees):
 
     with pytest.raises(PermissionDeniedError):
         service.preview_checkout(1, NOW)
+
+
+# ===== LI-07: complete_checkout ==============================================
+# Phiên 100 (khách 5, account 10) bắt đầu lúc NOW, giá 6_000đ/giờ = 100đ/phút;
+# checkout lúc NOW + 61 giây => 2 phút => phí 200đ.
+CHECKOUT_AT = NOW + timedelta(seconds=61)
+
+
+def build_complete(*, balance=50_000, actor=None, **kwargs):
+    actor = actor or make_actor(Role.MANAGER)
+    service, db = build_checkout(
+        balance=balance, actor=actor, clock=lambda: CHECKOUT_AT, **kwargs
+    )
+    return service, db, actor
+
+
+def assert_unchanged(db, balance):
+    """Năm nhóm dữ liệu checkout đều giữ nguyên như trước."""
+
+    assert db.customers[5].account.balance == balance
+    assert db.transactions == []
+    assert db.sessions[100].is_active()
+    assert db.machines[1].status == MachineStatus.IN_USE
+    assert db.invoices == {}
+
+
+def test_complete_checkout_without_settlement():
+    service, db, actor = build_complete()
+
+    result = service.complete_checkout(1, actor, 0, None)
+
+    assert result.balance_after == 49_800
+    invoice = result.invoice.invoice
+    assert invoice.invoice_code.startswith("INV-")
+    assert len(invoice.invoice_code) == 20
+    assert (invoice.usage_cost, invoice.settlement_amount, invoice.total_amount) == (
+        200,
+        0,
+        200,
+    )
+    assert invoice.status == InvoiceStatus.PAID
+    assert (invoice.session_id, invoice.customer_id, invoice.store_id) == (100, 5, 1)
+    assert (invoice.employee_id, invoice.employee_name) == (2, actor.full_name)
+    assert invoice.customer_name == "Nguyễn Văn A"
+    assert invoice.store_name == actor.store_name
+    assert invoice.created_at == INVOICE_CREATED_AT
+    assert result.invoice.ended_at == CHECKOUT_AT
+    assert result.invoice.billed_minutes == 2
+    assert result.invoice.session.status == SessionStatus.COMPLETED
+
+    saved = db.sessions[100]
+    assert saved.status == SessionStatus.COMPLETED
+    # Người mở (STAFF id 3) và người checkout (MANAGER id 2) lưu riêng.
+    assert (saved.opened_by, saved.closed_by) == (3, 2)
+    assert (saved.ended_at, saved.cost) == (CHECKOUT_AT, 200)
+    assert db.machines[1].status == MachineStatus.AVAILABLE
+    assert db.customers[5].account.balance == 49_800
+    assert db.transactions == [
+        ("USAGE_PAYMENT", 10, 100, -200, PaymentMethod.ACCOUNT_BALANCE)
+    ]
+    assert db.writes == [
+        ("debit_balance", 200),
+        ("usage_transaction", 200),
+        ("complete_session", 100),
+        ("mark_available", 1),
+        ("create_invoice", 100),
+    ]
+    assert (db.commits, db.rollbacks) == (1, 0)
+
+
+@pytest.mark.parametrize(
+    ("settlement", "method", "balance_after"),
+    [
+        (150, PaymentMethod.CASH, 0),  # bù vừa đủ
+        (200, PaymentMethod.TRANSFER, 50),  # trả cả phí bằng chuyển khoản
+    ],
+)
+def test_complete_checkout_with_settlement(settlement, method, balance_after):
+    service, db, actor = build_complete(balance=50)
+
+    result = service.complete_checkout(1, actor, settlement, method)
+
+    assert result.balance_after == balance_after
+    assert result.invoice.invoice.settlement_amount == settlement
+    assert db.customers[5].account.balance == balance_after
+    assert db.transactions == [
+        ("DEBT_SETTLEMENT", 10, 100, settlement, method),
+        ("USAGE_PAYMENT", 10, 100, -200, PaymentMethod.ACCOUNT_BALANCE),
+    ]
+    # Cộng tiền bù trước rồi mới trừ phí.
+    assert [step for step, *_ in db.writes][:4] == [
+        "credit_balance",
+        "settlement_transaction",
+        "debit_balance",
+        "usage_transaction",
+    ]
+
+
+def test_complete_checkout_accepts_method_as_text():
+    service, db, actor = build_complete(balance=50)
+
+    service.complete_checkout(1, actor, 150, "CASH")
+
+    assert db.transactions[0][-1] is PaymentMethod.CASH
+
+
+def test_settlement_below_required_changes_nothing():
+    service, db, actor = build_complete(balance=50)
+
+    with pytest.raises(SettlementRequiredError) as exc_info:
+        service.complete_checkout(1, actor, 149, PaymentMethod.CASH)
+
+    assert exc_info.value.field_errors == {"settlement_amount": SETTLEMENT_NOT_ENOUGH}
+    assert exc_info.value.details == {
+        "settlement_required": 150,
+        "usage_cost": 200,
+        "balance_before": 50,
+    }
+    assert db.writes == []
+    assert_unchanged(db, 50)
+
+
+def test_missing_settlement_when_required_changes_nothing():
+    service, db, actor = build_complete(balance=50)
+
+    with pytest.raises(SettlementRequiredError):
+        service.complete_checkout(1, actor, 0, None)
+
+    assert_unchanged(db, 50)
+
+
+def test_settlement_above_usage_cost_is_rejected():
+    service, db, actor = build_complete(balance=50)
+
+    with pytest.raises(ValidationError) as exc_info:
+        service.complete_checkout(1, actor, 201, PaymentMethod.CASH)
+
+    assert exc_info.value.field_errors == {"settlement_amount": SETTLEMENT_TOO_LARGE}
+    assert_unchanged(db, 50)
+
+
+@pytest.mark.parametrize(
+    ("settlement", "method", "field", "message"),
+    [
+        (-1, PaymentMethod.CASH, "settlement_amount", SETTLEMENT_INVALID),
+        (True, PaymentMethod.CASH, "settlement_amount", SETTLEMENT_INVALID),
+        (1.5, PaymentMethod.CASH, "settlement_amount", SETTLEMENT_INVALID),
+        ("150", PaymentMethod.CASH, "settlement_amount", SETTLEMENT_INVALID),
+        (150, None, "method", METHOD_INVALID),
+        (150, PaymentMethod.ACCOUNT_BALANCE, "method", METHOD_INVALID),
+        (150, PaymentMethod.PROMOTION, "method", METHOD_INVALID),
+        (0, PaymentMethod.CASH, "method", METHOD_NOT_ALLOWED),
+    ],
+)
+def test_invalid_settlement_input_is_rejected_before_database(
+    settlement, method, field, message
+):
+    service, db, actor = build_complete(balance=50)
+
+    with pytest.raises(ValidationError) as exc_info:
+        service.complete_checkout(1, actor, settlement, method)
+
+    assert exc_info.value.field_errors == {field: message}
+    assert (db.commits, db.rollbacks) == (0, 0)
+
+
+def test_complete_checkout_uses_server_clock_and_rate_snapshot():
+    # Máy đã tăng giá; giờ server có phần lẻ giây.
+    service, db, actor = build_complete(
+        machine=make_machine(status=MachineStatus.IN_USE, hourly_rate=12_000)
+    )
+    service._clock = lambda: CHECKOUT_AT.replace(microsecond=900_000)
+
+    result = service.complete_checkout(1, actor, 0, None)
+
+    assert result.invoice.ended_at == CHECKOUT_AT
+    assert result.invoice.invoice.usage_cost == 200
+    assert db.sessions[100].hourly_rate == RATE
+
+
+def test_complete_checkout_clamps_clock_before_start():
+    service, db, actor = build_complete()
+    service._clock = lambda: NOW - timedelta(seconds=5)
+
+    result = service.complete_checkout(1, actor, 0, None)
+
+    assert result.invoice.ended_at == NOW
+    assert result.invoice.invoice.usage_cost == 100  # tối thiểu 1 phút
+
+
+def test_complete_checkout_locks_rows_in_order():
+    service, db, actor = build_complete()
+
+    service.complete_checkout(1, actor, 0, None)
+
+    assert db.locks == [("machine", 1), ("account", 10), ("session_machine", 1)]
+
+
+@pytest.mark.parametrize("machine_id", [99, 0, True])
+def test_complete_checkout_unknown_machine_is_not_found(machine_id):
+    service, db, actor = build_complete()
+
+    with pytest.raises(NotFoundError):
+        service.complete_checkout(machine_id, actor, 0, None)
+    assert_unchanged(db, 50_000)
+
+
+def test_complete_checkout_machine_of_other_store_is_denied():
+    service, db, actor = build_complete(
+        machine=make_machine(status=MachineStatus.IN_USE, store_id=OTHER_STORE_ID)
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        service.complete_checkout(1, actor, 0, None)
+    assert_unchanged(db, 50_000)
+
+
+def test_complete_checkout_without_active_session_conflicts():
+    service, db, actor = build_complete(machine=make_machine(), sessions=[])
+
+    with pytest.raises(ConflictError) as exc_info:
+        service.complete_checkout(1, actor, 0, None)
+
+    assert exc_info.value.field_errors == {"machine_id": NO_ACTIVE_SESSION}
+    assert db.writes == []
+
+
+@pytest.mark.parametrize(
+    ("actor", "employees"),
+    [
+        (make_actor(Role.MANAGER), []),  # employee hoặc store không còn ACTIVE
+        (make_actor(Role.MANAGER, employee_id=3), [make_actor(Role.STAFF)]),
+        (make_actor(Role.MANAGER, store_id=OTHER_STORE_ID), None),
+    ],
+)
+def test_complete_checkout_rejects_invalid_actor(actor, employees):
+    service, db, _ = build_complete(actor=actor, employees=employees)
+
+    with pytest.raises(PermissionDeniedError):
+        service.complete_checkout(1, actor, 0, None)
+    assert_unchanged(db, 50_000)
+
+
+def test_complete_checkout_rejects_actor_other_than_logged_in():
+    service, db, _ = build_complete()
+
+    with pytest.raises(PermissionDeniedError):
+        service.complete_checkout(1, make_actor(Role.ADMIN), 0, None)
+    assert_unchanged(db, 50_000)
+
+
+def test_double_click_checkout_creates_one_invoice():
+    service, db, actor = build_complete()
+    service.complete_checkout(1, actor, 0, None)
+
+    with pytest.raises(ConflictError) as exc_info:
+        service.complete_checkout(1, actor, 0, None)
+
+    assert exc_info.value.field_errors == {"machine_id": NO_ACTIVE_SESSION}
+    assert len(db.invoices) == 1
+    assert len(db.transactions) == 1
+    assert db.customers[5].account.balance == 49_800
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        "credit_balance",
+        "settlement_transaction",
+        "debit_balance",
+        "usage_transaction",
+        "complete_session",
+        "mark_available",
+        "create_invoice",
+    ],
+)
+def test_failure_at_any_step_rolls_back_everything(step):
+    service, db, actor = build_complete(balance=50)
+    db.fail_at = (step, RuntimeError(f"lỗi tại {step}"))
+
+    with pytest.raises(RuntimeError):
+        service.complete_checkout(1, actor, 150, PaymentMethod.CASH)
+
+    assert_unchanged(db, 50)
+    assert (db.commits, db.rollbacks) == (0, 1)
+
+
+def test_database_error_maps_to_service_unavailable():
+    service, db, actor = build_complete()
+    db.fail_at = ("create_invoice", InterfaceError(msg="mất kết nối"))
+
+    with pytest.raises(ServiceUnavailableError):
+        service.complete_checkout(1, actor, 0, None)
+    assert_unchanged(db, 50_000)
+
+
+def test_existing_invoice_for_session_maps_to_conflict():
+    service, db, actor = build_complete()
+    db.invoices[7] = Invoice(
+        id=7,
+        code="INV-OLD",
+        session_id=100,
+        customer_id=5,
+        employee_id=2,
+        store_id=1,
+        usage_cost=100,
+        settlement_amount=0,
+        total_amount=100,
+        status=InvoiceStatus.PAID,
+        created_at=NOW,
+    )
+
+    with pytest.raises(ConflictError) as exc_info:
+        service.complete_checkout(1, actor, 0, None)
+
+    assert exc_info.value.field_errors == {"machine_id": ALREADY_CHECKED_OUT}
+    assert list(db.invoices) == [7]
+    assert db.transactions == []
+    assert db.sessions[100].is_active()
+
+
+@pytest.mark.parametrize(
+    ("repo", "method", "message"),
+    [
+        ("_accounts", "debit_balance", BALANCE_CHANGED),
+        ("_sessions", "complete", ALREADY_CHECKED_OUT),
+        ("_machines", "mark_available", NO_ACTIVE_SESSION),
+    ],
+)
+def test_guarded_update_not_applied_rolls_back(monkeypatch, repo, method, message):
+    service, db, actor = build_complete()
+    monkeypatch.setattr(getattr(service, repo), method, lambda *args: False)
+
+    with pytest.raises(ConflictError) as exc_info:
+        service.complete_checkout(1, actor, 0, None)
+
+    assert exc_info.value.message == message
+    assert_unchanged(db, 50_000)
