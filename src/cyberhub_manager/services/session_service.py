@@ -1,7 +1,7 @@
-"""LI-06 — Linh: SessionService xem trước và mở phiên sử dụng máy.
+"""LI-06/LI-07 — Linh: SessionService mở phiên và checkout máy.
 
 Service chỉ làm việc qua repository và database.transaction.transaction();
-UI không gọi repository hay SQL trực tiếp. Checkout và hóa đơn thuộc LI-07.
+UI không gọi repository hay SQL trực tiếp.
 """
 
 from __future__ import annotations
@@ -38,11 +38,13 @@ from cyberhub_manager.domain.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     ServiceUnavailableError,
+    ValidationError,
 )
 from cyberhub_manager.domain.models import (
     Account,
     Customer,
     Machine,
+    UsageSession,
     estimate_play_minutes,
     minimum_balance,
     MINIMUM_SESSION_MINUTES,
@@ -55,8 +57,8 @@ from cyberhub_manager.repositories.session_repository import SessionRepository
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
-# STAFF, MANAGER và ADMIN đều được mở phiên trong cửa hàng của mình.
-OPEN_SESSION_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
+# STAFF, MANAGER và ADMIN đều được mở phiên và checkout trong cửa hàng của mình.
+SESSION_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
 
 # "SS-" + 17 ký tự hex = 20 ký tự, vừa cột usage_sessions.code VARCHAR(20).
 SESSION_CODE_PREFIX = "SS-"
@@ -72,6 +74,8 @@ MACHINE_MAINTENANCE = "Máy đang bảo trì"
 CUSTOMER_INACTIVE = "Khách hàng đã ngừng hoạt động"
 ACCOUNT_LOCKED = "Tài khoản khách hàng đã bị khóa"
 NOT_ENOUGH_BALANCE = f"Số dư chưa đủ cho {MINIMUM_SESSION_MINUTES} phút sử dụng"
+NO_ACTIVE_SESSION = "Máy không có phiên đang hoạt động"
+CURRENT_TIME_INVALID = "Thời gian tính phí phải có timezone"
 
 
 def _utc_now() -> datetime:
@@ -92,8 +96,53 @@ def new_session_code() -> str:
     return SESSION_CODE_PREFIX + uuid4().hex[:SESSION_CODE_HEX_LENGTH]
 
 
+def _session_summary(
+    session: UsageSession, customer: Customer, machine: Machine
+) -> SessionSummary:
+    return SessionSummary(
+        session_id=session.id,
+        session_code=session.code,
+        customer_id=customer.id,
+        customer_code=customer.code,
+        customer_name=customer.full_name,
+        machine_id=machine.id,
+        machine_code=machine.code,
+        machine_name=machine.name,
+        started_at=session.started_at,
+        hourly_rate=session.hourly_rate,
+        status=session.status,
+    )
+
+
+def _build_checkout_preview(
+    session: UsageSession,
+    customer: Customer,
+    machine: Machine,
+    balance: int,
+    at: datetime,
+) -> CheckoutPreview:
+    """SES-07, SES-08: tính theo đơn giá snapshot của phiên.
+
+    preview_checkout và complete_checkout dùng chung để hai bên không lệch số.
+    """
+
+    cost = session.calculate_cost(at)
+    projected = balance - cost
+    return CheckoutPreview(
+        session=_session_summary(session, customer, machine),
+        calculated_at=at,
+        elapsed_seconds=session.elapsed_seconds(at),
+        billed_minutes=session.calculate_billed_minutes(at),
+        usage_cost=cost,
+        balance_before=balance,
+        projected_balance=projected,
+        # Số dư dự kiến âm chỉ báo số tiền cần bù; không tự kết thúc phiên.
+        settlement_required=max(0, -projected),
+    )
+
+
 class SessionService:
-    """Triển khai SessionServiceProtocol trên MySQL (phần mở phiên)."""
+    """Triển khai SessionServiceProtocol trên MySQL."""
 
     def __init__(
         self,
@@ -203,7 +252,21 @@ class SessionService:
         machine_id: int,
         current_time: datetime,
     ) -> CheckoutPreview:
-        raise NotImplementedError("Checkout thuộc LI-07")
+        if not isinstance(current_time, datetime) or current_time.utcoffset() is None:
+            raise ValidationError(field_errors={"current_time": CURRENT_TIME_INVALID})
+        at = current_time.astimezone(timezone.utc)
+
+        with self._database() as conn:
+            # Contract không nhận actor: dùng chính người đang đăng nhập.
+            logged_in = self._actor_provider() if self._actor_provider else None
+            current = self._require_actor(conn, logged_in)
+            machine, session, customer = self._get_active_session(
+                conn, current, machine_id
+            )
+
+        return _build_checkout_preview(
+            session, customer, machine, customer.account.balance, at
+        )
 
     def complete_checkout(
         self,
@@ -239,7 +302,7 @@ class SessionService:
         if current is None or current.store_id != actor.store_id:
             raise PermissionDeniedError()
         # Role lấy từ DB; actor khai role khác DB (vd. STAFF tự nhận MANAGER) bị từ chối.
-        if requested_actor.role != current.role or current.role not in OPEN_SESSION_ROLES:
+        if requested_actor.role != current.role or current.role not in SESSION_ROLES:
             raise PermissionDeniedError()
         return current
 
@@ -285,6 +348,19 @@ class SessionService:
         if self._sessions.get_active_by_customer(conn, customer.id, for_update=lock) is not None:
             raise _conflict("customer_id", CUSTOMER_BUSY)
         return customer, account, machine
+
+    def _get_active_session(
+        self, conn: Any, current: EmployeeSession, machine_id: int
+    ) -> tuple[Machine, UsageSession, Customer]:
+        """Máy thuộc cửa hàng hiện tại và đang có phiên ACTIVE; không khóa dữ liệu."""
+
+        machine = self._get_machine(conn, machine_id)
+        if machine.store_id != current.store_id:
+            raise PermissionDeniedError(WRONG_STORE)
+        session = self._sessions.get_active_by_machine(conn, machine.id)
+        if session is None or machine.status != MachineStatus.IN_USE:
+            raise _conflict("machine_id", NO_ACTIVE_SESSION)
+        return machine, session, self._get_customer(conn, session.customer_id)
 
     def _get_machine(
         self, conn: Any, machine_id: int, *, for_update: bool = False

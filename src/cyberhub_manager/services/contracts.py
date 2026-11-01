@@ -241,6 +241,7 @@ class SessionServiceProtocol(Protocol):
 
         Raises:
             NotFoundError: không tồn tại máy.
+            PermissionDeniedError: chưa đăng nhập hợp lệ hoặc máy khác cửa hàng.
             ConflictError: máy không có phiên ACTIVE.
             ValidationError: current_time trước thời điểm bắt đầu phiên.
         """

@@ -1,11 +1,11 @@
-"""LI-06 — Unit test cho SessionService (xem trước/mở phiên), dùng repository giả.
+"""LI-06/LI-07 — Unit test cho SessionService (mở phiên, checkout), dùng repository giả.
 
 Đánh số TC theo 15 test case bắt buộc của task LI-06. TC14 (live estimate tại các
 mốc biên) nằm trong tests/unit/test_domain_models.py vì phần tính nằm ở domain.
 """
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from mysql.connector import errorcode
@@ -25,6 +25,7 @@ from cyberhub_manager.domain.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     ServiceUnavailableError,
+    ValidationError,
 )
 from cyberhub_manager.domain.models import Account, Customer, Machine, UsageSession
 from cyberhub_manager.services.contracts import SessionServiceProtocol
@@ -35,6 +36,7 @@ from cyberhub_manager.services.session_service import (
     MACHINE_ARCHIVED,
     MACHINE_BUSY,
     MACHINE_MAINTENANCE,
+    NO_ACTIVE_SESSION,
     NOT_ENOUGH_BALANCE,
     SessionService,
 )
@@ -613,3 +615,167 @@ def test_open_session_locks_rows_in_order():
         ("session_machine", 1),
         ("session_customer", 5),
     ]
+
+
+# ===== LI-07: preview_checkout ===============================================
+def build_checkout(*, balance=50_000, machine=None, sessions=None, **kwargs):
+    """Máy 1 đang IN_USE với phiên 100 của khách 5, bắt đầu lúc NOW."""
+
+    return build_service(
+        machines=[machine or make_machine(status=MachineStatus.IN_USE)],
+        customers=[make_customer(balance=balance)],
+        sessions=[make_session()] if sessions is None else sessions,
+        **kwargs,
+    )
+
+
+def test_preview_checkout_calculates_cost_and_balance():
+    service, db = build_checkout()
+
+    preview = service.preview_checkout(1, NOW + timedelta(seconds=61))
+
+    assert preview.session.session_id == 100
+    assert (preview.session.customer_code, preview.session.machine_code) == (
+        "KH005",
+        "PC01",
+    )
+    assert preview.calculated_at == NOW + timedelta(seconds=61)
+    assert preview.elapsed_seconds == 61
+    assert preview.billed_minutes == 2
+    assert preview.usage_cost == 200  # 6_000đ/giờ = 100đ/phút
+    assert preview.balance_before == 50_000
+    assert preview.projected_balance == 49_800
+    assert preview.settlement_required == 0
+
+
+@pytest.mark.parametrize(
+    ("offset_seconds", "minutes", "cost"),
+    [(0, 1, 100), (1, 1, 100), (60, 1, 100), (61, 2, 200)],
+)
+def test_preview_checkout_rounds_minutes_at_boundaries(offset_seconds, minutes, cost):
+    service, _ = build_checkout()
+
+    preview = service.preview_checkout(1, NOW + timedelta(seconds=offset_seconds))
+
+    assert (preview.billed_minutes, preview.usage_cost) == (minutes, cost)
+
+
+def test_preview_checkout_uses_session_rate_snapshot():
+    # Máy đã tăng giá lên 12_000đ/giờ sau khi mở phiên 6_000đ/giờ.
+    service, _ = build_checkout(
+        machine=make_machine(status=MachineStatus.IN_USE, hourly_rate=12_000)
+    )
+
+    preview = service.preview_checkout(1, NOW + timedelta(minutes=10))
+
+    assert preview.session.hourly_rate == RATE
+    assert preview.usage_cost == 1_000
+
+
+def test_preview_checkout_reports_settlement_without_ending_session():
+    service, db = build_checkout(balance=50)
+
+    preview = service.preview_checkout(1, NOW + timedelta(seconds=61))
+
+    assert preview.projected_balance == -150
+    assert preview.settlement_required == 150
+    # Số dư dự kiến âm không tự kết thúc phiên.
+    assert db.sessions[100].is_active()
+    assert db.machines[1].status == MachineStatus.IN_USE
+
+
+def test_preview_checkout_does_not_write_or_lock():
+    service, db = build_checkout()
+
+    service.preview_checkout(1, NOW + timedelta(minutes=5))
+
+    assert db.writes == []
+    assert db.locks == []
+    assert db.customers[5].account.balance == 50_000
+
+
+def test_preview_checkout_returns_utc_time():
+    service, _ = build_checkout()
+    vietnam_time = (NOW + timedelta(minutes=5)).astimezone(
+        timezone(timedelta(hours=7))
+    )
+
+    preview = service.preview_checkout(1, vietnam_time)
+
+    assert preview.calculated_at == NOW + timedelta(minutes=5)
+    assert preview.calculated_at.utcoffset() == timedelta(0)
+
+
+@pytest.mark.parametrize(
+    "current_time", [NOW.replace(tzinfo=None), "2026-10-31 08:05", None]
+)
+def test_preview_checkout_rejects_time_without_timezone(current_time):
+    service, _ = build_checkout()
+
+    with pytest.raises(ValidationError) as exc_info:
+        service.preview_checkout(1, current_time)
+
+    assert "current_time" in exc_info.value.field_errors
+
+
+def test_preview_checkout_rejects_time_before_session_start():
+    service, _ = build_checkout()
+
+    with pytest.raises(ValidationError):
+        service.preview_checkout(1, NOW - timedelta(seconds=1))
+
+
+@pytest.mark.parametrize("machine_id", [99, 0, True])
+def test_preview_checkout_unknown_machine_is_not_found(machine_id):
+    service, _ = build_checkout()
+
+    with pytest.raises(NotFoundError):
+        service.preview_checkout(machine_id, NOW)
+
+
+def test_preview_checkout_machine_of_other_store_is_denied():
+    service, _ = build_checkout(
+        machine=make_machine(status=MachineStatus.IN_USE, store_id=OTHER_STORE_ID)
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        service.preview_checkout(1, NOW)
+
+
+@pytest.mark.parametrize(
+    ("machine", "sessions"),
+    [
+        (make_machine(), []),  # máy rảnh
+        (make_machine(status=MachineStatus.IN_USE), []),  # IN_USE nhưng mất phiên
+        (make_machine(), None),  # còn phiên nhưng máy đã AVAILABLE
+    ],
+)
+def test_preview_checkout_without_active_session_conflicts(machine, sessions):
+    service, _ = build_checkout(machine=machine, sessions=sessions)
+
+    with pytest.raises(ConflictError) as exc_info:
+        service.preview_checkout(1, NOW)
+
+    assert exc_info.value.field_errors == {"machine_id": NO_ACTIVE_SESSION}
+
+
+def test_preview_checkout_without_login_is_denied():
+    db = FakeDatabase(machines=[], customers=[], sessions=[], employees=[])
+    service = SessionService(transaction_factory=db.transaction)
+
+    with pytest.raises(PermissionDeniedError):
+        service.preview_checkout(1, NOW)
+
+
+@pytest.mark.parametrize(
+    ("actor", "employees"),
+    [
+        (make_actor(), []),  # employee hoặc store không còn ACTIVE
+        (make_actor(Role.MANAGER, employee_id=3), [make_actor(Role.STAFF)]),
+    ],
+)
+def test_preview_checkout_rechecks_actor_in_database(actor, employees):
+    service, _ = build_checkout(actor=actor, employees=employees)
+
+    with pytest.raises(PermissionDeniedError):
+        service.preview_checkout(1, NOW)
