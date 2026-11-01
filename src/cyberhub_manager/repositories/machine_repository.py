@@ -206,6 +206,26 @@ class MachineRepository:
             return cursor.rowcount == 1
         finally:
             cursor.close()
+    def mark_available(
+        self,
+        conn: PooledMySQLConnection,
+        machine_id: int,
+    ) -> bool:
+        """Release an IN_USE machine back to AVAILABLE without committing."""
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE machines
+                SET status = 'AVAILABLE'
+                WHERE id = %s
+                  AND status = 'IN_USE'
+                """,
+                (machine_id,),
+            )
+            return cursor.rowcount == 1
+        finally:
+            cursor.close()
 
     def has_session_history(
         self,
