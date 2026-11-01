@@ -1,6 +1,6 @@
 # Activity Diagrams
 
-<!-- Linh: còn bổ sung luồng nạp tiền (LI-04) và checkout (LI-07). -->
+<!-- Linh: còn bổ sung luồng nạp tiền (LI-04). -->
 
 ## 1. Mở phiên sử dụng máy (LI-06)
 
@@ -88,4 +88,71 @@ flowchart TD
     W --> E(("Hết lượt refresh"))
     N --> E
 ```
+
+## 3. Checkout và tạo hóa đơn (LI-07)
+
+Căn cứ: SES-07 đến SES-09 và INV-01 trong `docs/01_REQUIREMENTS.md`. Preview chỉ
+đọc. Hoàn tất checkout tính lại phí bằng giờ server và số dư đã khóa; trừ số dư,
+ghi giao dịch, đóng phiên, trả máy và tạo hóa đơn cùng commit hoặc cùng rollback.
+
+```mermaid
+flowchart TD
+    START(("Bắt đầu")) --> A["Nhân viên bấm 'Checkout' trên card máy IN_USE"]
+    A --> P1
+
+    subgraph PREVIEW ["preview_checkout: chỉ đọc, không khóa, không ghi"]
+        P1["Đọc lại actor từ DB<br>(actor_provider + AuthRepository)"]
+        P1 --> P2{"Actor hợp lệ,<br>máy cùng store,<br>có phiên ACTIVE?"}
+        P2 -- "Có" --> P3["Tính phí theo usage_sessions.hourly_rate (SES-07)<br>phút = max(1, ceil(giây / 60))<br>phí = ceil(phút x đơn giá / 60)"]
+        P3 --> P4["projected_balance = số dư - phí<br>settlement_required = max(0, -projected_balance)"]
+    end
+
+    P4 --> D1{"settlement_required > 0?"}
+    D1 -- "Không" --> C0["Xác nhận: settlement_amount = 0, method = None"]
+    D1 -- "Có" --> C1["Thu tiền bù CASH / TRANSFER<br>settlement_required <= tiền bù <= phí;<br>tiền thối do UI tự tính"]
+    C0 --> T1
+    C1 --> T1
+
+    subgraph TX ["complete_checkout: một transaction"]
+        T1["BEGIN; đọc lại actor từ DB"]
+        T1 --> T2["SELECT máy FOR UPDATE<br>-> SELECT account FOR UPDATE<br>-> SELECT phiên ACTIVE FOR UPDATE"]
+        T2 --> T3{"Máy cùng store, IN_USE,<br>vẫn đúng phiên đã đọc?"}
+        T3 -- "Có" --> T4["Tính lại phí bằng giờ server<br>và số dư đã khóa"]
+        T4 --> T5{"Tiền bù đủ và<br>không vượt phí?"}
+        T5 -- "Có" --> T6["Có tiền bù: cộng số dư<br>+ ghi DEBT_SETTLEMENT"]
+        T6 --> T7["Trừ phí (balance >= phí)<br>+ ghi USAGE_PAYMENT"]
+        T7 --> T8["usage_sessions -> COMPLETED<br>(closed_by, ended_at, cost)"]
+        T8 --> T9["machines IN_USE -> AVAILABLE"]
+        T9 --> T10["INSERT invoices (PAID)<br>một phiên một hóa đơn"]
+        T10 --> T11["COMMIT"]
+    end
+
+    P2 -- "Không" --> REJECT["PermissionDeniedError / NotFoundError /<br>ConflictError (không có phiên)"]
+    T1 -- "Actor không hợp lệ" --> RB
+    T3 -- "Không" --> RB["ROLLBACK<br>ConflictError / PermissionDeniedError"]
+    T5 -- "Thiếu tiền bù" --> RBS["ROLLBACK<br>SettlementRequiredError (settlement_required)"]
+    T5 -- "Vượt phí" --> RBV["ROLLBACK<br>ValidationError"]
+    T7 -.->|"Lỗi ở bất kỳ bước ghi nào"| RBA["ROLLBACK toàn bộ<br>số dư, giao dịch, phiên, máy, hóa đơn"]
+    T10 -.->|"Trùng uq_invoices_session<br>(double-click)"| RB
+
+    RBS --> C1
+    REJECT --> ERR["UI hiển thị lỗi thân thiện,<br>dữ liệu không thay đổi"]
+    RB --> ERR
+    RBV --> ERR
+    RBA --> ERR
+    T11 --> OK["Trả CheckoutResult: InvoiceDetail + balance_after;<br>card máy về AVAILABLE"]
+    OK --> END1(("Kết thúc"))
+    ERR --> END1
+```
+
+**Điểm chính**
+
+| Điểm | Cách đảm bảo |
+|---|---|
+| Không tin số liệu từ UI | Contract không nhận phí, thời lượng hay số dư; `ended_at` lấy từ đồng hồ server, số dư đọc sau khi khóa |
+| Preview không ghi | `preview_checkout` đọc không khóa, không gọi repository ghi |
+| Số dư không âm | Cộng tiền bù trước, `debit_balance` có `WHERE balance >= amount` |
+| Một phiên một hóa đơn, chống double-click | Request sau chờ khóa máy rồi thấy máy `AVAILABLE`; `UPDATE ... WHERE status = 'ACTIVE'`; unique `uq_invoices_session` là lưới an toàn cuối |
+| Nguyên tử (SES-09) | Mọi lệnh ghi nằm trong `with transaction()`; repository trả `False` hoặc ném lỗi đều làm rollback cả năm nhóm dữ liệu |
+| Thứ tự khóa | Máy -> account -> phiên, giống mở phiên, để hai thao tác không khóa chéo nhau |
 
