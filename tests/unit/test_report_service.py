@@ -8,6 +8,7 @@ import pytest
 from mysql.connector.errors import InterfaceError
 
 from cyberhub_manager.domain.dtos import (
+    DailyRevenue,
     EmployeeSession,
     InvoiceDetail,
     InvoiceFilters,
@@ -31,7 +32,11 @@ from cyberhub_manager.domain.exceptions import (
 from cyberhub_manager.domain.models import Account, Customer, Machine, UsageSession
 from cyberhub_manager.services.contracts import ReportServiceProtocol
 from cyberhub_manager.services.report_service import (
+    DATE_FROM_REQUIRED,
+    DATE_INVALID,
     DATE_RANGE_INVALID,
+    DATE_TO_REQUIRED,
+    VN_TZ,
     WRONG_STORE,
     ReportService,
     local_dates_to_utc_range,
@@ -133,6 +138,7 @@ class FakeDatabase:
         self.transactions = 0
         self.list_calls = []
         self.summary_calls = []
+        self.revenue_calls = []
         self.lookups = []
         self.sessions = {}
         self.machines = {}
@@ -163,6 +169,37 @@ class FakeInvoiceRepository:
             raise self.db.error
         self.db.list_calls.append((store_id, filters))
         return [i for i in self.db.invoices if i.store_id == store_id]
+
+    def daily_revenue_by_store(
+        self, conn, store_id, *, created_from_utc, created_before_utc
+    ):
+        """Mô phỏng đúng SQL của HA-08: chỉ PAID, khoảng nửa mở, gom theo ngày VN."""
+
+        if self.db.error is not None:
+            raise self.db.error
+        self.db.revenue_calls.append(
+            (
+                store_id,
+                {
+                    "created_from_utc": created_from_utc,
+                    "created_before_utc": created_before_utc,
+                },
+            )
+        )
+        totals = {}
+        for invoice in self.db.invoices:
+            if (
+                invoice.store_id == store_id
+                and invoice.status == InvoiceStatus.PAID
+                and created_from_utc <= invoice.created_at < created_before_utc
+            ):
+                day = invoice.created_at.astimezone(VN_TZ).date()
+                count, revenue = totals.get(day, (0, 0))
+                totals[day] = (count + 1, revenue + invoice.usage_cost)
+        return [
+            DailyRevenue(date=day, invoice_count=count, revenue=revenue)
+            for day, (count, revenue) in sorted(totals.items())
+        ]
 
     def get_summary_by_id(self, conn, invoice_id):
         if self.db.error is not None:
@@ -517,3 +554,147 @@ def test_get_invoice_database_error_maps_to_service_unavailable():
 
     with pytest.raises(ServiceUnavailableError):
         service.get_invoice(1)
+
+
+# ----- daily_revenue ----------------------------------------------------------
+def invoice_at(invoice_id, created_at, *, status=InvoiceStatus.PAID, cost=6_000):
+    return replace(
+        make_summary(invoice_id, status=status),
+        usage_cost=cost,
+        total_amount=cost,
+        created_at=created_at,
+    )
+
+
+def utc(*args):
+    return datetime(*args, tzinfo=timezone.utc)
+
+
+def test_daily_revenue_passes_half_open_utc_range():
+    service, db = build_service()
+
+    service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 3))
+
+    assert db.revenue_calls == [
+        (
+            STORE_ID,
+            {
+                "created_from_utc": utc(2026, 10, 31, 17),
+                "created_before_utc": utc(2026, 11, 3, 17),
+            },
+        )
+    ]
+
+
+def test_daily_revenue_counts_only_paid_and_respects_vietnam_day_boundaries():
+    service, _ = build_service(
+        invoices=[
+            invoice_at(1, utc(2026, 10, 31, 16, 59, 59)),  # 23:59:59 ngày 31/10 VN
+            invoice_at(2, utc(2026, 10, 31, 17, 0, 0), cost=1_000),  # 00:00 01/11 VN
+            invoice_at(3, utc(2026, 11, 1, 16, 59, 59), cost=2_000),  # 23:59:59 01/11
+            invoice_at(4, utc(2026, 11, 1, 5), status=InvoiceStatus.VOID),
+            invoice_at(5, utc(2026, 11, 2, 17, 0, 0)),  # 00:00 ngày 03/11 VN
+        ]
+    )
+
+    result = service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 2))
+
+    # Hóa đơn VOID không được tính; ngày 02/11 không có hóa đơn thì không có dòng.
+    assert result == [
+        DailyRevenue(date=date(2026, 11, 1), invoice_count=2, revenue=3_000)
+    ]
+    assert all(isinstance(row.revenue, int) for row in result)
+
+
+def test_daily_revenue_returns_empty_list_without_invoices():
+    service, _ = build_service()
+
+    assert service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 30)) == []
+
+
+def test_daily_revenue_only_counts_current_store():
+    service, _ = build_service(
+        invoices=[
+            invoice_at(1, utc(2026, 11, 1, 3)),
+            replace(invoice_at(2, utc(2026, 11, 1, 3)), store_id=OTHER_STORE_ID),
+        ]
+    )
+
+    result = service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 1))
+
+    assert result == [
+        DailyRevenue(date=date(2026, 11, 1), invoice_count=1, revenue=6_000)
+    ]
+
+
+@pytest.mark.parametrize("role", [Role.STAFF, Role.MANAGER, Role.ADMIN])
+def test_every_store_role_can_view_revenue(role):
+    service, db = build_service(make_actor(role))
+
+    service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 1))
+
+    assert len(db.revenue_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("date_from", "date_to", "errors"),
+    [
+        (None, date(2026, 11, 1), {"date_from": DATE_FROM_REQUIRED}),
+        (date(2026, 11, 1), None, {"date_to": DATE_TO_REQUIRED}),
+        (date(2026, 11, 2), date(2026, 11, 1), {"date_to": DATE_RANGE_INVALID}),
+        ("2026-11-01", date(2026, 11, 1), {"date_from": DATE_INVALID}),
+        (date(2026, 11, 1), utc(2026, 11, 2), {"date_to": DATE_INVALID}),
+    ],
+)
+def test_daily_revenue_rejects_invalid_date_range_before_database(
+    date_from, date_to, errors
+):
+    service, db = build_service()
+
+    with pytest.raises(ValidationError) as exc_info:
+        service.daily_revenue(STORE_ID, date_from, date_to)
+
+    assert exc_info.value.field_errors == errors
+    assert db.transactions == 0
+
+
+@pytest.mark.parametrize("store_id", [0, True, "1", None])
+def test_daily_revenue_rejects_invalid_store_id(store_id):
+    service, db = build_service()
+
+    with pytest.raises(ValidationError):
+        service.daily_revenue(store_id, date(2026, 11, 1), date(2026, 11, 1))
+    assert db.transactions == 0
+
+
+def test_daily_revenue_of_other_store_is_denied():
+    service, db = build_service()
+
+    with pytest.raises(PermissionDeniedError) as exc_info:
+        service.daily_revenue(OTHER_STORE_ID, date(2026, 11, 1), date(2026, 11, 1))
+
+    assert exc_info.value.message == WRONG_STORE
+    assert db.revenue_calls == []
+
+
+@pytest.mark.parametrize(
+    ("actor", "employees"),
+    [
+        (make_actor(), []),  # employee LOCKED/INACTIVE hoặc store INACTIVE
+        (make_actor(Role.MANAGER, employee_id=3), [make_actor(Role.STAFF)]),
+    ],
+)
+def test_daily_revenue_rechecks_actor_in_database(actor, employees):
+    service, db = build_service(actor, employees=employees)
+
+    with pytest.raises(PermissionDeniedError):
+        service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 1))
+    assert db.revenue_calls == []
+
+
+def test_daily_revenue_database_error_maps_to_service_unavailable():
+    service, db = build_service()
+    db.error = InterfaceError(msg="mất kết nối")
+
+    with pytest.raises(ServiceUnavailableError):
+        service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 1))

@@ -237,7 +237,20 @@ class ReportService:
         date_from: date,
         date_to: date,
     ) -> list[DailyRevenue]:
-        raise NotImplementedError("LI-08 bước 5")
+        _validate_store_id(store_id)
+        _validate_date_range(date_from, date_to, required=True)
+        start, end = local_dates_to_utc_range(date_from, date_to)
+
+        with self._database() as conn:
+            self._require_store(conn, store_id)
+            # Repository chỉ cộng usage_cost của hóa đơn PAID (số nguyên VND), gom
+            # theo ngày giờ Việt Nam và chỉ trả những ngày có hóa đơn.
+            return self._invoices.daily_revenue_by_store(
+                conn,
+                store_id,
+                created_from_utc=start,
+                created_before_utc=end,
+            )
 
     def _require_actor(self, conn: Any) -> EmployeeSession:
         """Đọc lại người đang đăng nhập từ DB; không tin role/store từ UI."""
