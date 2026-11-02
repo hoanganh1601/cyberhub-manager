@@ -7,13 +7,28 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 from mysql.connector.errors import InterfaceError
 
-from cyberhub_manager.domain.dtos import EmployeeSession, InvoiceFilters, InvoiceSummary
-from cyberhub_manager.domain.enums import InvoiceStatus, Role
+from cyberhub_manager.domain.dtos import (
+    EmployeeSession,
+    InvoiceDetail,
+    InvoiceFilters,
+    InvoiceSummary,
+)
+from cyberhub_manager.domain.enums import (
+    AccountStatus,
+    CustomerStatus,
+    InvoiceStatus,
+    MachineStatus,
+    Role,
+    SessionStatus,
+)
 from cyberhub_manager.domain.exceptions import (
+    ConflictError,
+    NotFoundError,
     PermissionDeniedError,
     ServiceUnavailableError,
     ValidationError,
 )
+from cyberhub_manager.domain.models import Account, Customer, Machine, UsageSession
 from cyberhub_manager.services.contracts import ReportServiceProtocol
 from cyberhub_manager.services.report_service import (
     DATE_RANGE_INVALID,
@@ -25,6 +40,8 @@ from cyberhub_manager.services.report_service import (
 STORE_ID = 1
 OTHER_STORE_ID = 2
 CREATED_AT = datetime(2026, 11, 1, 3, 0, tzinfo=timezone.utc)
+STARTED_AT = datetime(2026, 11, 1, 2, 0, tzinfo=timezone.utc)
+ENDED_AT = STARTED_AT + timedelta(seconds=61)
 
 ROLE_EMPLOYEE_IDS = {Role.ADMIN: 1, Role.MANAGER: 2, Role.STAFF: 3}
 
@@ -61,6 +78,53 @@ def make_summary(invoice_id=1, *, store_id=STORE_ID, status=InvoiceStatus.PAID):
     )
 
 
+def make_completed_session():
+    return UsageSession(
+        id=101,
+        code="SS-101",
+        customer_id=5,
+        machine_id=7,
+        opened_by=3,
+        closed_by=3,
+        started_at=STARTED_AT,
+        ended_at=ENDED_AT,
+        hourly_rate=6_000,
+        cost=200,
+        status=SessionStatus.COMPLETED,
+    )
+
+
+def make_machine():
+    return Machine(
+        id=7,
+        code="PC07",
+        store_id=STORE_ID,
+        name="Máy 07",
+        status=MachineStatus.AVAILABLE,
+        hourly_rate=12_000,  # giá hiện tại khác giá snapshot của phiên
+        is_active=True,
+        updated_at=ENDED_AT,
+    )
+
+
+def make_customer():
+    return Customer(
+        id=5,
+        code="KH005",
+        full_name="Nguyễn Văn A",
+        phone="0900000005",
+        status=CustomerStatus.ACTIVE,
+        account=Account(
+            id=10,
+            code="ACC005",
+            customer_id=5,
+            username="khach05",
+            balance=0,
+            status=AccountStatus.ACTIVE,
+        ),
+    )
+
+
 # ----- Đồ giả ----------------------------------------------------------------
 class FakeDatabase:
     def __init__(self, *, employees, invoices=()):
@@ -68,6 +132,11 @@ class FakeDatabase:
         self.invoices = list(invoices)
         self.transactions = 0
         self.list_calls = []
+        self.summary_calls = []
+        self.lookups = []
+        self.sessions = {}
+        self.machines = {}
+        self.customers = {}
         self.error = None
 
     @contextmanager
@@ -94,6 +163,27 @@ class FakeInvoiceRepository:
             raise self.db.error
         self.db.list_calls.append((store_id, filters))
         return [i for i in self.db.invoices if i.store_id == store_id]
+
+    def get_summary_by_id(self, conn, invoice_id):
+        if self.db.error is not None:
+            raise self.db.error
+        self.db.summary_calls.append(invoice_id)
+        for invoice in self.db.invoices:
+            if invoice.invoice_id == invoice_id:
+                return invoice
+        return None
+
+
+class FakeLookup:
+    """get_by_id giả cho session/machine/customer repository."""
+
+    def __init__(self, db, table):
+        self.db = db
+        self.table = table
+
+    def get_by_id(self, conn, row_id, *, for_update=False):
+        self.db.lookups.append((self.table, row_id))
+        return getattr(self.db, self.table).get(row_id)
 
 
 def build_service(actor=None, *, employees=None, invoices=()):
@@ -311,3 +401,119 @@ def test_database_error_maps_to_service_unavailable():
 
     with pytest.raises(ServiceUnavailableError):
         service.list_invoices(STORE_ID, InvoiceFilters())
+
+
+# ----- get_invoice ------------------------------------------------------------
+def build_detail_service(actor=None, *, employees=None, invoice=None, **parts):
+    """Hóa đơn 1 của phiên 101 (máy 7, khách 5) đã kết thúc sau 61 giây."""
+
+    service, db = build_service(
+        actor, employees=employees, invoices=[invoice or make_summary()]
+    )
+    db.sessions = {101: parts.get("session", make_completed_session())}
+    db.machines = {7: parts.get("machine", make_machine())}
+    db.customers = {5: parts.get("customer", make_customer())}
+    service._sessions = FakeLookup(db, "sessions")
+    service._machines = FakeLookup(db, "machines")
+    service._customers = FakeLookup(db, "customers")
+    return service, db
+
+
+def test_get_invoice_returns_detail():
+    service, db = build_detail_service()
+
+    detail = service.get_invoice(1)
+
+    assert isinstance(detail, InvoiceDetail)
+    assert detail.invoice == make_summary()
+    session = detail.session
+    assert (session.session_id, session.session_code) == (101, "SS-101")
+    assert (session.customer_id, session.customer_code, session.customer_name) == (
+        5,
+        "KH005",
+        "Nguyễn Văn A",
+    )
+    assert (session.machine_id, session.machine_code, session.machine_name) == (
+        7,
+        "PC07",
+        "Máy 07",
+    )
+    assert session.started_at == STARTED_AT
+    assert session.hourly_rate == 6_000
+    assert session.status == SessionStatus.COMPLETED
+    assert detail.ended_at == ENDED_AT
+    assert detail.billed_minutes == 2  # 61 giây => 2 phút
+
+
+def test_get_invoice_shows_void_invoice():
+    service, _ = build_detail_service(invoice=make_summary(status=InvoiceStatus.VOID))
+
+    assert service.get_invoice(1).invoice.status == InvoiceStatus.VOID
+
+
+@pytest.mark.parametrize("invoice_id", [99, 0, -1, True, "1", None])
+def test_get_invoice_unknown_or_invalid_id_is_not_found(invoice_id):
+    service, _ = build_detail_service()
+
+    with pytest.raises(NotFoundError):
+        service.get_invoice(invoice_id)
+
+
+def test_get_invoice_invalid_id_does_not_open_database():
+    service, db = build_detail_service()
+
+    with pytest.raises(NotFoundError):
+        service.get_invoice(0)
+    assert db.transactions == 0
+
+
+def test_get_invoice_of_other_store_is_denied():
+    service, db = build_detail_service(
+        invoice=make_summary(store_id=OTHER_STORE_ID)
+    )
+
+    with pytest.raises(PermissionDeniedError) as exc_info:
+        service.get_invoice(1)
+
+    assert exc_info.value.message == WRONG_STORE
+    assert db.lookups == []  # không đọc phiên, máy, khách của cửa hàng khác
+
+
+@pytest.mark.parametrize(
+    ("actor", "employees"),
+    [
+        (make_actor(), []),  # employee LOCKED/INACTIVE hoặc store INACTIVE
+        (make_actor(Role.MANAGER, employee_id=3), [make_actor(Role.STAFF)]),
+    ],
+)
+def test_get_invoice_rechecks_actor_before_reading(actor, employees):
+    service, db = build_detail_service(actor, employees=employees)
+
+    with pytest.raises(PermissionDeniedError):
+        service.get_invoice(1)
+    assert db.summary_calls == []
+
+
+def test_get_invoice_without_login_is_denied():
+    service, db = build_detail_service()
+    service._actor_provider = None
+
+    with pytest.raises(PermissionDeniedError):
+        service.get_invoice(1)
+
+
+@pytest.mark.parametrize("missing", ["sessions", "machines", "customers"])
+def test_get_invoice_with_missing_related_row_conflicts(missing):
+    service, db = build_detail_service()
+    getattr(db, missing).clear()
+
+    with pytest.raises(ConflictError):
+        service.get_invoice(1)
+
+
+def test_get_invoice_database_error_maps_to_service_unavailable():
+    service, db = build_detail_service()
+    db.error = InterfaceError(msg="mất kết nối")
+
+    with pytest.raises(ServiceUnavailableError):
+        service.get_invoice(1)

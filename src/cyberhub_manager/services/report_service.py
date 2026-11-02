@@ -20,15 +20,21 @@ from cyberhub_manager.domain.dtos import (
     InvoiceDetail,
     InvoiceFilters,
     InvoiceSummary,
+    SessionSummary,
 )
 from cyberhub_manager.domain.enums import InvoiceStatus, Role
 from cyberhub_manager.domain.exceptions import (
+    ConflictError,
+    NotFoundError,
     PermissionDeniedError,
     ServiceUnavailableError,
     ValidationError,
 )
 from cyberhub_manager.repositories.auth_repository import AuthRepository
+from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
+from cyberhub_manager.repositories.machine_repository import MachineRepository
+from cyberhub_manager.repositories.session_repository import SessionRepository
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
@@ -48,6 +54,8 @@ DATE_RANGE_INVALID = "Ngày kết thúc phải sau hoặc bằng ngày bắt đ�
 KEYWORD_INVALID = "Từ khóa tìm kiếm không hợp lệ"
 CUSTOMER_ID_INVALID = "Mã khách hàng không hợp lệ"
 STATUS_INVALID = "Trạng thái hóa đơn không hợp lệ"
+INVOICE_NOT_FOUND = "Không tìm thấy hóa đơn"
+INCONSISTENT_INVOICE = "Dữ liệu hóa đơn và phiên không nhất quán"
 
 
 def _is_positive_id(value: object) -> bool:
@@ -139,11 +147,17 @@ class ReportService:
         self,
         invoice_repo: InvoiceRepository | None = None,
         auth_repo: AuthRepository | None = None,
+        session_repo: SessionRepository | None = None,
+        machine_repo: MachineRepository | None = None,
+        customer_repo: CustomerRepository | None = None,
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
     ) -> None:
         self._invoices = invoice_repo or InvoiceRepository()
         self._auth = auth_repo or AuthRepository()
+        self._sessions = session_repo or SessionRepository()
+        self._machines = machine_repo or MachineRepository()
+        self._customers = customer_repo or CustomerRepository()
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
@@ -171,7 +185,51 @@ class ReportService:
             )
 
     def get_invoice(self, invoice_id: int) -> InvoiceDetail:
-        raise NotImplementedError("LI-08 bước 4")
+        # Id sai kiểu cũng coi như không tồn tại, giống các service khác.
+        if not _is_positive_id(invoice_id):
+            raise NotFoundError(INVOICE_NOT_FOUND)
+
+        with self._database() as conn:
+            current = self._require_actor(conn)
+            summary = self._invoices.get_summary_by_id(conn, invoice_id)
+            if summary is None:
+                raise NotFoundError(INVOICE_NOT_FOUND)
+            if summary.store_id != current.store_id:
+                raise PermissionDeniedError(WRONG_STORE)
+            session = self._sessions.get_by_id(conn, summary.session_id)
+            machine = (
+                None
+                if session is None
+                else self._machines.get_by_id(conn, session.machine_id)
+            )
+            customer = self._customers.get_by_id(conn, summary.customer_id)
+
+        # Hóa đơn luôn gắn với một phiên đã kết thúc; thiếu dữ liệu là lỗi hệ thống.
+        if (
+            any(row is None for row in (session, machine, customer))
+            or session.ended_at is None
+        ):
+            raise ConflictError(INCONSISTENT_INVOICE)
+
+        return InvoiceDetail(
+            invoice=summary,
+            session=SessionSummary(
+                session_id=session.id,
+                session_code=session.code,
+                customer_id=customer.id,
+                customer_code=customer.code,
+                customer_name=customer.full_name,
+                machine_id=machine.id,
+                machine_code=machine.code,
+                machine_name=machine.name,
+                started_at=session.started_at,
+                hourly_rate=session.hourly_rate,
+                status=session.status,
+            ),
+            ended_at=session.ended_at,
+            # SES-07: tính lại từ started_at/ended_at, cùng công thức với checkout.
+            billed_minutes=session.calculate_billed_minutes(session.ended_at),
+        )
 
     def daily_revenue(
         self,
