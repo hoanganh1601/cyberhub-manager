@@ -124,19 +124,103 @@ cyberhub-manager
 
 Ứng dụng sẽ mở cửa sổ desktop có tiêu đề `CyberHub Manager`.
 
-## Chạy kiểm thử
+## Chuẩn bị và chạy kiểm thử
 
-Chạy toàn bộ test:
+Docker/MySQL là bước **chuẩn bị môi trường**, không phải chạy lại trước mọi lần
+pytest. Sau khi môi trường đã sẵn sàng, toàn bộ automated test chạy bằng đúng một
+lệnh: `python -m pytest -q`.
+
+| Loại test | Thư mục | Cần MySQL |
+|---|---|---|
+| Unit test | `tests/unit/` | Không |
+| Integration test | `tests/integration/` | Có, database `cyberhub_manager_test` |
+| Manual acceptance | `tests/manual/CHECKLIST.md` | Có, chạy ứng dụng thật |
+
+### 1. Cài dependencies
 
 ```powershell
-python -m pytest
+python -m pip install -e ".[dev]"
 ```
 
-Chạy test kèm báo cáo coverage:
+### 2. Chuẩn bị MySQL test (lần đầu hoặc khi schema thay đổi)
+
+```powershell
+docker compose up -d mysql
+docker compose ps
+python scripts/prepare_test_db.py
+```
+
+MySQL chỉ được coi là sẵn sàng khi container ở trạng thái `healthy`.
+
+`scripts/prepare_test_db.py` đọc thông tin kết nối từ `.env`, tạo
+`cyberhub_manager_test` nếu chưa có và áp dụng migration theo thứ tự. Script chạy
+lại nhiều lần được, không seed dữ liệu demo và từ chối mọi database khác.
+
+Nếu tài khoản ứng dụng không có quyền tạo database, script in sẵn các lệnh `CREATE
+DATABASE` và `GRANT` cần chạy bằng tài khoản root.
+
+### 3. Chạy test
+
+Toàn bộ automated test:
+
+```powershell
+python -m pytest -q
+```
+
+Một file test:
+
+```powershell
+python -m pytest tests/integration/test_customer_flow.py -q
+```
+
+Một test riêng lẻ:
+
+```powershell
+python -m pytest tests/integration/test_customer_flow.py::test_login_returns_session_for_active_employee -q
+```
+
+Chỉ chạy unit test (không cần MySQL):
+
+```powershell
+python -m pytest tests/unit -q
+```
+
+Kèm báo cáo coverage (chỉ báo hỗ trợ, không thay thế việc kiểm tra đúng nghiệp vụ):
 
 ```powershell
 python -m pytest --cov=cyberhub_manager --cov-report=term-missing
 ```
+
+### Quy tắc database test
+
+- `cyberhub_manager`: database development/ứng dụng, **cấm** dùng cho test.
+- `cyberhub_manager_test`: database duy nhất của automated test.
+- `cyberhub_manager_migration_test`: chỉ dành cho kiểm tra thủ công migration/reset
+  của HA-03 (xem mục Migration và dữ liệu demo).
+
+`tests/conftest.py` luôn ép `MYSQL_DATABASE=cyberhub_manager_test`, không cần sửa
+`.env`, và từ chối chạy trên database khác với thông báo
+`Refusing to run integration tests outside cyberhub_manager_test`.
+
+Test không phụ thuộc dữ liệu demo: mỗi test tự tạo dữ liệu với mã duy nhất rồi tự
+rollback hoặc xóa đúng các dòng đã tạo. Fixture dùng chung nằm trong
+`tests/conftest.py`: `db_conn` (connection trong transaction, luôn rollback) và
+`test_scenario` (tạo store, nhân viên, khách, account, máy cho một test).
+
+### Xử lý lỗi thường gặp
+
+| Thông báo | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| `MySQL test database is unavailable.` | MySQL chưa chạy, sai host/port, hoặc chưa có `cyberhub_manager_test` | Bật Docker Desktop, `docker compose up -d mysql`, đợi `healthy`, rồi `python scripts/prepare_test_db.py` |
+| `cyberhub_manager_test has no schema yet` | Chưa áp dụng migration | `python scripts/prepare_test_db.py` |
+| Lỗi cột hoặc bảng không tồn tại sau khi pull code | Có migration mới | `python scripts/prepare_test_db.py` |
+| `Refusing to run integration tests outside cyberhub_manager_test` | Test tự đổi `MYSQL_DATABASE` | Bỏ đoạn đổi database trong test; `conftest.py` đã cấu hình sẵn |
+
+Unit test vẫn chạy được khi MySQL tắt; khi đó chỉ các integration test báo lỗi với
+hướng dẫn trên.
+
+Kết quả kiểm thử của từng phiên bản ghi tại
+[docs/testing/LI09_TEST_REPORT.md](docs/testing/LI09_TEST_REPORT.md).
 
 ## Cấu trúc chính
 
@@ -191,14 +275,11 @@ rollback khi có lỗi và trả connection về pool khi kết thúc.
 
 ### Kiểm thử transaction
 
-Yêu cầu MySQL đang chạy, có database `cyberhub_manager_test`
-và tài khoản `MYSQL_USER` được cấp quyền trên database này.
+Chuẩn bị database theo mục Chuẩn bị và chạy kiểm thử, rồi chạy:
 
 ```powershell
 python -m pytest tests/integration/test_transaction_manager.py -q
 ```
-
-Kiểm thử tự chuyển kết nối sang database kiểm thử, không cần sửa `.env`.
 
 Ba kiểm thử xác nhận:
 - Thành công thì commit toàn bộ thay đổi.
@@ -206,6 +287,8 @@ Ba kiểm thử xác nhận:
 - Connection được trả về pool sau cả hai trường hợp.
 
 ## Migration và dữ liệu demo (PowerShell)
+
+Mục này chỉ dùng để kiểm tra migration/reset của HA-03; automated test không dùng database này (xem mục Chuẩn bị và chạy kiểm thử).
 
 Cần chạy MySQL bằng Docker, cấu hình kết nối trong `.env`, và tạo sẵn database `cyberhub_manager_migration_test` với quyền cho `cyberhub_app`. Đây là database trong MySQL, không phải thư mục của dự án.
 
