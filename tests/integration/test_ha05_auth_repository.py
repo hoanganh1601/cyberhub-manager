@@ -8,10 +8,7 @@ from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.security import hash_password
 
 @pytest.fixture
-def auth_context(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def auth_context():
     conn = connection.get_connection()
     cursor = conn.cursor()
     token = uuid4().hex[:12]
@@ -21,7 +18,7 @@ def auth_context(monkeypatch):
     try:
         conn.start_transaction()
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         cursor.execute(
             "INSERT INTO stores (code, name, address) VALUES (%s, %s, %s)",

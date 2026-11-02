@@ -18,12 +18,7 @@ from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.security import hash_password
 
 
-def test_create_customer_and_account_can_roll_back(monkeypatch):
-    monkeypatch.setenv(
-        "MYSQL_DATABASE", "cyberhub_manager_migration_test"
-    )
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_create_customer_and_account_can_roll_back():
     token = uuid4().hex
     customer_code = "CUS-" + token[:16]
     account_code = "ACC-" + token[:16]
@@ -34,7 +29,7 @@ def test_create_customer_and_account_can_roll_back(monkeypatch):
     cursor = conn.cursor(buffered=True)
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         conn.start_transaction()
         customer_id = CustomerRepository().create(
@@ -74,12 +69,7 @@ def test_create_customer_and_account_can_roll_back(monkeypatch):
         conn.close()
 
 @pytest.fixture
-def wallet_context(monkeypatch):
-    monkeypatch.setenv(
-        "MYSQL_DATABASE", "cyberhub_manager_migration_test"
-    )
-    monkeypatch.setattr(connection, "_pool", None)
-
+def wallet_context():
     token = uuid4().hex
     password_hash = hash_password("temporary-test-password")
     conn = connection.get_connection()
@@ -88,7 +78,7 @@ def wallet_context(monkeypatch):
     try:
         conn.start_transaction()
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         cursor.execute(
             """

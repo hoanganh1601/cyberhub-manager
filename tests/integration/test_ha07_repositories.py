@@ -10,10 +10,7 @@ from cyberhub_manager.domain.enums import MachineStatus, MachineArchiveAction, S
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.domain.exceptions import ConflictError
 
-def test_create_and_get_machine_can_roll_back(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_create_and_get_machine_can_roll_back(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered=True)
     code = "HA07_" + uuid4().hex[:12].upper()
@@ -21,11 +18,10 @@ def test_create_and_get_machine_can_roll_back(monkeypatch):
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         conn.start_transaction()
-        cursor.execute("SELECT store_id FROM machines ORDER BY id LIMIT 1")
-        store_id = cursor.fetchone()[0]
+        store_id = test_scenario(conn).store_id
 
         machine_id = repo.create(
             conn,
@@ -49,10 +45,7 @@ def test_create_and_get_machine_can_roll_back(monkeypatch):
         conn.rollback()
         cursor.close()
         conn.close()
-def test_session_creation_adds_history_then_rolls_back(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_session_creation_adds_history_then_rolls_back(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered = True)
     code = "HA07S_" + uuid4().hex[:12].upper()
@@ -60,28 +53,13 @@ def test_session_creation_adds_history_then_rolls_back(monkeypatch):
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         conn.start_transaction()
-        cursor.execute(
-            "SELECT id, store_id, hourly_rate FROM machines WHERE code = %s",
-            ("DEMO_PC_01",),
-        )
-        machine_id, store_id, hourly_rate = cursor.fetchone()
-        cursor.execute(
-            "SELECT id FROM customers WHERE code = %s",
-            ("DEMO_CUS_01",),
-        )
-        customer_id = cursor.fetchone()[0]
-        cursor.execute(
-            """
-            SELECT id FROM employees
-            WHERE store_id = %s AND status = 'ACTIVE'
-            ORDER BY id LIMIT 1
-            """,
-            (store_id,),
-        )
-        employee_id = cursor.fetchone()[0]
+        rows = test_scenario(conn)
+        machine_id, store_id = rows.machine_id, rows.store_id
+        hourly_rate = rows.hourly_rate
+        customer_id, employee_id = rows.customer_id, rows.employee_id
 
         history_before = machine_repo.has_session_history(conn, machine_id)
         session_id = SessionRepository().create(
@@ -107,10 +85,7 @@ def test_session_creation_adds_history_then_rolls_back(monkeypatch):
         conn.rollback()
         cursor.close()
         conn.close()
-def test_archive_or_delete_removes_machine_without_history(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_archive_or_delete_removes_machine_without_history(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered=True)
     code = "HA07D_" + uuid4().hex[:12].upper()
@@ -118,14 +93,10 @@ def test_archive_or_delete_removes_machine_without_history(monkeypatch):
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         conn.start_transaction()
-        cursor.execute(
-            "SELECT store_id FROM machines WHERE code = %s",
-            ("DEMO_PC_01",),
-        )
-        store_id = cursor.fetchone()[0]
+        store_id = test_scenario(conn).store_id
 
         machine_id = repo.create(
             conn,
@@ -150,10 +121,7 @@ def test_archive_or_delete_removes_machine_without_history(monkeypatch):
         conn.rollback()
         cursor.close()
         conn.close()
-def test_archive_or_delete_preserves_machine_with_history(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_archive_or_delete_preserves_machine_with_history(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered = True)
     session_code = "HA07H_" + uuid4().hex[:12].upper()
@@ -161,31 +129,15 @@ def test_archive_or_delete_preserves_machine_with_history(monkeypatch):
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         conn.start_transaction()
-        cursor.execute(
-            """
-            SELECT id, store_id, hourly_rate
-            FROM machines WHERE code = %s
-            """,
-            ("DEMO_PC_01",),
-        )
-        machine_id, store_id, hourly_rate = cursor.fetchone()
-        cursor.execute(
-            "SELECT id FROM customers WHERE code = %s",
-            ("DEMO_CUS_01",),
-        )
-        customer_id = cursor.fetchone()[0]
-        cursor.execute(
-            """
-            SELECT id FROM employees
-            WHERE store_id = %s AND status = 'ACTIVE'
-            ORDER BY id LIMIT 1
-            """,
-            (store_id,),
-        )
-        employee_id = cursor.fetchone()[0]
+        rows = test_scenario(conn)
+        machine_id, store_id = rows.machine_id, rows.store_id
+        hourly_rate = rows.hourly_rate
+        customer_id, employee_id = rows.customer_id, rows.employee_id
+        # Máy được tạo trong cùng transaction: chỉ rollback phần thay đổi sau mốc này.
+        cursor.execute("SAVEPOINT before_archive")
 
         started_at = datetime.now(timezone.utc) - timedelta(minutes=2)
         session_id = SessionRepository().create(
@@ -218,7 +170,7 @@ def test_archive_or_delete_preserves_machine_with_history(monkeypatch):
         assert archived is not None
         assert archived.is_active is False
 
-        conn.rollback()
+        cursor.execute("ROLLBACK TO SAVEPOINT before_archive")
         restored = machine_repo.get_by_id(conn, machine_id)
         assert restored is not None
         assert restored.is_active is True
@@ -231,10 +183,7 @@ def test_archive_or_delete_preserves_machine_with_history(monkeypatch):
         conn.rollback()
         cursor.close()
         conn.close()
-def test_archive_or_delete_rejects_active_session(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_archive_or_delete_rejects_active_session(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered=True)
     session_code = "HA07A_" + uuid4().hex[:12].upper()
@@ -242,30 +191,13 @@ def test_archive_or_delete_rejects_active_session(monkeypatch):
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
 
         conn.start_transaction()
-        cursor.execute(
-            "SELECT id, store_id, hourly_rate FROM machines WHERE code = %s",
-            ("DEMO_PC_01",),
-        )
-        machine_id, store_id, hourly_rate = cursor.fetchone()
-
-        cursor.execute(
-            "SELECT id FROM customers WHERE code = %s",
-            ("DEMO_CUS_01",),
-        )
-        customer_id = cursor.fetchone()[0]
-
-        cursor.execute(
-            """
-            SELECT id FROM employees
-            WHERE store_id = %s AND status = 'ACTIVE'
-            ORDER BY id LIMIT 1
-            """,
-            (store_id,),
-        )
-        employee_id = cursor.fetchone()[0]
+        rows = test_scenario(conn)
+        machine_id, store_id = rows.machine_id, rows.store_id
+        hourly_rate = rows.hourly_rate
+        customer_id, employee_id = rows.customer_id, rows.employee_id
 
         SessionRepository().create(
             conn,
@@ -287,38 +219,20 @@ def test_archive_or_delete_rejects_active_session(monkeypatch):
         conn.rollback()
         cursor.close()
         conn.close()
-def test_get_session_by_id_maps_active_and_completed(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_get_session_by_id_maps_active_and_completed(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered = True)
     repo = SessionRepository()
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
         conn.start_transaction()
 
-        cursor.execute(
-            "SELECT id, store_id, hourly_rate FROM machines WHERE code = %s",
-            ("DEMO_PC_01",),
-        )
-        machine_id, store_id, hourly_rate = cursor.fetchone()
-        cursor.execute(
-            "SELECT id FROM customers WHERE code = %s",
-            ("DEMO_CUS_01",),
-        )
-        customer_id = cursor.fetchone()[0]
-        cursor.execute(
-            """
-            SELECT id FROM employees
-            WHERE store_id = %s AND status = 'ACTIVE'
-            ORDER BY id LIMIT 1
-            """,
-            (store_id,),
-        )
-        employee_id = cursor.fetchone()[0]
+        rows = test_scenario(conn)
+        machine_id, store_id = rows.machine_id, rows.store_id
+        hourly_rate = rows.hourly_rate
+        customer_id, employee_id = rows.customer_id, rows.employee_id
 
         session_id = repo.create(
             conn,
@@ -386,24 +300,20 @@ def test_get_session_by_id_maps_active_and_completed(monkeypatch):
         conn.rollback()
         cursor.close()
         conn.close()
-def test_machine_list_update_and_maintenance_roll_back(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_machine_list_update_and_maintenance_roll_back(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered = True)
     repo = MachineRepository()
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
         conn.start_transaction()
 
-        cursor.execute(
-            "SELECT id, store_id FROM machines WHERE code = %s",
-            ("DEMO_PC_01",),
-        )
-        machine_id, store_id = cursor.fetchone()
+        rows = test_scenario(conn)
+        machine_id, store_id = rows.machine_id, rows.store_id
+        # Máy được tạo trong cùng transaction: chỉ rollback phần thay đổi sau mốc này.
+        cursor.execute("SAVEPOINT before_update")
         original = repo.get_by_id(conn, machine_id)
         assert original is not None
         assert any(
@@ -427,7 +337,7 @@ def test_machine_list_update_and_maintenance_roll_back(monkeypatch):
         assert maintained is not None
         assert maintained.status == MachineStatus.MAINTENANCE
 
-        conn.rollback()
+        cursor.execute("ROLLBACK TO SAVEPOINT before_update")
         restored = repo.get_by_id(conn, machine_id)
         assert restored is not None
         assert restored.name == original.name
