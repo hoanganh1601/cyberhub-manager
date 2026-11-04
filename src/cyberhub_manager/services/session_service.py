@@ -134,9 +134,16 @@ def _validate_settlement_input(
         if method is not None:
             raise ValidationError(field_errors={"method": METHOD_NOT_ALLOWED})
         return None
-    if method not in SETTLEMENT_METHODS:
-        raise ValidationError(field_errors={"method": METHOD_INVALID})
-    return PaymentMethod(method)
+
+    if (
+        not isinstance(method, PaymentMethod)
+        or method not in SETTLEMENT_METHODS
+    ):
+        raise ValidationError(
+            field_errors={"method": METHOD_INVALID}
+        )
+
+    return method
 
 
 def _check_settlement_amount(

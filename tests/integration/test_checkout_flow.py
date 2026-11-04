@@ -379,10 +379,12 @@ def test_complete_checkout_with_settlement(db, busy, settlement, method, balance
 @pytest.mark.parametrize(
     ("settlement", "method", "error"),
     [
-        (0, None, SettlementRequiredError),  # cần bù 150 mà không bù
+        (0, None, SettlementRequiredError),
         (149, PaymentMethod.CASH, SettlementRequiredError),
-        (151, PaymentMethod.CASH, ValidationError),  # vượt phí phiên
+        (151, PaymentMethod.CASH, ValidationError),
         (150, PaymentMethod.ACCOUNT_BALANCE, ValidationError),
+        (150, "CASH", ValidationError),
+        (150, "TRANSFER", ValidationError),
     ],
 )
 def test_rejected_settlement_changes_nothing(db, busy, settlement, method, error):

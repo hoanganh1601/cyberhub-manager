@@ -1056,12 +1056,19 @@ def test_complete_checkout_with_settlement(settlement, method, balance_after):
     ]
 
 
-def test_complete_checkout_accepts_method_as_text():
+@pytest.mark.parametrize("method", ["CASH", "TRANSFER"])
+def test_complete_checkout_rejects_method_as_text(method):
     service, db, actor = build_complete(balance=50)
 
-    service.complete_checkout(1, actor, 150, "CASH")
+    with pytest.raises(ValidationError) as exc_info:
+        service.complete_checkout(1, actor, 150, method)
 
-    assert db.transactions[0][-1] is PaymentMethod.CASH
+    assert exc_info.value.field_errors == {
+        "method": METHOD_INVALID,
+    }
+    assert db.writes == []
+    assert (db.commits, db.rollbacks) == (0, 0)
+    assert_unchanged(db, 50)
 
 
 def test_settlement_below_required_changes_nothing():
