@@ -241,6 +241,7 @@ class SessionServiceProtocol(Protocol):
 
         Raises:
             NotFoundError: không tồn tại máy.
+            PermissionDeniedError: chưa đăng nhập hợp lệ hoặc máy khác cửa hàng.
             ConflictError: máy không có phiên ACTIVE.
             ValidationError: current_time trước thời điểm bắt đầu phiên.
         """
@@ -255,7 +256,9 @@ class SessionServiceProtocol(Protocol):
     ) -> CheckoutResult:
         """Không cần bù: settlement_amount=0, method=None.
 
-        Cần bù thì method bắt buộc là CASH hoặc TRANSFER.
+            Cần bù: settlement_amount phải bằng đúng settlement_required
+            từ preview mới nhất; method bắt buộc là CASH hoặc TRANSFER.
+            Tiền khách đưa và tiền thừa không thuộc service contract.
 
         Raises:
             NotFoundError: không tồn tại máy.
