@@ -8,8 +8,8 @@ Xây dựng ứng dụng desktop giúp một hoặc nhiều cửa hàng net đã
 
 | Vai trò | Quyền trong MVP |
 |---|---|
-| Nhân viên | Đăng nhập; tìm/tạo/cập nhật khách; nạp tiền; xem máy; mở và checkout phiên; xem hóa đơn vừa tạo |
-| Quản lý | Toàn bộ quyền nhân viên; thêm/sửa máy; bật/tắt bảo trì; xem lịch sử hóa đơn và doanh thu |
+| Nhân viên | Đăng nhập; tìm/tạo/cập nhật khách; nạp tiền; xem máy; mở và checkout phiên; xem lịch sử hóa đơn và doanh thu của cửa hàng hiện tại |
+| Quản lý | Toàn bộ quyền nhân viên; thêm/sửa/ngừng sử dụng máy; bật/tắt bảo trì; khóa hoặc mở lại khách hàng và tài khoản |
 | Admin | Quản lý toàn hệ thống ở P1; MVP có tài khoản seed để demo và kiểm tra phân quyền |
 | Khách hàng | Sử dụng máy, nạp tiền và xem số dư thông qua nhân viên; chức năng tự đăng nhập/self-service thuộc P1 |
 

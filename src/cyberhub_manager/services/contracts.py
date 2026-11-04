@@ -281,12 +281,14 @@ class ReportServiceProtocol(Protocol):
 
         Raises:
             ValidationError: date_from lớn hơn date_to.
+            PermissionDeniedError: chưa đăng nhập hợp lệ hoặc store_id khác cửa hàng.
         """
         ...
 
     def get_invoice(self, invoice_id: int) -> InvoiceDetail:
         """Raises:
             NotFoundError: không tồn tại hóa đơn.
+            PermissionDeniedError: chưa đăng nhập hợp lệ hoặc hóa đơn khác cửa hàng.
         """
         ...
 
@@ -300,6 +302,7 @@ class ReportServiceProtocol(Protocol):
 
         Raises:
             ValidationError: date_from lớn hơn date_to.
+            PermissionDeniedError: chưa đăng nhập hợp lệ hoặc store_id khác cửa hàng.
         """
         ...
 
