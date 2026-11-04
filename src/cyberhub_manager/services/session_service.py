@@ -413,6 +413,8 @@ class SessionService:
             )
             # Đọc lại để created_at đúng giờ MySQL ghi.
             invoice = self._invoices.get_by_id(conn, invoice_id)
+            if invoice is None:
+                raise ServiceUnavailableError()
 
         summary = InvoiceSummary(
             invoice_id=invoice.id,

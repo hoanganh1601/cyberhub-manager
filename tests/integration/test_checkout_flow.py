@@ -27,6 +27,7 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     SettlementRequiredError,
     ValidationError,
+    ServiceUnavailableError,
 )
 from cyberhub_manager.repositories.account_repository import AccountRepository
 from cyberhub_manager.repositories.auth_repository import AuthRepository
@@ -429,6 +430,36 @@ def test_failure_mid_checkout_rolls_back_all_five_groups(
     with pytest.raises(RuntimeError):
         _service(db.manager).complete_checkout(
             busy.machine_id, db.manager, 150, PaymentMethod.CASH
+        )
+
+    assert _state(db, busy.session_id, busy.machine_id) == (
+        50,
+        0,
+        "ACTIVE",
+        "IN_USE",
+        0,
+    )
+
+
+def test_missing_created_invoice_rolls_back_all_groups(
+    db,
+    busy,
+    monkeypatch,
+):
+    _set_balance(db, 50)
+
+    monkeypatch.setattr(
+        InvoiceRepository,
+        "get_by_id",
+        lambda self, conn, invoice_id: None,
+    )
+
+    with pytest.raises(ServiceUnavailableError):
+        _service(db.manager).complete_checkout(
+            busy.machine_id,
+            db.manager,
+            150,
+            PaymentMethod.CASH,
         )
 
     assert _state(db, busy.session_id, busy.machine_id) == (

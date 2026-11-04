@@ -1269,6 +1269,27 @@ def test_database_error_maps_to_service_unavailable():
     assert_unchanged(db, 50_000)
 
 
+def test_missing_created_invoice_rolls_back_everything(monkeypatch):
+    service, db, actor = build_complete()
+
+    monkeypatch.setattr(
+        service._invoices,
+        "get_by_id",
+        lambda *args, **kwargs: None,
+    )
+
+    with pytest.raises(ServiceUnavailableError):
+        service.complete_checkout(
+            1,
+            actor,
+            0,
+            None,
+        )
+
+    assert_unchanged(db, 50_000)
+    assert (db.commits, db.rollbacks) == (0, 1)
+
+
 def test_existing_invoice_for_session_maps_to_conflict():
     service, db, actor = build_complete()
     db.invoices[7] = Invoice(
