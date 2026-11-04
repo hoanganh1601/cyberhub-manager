@@ -11,10 +11,7 @@ from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.domain.enums import PaymentMethod, InvoiceStatus
 
-def test_insert_usage_payment_transaction_rolls_back(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_insert_usage_payment_transaction_rolls_back(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered=True)
     transaction_code = "HA08T_" + uuid4().hex[:12].upper()
@@ -22,35 +19,14 @@ def test_insert_usage_payment_transaction_rolls_back(monkeypatch):
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
         conn.start_transaction()
 
-        cursor.execute(
-            """
-            SELECT a.id, c.id
-            FROM accounts AS a
-            JOIN customers AS c ON c.id = a.customer_id
-            WHERE c.code = %s
-            """,
-            ("DEMO_CUS_01",),
-        )
-        account_id, customer_id = cursor.fetchone()
-
-        cursor.execute(
-            "SELECT id, store_id, hourly_rate FROM machines WHERE code = %s",
-            ("DEMO_PC_01",),
-        )
-        machine_id, store_id, hourly_rate = cursor.fetchone()
-
-        cursor.execute(
-            """
-            SELECT id FROM employees
-            WHERE store_id = %s AND status = 'ACTIVE'
-            ORDER BY id LIMIT 1
-            """,
-            (store_id,),
-        )
-        employee_id = cursor.fetchone()[0]
+        rows = test_scenario(conn)
+        machine_id, store_id = rows.machine_id, rows.store_id
+        hourly_rate = rows.hourly_rate
+        customer_id, employee_id = rows.customer_id, rows.employee_id
+        account_id = rows.account_id
 
         cursor.execute("SELECT balance FROM accounts WHERE id = %s", (account_id,))
         balance_before = cursor.fetchone()[0]
@@ -118,10 +94,7 @@ def test_insert_usage_payment_transaction_rolls_back(monkeypatch):
         conn.rollback()
         cursor.close()
         conn.close()
-def test_create_invoice_rolls_back(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_migration_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def test_create_invoice_rolls_back(test_scenario):
     conn = connection.get_connection()
     cursor = conn.cursor(buffered = True)
     session_repo = SessionRepository()
@@ -130,28 +103,13 @@ def test_create_invoice_rolls_back(monkeypatch):
 
     try:
         cursor.execute("SELECT DATABASE()")
-        assert cursor.fetchone()[0] == "cyberhub_manager_migration_test"
+        assert cursor.fetchone()[0] == "cyberhub_manager_test"
         conn.start_transaction()
 
-        cursor.execute(
-            "SELECT id FROM customers WHERE code = %s",
-            ("DEMO_CUS_01",),
-        )
-        customer_id = cursor.fetchone()[0]
-        cursor.execute(
-            "SELECT id, store_id, hourly_rate FROM machines WHERE code = %s",
-            ("DEMO_PC_01",),
-        )
-        machine_id, store_id, hourly_rate = cursor.fetchone()
-        cursor.execute(
-            """
-            SELECT id FROM employees
-            WHERE store_id = %s AND status = 'ACTIVE'
-            ORDER BY id LIMIT 1
-            """,
-            (store_id,),
-        )
-        employee_id = cursor.fetchone()[0]
+        rows = test_scenario(conn)
+        machine_id, store_id = rows.machine_id, rows.store_id
+        hourly_rate = rows.hourly_rate
+        customer_id, employee_id = rows.customer_id, rows.employee_id
 
         session_id = session_repo.create(
             conn,
@@ -240,11 +198,6 @@ def test_create_invoice_rolls_back(monkeypatch):
             (day_start_utc.replace(tzinfo=None), invoice_id),
         )
         
-        cursor.execute(
-        "SELECT id, store_id, status, created_at, usage_cost FROM invoices WHERE id = %s",
-        (invoice_id,),
-        )
-        print("REVENUE DEBUG:", cursor.fetchone())
         
         revenue = invoice_repo.daily_revenue_by_store(
             conn,

@@ -13,7 +13,6 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.enums import MachineStatus, Role, SessionStatus
 from cyberhub_manager.domain.exceptions import (
@@ -35,7 +34,7 @@ from cyberhub_manager.services.session_service import (
     SessionService,
 )
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 NOW = datetime(2026, 10, 31, 8, 0, tzinfo=timezone.utc)
 # Đơn giá 6_000đ/giờ => tối thiểu 30 phút = 3_000đ.
 RATE = 6_000
@@ -62,10 +61,7 @@ def _update(sql, params):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
-
+def db():
     token = uuid4().hex[:8]
     counter = iter(range(1, 1_000))
 

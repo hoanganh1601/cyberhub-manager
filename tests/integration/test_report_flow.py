@@ -21,7 +21,7 @@ from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.services.report_service import ReportService
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 UNKNOWN_ID = 999_999_999_999
 RATE = 6_000
 
@@ -40,9 +40,9 @@ def _execute(conn, sql, params=()):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
+def db():
+    # monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
+    # monkeypatch.setattr(connection, "_pool", None)
 
     token = uuid4().hex[:8]
     counter = iter(range(1, 1_000))

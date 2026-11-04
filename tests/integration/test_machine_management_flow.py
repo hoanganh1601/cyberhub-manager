@@ -11,7 +11,6 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import MachineArchiveAction, MachineStatus, Role
@@ -24,7 +23,7 @@ from cyberhub_manager.domain.exceptions import (
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.services.machine_service import MachineService
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 UNKNOWN_ID = 999_999_999_999
 
 
@@ -56,10 +55,7 @@ def _actor(employee_id, store_id, role):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
-
+def db():
     token = uuid4().hex[:8]
 
     with transaction() as conn:

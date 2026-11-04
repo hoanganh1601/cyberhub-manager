@@ -9,7 +9,6 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus, Role
@@ -25,7 +24,7 @@ from cyberhub_manager.security import hash_password
 from cyberhub_manager.services.auth_service import AuthService
 from cyberhub_manager.services.customer_service import CustomerService
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 PASSWORD = "secret123"
 UNKNOWN_ID = 999_999_999_999
 
@@ -61,10 +60,7 @@ def _actor(employee, role):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
-
+def db():
     token = uuid4().hex[:10]
     password_hash = hash_password(PASSWORD)
     employees = {}
@@ -175,6 +171,18 @@ def test_login_rejects_invalid_credentials(db, employee_key, password):
 
     with pytest.raises(AuthenticationError):
         AuthService().login(username, password)
+
+
+def test_login_rejects_employee_of_inactive_store(db):
+    with transaction() as conn:
+        _execute(
+            conn,
+            "UPDATE stores SET status = 'INACTIVE' WHERE id = %s",
+            (db.store_id,),
+        )
+
+    with pytest.raises(AuthenticationError):
+        AuthService().login(db.employees["manager"].username, PASSWORD)
 
 
 # ----- CustomerService -------------------------------------------------------

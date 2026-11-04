@@ -15,11 +15,7 @@ def _execute(conn, sql, params=()):
 
 
 @pytest.fixture
-def probe_ids(monkeypatch):
-    # Chỉ đổi cấu hình trong phạm vi kiểm thử.
-    monkeypatch.setenv("MYSQL_DATABASE", "cyberhub_manager_test")
-    monkeypatch.setattr(connection, "_pool", None)
-
+def probe_ids():
     conn = connection.get_connection()
 
     try:

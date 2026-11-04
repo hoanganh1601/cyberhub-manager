@@ -5,12 +5,12 @@ phải được commit trước; fixture tự xóa đúng các dòng mình tạo
 """
 
 from datetime import timezone
+from threading import Barrier, Thread
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.enums import (
     AccountStatus,
@@ -28,7 +28,7 @@ from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.security import hash_password
 from cyberhub_manager.services.wallet_service import WalletService
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 EMPLOYEE_NAME = "LI04 Test Employee"
 UNKNOWN_ID = 999_999_999_999
 
@@ -43,10 +43,7 @@ def _execute(conn, sql, params=()):
 
 
 @pytest.fixture
-def wallet_db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
-
+def wallet_db():
     token = uuid4().hex
     password_hash = hash_password("temporary-test-password")
 
@@ -244,6 +241,46 @@ def test_top_up_invalid_amount_leaves_data_unchanged(wallet_db):
 
     assert _balance(wallet_db.account_id) == 0
     assert _transaction_count(wallet_db.account_id) == 0
+
+
+# ----- Nạp tiền đồng thời ----------------------------------------------------
+
+
+def test_concurrent_top_ups_do_not_lose_money(wallet_db):
+    """FOR UPDATE trên account buộc các lần nạp chạy lần lượt, không ghi đè nhau."""
+
+    workers = 4
+    barrier = Barrier(workers)
+    results = []
+
+    def worker():
+        barrier.wait()
+        results.append(
+            wallet_db.service.top_up(
+                wallet_db.customer_id,
+                10_000,
+                PaymentMethod.CASH,
+                wallet_db.employee_id,
+            )
+        )
+
+    threads = [Thread(target=worker) for _ in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert len(results) == workers
+    assert _balance(wallet_db.account_id) == 40_000
+    assert _transaction_count(wallet_db.account_id) == workers
+    # Mỗi lần nạp thấy số dư trước khác nhau: không có hai lần đọc cùng một giá trị.
+    assert sorted(r.balance_before for r in results) == [0, 10_000, 20_000, 30_000]
+    assert sorted(r.balance_after for r in results) == [
+        10_000,
+        20_000,
+        30_000,
+        40_000,
+    ]
 
 
 # ----- Actor không hợp lệ ----------------------------------------------------
