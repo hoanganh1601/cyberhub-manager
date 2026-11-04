@@ -92,7 +92,7 @@ ALREADY_CHECKED_OUT = "Phiên này đã được checkout"
 BALANCE_CHANGED = "Số dư tài khoản vừa thay đổi, vui lòng xem lại"
 SETTLEMENT_INVALID = "Tiền bù phải là số nguyên không âm"
 SETTLEMENT_NOT_ENOUGH = "Tiền bù chưa đủ để số dư không âm"
-SETTLEMENT_TOO_LARGE = "Tiền bù không được lớn hơn phí sử dụng"
+SETTLEMENT_EXCESS = "Tiền bù phải bằng đúng số tiền còn thiếu"
 METHOD_INVALID = "Phương thức chỉ được là tiền mặt hoặc chuyển khoản"
 METHOD_NOT_ALLOWED = "Không chọn phương thức khi không có tiền bù"
 
@@ -139,20 +139,32 @@ def _validate_settlement_input(
     return PaymentMethod(method)
 
 
-def _check_settlement_amount(preview: CheckoutPreview, settlement_amount: int) -> None:
-    """SES-08: tiền bù phải đưa số dư về >= 0 và không vượt phí phiên."""
+def _check_settlement_amount(
+    preview: CheckoutPreview,
+    settlement_amount: int,
+) -> None:
+    """Require settlement to equal the current outstanding amount."""
 
-    if settlement_amount < preview.settlement_required:
+    required = preview.settlement_required
+
+    if settlement_amount < required:
         raise SettlementRequiredError(
-            field_errors={"settlement_amount": SETTLEMENT_NOT_ENOUGH},
+            field_errors={
+                "settlement_amount": SETTLEMENT_NOT_ENOUGH,
+            },
             details={
-                "settlement_required": preview.settlement_required,
+                "settlement_required": required,
                 "usage_cost": preview.usage_cost,
                 "balance_before": preview.balance_before,
             },
         )
-    if settlement_amount > preview.usage_cost:
-        raise ValidationError(field_errors={"settlement_amount": SETTLEMENT_TOO_LARGE})
+
+    if settlement_amount > required:
+        raise ValidationError(
+            field_errors={
+                "settlement_amount": SETTLEMENT_EXCESS,
+            }
+        )
 
 
 def _session_summary(

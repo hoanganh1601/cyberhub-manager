@@ -345,8 +345,13 @@ def test_every_store_role_can_checkout(db, busy, role):
 
 @pytest.mark.parametrize(
     ("settlement", "method", "balance_after"),
-    [(150, PaymentMethod.CASH, 0), (200, PaymentMethod.TRANSFER, 50)],
+    [
+        (150, PaymentMethod.CASH, 0),
+        (150, PaymentMethod.TRANSFER, 0),
+    ],
 )
+
+
 def test_complete_checkout_with_settlement(db, busy, settlement, method, balance_after):
     _set_balance(db, 50)
 
@@ -376,7 +381,7 @@ def test_complete_checkout_with_settlement(db, busy, settlement, method, balance
     [
         (0, None, SettlementRequiredError),  # cần bù 150 mà không bù
         (149, PaymentMethod.CASH, SettlementRequiredError),
-        (201, PaymentMethod.CASH, ValidationError),  # vượt phí phiên
+        (151, PaymentMethod.CASH, ValidationError),  # vượt phí phiên
         (150, PaymentMethod.ACCOUNT_BALANCE, ValidationError),
     ],
 )

@@ -109,7 +109,7 @@ flowchart TD
 
     P4 --> D1{"settlement_required > 0?"}
     D1 -- "Không" --> C0["Xác nhận: settlement_amount = 0, method = None"]
-    D1 -- "Có" --> C1["Thu tiền bù CASH / TRANSFER<br>settlement_required <= tiền bù <= phí;<br>tiền thối do UI tự tính"]
+    D1 -- "Có" --> C1["Thu tiền bằng CASH / TRANSFER<br>settlement_amount = settlement_required;<br>tiền khách đưa và tiền thừa chỉ thuộc UI"]
     C0 --> T1
     C1 --> T1
 
@@ -118,7 +118,7 @@ flowchart TD
         T1 --> T2["SELECT máy FOR UPDATE<br>-> SELECT account FOR UPDATE<br>-> SELECT phiên ACTIVE FOR UPDATE"]
         T2 --> T3{"Máy cùng store, IN_USE,<br>vẫn đúng phiên đã đọc?"}
         T3 -- "Có" --> T4["Tính lại phí bằng giờ server<br>và số dư đã khóa"]
-        T4 --> T5{"Tiền bù đủ và<br>không vượt phí?"}
+        T4 --> T5{"Tiền bù bằng đúng<br>settlement_required?"}
         T5 -- "Có" --> T6["Có tiền bù: cộng số dư<br>+ ghi DEBT_SETTLEMENT"]
         T6 --> T7["Trừ phí (balance >= phí)<br>+ ghi USAGE_PAYMENT"]
         T7 --> T8["usage_sessions -> COMPLETED<br>(closed_by, ended_at, cost)"]
@@ -131,7 +131,7 @@ flowchart TD
     T1 -- "Actor không hợp lệ" --> RB
     T3 -- "Không" --> RB["ROLLBACK<br>ConflictError / PermissionDeniedError"]
     T5 -- "Thiếu tiền bù" --> RBS["ROLLBACK<br>SettlementRequiredError (settlement_required)"]
-    T5 -- "Vượt phí" --> RBV["ROLLBACK<br>ValidationError"]
+    T5 -- "Lớn hơn số tiền còn thiếu" --> RBV["ROLLBACK<br>ValidationError"]
     T7 -.->|"Lỗi ở bất kỳ bước ghi nào"| RBA["ROLLBACK toàn bộ<br>số dư, giao dịch, phiên, máy, hóa đơn"]
     T10 -.->|"Trùng uq_invoices_session<br>(double-click)"| RB
 
@@ -155,4 +155,5 @@ flowchart TD
 | Một phiên một hóa đơn, chống double-click | Request sau chờ khóa máy rồi thấy máy `AVAILABLE`; `UPDATE ... WHERE status = 'ACTIVE'`; unique `uq_invoices_session` là lưới an toàn cuối |
 | Nguyên tử (SES-09) | Mọi lệnh ghi nằm trong `with transaction()`; repository trả `False` hoặc ném lỗi đều làm rollback cả năm nhóm dữ liệu |
 | Thứ tự khóa | Máy -> account -> phiên, giống mở phiên, để hai thao tác không khóa chéo nhau |
+| Tiền bù không phải tiền khách đưa | `settlement_amount` phải bằng đúng `settlement_required`; tiền khách đưa và tiền thừa chỉ được UI dùng để hiển thị, phần dư muốn nạp vào ví phải gọi luồng `top_up` riêng |
 

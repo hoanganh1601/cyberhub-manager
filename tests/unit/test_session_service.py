@@ -53,7 +53,7 @@ from cyberhub_manager.services.session_service import (
     NOT_ENOUGH_BALANCE,
     SETTLEMENT_INVALID,
     SETTLEMENT_NOT_ENOUGH,
-    SETTLEMENT_TOO_LARGE,
+    SETTLEMENT_EXCESS,
     SessionService,
 )
 
@@ -1030,10 +1030,11 @@ def test_complete_checkout_without_settlement():
 @pytest.mark.parametrize(
     ("settlement", "method", "balance_after"),
     [
-        (150, PaymentMethod.CASH, 0),  # bù vừa đủ
-        (200, PaymentMethod.TRANSFER, 50),  # trả cả phí bằng chuyển khoản
+        (150, PaymentMethod.CASH, 0),
+        (150, PaymentMethod.TRANSFER, 0),
     ],
 )
+
 def test_complete_checkout_with_settlement(settlement, method, balance_after):
     service, db, actor = build_complete(balance=50)
 
@@ -1088,13 +1089,21 @@ def test_missing_settlement_when_required_changes_nothing():
     assert_unchanged(db, 50)
 
 
-def test_settlement_above_usage_cost_is_rejected():
+def test_settlement_above_required_is_rejected():
     service, db, actor = build_complete(balance=50)
 
     with pytest.raises(ValidationError) as exc_info:
-        service.complete_checkout(1, actor, 201, PaymentMethod.CASH)
+        service.complete_checkout(
+            1,
+            actor,
+            151,
+            PaymentMethod.CASH,
+        )
 
-    assert exc_info.value.field_errors == {"settlement_amount": SETTLEMENT_TOO_LARGE}
+    assert exc_info.value.field_errors == {
+        "settlement_amount": SETTLEMENT_EXCESS,
+    }
+    assert db.writes == []
     assert_unchanged(db, 50)
 
 
