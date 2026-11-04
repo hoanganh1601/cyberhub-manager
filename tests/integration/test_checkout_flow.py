@@ -39,7 +39,7 @@ from cyberhub_manager.services.session_service import (
     SessionService,
 )
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 NOW = datetime(2026, 10, 31, 8, 0, tzinfo=timezone.utc)
 CHECKOUT_AT = NOW + timedelta(seconds=61)
 RATE = 6_000
@@ -66,9 +66,9 @@ def _update(sql, params):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
+def db():
+    # monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
+    # monkeypatch.setattr(connection, "_pool", None)
 
     token = uuid4().hex[:8]
     counter = iter(range(1, 1_000))

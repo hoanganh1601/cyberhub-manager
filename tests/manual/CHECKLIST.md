@@ -287,25 +287,25 @@ Quy ước ghi kết quả:
 - Người thực hiện:
 - Điều kiện ban đầu: Máy IN_USE, chi phí đã vượt số dư (dùng phiên ở AC-14).
 - Các bước thực hiện:
-  1. Bấm Checkout, xem số tiền cần bù.
-  2. Nhập số tiền nhỏ hơn số cần bù và xác nhận.
-  3. Nhập số tiền lớn hơn phí phiên và xác nhận.
-  4. Nhập đúng số cần bù và xác nhận.
-- Kết quả mong đợi: Bước 2 và 3 bị từ chối, phiên vẫn chạy, dữ liệu không đổi. Bước 4 hoàn tất, số dư còn 0đ.
+  1. Bấm Checkout và ghi nhận `settlement_required` trong preview.
+  2. Nhập `settlement_amount` nhỏ hơn `settlement_required`, chọn phương thức và xác nhận.
+  3. Nhập `settlement_amount` lớn hơn `settlement_required`, chọn phương thức và xác nhận.
+  4. Nhập đúng `settlement_required`, chọn `CASH` hoặc `TRANSFER` và xác nhận.
+- Kết quả mong đợi: Bước 2 trả `SettlementRequiredError`; bước 3 trả validation error. Cả hai trường hợp giữ phiên hoạt động và không thay đổi số dư, giao dịch hoặc hóa đơn. Bước 4 hoàn tất checkout, số dư còn 0đ và chỉ ghi đúng số tiền còn thiếu.
 - Kết quả thực tế:
 - Trạng thái: PASS / FAIL
 - Evidence:
 - Ghi chú/bug liên quan:
 
-### AC-17 — Thanh toán tiền mặt và chuyển khoản
+### AC-17 — Thanh toán bổ sung bằng tiền mặt và chuyển khoản
 
 - Người thực hiện:
-- Điều kiện ban đầu: Hai phiên cần bù tiền.
+- Điều kiện ban đầu: Có hai phiên cần thanh toán bổ sung.
 - Các bước thực hiện:
-  1. Checkout phiên thứ nhất, bù bằng tiền mặt.
-  2. Checkout phiên thứ hai, bù bằng chuyển khoản.
-  3. Xem lịch sử giao dịch của từng khách.
-- Kết quả mong đợi: Chỉ có hai phương thức tiền mặt và chuyển khoản để chọn. Lịch sử có giao dịch bù đúng phương thức và giao dịch trừ phí. Tiền thừa do UI tính không được ghi vào hóa đơn.
+  1. Checkout phiên thứ nhất với `settlement_amount` bằng đúng `settlement_required` và phương thức `CASH`.
+  2. Checkout phiên thứ hai với `settlement_amount` bằng đúng `settlement_required` và phương thức `TRANSFER`.
+  3. Xem lịch sử giao dịch của từng khách và chi tiết hóa đơn.
+- Kết quả mong đợi: UI chỉ cho chọn `CASH` hoặc `TRANSFER`. Mỗi checkout ghi một giao dịch `DEBT_SETTLEMENT` đúng phương thức và một giao dịch `USAGE_PAYMENT`. Hóa đơn ghi đúng khoản bù bằng `settlement_required`. Số tiền khách đưa và tiền thừa chỉ thuộc UI, không được ghi thành khoản bù trong hóa đơn; nếu muốn giữ phần dư trong ví phải dùng luồng nạp tiền riêng.
 - Kết quả thực tế:
 - Trạng thái: PASS / FAIL
 - Evidence:

@@ -9,12 +9,11 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.repositories.account_repository import AccountRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 UNKNOWN_ID = 999_999_999_999
 
 
@@ -33,9 +32,9 @@ def _fetch_one(sql, params):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
+def db():
+    # monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
+    # monkeypatch.setattr(connection, "_pool", None)
 
     token = uuid4().hex[:8]
     counter = iter(range(1, 100))

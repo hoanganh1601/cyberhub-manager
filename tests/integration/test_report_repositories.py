@@ -10,12 +10,11 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.enums import InvoiceStatus
 from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 
-TEST_DATABASE = "cyberhub_manager_migration_test"
+TEST_DATABASE = "cyberhub_manager_test"
 UNKNOWN_ID = 999_999_999_999
 STARTED_AT = datetime(2026, 11, 1, 1, 0)
 ENDED_AT = datetime(2026, 11, 1, 2, 0)
@@ -31,9 +30,9 @@ def _execute(conn, sql, params=()):
 
 
 @pytest.fixture
-def db(monkeypatch):
-    monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
-    monkeypatch.setattr(connection, "_pool", None)
+def db():
+    # monkeypatch.setenv("MYSQL_DATABASE", TEST_DATABASE)
+    # monkeypatch.setattr(connection, "_pool", None)
 
     token = uuid4().hex[:8]
 
