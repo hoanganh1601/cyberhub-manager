@@ -8,8 +8,8 @@ Xây dựng ứng dụng desktop giúp một hoặc nhiều cửa hàng net đã
 
 | Vai trò | Quyền trong MVP |
 |---|---|
-| Nhân viên | Đăng nhập; tìm/tạo/cập nhật khách; nạp tiền; xem máy; mở và checkout phiên; xem hóa đơn vừa tạo |
-| Quản lý | Toàn bộ quyền nhân viên; thêm/sửa máy; bật/tắt bảo trì; xem lịch sử hóa đơn và doanh thu |
+| Nhân viên | Đăng nhập; tìm/tạo/cập nhật khách; nạp tiền; xem máy; mở và checkout phiên; xem lịch sử hóa đơn và doanh thu của cửa hàng hiện tại |
+| Quản lý | Toàn bộ quyền nhân viên; thêm/sửa/ngừng sử dụng máy; bật/tắt bảo trì; khóa hoặc mở lại khách hàng và tài khoản |
 | Admin | Quản lý toàn hệ thống ở P1; MVP có tài khoản seed để demo và kiểm tra phân quyền |
 | Khách hàng | Sử dụng máy, nạp tiền và xem số dư thông qua nhân viên; chức năng tự đăng nhập/self-service thuộc P1 |
 
@@ -104,10 +104,10 @@ Không xóa cứng máy đã phát sinh phiên; dùng trạng thái/bảo trì �
 | SES-05 | Theo dõi phiên | Dashboard hiển thị khách, giờ bắt đầu, thời lượng và số dư ước tính theo thời gian thực |
 | SES-06 | Cảnh báo âm | Khi `số dư hiện tại - chi phí tạm tính < 0`, card máy hiển thị cảnh báo đỏ; không tự tắt máy |
 | SES-07 | Tính phí checkout | `phút = ceil((kết thúc - bắt đầu) / 60 giây)`, tối thiểu 1 phút; `phí = ceil(phút × đơn giá giờ / 60)` |
-| SES-08 | Bù nợ khi checkout | Nếu số dư sau trừ phí âm, hiển thị số cần thu; chỉ hoàn tất khi tiền bù làm số dư `>= 0` |
+| SES-08 | Bù nợ khi checkout | Nếu số dư sau trừ phí âm, hiển thị `settlement_required`; chỉ hoàn tất khi `settlement_amount` bằng đúng số tiền còn thiếu. Tiền khách đưa và tiền thừa chỉ thuộc UI |
 | SES-09 | Kết thúc nguyên tử | Trừ tiền, ghi giao dịch, đóng phiên, trả máy `AVAILABLE`, tạo hóa đơn trong một transaction |
 
-Luồng checkout phải có bước **xem trước**. Nếu cần bù nợ, UI hỏi số tiền/phương thức rồi mới gọi lệnh hoàn tất; không đóng phiên trước khi bù đủ.
+Luồng checkout phải có bước **xem trước**. Nếu cần bù nợ, UI hiển thị `settlement_required` và chỉ truyền đúng số tiền này vào lệnh hoàn tất. Tiền khách đưa và tiền thừa do UI xử lý; phần dư muốn giữ trong ví phải đi qua luồng nạp tiền riêng. Không đóng phiên trước khi bù đúng số tiền còn thiếu.
 
 ### INV — Hóa đơn và doanh thu
 
@@ -126,7 +126,7 @@ Luồng checkout phải có bước **xem trước**. Nếu cần bù nợ, UI h
 3. Chỉ máy `AVAILABLE` mới mở phiên; mở thành công chuyển `IN_USE`.
 4. Checkout thành công trả máy về `AVAILABLE`.
 5. Số dư có thể âm trong lúc chơi nhưng khách có số dư âm không được mở phiên mới.
-6. Chỉ hoàn tất checkout khi số dư sau phí và tiền bù lớn hơn hoặc bằng 0.
+6. Nếu checkout cần bù nợ, `settlement_amount` phải bằng đúng `settlement_required`; sau checkout số dư không được âm.
 7. Mọi lệnh thay đổi tiền phải có audit transaction và nhân viên thực hiện.
 8. Nhân viên không thao tác tài nguyên của cửa hàng khác.
 9. Hóa đơn và lịch sử giao dịch không xóa cứng.

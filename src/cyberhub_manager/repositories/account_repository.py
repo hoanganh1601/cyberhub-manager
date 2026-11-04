@@ -109,6 +109,30 @@ class AccountRepository:
             return cursor.rowcount == 1
         finally:
             cursor.close()
+    def debit_balance(
+        self,
+        conn: PooledMySQLConnection,
+        account_id: int,
+        amount: int,
+    ) -> bool:
+        """Subtract a positive amount without committing; never goes below zero."""
+        if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+            raise ValueError("Amount must be a positive integer")
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE accounts
+                SET balance = balance - %s
+                WHERE id = %s
+                  AND balance >= %s
+                """,
+                (amount, account_id, amount),
+            )
+            return cursor.rowcount == 1
+        finally:
+            cursor.close()
 
     def insert_top_up_transaction(
         self,

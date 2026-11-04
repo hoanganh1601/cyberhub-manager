@@ -95,7 +95,8 @@ Quy tắc nhất quán:
 - `estimated_cost`, `projected_balance`, `billed_minutes`, `minimum_balance`, `estimated_minutes`, `settlement_required` do service tính. UI chỉ hiển thị và so sánh điều kiện enable từ dữ liệu trả về.
 - Dashboard cập nhật 15 giây theo snapshot mới từ service. P0 không tự chạy công thức phí ở UI giữa hai snapshot.
 - `preview_open` trả `can_open=False` khi chỉ thiếu số dư; kèm `blocked_reason` để UI hiện CTA nạp tiền. Sai đối tượng, bị khóa, máy bận hoặc xung đột khác dùng exception. Khi confirm, `open_session` kiểm tra lại và có thể raise `InsufficientBalanceError`.
-- Checkout preview chỉ là ước tính. `complete_checkout` tính lại trong transaction; nếu tiền bù không còn đủ thì raise `SettlementRequiredError`, chưa thay đổi DB và UI tải preview mới.
+- Checkout preview chỉ là ước tính. `complete_checkout` tính lại trong transaction. Tiền bù nhỏ hơn `settlement_required` gây `SettlementRequiredError`; tiền bù lớn hơn số này gây `ValidationError`. Cả hai trường hợp đều không thay đổi DB và UI phải tải preview mới.
+- `settlement_amount` phải bằng đúng `settlement_required`. Đây không phải số tiền khách đưa; `cash_received` và tiền thừa chỉ thuộc UI. Phần dư muốn giữ trong ví phải gọi luồng `top_up` riêng. P0 giữ `total_amount = usage_cost`.
 - `settlement_amount` là phần tiền bù, không cộng thêm lần nữa vào `total_amount`; P0 giữ `total_amount = usage_cost`.
 - `InvoiceDetail` có thể lấy tên và thông tin phiên qua JOIN; không suy diễn rằng schema đang snapshot tên khách/nhân viên.
 
@@ -130,7 +131,7 @@ Chốt thêm để không phải tự đoán:
 
 - Tên Protocol: `AuthServiceProtocol`, `CustomerServiceProtocol`, `WalletServiceProtocol`, `MachineServiceProtocol`, `SessionServiceProtocol`, `ReportServiceProtocol`.
 - `ServiceBundle` tại cùng module chứa sáu trường `auth`, `customers`, `wallet`, `machines`, `sessions`, `reports`, lần lượt mang các Protocol trên. Các view nhận dependency từ ngoài, không tự khởi tạo service/repository.
-- `method` của top-up là `PaymentMethod.CASH` hoặc `TRANSFER`. Checkout không cần bù: `settlement_amount=0`, `method=None`; nếu cần bù thì method bắt buộc là CASH/TRANSFER. Kiểu tham số checkout là `PaymentMethod | None`.
+- `method` của top-up là `PaymentMethod.CASH` hoặc `TRANSFER`. Checkout không cần bù: `settlement_amount=0`, `method=None`; nếu cần bù thì `settlement_amount` phải bằng đúng `settlement_required` và method bắt buộc là `CASH` hoặc `TRANSFER`. Kiểu tham số checkout là `PaymentMethod | None`. UI/controller phải chuyển giá trị chuỗi từ control thành `PaymentMethod` trước khi gọi service; service không tự ép kiểu chuỗi.
 - `set_customer_status` nhận `CustomerStatus`: INACTIVE đồng thời khóa account; ACTIVE đồng thời mở account. Service làm cùng transaction; không tự kết thúc phiên đang chạy. Không có nút sửa trực tiếp số dư.
 - `archive_machine`: máy chưa có lịch sử trả `DELETED`; máy có lịch sử đặt `is_active=False`, trả `ARCHIVED`; không tạo MachineStatus mới. Máy IN_USE bị từ chối. Danh sách máy vận hành chỉ trả `is_active=True`.
 - `date_from`/`date_to` là ngày đầu/ngày cuối được chọn, bao gồm cả hai ngày. Thiếu một đầu mốc trong `InvoiceFilters` nghĩa là không giới hạn phía đó; nếu có cả hai thì từ ngày <= đến ngày. Revenue yêu cầu đủ hai mốc và chỉ cộng invoice PAID. Dòng DailyRevenue chỉ có những ngày có invoice PAID; UI tổng hợp count/tổng từ các dòng, danh sách rỗng hiển thị 0.
@@ -203,7 +204,7 @@ Theme dùng nguyên token/kích thước/font trong `03_UI_THEME.md`; không ch�
 
 Menu quản lý máy và action quản trị máy/khóa khách chỉ cho MANAGER/ADMIN. Nạp tiền, mở phiên, checkout cho nhân viên đăng nhập đúng cửa hàng. Service kiểm tra quyền lại dù UI đã ẩn nút.
 
-Chốt quyền xem invoice/revenue P0 theo backlog LI-08 và menu trong tài liệu theme: STAFF, MANAGER và ADMIN đều xem dữ liệu của cửa hàng hiện tại; quản lý nhiều cửa hàng là P1. STAFF không chọn store khác. Đây là điểm làm rõ so với bảng vai trò khái quát trong requirements (đang ghi STAFF chỉ xem hóa đơn vừa tạo); Hoàng Anh cập nhật bảng vai trò đó cho khớp khi nhận bàn giao, không để mỗi thành viên tự chọn một cách hiểu.
+Chốt quyền xem invoice/revenue P0: STAFF, MANAGER và ADMIN đều được xem dữ liệu của cửa hàng hiện tại; quản lý nhiều cửa hàng thuộc P1. STAFF không được chọn cửa hàng khác. Quy tắc này đã được đồng bộ với bảng vai trò trong `01_REQUIREMENTS.md`.
 
 Machine card dùng `active_session.projected_balance` để cảnh báo âm, không dùng nhầm account_balance. Text cảnh báo dạng "Âm 10.000 VND". Mở phiên và checkout dựa trên preview từ service; UI không tự tính phí, số phút làm tròn hoặc số dư tối thiểu.
 

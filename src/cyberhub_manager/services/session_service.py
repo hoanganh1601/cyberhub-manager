@@ -1,7 +1,7 @@
-"""LI-06 — Linh: SessionService xem trước và mở phiên sử dụng máy.
+"""LI-06/LI-07 — Linh: SessionService mở phiên và checkout máy.
 
 Service chỉ làm việc qua repository và database.transaction.transaction();
-UI không gọi repository hay SQL trực tiếp. Checkout và hóa đơn thuộc LI-07.
+UI không gọi repository hay SQL trực tiếp.
 """
 
 from __future__ import annotations
@@ -21,6 +21,8 @@ from cyberhub_manager.domain.dtos import (
     CheckoutPreview,
     CheckoutResult,
     EmployeeSession,
+    InvoiceDetail,
+    InvoiceSummary,
     OpenSessionPreview,
     SessionSummary,
 )
@@ -38,11 +40,14 @@ from cyberhub_manager.domain.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     ServiceUnavailableError,
+    SettlementRequiredError,
+    ValidationError,
 )
 from cyberhub_manager.domain.models import (
     Account,
     Customer,
     Machine,
+    UsageSession,
     estimate_play_minutes,
     minimum_balance,
     MINIMUM_SESSION_MINUTES,
@@ -50,17 +55,26 @@ from cyberhub_manager.domain.models import (
 from cyberhub_manager.repositories.account_repository import AccountRepository
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
+from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
+from cyberhub_manager.services.wallet_service import new_transaction_code
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
-# STAFF, MANAGER và ADMIN đều được mở phiên trong cửa hàng của mình.
-OPEN_SESSION_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
+# STAFF, MANAGER và ADMIN đều được mở phiên và checkout trong cửa hàng của mình.
+SESSION_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
 
 # "SS-" + 17 ký tự hex = 20 ký tự, vừa cột usage_sessions.code VARCHAR(20).
 SESSION_CODE_PREFIX = "SS-"
 SESSION_CODE_HEX_LENGTH = 17
+
+# "INV-" + 16 ký tự hex = 20 ký tự, vừa cột invoices.code VARCHAR(20).
+INVOICE_CODE_PREFIX = "INV-"
+INVOICE_CODE_HEX_LENGTH = 16
+
+# P0 chỉ nhận tiền bù bằng tiền mặt hoặc chuyển khoản.
+SETTLEMENT_METHODS = frozenset({PaymentMethod.CASH, PaymentMethod.TRANSFER})
 
 MACHINE_BUSY = "Máy đang được sử dụng"
 CUSTOMER_BUSY = "Khách hàng đang có phiên khác"
@@ -72,6 +86,15 @@ MACHINE_MAINTENANCE = "Máy đang bảo trì"
 CUSTOMER_INACTIVE = "Khách hàng đã ngừng hoạt động"
 ACCOUNT_LOCKED = "Tài khoản khách hàng đã bị khóa"
 NOT_ENOUGH_BALANCE = f"Số dư chưa đủ cho {MINIMUM_SESSION_MINUTES} phút sử dụng"
+NO_ACTIVE_SESSION = "Máy không có phiên đang hoạt động"
+CURRENT_TIME_INVALID = "Thời gian tính phí phải có timezone"
+ALREADY_CHECKED_OUT = "Phiên này đã được checkout"
+BALANCE_CHANGED = "Số dư tài khoản vừa thay đổi, vui lòng xem lại"
+SETTLEMENT_INVALID = "Tiền bù phải là số nguyên không âm"
+SETTLEMENT_NOT_ENOUGH = "Tiền bù chưa đủ để số dư không âm"
+SETTLEMENT_EXCESS = "Tiền bù phải bằng đúng số tiền còn thiếu"
+METHOD_INVALID = "Phương thức chỉ được là tiền mặt hoặc chuyển khoản"
+METHOD_NOT_ALLOWED = "Không chọn phương thức khi không có tiền bù"
 
 
 def _utc_now() -> datetime:
@@ -92,8 +115,112 @@ def new_session_code() -> str:
     return SESSION_CODE_PREFIX + uuid4().hex[:SESSION_CODE_HEX_LENGTH]
 
 
+def new_invoice_code() -> str:
+    return INVOICE_CODE_PREFIX + uuid4().hex[:INVOICE_CODE_HEX_LENGTH]
+
+
+def _validate_settlement_input(
+    settlement_amount: int, method: PaymentMethod | None
+) -> PaymentMethod | None:
+    """Kiểm tra dữ liệu UI gửi lên; đủ hay thiếu tiền bù xét sau khi tính phí."""
+
+    if (
+        isinstance(settlement_amount, bool)
+        or not isinstance(settlement_amount, int)
+        or settlement_amount < 0
+    ):
+        raise ValidationError(field_errors={"settlement_amount": SETTLEMENT_INVALID})
+    if settlement_amount == 0:
+        if method is not None:
+            raise ValidationError(field_errors={"method": METHOD_NOT_ALLOWED})
+        return None
+
+    if (
+        not isinstance(method, PaymentMethod)
+        or method not in SETTLEMENT_METHODS
+    ):
+        raise ValidationError(
+            field_errors={"method": METHOD_INVALID}
+        )
+
+    return method
+
+
+def _check_settlement_amount(
+    preview: CheckoutPreview,
+    settlement_amount: int,
+) -> None:
+    """Require settlement to equal the current outstanding amount."""
+
+    required = preview.settlement_required
+
+    if settlement_amount < required:
+        raise SettlementRequiredError(
+            field_errors={
+                "settlement_amount": SETTLEMENT_NOT_ENOUGH,
+            },
+            details={
+                "settlement_required": required,
+                "usage_cost": preview.usage_cost,
+                "balance_before": preview.balance_before,
+            },
+        )
+
+    if settlement_amount > required:
+        raise ValidationError(
+            field_errors={
+                "settlement_amount": SETTLEMENT_EXCESS,
+            }
+        )
+
+
+def _session_summary(
+    session: UsageSession, customer: Customer, machine: Machine
+) -> SessionSummary:
+    return SessionSummary(
+        session_id=session.id,
+        session_code=session.code,
+        customer_id=customer.id,
+        customer_code=customer.code,
+        customer_name=customer.full_name,
+        machine_id=machine.id,
+        machine_code=machine.code,
+        machine_name=machine.name,
+        started_at=session.started_at,
+        hourly_rate=session.hourly_rate,
+        status=session.status,
+    )
+
+
+def _build_checkout_preview(
+    session: UsageSession,
+    customer: Customer,
+    machine: Machine,
+    balance: int,
+    at: datetime,
+) -> CheckoutPreview:
+    """SES-07, SES-08: tính theo đơn giá snapshot của phiên.
+
+    preview_checkout và complete_checkout dùng chung để hai bên không lệch số.
+    """
+
+    cost = session.calculate_cost(at)
+    projected = balance - cost
+    return CheckoutPreview(
+        session=_session_summary(session, customer, machine),
+        calculated_at=at,
+        elapsed_seconds=session.elapsed_seconds(at),
+        billed_minutes=session.calculate_billed_minutes(at),
+        usage_cost=cost,
+        balance_before=balance,
+        projected_balance=projected,
+        # Số dư dự kiến âm chỉ báo số tiền cần bù; không tự kết thúc phiên.
+        settlement_required=max(0, -projected),
+    )
+
+
 class SessionService:
-    """Triển khai SessionServiceProtocol trên MySQL (phần mở phiên)."""
+    """Triển khai SessionServiceProtocol trên MySQL."""
 
     def __init__(
         self,
@@ -102,6 +229,7 @@ class SessionService:
         customer_repo: CustomerRepository | None = None,
         account_repo: AccountRepository | None = None,
         auth_repo: AuthRepository | None = None,
+        invoice_repo: InvoiceRepository | None = None,
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
         clock: Callable[[], datetime] = _utc_now,
@@ -111,6 +239,7 @@ class SessionService:
         self._customers = customer_repo or CustomerRepository()
         self._accounts = account_repo or AccountRepository()
         self._auth = auth_repo or AuthRepository()
+        self._invoices = invoice_repo or InvoiceRepository()
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
@@ -203,7 +332,21 @@ class SessionService:
         machine_id: int,
         current_time: datetime,
     ) -> CheckoutPreview:
-        raise NotImplementedError("Checkout thuộc LI-07")
+        if not isinstance(current_time, datetime) or current_time.utcoffset() is None:
+            raise ValidationError(field_errors={"current_time": CURRENT_TIME_INVALID})
+        at = current_time.astimezone(timezone.utc)
+
+        with self._database() as conn:
+            # Contract không nhận actor: dùng chính người đang đăng nhập.
+            logged_in = self._actor_provider() if self._actor_provider else None
+            current = self._require_actor(conn, logged_in)
+            machine, session, customer = self._get_active_session(
+                conn, current, machine_id
+            )
+
+        return _build_checkout_preview(
+            session, customer, machine, customer.account.balance, at
+        )
 
     def complete_checkout(
         self,
@@ -212,7 +355,92 @@ class SessionService:
         settlement_amount: int,
         method: PaymentMethod | None,
     ) -> CheckoutResult:
-        raise NotImplementedError("Checkout thuộc LI-07")
+        method = _validate_settlement_input(settlement_amount, method)
+
+        with self._database() as conn:
+            current = self._require_actor(conn, actor)
+            machine, session, customer, account = self._lock_for_checkout(
+                conn, current, machine_id
+            )
+
+            # Tính lại bằng giờ server và số dư đã khóa; không tin số liệu từ UI.
+            ended_at = max(self._clock().replace(microsecond=0), session.started_at)
+            preview = _build_checkout_preview(
+                session, customer, machine, account.balance, ended_at
+            )
+            _check_settlement_amount(preview, settlement_amount)
+            cost = session.complete(current.employee_id, ended_at)
+
+            # Cộng tiền bù trước để lệnh trừ phí không bao giờ làm số dư âm.
+            if settlement_amount:
+                self._accounts.credit_balance(conn, account.id, settlement_amount)
+                self._accounts.insert_debt_settlement_transaction(
+                    conn,
+                    code=new_transaction_code(),
+                    account_id=account.id,
+                    employee_id=current.employee_id,
+                    session_id=session.id,
+                    settlement_amount=settlement_amount,
+                    method=method,
+                )
+                account.credit(settlement_amount)
+            if not self._accounts.debit_balance(conn, account.id, cost):
+                raise ConflictError(BALANCE_CHANGED)
+            account.debit(cost)
+            self._accounts.insert_usage_payment_transaction(
+                conn,
+                code=new_transaction_code(),
+                account_id=account.id,
+                employee_id=current.employee_id,
+                session_id=session.id,
+                usage_cost=cost,
+            )
+
+            if not self._sessions.complete(conn, session):
+                raise _conflict("machine_id", ALREADY_CHECKED_OUT)
+            if not self._machines.mark_available(conn, machine.id):
+                raise _conflict("machine_id", NO_ACTIVE_SESSION)
+
+            invoice_id = self._invoices.create(
+                conn,
+                code=new_invoice_code(),
+                session_id=session.id,
+                customer_id=customer.id,
+                employee_id=current.employee_id,
+                store_id=machine.store_id,
+                usage_cost=cost,
+                settlement_amount=settlement_amount,
+            )
+            # Đọc lại để created_at đúng giờ MySQL ghi.
+            invoice = self._invoices.get_by_id(conn, invoice_id)
+            if invoice is None:
+                raise ServiceUnavailableError()
+
+        summary = InvoiceSummary(
+            invoice_id=invoice.id,
+            invoice_code=invoice.code,
+            session_id=session.id,
+            customer_id=customer.id,
+            customer_name=customer.full_name,
+            employee_id=current.employee_id,
+            employee_name=current.full_name,
+            store_id=invoice.store_id,
+            store_name=current.store_name,
+            usage_cost=invoice.usage_cost,
+            settlement_amount=invoice.settlement_amount,
+            total_amount=invoice.total_amount,
+            status=invoice.status,
+            created_at=invoice.created_at,
+        )
+        return CheckoutResult(
+            invoice=InvoiceDetail(
+                invoice=summary,
+                session=_session_summary(session, customer, machine),
+                ended_at=ended_at,
+                billed_minutes=preview.billed_minutes,
+            ),
+            balance_after=account.balance,
+        )
 
     def _require_actor(
         self, conn: Any, requested_actor: EmployeeSession
@@ -239,7 +467,7 @@ class SessionService:
         if current is None or current.store_id != actor.store_id:
             raise PermissionDeniedError()
         # Role lấy từ DB; actor khai role khác DB (vd. STAFF tự nhận MANAGER) bị từ chối.
-        if requested_actor.role != current.role or current.role not in OPEN_SESSION_ROLES:
+        if requested_actor.role != current.role or current.role not in SESSION_ROLES:
             raise PermissionDeniedError()
         return current
 
@@ -286,6 +514,39 @@ class SessionService:
             raise _conflict("customer_id", CUSTOMER_BUSY)
         return customer, account, machine
 
+    def _get_active_session(
+        self, conn: Any, current: EmployeeSession, machine_id: int
+    ) -> tuple[Machine, UsageSession, Customer]:
+        """Máy thuộc cửa hàng hiện tại và đang có phiên ACTIVE; không khóa dữ liệu."""
+
+        machine = self._get_machine(conn, machine_id)
+        if machine.store_id != current.store_id:
+            raise PermissionDeniedError(WRONG_STORE)
+        session = self._sessions.get_active_by_machine(conn, machine.id)
+        if session is None or machine.status != MachineStatus.IN_USE:
+            raise _conflict("machine_id", NO_ACTIVE_SESSION)
+        return machine, session, self._get_customer(conn, session.customer_id)
+
+    def _lock_for_checkout(
+        self, conn: Any, current: EmployeeSession, machine_id: int
+    ) -> tuple[Machine, UsageSession, Customer, Account]:
+        """Khóa máy -> account -> phiên (cùng thứ tự mở phiên) rồi kiểm tra lại."""
+
+        machine = self._get_machine(conn, machine_id, for_update=True)
+        if machine.store_id != current.store_id:
+            raise PermissionDeniedError(WRONG_STORE)
+        # Đọc thường để biết cần khóa account của khách nào.
+        session = self._sessions.get_active_by_machine(conn, machine.id)
+        if session is None or machine.status != MachineStatus.IN_USE:
+            raise _conflict("machine_id", NO_ACTIVE_SESSION)
+        customer = self._get_customer(conn, session.customer_id)
+        account = self._accounts.get_by_id(conn, customer.account.id, for_update=True)
+        locked = self._sessions.get_active_by_machine(conn, machine.id, for_update=True)
+        # Phiên đã bị checkout hoặc đổi giữa lúc đọc và lúc khóa thì dừng lại.
+        if account is None or locked is None or locked.id != session.id:
+            raise _conflict("machine_id", NO_ACTIVE_SESSION)
+        return machine, locked, customer, account
+
     def _get_machine(
         self, conn: Any, machine_id: int, *, for_update: bool = False
     ) -> Machine:
@@ -321,6 +582,9 @@ class SessionService:
                     raise ConflictError(
                         CUSTOMER_BUSY, field_errors={"customer_id": CUSTOMER_BUSY}
                     ) from exc
+                # Lưới an toàn cuối: mỗi phiên chỉ có một hóa đơn (INV-01).
+                if "uq_invoices_session" in message:
+                    raise _conflict("machine_id", ALREADY_CHECKED_OUT) from exc
             raise ServiceUnavailableError() from exc
         except MySQLError as exc:
             raise ServiceUnavailableError() from exc

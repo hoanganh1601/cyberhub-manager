@@ -14,6 +14,39 @@ def _to_mysql_utc(value: datetime, field: str) -> datetime:
     ):
         raise ValueError(f"{field} must be timezone-aware")
     return value.astimezone(timezone.utc).replace(tzinfo = None)
+# Joins the names that InvoiceSummary needs; employees may no longer be ACTIVE.
+_SUMMARY_SELECT = """
+    SELECT i.id AS invoice_id, i.code AS invoice_code,
+           i.session_id, i.customer_id,
+           c.full_name AS customer_name,
+           i.employee_id, e.full_name AS employee_name,
+           i.store_id, st.name AS store_name,
+           i.usage_cost, i.settlement_amount, i.total_amount,
+           i.status, i.created_at
+    FROM invoices AS i
+    JOIN customers AS c ON c.id = i.customer_id
+    JOIN employees AS e ON e.id = i.employee_id
+    JOIN stores AS st ON st.id = i.store_id
+"""
+
+
+def _to_summary(row: dict) -> InvoiceSummary:
+    return InvoiceSummary(
+        invoice_id = row["invoice_id"],
+        invoice_code = row["invoice_code"],
+        session_id = row["session_id"],
+        customer_id = row["customer_id"],
+        customer_name = row["customer_name"],
+        employee_id = row["employee_id"],
+        employee_name = row["employee_name"],
+        store_id = row["store_id"],
+        store_name = row["store_name"],
+        usage_cost = row["usage_cost"],
+        settlement_amount = row["settlement_amount"],
+        total_amount = row["total_amount"],
+        status = InvoiceStatus(row["status"]),
+        created_at = row["created_at"].replace(tzinfo=timezone.utc),
+    )
 
 class InvoiceRepository:
     def create(
@@ -138,17 +171,7 @@ class InvoiceRepository:
             params.extend((pattern, pattern))
 
         query = f"""
-            SELECT i.id AS invoice_id, i.code AS invoice_code,
-                   i.session_id, i.customer_id,
-                   c.full_name AS customer_name,
-                   i.employee_id, e.full_name AS employee_name,
-                   i.store_id, st.name AS store_name,
-                   i.usage_cost, i.settlement_amount, i.total_amount,
-                   i.status, i.created_at
-            FROM invoices AS i
-            JOIN customers AS c ON c.id = i.customer_id
-            JOIN employees AS e ON e.id = i.employee_id
-            JOIN stores AS st ON st.id = i.store_id
+            {_SUMMARY_SELECT}
             WHERE {" AND ".join(conditions)}
             ORDER BY i.created_at DESC, i.id DESC
         """
@@ -160,25 +183,22 @@ class InvoiceRepository:
         finally:
             cursor.close()
 
-        return [
-            InvoiceSummary(
-                invoice_id = row["invoice_id"],
-                invoice_code = row["invoice_code"],
-                session_id = row["session_id"],
-                customer_id = row["customer_id"],
-                customer_name = row["customer_name"],
-                employee_id = row["employee_id"],
-                employee_name = row["employee_name"],
-                store_id = row["store_id"],
-                store_name = row["store_name"],
-                usage_cost = row["usage_cost"],
-                settlement_amount = row["settlement_amount"],
-                total_amount = row["total_amount"],
-                status = InvoiceStatus(row["status"]),
-                created_at = row["created_at"].replace(tzinfo=timezone.utc),
-            )
-            for row in rows
-        ]
+        return [_to_summary(row) for row in rows]
+
+    def get_summary_by_id(
+        self,
+        conn: PooledMySQLConnection,
+        invoice_id: int,
+    ) -> InvoiceSummary | None:
+        """Return one invoice with customer, employee and store names, or None."""
+        cursor = conn.cursor(dictionary = True)
+        try:
+            cursor.execute(f"{_SUMMARY_SELECT} WHERE i.id = %s", (invoice_id,))
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+
+        return None if row is None else _to_summary(row)
 
     def daily_revenue_by_store(
         self,
