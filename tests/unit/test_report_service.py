@@ -32,10 +32,12 @@ from cyberhub_manager.domain.exceptions import (
 from cyberhub_manager.domain.models import Account, Customer, Machine, UsageSession
 from cyberhub_manager.services.contracts import ReportServiceProtocol
 from cyberhub_manager.services.report_service import (
+    INCONSISTENT_INVOICE,
     DATE_FROM_REQUIRED,
     DATE_INVALID,
     DATE_RANGE_INVALID,
     DATE_TO_REQUIRED,
+    STATUS_INVALID,
     VN_TZ,
     WRONG_STORE,
     ReportService,
@@ -64,7 +66,13 @@ def make_actor(role=Role.STAFF, store_id=STORE_ID, *, employee_id=None):
     )
 
 
-def make_summary(invoice_id=1, *, store_id=STORE_ID, status=InvoiceStatus.PAID):
+def make_summary(
+    invoice_id=1,
+    *,
+    store_id=STORE_ID,
+    status=InvoiceStatus.PAID,
+    cost=6_000,
+):
     return InvoiceSummary(
         invoice_id=invoice_id,
         invoice_code=f"INV-{invoice_id:03d}",
@@ -75,15 +83,37 @@ def make_summary(invoice_id=1, *, store_id=STORE_ID, status=InvoiceStatus.PAID):
         employee_name="LI08 Actor",
         store_id=store_id,
         store_name="Cửa hàng test",
-        usage_cost=6_000,
+        usage_cost=cost,
         settlement_amount=0,
-        total_amount=6_000,
+        total_amount=cost,
         status=status,
         created_at=CREATED_AT,
     )
 
 
-def make_completed_session():
+def make_completed_session(
+    *,
+    customer_id=5,
+    machine_id=7,
+    closed_by=3,
+    cost=200,
+):
+    return UsageSession(
+        id=101,
+        code="SS-101",
+        customer_id=customer_id,
+        machine_id=machine_id,
+        opened_by=3,
+        closed_by=closed_by,
+        started_at=STARTED_AT,
+        ended_at=ENDED_AT,
+        hourly_rate=6_000,
+        cost=cost,
+        status=SessionStatus.COMPLETED,
+    )
+
+
+def make_cancelled_session():
     return UsageSession(
         id=101,
         code="SS-101",
@@ -94,19 +124,19 @@ def make_completed_session():
         started_at=STARTED_AT,
         ended_at=ENDED_AT,
         hourly_rate=6_000,
-        cost=200,
-        status=SessionStatus.COMPLETED,
+        cost=None,
+        status=SessionStatus.CANCELLED,
     )
 
 
-def make_machine():
+def make_machine(*, store_id=STORE_ID):
     return Machine(
         id=7,
         code="PC07",
-        store_id=STORE_ID,
+        store_id=store_id,
         name="Máy 07",
         status=MachineStatus.AVAILABLE,
-        hourly_rate=12_000,  # giá hiện tại khác giá snapshot của phiên
+        hourly_rate=12_000, # Giá hiện tại khác giá snapshot của phiên.
         is_active=True,
         updated_at=ENDED_AT,
     )
@@ -318,12 +348,20 @@ def test_list_invoices_without_filters_is_unbounded(filters):
     ]
 
 
-def test_list_invoices_accepts_status_as_text():
+@pytest.mark.parametrize("status", ["PAID", "VOID"])
+def test_list_invoices_rejects_status_as_text(status):
     service, db = build_service()
 
-    service.list_invoices(STORE_ID, InvoiceFilters(status="VOID"))
+    with pytest.raises(ValidationError) as exc_info:
+        service.list_invoices(
+            STORE_ID,
+            InvoiceFilters(status=status),
+        )
 
-    assert db.list_calls[0][1]["status"] is InvoiceStatus.VOID
+    assert exc_info.value.field_errors == {
+        "status": STATUS_INVALID,
+    }
+    assert db.transactions == 0
 
 
 @pytest.mark.parametrize("role", [Role.STAFF, Role.MANAGER, Role.ADMIN])
@@ -443,9 +481,16 @@ def test_database_error_maps_to_service_unavailable():
 # ----- get_invoice ------------------------------------------------------------
 def build_detail_service(actor=None, *, employees=None, invoice=None, **parts):
     """Hóa đơn 1 của phiên 101 (máy 7, khách 5) đã kết thúc sau 61 giây."""
+    detail_invoice = (
+        make_summary(cost=200)
+        if invoice is None
+        else invoice
+    )
 
     service, db = build_service(
-        actor, employees=employees, invoices=[invoice or make_summary()]
+        actor,
+        employees=employees,
+        invoices=[detail_invoice],
     )
     db.sessions = {101: parts.get("session", make_completed_session())}
     db.machines = {7: parts.get("machine", make_machine())}
@@ -462,7 +507,7 @@ def test_get_invoice_returns_detail():
     detail = service.get_invoice(1)
 
     assert isinstance(detail, InvoiceDetail)
-    assert detail.invoice == make_summary()
+    assert detail.invoice == make_summary(cost=200)
     session = detail.session
     assert (session.session_id, session.session_code) == (101, "SS-101")
     assert (session.customer_id, session.customer_code, session.customer_name) == (
@@ -483,7 +528,12 @@ def test_get_invoice_returns_detail():
 
 
 def test_get_invoice_shows_void_invoice():
-    service, _ = build_detail_service(invoice=make_summary(status=InvoiceStatus.VOID))
+    service, _ = build_detail_service(
+        invoice=make_summary(
+            status=InvoiceStatus.VOID,
+            cost=200,
+        )
+    )
 
     assert service.get_invoice(1).invoice.status == InvoiceStatus.VOID
 
@@ -546,6 +596,32 @@ def test_get_invoice_with_missing_related_row_conflicts(missing):
 
     with pytest.raises(ConflictError):
         service.get_invoice(1)
+
+
+@pytest.mark.parametrize(
+    ("part_name", "part"),
+    [
+        ("session", make_cancelled_session()),
+        ("session", make_completed_session(cost=201)),
+        ("session", make_completed_session(customer_id=6)),
+        ("session", make_completed_session(closed_by=2)),
+        ("machine", make_machine(store_id=OTHER_STORE_ID)),
+    ],
+    ids=[
+        "session-not-completed",
+        "usage-cost-mismatch",
+        "customer-mismatch",
+        "closing-employee-mismatch",
+        "machine-store-mismatch",
+    ],
+)
+def test_get_invoice_rejects_inconsistent_related_data(part_name, part):
+    service, _ = build_detail_service(**{part_name: part})
+
+    with pytest.raises(ConflictError) as exc_info:
+        service.get_invoice(1)
+
+    assert exc_info.value.message == INCONSISTENT_INVOICE
 
 
 def test_get_invoice_database_error_maps_to_service_unavailable():

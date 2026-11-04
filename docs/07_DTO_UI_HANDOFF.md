@@ -204,7 +204,7 @@ Theme dùng nguyên token/kích thước/font trong `03_UI_THEME.md`; không ch�
 
 Menu quản lý máy và action quản trị máy/khóa khách chỉ cho MANAGER/ADMIN. Nạp tiền, mở phiên, checkout cho nhân viên đăng nhập đúng cửa hàng. Service kiểm tra quyền lại dù UI đã ẩn nút.
 
-Chốt quyền xem invoice/revenue P0 theo backlog LI-08 và menu trong tài liệu theme: STAFF, MANAGER và ADMIN đều xem dữ liệu của cửa hàng hiện tại; quản lý nhiều cửa hàng là P1. STAFF không chọn store khác. Đây là điểm làm rõ so với bảng vai trò khái quát trong requirements (đang ghi STAFF chỉ xem hóa đơn vừa tạo); Hoàng Anh cập nhật bảng vai trò đó cho khớp khi nhận bàn giao, không để mỗi thành viên tự chọn một cách hiểu.
+Chốt quyền xem invoice/revenue P0: STAFF, MANAGER và ADMIN đều được xem dữ liệu của cửa hàng hiện tại; quản lý nhiều cửa hàng thuộc P1. STAFF không được chọn cửa hàng khác. Quy tắc này đã được đồng bộ với bảng vai trò trong `01_REQUIREMENTS.md`.
 
 Machine card dùng `active_session.projected_balance` để cảnh báo âm, không dùng nhầm account_balance. Text cảnh báo dạng "Âm 10.000 VND". Mở phiên và checkout dựa trên preview từ service; UI không tự tính phí, số phút làm tròn hoặc số dư tối thiểu.
 

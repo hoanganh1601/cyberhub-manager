@@ -22,7 +22,7 @@ from cyberhub_manager.domain.dtos import (
     InvoiceSummary,
     SessionSummary,
 )
-from cyberhub_manager.domain.enums import InvoiceStatus, Role
+from cyberhub_manager.domain.enums import InvoiceStatus, Role, SessionStatus
 from cyberhub_manager.domain.exceptions import (
     ConflictError,
     NotFoundError,
@@ -118,11 +118,8 @@ def _validate_filters(filters: InvoiceFilters | None) -> InvoiceFilters:
     if filters.customer_id is not None and not _is_positive_id(filters.customer_id):
         errors["customer_id"] = CUSTOMER_ID_INVALID
     status = filters.status
-    if status is not None:
-        try:
-            status = InvoiceStatus(status)
-        except ValueError:
-            errors["status"] = STATUS_INVALID
+    if status is not None and not isinstance(status, InvoiceStatus):
+        errors["status"] = STATUS_INVALID
     if errors:
         raise ValidationError(field_errors=errors)
 
@@ -205,9 +202,17 @@ class ReportService:
             customer = self._customers.get_by_id(conn, summary.customer_id)
 
         # Hóa đơn luôn gắn với một phiên đã kết thúc; thiếu dữ liệu là lỗi hệ thống.
+        if session is None or machine is None or customer is None:
+            raise ConflictError(INCONSISTENT_INVOICE)
+
         if (
-            any(row is None for row in (session, machine, customer))
+            session.status is not SessionStatus.COMPLETED
             or session.ended_at is None
+            or session.cost != summary.usage_cost
+            or session.customer_id != summary.customer_id
+            or session.closed_by != summary.employee_id
+            or machine.store_id != summary.store_id
+            or customer.id != session.customer_id
         ):
             raise ConflictError(INCONSISTENT_INVOICE)
 
