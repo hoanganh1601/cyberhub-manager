@@ -7,9 +7,12 @@ Tên hiển thị chính thức trên giao diện: **CyberHub Manager**. Tagline
 Tên theme: **Cyber Ops Dark**. Giao diện tối, tương phản cao, tập trung giúp nhân viên nhận biết trạng thái máy nhanh. Dùng `CustomTkinter` và chỉ định nghĩa token tại `ui/theme.py`; không hard-code màu/font trong từng view.
 
 **Quy chuẩn ngôn ngữ hiển thị:**
-- **Tiếng Việt:** Tiêu đề màn hình, nhãn trường (form labels), gợi ý placeholder, tiêu đề cột bảng dữ liệu, điều hướng thanh bên (sidebar/menu), nội dung trợ giúp và caption.
-- **Tiếng Anh:** Thông báo hệ thống (Toast notifications), nút xác nhận dialog (`Confirm`, `Cancel`), trạng thái ViewState (`Loading data…`, `No matching data found`, `Unable to load data`, `Retry`), thông báo lỗi nghiệp vụ (`ApplicationError`) và phản hồi lỗi từng trường (`field_errors`).
-- **Code, tài liệu kỹ thuật, tên biến:** Tiếng Anh.
+
+- App Shell cung cấp lựa chọn ngôn ngữ `VI/EN`; mặc định là `VI`.
+- Khi chọn `VI`, toàn bộ điều hướng, nhãn trường, nút, trạng thái, toast, dialog, lỗi nghiệp vụ, lỗi từng trường và nội dung trợ giúp phải hiển thị bằng tiếng Việt.
+- Khi chọn `EN`, toàn bộ nội dung tương ứng phải lấy từ cùng khóa dịch và hiển thị bằng tiếng Anh; không trộn hai ngôn ngữ trong một màn hình.
+- Không hard-code chuỗi vận hành trực tiếp trong view; view lấy nội dung qua lớp message/i18n dùng chung.
+- Code, tên biến và tài liệu kỹ thuật sử dụng tiếng Anh.
 
 ## 3.2. Design tokens
 
@@ -21,6 +24,18 @@ Tên theme: **Cyber Ops Dark**. Giao diện tối, tương phản cao, tập tru
 | `BG_SIDEBAR` | `#111827` | Sidebar |
 | `BG_SURFACE` | `#172033` | Card, panel, dialog |
 | `BG_SURFACE_HOVER` | `#22304A` | Hover/selected surface |
+| `BG_TOPBAR` | `#0D1626` | Thanh điều hướng trên cùng |
+| `BG_CONTENT` | `#080F1E` | Nền khu vực nội dung App Shell |
+| `BG_CARD` | `#111B2C` | Card trong Dashboard và các view |
+| `BG_CARD_HOVER` | `#162238` | Card khi hover |
+| `BG_INPUT` | `#0E1728` | Input và ô tìm kiếm |
+| `BG_OVERLAY` | `#050A14` | Lớp nền tối phía sau dialog |
+| `BG_NAV_ACTIVE` | `#083344` | Menu sidebar đang được chọn |
+| `BG_NAV_HOVER` | `#12233A` | Menu sidebar khi hover |
+| `BRAND_PRIMARY` | `#06B6D4` | Accent cyan chính của App Shell |
+| `BRAND_PRIMARY_HOVER` | `#0891B2` | Accent cyan khi hover |
+| `NAV_TEXT` | `#94A3B8` | Chữ menu mặc định |
+| `NAV_TEXT_ACTIVE` | `#67E8F9` | Chữ menu đang được chọn |
 | `BORDER` | `#334155` | Viền, divider |
 | `TEXT_PRIMARY` | `#F8FAFC` | Tiêu đề/nội dung chính |
 | `TEXT_SECONDARY` | `#94A3B8` | Mô tả/metadata |
@@ -53,8 +68,9 @@ Font mặc định: `Segoe UI`; fallback `Arial`.
 - Grid cơ sở: 4 px; spacing hợp lệ: 4, 8, 12, 16, 24, 32.
 - Border radius: input/button 8 px; card 12 px; dialog 16 px.
 - Input/button cao 40 px; primary action cao 44 px.
-- Sidebar rộng 224 px; header cao 64 px.
-- Content padding 24 px; card gap 16 px.
+- Component legacy vẫn giữ token `WIDTH_SIDEBAR=224` và `HEIGHT_HEADER=64` để tương thích.
+- Unified App Shell dùng sidebar 208 px, topbar 56 px, status bar 28 px.
+- Unified App Shell dùng content padding 16 px và card gap 12 px.
 - App tối thiểu 1280×720; dialog form 480–560 px.
 
 ## 3.3. App shell
@@ -70,13 +86,16 @@ Thứ tự menu cố định:
 5. Quản lý máy — chỉ Manager/Admin
 6. Đăng xuất ở cuối
 
-Item đang chọn dùng nền `BG_SURFACE_HOVER`, icon và text `ACCENT`. Không đổi vị trí menu giữa các màn.
+Item đang chọn dùng nền `BG_NAV_ACTIVE`, icon và text `NAV_TEXT_ACTIVE`. Item hover dùng `BG_NAV_HOVER`; item thường dùng `NAV_TEXT`. Không đổi vị trí menu giữa các màn.
 
 ### Header
 
-- Bên trái: tên màn hình + breadcrumb ngắn nếu cần.
-- Bên phải: tên cửa hàng, tên nhân viên, role badge.
-- Không nhồi action chính vào header; action đặt đầu content area.
+- Topbar cao 56 px và giữ nguyên trên mọi màn hình.
+- Bên trái: logo CyberHub, tên cửa hàng và ca làm việc hiện tại.
+- Chính giữa: ô tìm kiếm hoặc tra cứu nhanh theo ngữ cảnh.
+- Bên phải: lựa chọn `VI/EN`, tên nhân viên, role badge/avatar và đăng xuất.
+- Tiêu đề màn hình và action chính đặt trong content area, không đặt lẫn vào topbar.
+- Sidebar, topbar và status bar phải giữ nguyên hình học khi điều hướng giữa các view.
 
 ## 3.4. Component chuẩn
 

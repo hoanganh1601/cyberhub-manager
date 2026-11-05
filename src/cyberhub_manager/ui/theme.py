@@ -21,6 +21,19 @@ BG_TABLE_HEADER = "#1E293B"   # Nền header bảng dữ liệu
 BG_ALERT_DANGER = "#3B1822"   # Nền cảnh báo đỏ nhạt (cho số dư âm)
 BG_ROW_ALT = "#151D2E"        # Nền xen kẽ (sọc) dòng bảng dữ liệu
 
+# App Shell backgrounds — CyberHub Stitch reference
+BG_TOPBAR = "#0D1626"
+BG_CONTENT = "#080F1E"
+BG_CARD = "#111B2C"
+BG_CARD_HOVER = "#162238"
+BG_INPUT = "#0E1728"
+BG_OVERLAY = "#050A14"
+
+# Navigation backgrounds
+BG_NAV_ACTIVE = "#083344"
+BG_NAV_HOVER = "#12233A"
+BG_NAV_IDLE = "transparent"
+
 # Subtle badge, toast & status background tokens
 BG_SUCCESS_SUBTLE = "#0A2918" # Nền xanh nhạt cho badge/toast thành công
 BG_DANGER_SUBTLE = "#331317"  # Nền đỏ nhạt cho badge/toast lỗi
@@ -30,6 +43,9 @@ BG_MUTED_SUBTLE = "#1E293B"   # Nền xám nhạt cho badge/toast trung tính, i
 
 # Border & divider
 BORDER = "#334155"            # Viền input, card divider, table divider
+BORDER_SUBTLE = "#1E293B"
+BORDER_STRONG = "#475569"
+BORDER_FOCUS = "#06B6D4"
 
 # Text colors
 TEXT_PRIMARY = "#F8FAFC"      # Tiêu đề, nội dung chính
@@ -39,6 +55,14 @@ TEXT_MUTED = "#64748B"        # Chữ mờ, placeholder
 # Accent & actions
 ACCENT = "#3B82F6"            # Nút primary, link, focus
 ACCENT_HOVER = "#2563EB"      # Hover primary
+# CyberHub brand colors used by the unified App Shell.
+BRAND_PRIMARY = "#06B6D4"
+BRAND_PRIMARY_HOVER = "#0891B2"
+BRAND_SECONDARY = "#3B82F6"
+BRAND_GLOW = "#22D3EE"
+
+NAV_TEXT = "#94A3B8"
+NAV_TEXT_ACTIVE = "#67E8F9"
 
 # Status & semantic colors
 SUCCESS = "#22C55E"           # Máy trống, thao tác thành công
@@ -64,6 +88,15 @@ FONT_BODY = (FONT_FAMILY, 14, "normal")       # Nội dung, form, table
 FONT_BODY_STRONG = (FONT_FAMILY, 14, "bold")  # Nút, số liệu chính
 FONT_CAPTION = (FONT_FAMILY, 12, "normal")    # Hint, thời gian, metadata, nhãn lỗi
 FONT_MONEY = (FONT_FAMILY, 16, "bold")        # Số dư và tổng tiền
+
+# Compact typography for the 1280x720 desktop App Shell.
+FONT_SHELL_BRAND = (FONT_FAMILY, 14, "bold")
+FONT_SHELL_TITLE = (FONT_FAMILY, 20, "bold")
+FONT_SHELL_SECTION = (FONT_FAMILY, 15, "bold")
+FONT_SHELL_BODY = (FONT_FAMILY, 12, "normal")
+FONT_SHELL_BODY_STRONG = (FONT_FAMILY, 12, "bold")
+FONT_SHELL_CAPTION = (FONT_FAMILY, 10, "normal")
+FONT_SHELL_METRIC = (FONT_FAMILY, 18, "bold")
 
 # ==============================================================================
 # 3. SPACING & SIZING (KÍCH THƯỚC VÀ KHOẢNG CÁCH)
@@ -91,6 +124,19 @@ HEIGHT_HEADER = 64
 WIDTH_SIDEBAR = 224
 PADDING_CONTENT = 24
 GAP_CARD = 16
+
+# Unified App Shell geometry.
+SHELL_WIDTH = 1280
+SHELL_HEIGHT = 720
+SHELL_MIN_WIDTH = 1100
+SHELL_MIN_HEIGHT = 650
+
+SHELL_TOPBAR_HEIGHT = 56
+SHELL_SIDEBAR_WIDTH = 208
+SHELL_CONTENT_PADDING = 16
+SHELL_NAV_ITEM_HEIGHT = 40
+SHELL_STATUSBAR_HEIGHT = 28
+SHELL_CARD_GAP = 12
 
 # Cửa sổ ứng dụng
 APP_MIN_WIDTH = 1280
