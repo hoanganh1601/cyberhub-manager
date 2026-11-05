@@ -36,3 +36,6 @@ addopts = "-ra --strict-markers"
 [tool.coverage.run]
 source = ["cyberhub_manager"]
 branch = true
+
+[tool.setuptools.package-data]
+"cyberhub_manager.ui.assets" = ["*.png"]

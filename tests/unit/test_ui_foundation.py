@@ -1186,3 +1186,56 @@ def test_gallery_maintenance_action_cancel_keeps_machine_unchanged(monkeypatch) 
     assert dummy_app._services.machines._data.get_machine(3).status == MachineStatus.MAINTENANCE
     dummy_app._render_machine_cards.assert_not_called()
     toast.assert_not_called()
+
+
+def test_unified_app_shell_theme_tokens() -> None:
+    """Unified App Shell tokens follow the approved 1280x720 design."""
+
+    from cyberhub_manager.ui import theme
+
+    assert theme.BG_TOPBAR == "#0D1626"
+    assert theme.BG_CONTENT == "#080F1E"
+    assert theme.BG_CARD == "#111B2C"
+    assert theme.BG_INPUT == "#0E1728"
+    assert theme.BG_NAV_ACTIVE == "#083344"
+    assert theme.BRAND_PRIMARY == "#06B6D4"
+    assert theme.NAV_TEXT_ACTIVE == "#67E8F9"
+
+    assert theme.SHELL_WIDTH == 1280
+    assert theme.SHELL_HEIGHT == 720
+    assert theme.SHELL_TOPBAR_HEIGHT == 56
+    assert theme.SHELL_SIDEBAR_WIDTH == 208
+    assert theme.SHELL_CONTENT_PADDING == 16
+    assert theme.SHELL_STATUSBAR_HEIGHT == 28
+    assert theme.SHELL_CARD_GAP == 12
+
+    assert theme.SHELL_MIN_WIDTH <= theme.SHELL_WIDTH
+    assert theme.SHELL_MIN_HEIGHT <= theme.SHELL_HEIGHT
+
+
+def test_cyberhub_logo_is_packaged() -> None:
+    """The App Shell brand logo must be available as a package resource."""
+
+    from importlib.resources import files
+
+    logo = files("cyberhub_manager.ui.assets").joinpath(
+        "cyberhub_logo_dark.png"
+    )
+
+    assert logo.is_file()
+    assert logo.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+def test_shell_translations_are_consistent() -> None:
+    from cyberhub_manager.ui.i18n import (
+        normalize_language,
+        translate,
+    )
+
+    assert normalize_language(None) == "vi"
+    assert normalize_language("vi") == "vi"
+    assert normalize_language("en") == "en"
+    assert normalize_language("fr") == "vi"
+
+    assert translate("nav.dashboard", "vi") == "Tổng quan"
+    assert translate("nav.dashboard", "en") == "Dashboard"
+    assert translate("missing.key", "vi") == "missing.key"
