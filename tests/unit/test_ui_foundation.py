@@ -1211,3 +1211,31 @@ def test_unified_app_shell_theme_tokens() -> None:
 
     assert theme.SHELL_MIN_WIDTH <= theme.SHELL_WIDTH
     assert theme.SHELL_MIN_HEIGHT <= theme.SHELL_HEIGHT
+
+
+def test_cyberhub_logo_is_packaged() -> None:
+    """The App Shell brand logo must be available as a package resource."""
+
+    from importlib.resources import files
+
+    logo = files("cyberhub_manager.ui.assets").joinpath(
+        "cyberhub_logo_dark.png"
+    )
+
+    assert logo.is_file()
+    assert logo.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+def test_shell_translations_are_consistent() -> None:
+    from cyberhub_manager.ui.i18n import (
+        normalize_language,
+        translate,
+    )
+
+    assert normalize_language(None) == "vi"
+    assert normalize_language("vi") == "vi"
+    assert normalize_language("en") == "en"
+    assert normalize_language("fr") == "vi"
+
+    assert translate("nav.dashboard", "vi") == "Tổng quan"
+    assert translate("nav.dashboard", "en") == "Dashboard"
+    assert translate("missing.key", "vi") == "missing.key"

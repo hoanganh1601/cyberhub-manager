@@ -13,7 +13,12 @@ Tạo bộ theme/component dùng chung để Hoàng Anh làm Login và Ngát là
 5. Thêm `ui/components/action_button.py`, `status_badge.py`, `confirm_dialog.py` theo API mục 7 bản v1.
 6. Thêm `ui/component_gallery.py` để mở catalog độc lập, không sửa production app.py hay Login chỉ để chạy gallery.
 7. Thêm `docs/diagrams/ui_wireflow.md`: luồng Login → App shell → Dashboard/Khách hàng/Hóa đơn/Doanh thu/Quản lý máy → Logout; phân quyền action/menu theo theme và contract.
-
+8. Bổ sung foundation nhận diện và đa ngôn ngữ:
+   - Đóng gói logo tại `ui/assets/cyberhub_logo_dark.png`.
+   - Thêm token Unified App Shell trong `ui/theme.py`.
+   - Thêm `ui/i18n.py`, mặc định `VI`, hỗ trợ chuyển `VI/EN`.
+   - Gallery có tab `Brand & Theme` trình diễn logo, token, palette, typography và preview responsive.
+   - Preview trong Gallery chỉ là mẫu foundation; App Shell điều hướng thật thuộc NG-02.
 ## Đầu vào và dependency
 
 - Có thể làm theme, layout và component nhận input được tiêm từ ngoài ngay.
@@ -22,7 +27,7 @@ Tạo bộ theme/component dùng chung để Hoàng Anh làm Login và Ngát là
 - MachineCard đọc customer từ active_session.session, số dư cảnh báo từ active_session.projected_balance. UI không tự tính phí/thời gian làm tròn/số dư tối thiểu.
 
 ## Gallery phải cho xem được
-
+- Tab `Brand & Theme`: logo đóng gói, palette Cyber Ops Dark, geometry Unified App Shell, preview co giãn theo cửa sổ và chuyển VI/EN.
 - Button bình thường/hover/disabled/busy, input focus/error/password hiện-ẩn, dialog confirm, toast.
 - Bảng READY/LOADING/EMPTY/ERROR, cột tiền căn phải, chọn dòng theo ID.
 - Card AVAILABLE/IN_USE/MAINTENANCE, có label+icon; card PC02 projected_balance âm.
@@ -34,7 +39,7 @@ Tạo bộ theme/component dùng chung để Hoàng Anh làm Login và Ngát là
 ## Quy tắc triển khai
 
 - API component theo mục 7 bản v1; callback nhận ID ổn định, không nhận vị trí dòng bảng.
-- Nhãn/menu giao diện theo thiết kế đã chốt (tiếng Việt); thông báo phản hồi, validation, lỗi và xác nhận dùng tiếng Anh. Biến/code tiếng Anh; label không được thay bằng placeholder.
+- UI sản phẩm dùng ngôn ngữ đang chọn: mặc định `VI`, cho phép chuyển `VI/EN`. Nhãn, menu, validation, lỗi, dialog, toast và trạng thái vận hành phải cùng một ngôn ngữ, không trộn Việt–Anh trong cùng màn hình. Chuỗi dùng chung lấy từ `ui/i18n.py`; tên biến và code vẫn dùng tiếng Anh.
 - Màu máy và nút theo theme, tiền `25.000 VND`, thời gian `HH:mm dd/MM/yyyy` theo giờ Việt Nam.
 - Không import repository/SQL/connection vào UI. Không hiển thị raw exception/traceback.
 - UI main thread chỉ xử lý widget; lời gọi chậm được tách phù hợp, kết quả đưa về bằng after. Hủy callback refresh khi đóng view.
@@ -48,6 +53,19 @@ Tạo bộ theme/component dùng chung để Hoàng Anh làm Login và Ngát là
 - Tab/Enter dùng được; busy/validation giữ input và cho thử lại.
 - Bàn giao bảng ngắn gồm component, cách khởi tạo, API/callback và ảnh minh họa để Hoàng Anh dùng làm Login.
 - Bàn giao UI wireflow cho Linh/Hoàng Anh đối chiếu trước NG-02.
+
+## Bàn giao Brand, theme và i18n foundation
+
+| Hạng mục | File | Contract bàn giao |
+|---|---|---|
+| Logo CyberHub | `src/cyberhub_manager/ui/assets/cyberhub_logo_dark.png` | Đọc bằng `importlib.resources`; được khai báo trong package data, không phụ thuộc đường dẫn máy cá nhân |
+| Unified App Shell tokens | `src/cyberhub_manager/ui/theme.py` | Màu nền, navigation, border, typography và geometry chuẩn `1280×720`; view không hard-code lại |
+| Đa ngôn ngữ | `src/cyberhub_manager/ui/i18n.py` | Mặc định `vi`; hỗ trợ `vi/en`; key thiếu có fallback an toàn |
+| Gallery foundation | `src/cyberhub_manager/ui/component_gallery.py` | Tab `Brand & Theme` hiển thị logo, token, palette, preview responsive và chuyển VI/EN |
+| Ảnh minh chứng | `docs/screenshots/05_brand_theme.png` | Minh chứng foundation tại thời điểm bàn giao NG-01 |
+
+`Brand & Theme` chỉ minh họa contract hình ảnh để các task sau tái sử dụng. Nó không thay thế `AppShell`, không điều hướng view nghiệp vụ và không mở rộng phạm vi NG-01 sang NG-02.
+
 
 ## Bảng bàn giao kỹ thuật Component dùng chung (Component Catalog)
 
@@ -64,7 +82,6 @@ Tài liệu bàn giao cho Hoàng Anh (dùng triển khai `HA-11 Login`) và Ngá
 | **`ToastManager`** | `ToastManager.show(parent, message, kind="info", duration_ms=3500)` | Stack góc trên bên phải (`anchor="ne"`, `relx=0.98`, `y` tăng dần) | Tự động biến mất sau `duration_ms` | `info`, `success`, `warning`, `error` | `docs/screenshots/04_badges_feedback.png` |
 
 ## Checklist nghiệm thu giao diện thật (Windows @ 1280×720)
-
 - [x] **Kích thước & Layout:** Mở ứng dụng ở độ phân giải tối thiểu `1280×720`, kiểm tra tỉ lệ DPI 100% và 125%/150%:
   - Lưới `StatusBadge` xếp 2 dòng × 5 cột, không bị tràn hay cắt chữ.
   - Hàng nút Action và Dialog hiển thị đầy đủ, không bị rớt dòng.
@@ -81,3 +98,6 @@ Tài liệu bàn giao cho Hoàng Anh (dùng triển khai `HA-11 Login`) và Ngá
   - `docs/screenshots/02_buttons_inputs.png`: Form Demo tạo khách hàng kết nối ServiceBundle, nút disabled/busy, trường mật khẩu hiện/ẩn và các nút thao tác.
   - `docs/screenshots/03_data_table.png`: Bảng 4 trạng thái ViewState, căn phải cột tiền.
   - `docs/screenshots/04_badges_feedback.png`: 10 biến thể StatusBadge, Toast 4 màu, ConfirmDialog.
+  - `docs/screenshots/05_brand_theme.png`: Logo, Unified App Shell token, palette, preview responsive và điều khiển VI/EN.
+- [x] **Brand & Theme responsive:** Ở `1280×720`, nội dung vừa khung và không bị cắt ngang; khi maximize, preview App Shell nhận phần chiều cao dư, palette vẫn vừa chiều ngang và không tạo khoảng trống lớn phía dưới.
+- [x] **Brand & i18n foundation:** Logo được đóng gói bằng package data; tab Brand & Theme chuyển được VI/EN và dùng token chung thay vì hard-code màu.

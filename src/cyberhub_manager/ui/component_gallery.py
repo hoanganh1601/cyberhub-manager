@@ -10,9 +10,11 @@ from __future__ import annotations
 import logging
 import sys
 from datetime import datetime, timezone
+from importlib.resources import files
 from typing import Any
 
 import customtkinter as ctk
+from PIL import Image
 
 from ..domain.dtos import (
     ActiveSessionSummary,
@@ -46,6 +48,12 @@ from .components import (
     ToastManager,
 )
 from .formatters import format_datetime, format_money
+from .i18n import (
+    DEFAULT_LANGUAGE,
+    Language,
+    normalize_language,
+    translate,
+)
 from .messages import get_field_errors_safe, get_user_friendly_error
 from .state import ViewState
 from .theme import (
@@ -72,6 +80,24 @@ from .theme import (
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     WIDTH_SIDEBAR,
+    BG_CARD,
+    BG_CONTENT,
+    BG_INPUT,
+    BG_NAV_ACTIVE,
+    BG_NAV_HOVER,
+    BG_TOPBAR,
+    BORDER_FOCUS,
+    BRAND_PRIMARY,
+    FONT_SHELL_BODY,
+    FONT_SHELL_BODY_STRONG,
+    FONT_SHELL_CAPTION,
+    FONT_SHELL_SECTION,
+    NAV_TEXT,
+    NAV_TEXT_ACTIVE,
+    SHELL_CONTENT_PADDING,
+    SHELL_SIDEBAR_WIDTH,
+    SHELL_STATUSBAR_HEIGHT,
+    SHELL_TOPBAR_HEIGHT,
     setup_theme,
 )
 
@@ -224,9 +250,28 @@ class ComponentGalleryApp(ctk.CTk):
         self._services: ServiceBundle = build_mock_services(self._scenario)
         self._current_actor: EmployeeSession = ACTOR_STAFF
         self._machine_cards: list[MachineCard] = []
+        self._language: Language = DEFAULT_LANGUAGE
+        self._brand_image = self._load_brand_image()
+        self._brand_nav_labels: list[tuple[ctk.CTkButton, str]] = []
 
         self._build_layout()
 
+    @staticmethod
+    def _load_brand_image() -> ctk.CTkImage:
+        """Load the packaged CyberHub logo for the gallery."""
+
+        resource = files("cyberhub_manager.ui.assets").joinpath(
+            "cyberhub_logo_dark.png"
+        )
+        with resource.open("rb") as stream:
+            logo = Image.open(stream).convert("RGBA")
+            logo.load()
+
+        return ctk.CTkImage(
+            light_image=logo,
+            dark_image=logo,
+            size=(210, 82),
+        )
     def _build_layout(self) -> None:
         """Xây dựng khung giao diện chính: Header, Sidebar menu và Vùng nội dung."""
         # 1. Header trên cùng
@@ -316,6 +361,7 @@ class ComponentGalleryApp(ctk.CTk):
         menu_lbl.pack(fill="x", padx=SPACING_LG, pady=(SPACING_LG, SPACING_SM))
 
         self._tabs = [
+            ("brand_theme", "✦  Brand & Theme"),
             ("machine_cards", "🖥  Machine Cards"),
             ("buttons_inputs", "🔘  Buttons & Inputs"),
             ("data_table", "📊  Data Table"),
@@ -341,6 +387,7 @@ class ComponentGalleryApp(ctk.CTk):
 
         # Khởi tạo các view tab
         self._tab_frames: dict[str, ctk.CTkFrame] = {
+            "brand_theme": self._create_tab_brand_theme(),
             "machine_cards": self._create_tab_machine_cards(),
             "buttons_inputs": self._create_tab_buttons_inputs(),
             "data_table": self._create_tab_data_table(),
@@ -348,7 +395,7 @@ class ComponentGalleryApp(ctk.CTk):
         }
 
         # Mặc định mở Tab 1
-        self._show_tab("machine_cards")
+        self._show_tab("brand_theme")
 
     def _show_tab(self, tab_key: str) -> None:
         """Chuyển đổi giữa các tab."""
@@ -387,6 +434,403 @@ class ComponentGalleryApp(ctk.CTk):
         self._load_table_data()
 
     # --------------------------------------------------------------------------
+    # TAB 0: BRAND & APP SHELL TOKENS
+    # --------------------------------------------------------------------------
+    def _create_tab_brand_theme(self) -> ctk.CTkFrame:
+        frame = ctk.CTkFrame(
+            self._content_container,
+            fg_color="transparent",
+        )
+
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(0, weight=0)  # Tiêu đề
+        frame.grid_rowconfigure(1, weight=0)  # Logo
+        frame.grid_rowconfigure(2, weight=1)  # App Shell nhận chiều cao còn dư
+        frame.grid_rowconfigure(3, weight=0)  # Palette
+        frame.grid_rowconfigure(4, weight=0)  # Geometry note
+
+        title_row = ctk.CTkFrame(frame, fg_color="transparent")
+        title_row.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            pady=(0, SPACING_MD),
+        )
+
+        title_box = ctk.CTkFrame(title_row, fg_color="transparent")
+        title_box.pack(side="left", fill="x", expand=True)
+
+        title = ctk.CTkLabel(
+            title_box,
+            text="CyberHub Brand & Unified App Shell",
+            font=FONT_TITLE_LG,
+            text_color=TEXT_PRIMARY,
+            anchor="w",
+        )
+        title.pack(fill="x")
+
+        description = ctk.CTkLabel(
+            title_box,
+            text=(
+                "NG-01 showcase: logo, App Shell tokens, "
+                "compact typography and VI/EN navigation."
+            ),
+            font=FONT_CAPTION,
+            text_color=TEXT_SECONDARY,
+            anchor="w",
+        )
+        description.pack(fill="x", pady=(4, 0))
+
+        language_control = ctk.CTkSegmentedButton(
+            title_row,
+            values=["VI", "EN"],
+            width=100,
+            selected_color=BRAND_PRIMARY,
+            selected_hover_color=BRAND_PRIMARY,
+            unselected_color=BG_INPUT,
+            unselected_hover_color=BG_NAV_HOVER,
+            command=self._on_brand_language_changed,
+        )
+        language_control.set(self._language.upper())
+        language_control.pack(side="right")
+
+        brand_section = ctk.CTkFrame(
+            frame,
+            fg_color=BG_CARD,
+            corner_radius=12,
+            border_width=1,
+            border_color=BORDER,
+        )
+        brand_section.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            pady=(0, SPACING_MD),
+        )
+
+        brand_logo = ctk.CTkLabel(
+            brand_section,
+            text="",
+            image=self._brand_image,
+        )
+        brand_logo.pack(
+            side="left",
+            padx=PADDING_CONTENT,
+            pady=SPACING_LG,
+        )
+
+        brand_copy = ctk.CTkFrame(
+            brand_section,
+            fg_color="transparent",
+        )
+        brand_copy.pack(
+            side="left",
+            fill="both",
+            expand=True,
+            padx=(0, PADDING_CONTENT),
+            pady=SPACING_LG,
+        )
+
+        self._brand_preview_title = ctk.CTkLabel(
+            brand_copy,
+            text=translate("app.name", self._language),
+            font=FONT_TITLE_MD,
+            text_color=TEXT_PRIMARY,
+            anchor="w",
+        )
+        self._brand_preview_title.pack(fill="x")
+
+        self._brand_preview_status = ctk.CTkLabel(
+            brand_copy,
+            text=f"● {translate('status.ready', self._language)}",
+            font=FONT_SHELL_BODY,
+            text_color=BRAND_PRIMARY,
+            anchor="w",
+        )
+        self._brand_preview_status.pack(
+            fill="x",
+            pady=(SPACING_SM, 0),
+        )
+
+        shell_section = ctk.CTkFrame(
+            frame,
+            fg_color=BG_CONTENT,
+            corner_radius=12,
+            border_width=1,
+            border_color=BORDER_FOCUS,
+            height=220,
+        )
+        shell_section.grid(
+            row=2,
+            column=0,
+            sticky="nsew",
+            pady=(0, SPACING_MD),
+        )
+        shell_section.pack_propagate(False)
+
+        mini_sidebar = ctk.CTkFrame(
+            shell_section,
+            width=190,
+            fg_color=BG_SIDEBAR,
+            corner_radius=0,
+        )
+        mini_sidebar.pack(side="left", fill="y")
+        mini_sidebar.pack_propagate(False)
+
+        sidebar_title = ctk.CTkLabel(
+            mini_sidebar,
+            text="CYBERHUB",
+            text_color=BRAND_PRIMARY,
+            font=FONT_SHELL_BODY_STRONG,
+        )
+        sidebar_title.pack(
+            fill="x",
+            padx=SPACING_MD,
+            pady=(SPACING_LG, SPACING_MD),
+        )
+
+        self._brand_nav_labels.clear()
+        navigation_keys = (
+            "nav.dashboard",
+            "nav.customers",
+            "nav.machines",
+            "nav.invoices",
+            "nav.reports",
+        )
+
+        for index, key in enumerate(navigation_keys):
+            active = index == 0
+            button = ctk.CTkButton(
+                mini_sidebar,
+                text=translate(key, self._language),
+                height=32,
+                fg_color=BG_NAV_ACTIVE if active else "transparent",
+                hover_color=BG_NAV_HOVER,
+                text_color=NAV_TEXT_ACTIVE if active else NAV_TEXT,
+                font=FONT_SHELL_BODY,
+                anchor="w",
+                corner_radius=7,
+            )
+            button.pack(
+                fill="x",
+                padx=SPACING_SM,
+                pady=2,
+            )
+            self._brand_nav_labels.append((button, key))
+
+        mini_workspace = ctk.CTkFrame(
+            shell_section,
+            fg_color=BG_CONTENT,
+            corner_radius=0,
+        )
+        mini_workspace.pack(
+            side="right",
+            fill="both",
+            expand=True,
+        )
+
+        mini_topbar = ctk.CTkFrame(
+            mini_workspace,
+            height=SHELL_TOPBAR_HEIGHT,
+            fg_color=BG_TOPBAR,
+            corner_radius=0,
+        )
+        mini_topbar.pack(fill="x")
+        mini_topbar.pack_propagate(False)
+
+        store_label = ctk.CTkLabel(
+            mini_topbar,
+            text="CyberHub Hà Nội",
+            text_color=TEXT_PRIMARY,
+            font=FONT_SHELL_BODY_STRONG,
+        )
+        store_label.pack(
+            side="left",
+            padx=SPACING_MD,
+            pady=SPACING_SM,
+        )
+
+        search_preview = ctk.CTkEntry(
+            mini_topbar,
+            width=260,
+            height=30,
+            fg_color=BG_INPUT,
+            border_color=BORDER,
+            placeholder_text=translate(
+                "header.search_placeholder",
+                self._language,
+            ),
+            font=FONT_SHELL_CAPTION,
+        )
+        search_preview.pack(
+            side="right",
+            padx=SPACING_MD,
+            pady=SPACING_SM,
+        )
+        self._brand_search_preview = search_preview
+
+        card_grid = ctk.CTkFrame(
+            mini_workspace,
+            fg_color="transparent",
+        )
+        card_grid.pack(
+            fill="both",
+            expand=True,
+            padx=SHELL_CONTENT_PADDING,
+            pady=SHELL_CONTENT_PADDING,
+        )
+
+        for column, (label, value, color) in enumerate(
+            (
+                ("TỔNG SỐ MÁY", "20", TEXT_PRIMARY),
+                ("MÁY TRỐNG", "12", BRAND_PRIMARY),
+                ("ĐANG SỬ DỤNG", "6", DANGER),
+            )
+        ):
+            card_grid.grid_columnconfigure(column, weight=1)
+            card = ctk.CTkFrame(
+                card_grid,
+                fg_color=BG_CARD,
+                corner_radius=8,
+                border_width=1,
+                border_color=BORDER,
+            )
+            card.grid(
+                row=0,
+                column=column,
+                sticky="nsew",
+                padx=SPACING_SM,
+            )
+
+            ctk.CTkLabel(
+                card,
+                text=label,
+                text_color=TEXT_MUTED,
+                font=FONT_SHELL_CAPTION,
+            ).pack(anchor="w", padx=SPACING_MD, pady=(SPACING_MD, 2))
+
+            ctk.CTkLabel(
+                card,
+                text=value,
+                text_color=color,
+                font=FONT_SHELL_SECTION,
+            ).pack(anchor="w", padx=SPACING_MD, pady=(0, SPACING_MD))
+
+        palette_section = ctk.CTkFrame(
+            frame,
+            fg_color=BG_SURFACE,
+            corner_radius=12,
+            border_width=1,
+            border_color=BORDER,
+        )
+        palette_section.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            pady=(0, SPACING_SM),
+        )
+
+        ctk.CTkLabel(
+            palette_section,
+            text="Unified App Shell palette",
+            text_color=TEXT_PRIMARY,
+            font=FONT_TITLE_MD,
+            anchor="w",
+        ).pack(
+            fill="x",
+            padx=PADDING_CONTENT,
+            pady=(SPACING_LG, SPACING_MD),
+        )
+
+        palette_grid = ctk.CTkFrame(
+            palette_section,
+            fg_color="transparent",
+        )
+        palette_grid.pack(
+            fill="x",
+            padx=PADDING_CONTENT,
+            pady=(0, PADDING_CONTENT),
+        )
+
+        palette = (
+            ("BG_TOPBAR", BG_TOPBAR),
+            ("BG_CONTENT", BG_CONTENT),
+            ("BG_CARD", BG_CARD),
+            ("BG_INPUT", BG_INPUT),
+            ("NAV_ACTIVE", BG_NAV_ACTIVE),
+            ("BRAND", BRAND_PRIMARY),
+        )
+
+        for column, (name, color) in enumerate(palette):
+            palette_grid.grid_columnconfigure(column, weight=1)
+            swatch = ctk.CTkFrame(
+                palette_grid,
+                height=72,
+                fg_color=color,
+                corner_radius=8,
+                border_width=1,
+                border_color=BORDER,
+            )
+            swatch.grid(
+                row=0,
+                column=column,
+                sticky="ew",
+                padx=SPACING_SM,
+            )
+            swatch.grid_propagate(False)
+
+            ctk.CTkLabel(
+                swatch,
+                text=f"{name}\n{color}",
+                text_color=(
+                    BG_CONTENT
+                    if color == BRAND_PRIMARY
+                    else TEXT_PRIMARY
+                ),
+                font=FONT_SHELL_CAPTION,
+            ).place(relx=0.5, rely=0.5, anchor="center")
+
+        geometry_text = (
+            f"Reference geometry: sidebar {SHELL_SIDEBAR_WIDTH}px · "
+            f"topbar {SHELL_TOPBAR_HEIGHT}px · "
+            f"status bar {SHELL_STATUSBAR_HEIGHT}px · "
+            f"content padding {SHELL_CONTENT_PADDING}px"
+        )
+        ctk.CTkLabel(
+            frame,
+            text=geometry_text,
+            text_color=TEXT_SECONDARY,
+            font=FONT_SHELL_CAPTION,
+            anchor="w",
+        ).grid(
+            row=4,
+            column=0,
+            sticky="ew",
+            pady=(0, SPACING_SM),
+        )
+
+        return frame
+
+    def _on_brand_language_changed(self, selected: str) -> None:
+        self._language = normalize_language(selected.lower())
+
+        self._brand_preview_title.configure(
+            text=translate("app.name", self._language)
+        )
+        self._brand_preview_status.configure(
+            text=f"● {translate('status.ready', self._language)}"
+        )
+        self._brand_search_preview.configure(
+            placeholder_text=translate(
+                "header.search_placeholder",
+                self._language,
+            )
+        )
+
+        for button, key in self._brand_nav_labels:
+            button.configure(text=translate(key, self._language))
+
+    # --------------------------------------------------------------------------
     # TAB 1: MACHINE CARDS
     # --------------------------------------------------------------------------
     def _create_tab_machine_cards(self) -> ctk.CTkFrame:
@@ -404,7 +848,7 @@ class ComponentGalleryApp(ctk.CTk):
         desc = ctk.CTkLabel(
             frame,
             text="Dữ liệu nạp từ Mock Services chung (LI-02). Hỗ trợ đổi kịch bản Mock (SUCCESS / EMPTY / CONFLICT / UNAVAILABLE) "
-                 "và đổi vai trò STAFF ↔ MANAGER để kiểm tra quyền và luồng nghiệp vụ. Nút 'Bật lại' chỉ mở cho MANAGER.",
+                "và đổi vai trò STAFF ↔ MANAGER để kiểm tra quyền và luồng nghiệp vụ. Nút 'Bật lại' chỉ mở cho MANAGER.",
             font=FONT_BODY,
             text_color=TEXT_SECONDARY,
             anchor="w",
@@ -629,7 +1073,7 @@ class ComponentGalleryApp(ctk.CTk):
         input_desc = ctk.CTkLabel(
             input_section,
             text="Form kết nối trực tiếp với ServiceBundle. Đổi sang kịch bản VALIDATION_ERROR để xem hiển thị lỗi từng trường "
-                 "(Phone/Password) và Toast tiếng Anh; đổi sang CONFLICT để xem báo trùng số điện thoại; đổi sang SUCCESS để tạo thành công.",
+                "(Phone/Password) và Toast tiếng Anh; đổi sang CONFLICT để xem báo trùng số điện thoại; đổi sang SUCCESS để tạo thành công.",
             font=FONT_BODY,
             text_color=TEXT_SECONDARY,
             anchor="w",
@@ -788,7 +1232,7 @@ class ComponentGalleryApp(ctk.CTk):
         desc = ctk.CTkLabel(
             frame,
             text="Dữ liệu nạp từ Mock CustomerService. Hỗ trợ 4 trạng thái ViewState: READY, LOADING, EMPTY, ERROR. "
-                 "Đổi Scenario ở header hoặc dùng các nút chuyển trạng thái bên dưới để kiểm tra.",
+                "Đổi Scenario ở header hoặc dùng các nút chuyển trạng thái bên dưới để kiểm tra.",
             font=FONT_BODY,
             text_color=TEXT_SECONDARY,
             anchor="w",
