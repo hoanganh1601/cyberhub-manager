@@ -149,3 +149,73 @@ def setup_theme() -> None:
     """Khởi tạo theme Cyber Ops Dark cho CustomTkinter."""
     ctk.set_appearance_mode("Dark")
     ctk.set_default_color_theme("blue")
+
+# ==============================================================================
+# 4. APP SHELL THEO STITCH EXPORT (code.html + DESIGN.md "Cyber Defense Operations")
+# ==============================================================================
+# Token mới, không sửa token cũ ở trên để không ảnh hưởng component NG-01.
+# Tkinter không hỗ trợ alpha: màu dạng "cyan 15%" đã được trộn sẵn trên nền chrome.
+
+STITCH_BG_CANVAS = "#0B101B"          # nền vùng nội dung
+STITCH_BG_CHROME = "#0E131E"          # nền sidebar + topbar
+STITCH_BG_CHROME_FOOT = "#0A0E17"     # khối trạng thái đáy sidebar
+STITCH_BORDER = "#222A3D"             # đường kẻ 1px giữa các vùng
+STITCH_CHIP_BG = "#171F30"            # chip cửa hàng, nút phụ
+STITCH_CHIP_BORDER = "#27344E"
+STITCH_INPUT_BG = "#131926"           # ô tìm kiếm, công tắc VI/EN
+STITCH_INPUT_BORDER = "#263147"
+STITCH_AVATAR_BG = "#1E273A"
+STITCH_CARD_BG = "#121824"            # dùng cho view NG-03 trở đi
+STITCH_CARD_BORDER = "#212B3E"
+
+STITCH_CYAN = "#00C6FF"               # màu nhấn chính
+STITCH_NAV_ACTIVE_BG = "#0C2E40"      # cyan 15% trên STITCH_BG_CHROME
+STITCH_NAV_ACTIVE_BORDER = "#085B78"  # cyan 40% trên STITCH_BG_CHROME
+STITCH_NAV_HOVER = "#161D2D"
+STITCH_DANGER_HOVER_BG = "#251724"    # rose 10% trên STITCH_BG_CHROME
+
+STITCH_TEXT_STRONG = "#FFFFFF"
+STITCH_TEXT = "#E2E8F0"               # slate-200
+STITCH_TEXT_MUTED = "#94A3B8"         # slate-400
+STITCH_TEXT_DIM = "#64748B"           # slate-500
+STITCH_TEXT_ON_CYAN = "#020617"       # slate-950
+STITCH_SUCCESS = "#34D399"            # emerald-400
+STITCH_DANGER = "#FB7185"             # rose-400
+STITCH_WARNING = "#FBBF24"            # amber-400
+
+STITCH_SIDEBAR_WIDTH = 220
+STITCH_BRAND_HEIGHT = 60
+STITCH_TOPBAR_HEIGHT = 52
+STITCH_NAV_ITEM_HEIGHT = 36
+STITCH_CONTENT_PADX = 20
+STITCH_CONTENT_PADY = 14
+STITCH_RADIUS = 4
+STITCH_RADIUS_LG = 8
+
+# Font: cần cài Space Grotesk + JetBrains Mono (hoặc nạp bằng load_stitch_fonts()).
+# Thiếu font thì Tk tự dùng font mặc định, app vẫn chạy.
+STITCH_FONT = "Space Grotesk"
+STITCH_FONT_MONO = "JetBrains Mono"
+
+FONT_ST_BRAND = (STITCH_FONT, 14, "bold")
+FONT_ST_PAGE_TITLE = (STITCH_FONT, 18, "bold")
+FONT_ST_BODY = (STITCH_FONT, 12, "normal")
+FONT_ST_BODY_STRONG = (STITCH_FONT, 12, "bold")
+FONT_ST_MONO_XS = (STITCH_FONT_MONO, 10, "normal")
+FONT_ST_MONO_XS_STRONG = (STITCH_FONT_MONO, 10, "bold")
+FONT_ST_MONO_SM = (STITCH_FONT_MONO, 11, "bold")
+FONT_ST_MONO_BODY = (STITCH_FONT_MONO, 12, "normal")
+
+
+def load_stitch_fonts() -> None:
+    """Nạp mọi file .ttf trong ui/assets/fonts (nếu có) cho phiên chạy hiện tại."""
+    from importlib.resources import as_file, files
+
+    fonts_dir = files("cyberhub_manager.ui.assets").joinpath("fonts")
+    if not fonts_dir.is_dir():
+        return
+    for entry in fonts_dir.iterdir():
+        if entry.name.lower().endswith(".ttf"):
+            with as_file(entry) as path:
+                ctk.FontManager.load_font(str(path))
+
