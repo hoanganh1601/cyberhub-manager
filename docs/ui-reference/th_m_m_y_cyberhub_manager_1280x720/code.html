@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=1280, height=720, initial-scale=1.0" name="viewport"/>
+<title>Tổng quan phòng máy - CyberHub Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+          },
+          colors: {
+            brand: {
+              cyan: '#00c6ff',
+              blue: '#0072ff',
+              navy: '#0b101b',
+              dark: '#0e131e',
+              surface: '#151b2a',
+              card: '#1b2234',
+              border: '#273147'
+            }
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    html, body {
+      width: 1280px;
+      height: 720px;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0b101b;
+      color: #e2e8f0;
+      font-family: 'Space Grotesk', 'Inter', sans-serif;
+      user-select: none;
+    }
+  </style>
+<meta content="web_dashboard" name="shell-type"/></head>
+<body class="w-[1280px] h-[720px] max-w-[1280px] max-h-[720px] flex overflow-hidden bg-[#0b101b] text-slate-200 antialiased">
+<!-- LEFT SIDEBAR (Fixed 220px, Edge-to-Edge) -->
+<aside class="w-[220px] h-[720px] flex-shrink-0 bg-[#0e131e] border-r border-[#222a3d] flex flex-col justify-between z-20">
+<div>
+<!-- Brand Logo Header -->
+<div class="h-[60px] px-4 flex items-center gap-3 border-b border-[#222a3d]">
+<img alt="CyberHub Logo" class="h-9 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuABpkmXlOBgqYT7XO8UYdELvU9ccb2TCy28SNQH0LbePnkgWJfIYvcFmmeZaJth--zpUkmJcuya7Iz1IPeobiCFvVYd47-SJFcZZp1bYWTjG-1sHBbd0z6VLSgWRCv78p-bMCLODK0trLHDO1RWMkZ00Q2yIG_yZtJDyNoi5V0X80JRrNRE9AjjwuiAe5Z10akm6LMMSv9Pc0AmiqjnLvUnypQtX1amyGcH_RaAB_DXOgmt1SAO_XpRSA"/>
+<div class="leading-tight">
+<div class="font-bold text-sm tracking-wide text-white flex items-center gap-1.5">
+            CyberHub
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#00c6ff]"></span>
+</div>
+<div class="text-[10px] text-slate-400 font-mono tracking-wider uppercase">Manager v2.4</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="p-3 space-y-1"><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Tổng quan</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Khách hàng</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#00c6ff]/15 border border-[#00c6ff]/40 text-[#00c6ff] font-semibold text-xs transition-all shadow-sm" href="#"><svg class="w-4 h-4 text-[#00c6ff]" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Quản lý máy</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Hóa đơn</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Doanh thu</span></a></nav>
+</div>
+<!-- Sidebar Bottom Status Widget -->
+<div class="p-3 border-t border-[#222a3d] bg-[#0a0e17]"><div class="flex items-center gap-2 text-[11px] font-mono text-emerald-400 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span class="">Hệ thống sẵn sàng</span></div></div>
+</aside>
+<!-- MAIN OPERATIONAL VIEWPORT (Edge-to-Edge, Exactly fills remainder: 1060px x 720px) -->
+<main class="w-[1060px] h-[720px] flex flex-col bg-[#0b101b] overflow-hidden"><div class="flex flex-col w-full h-[720px] max-h-[720px] overflow-hidden select-none bg-surface-dim">
+<!-- TOP GLOBAL HEADER BAR (Fixed 56px) -->
+<header class="h-14 px-6 flex items-center justify-between bg-surface-container-lowest shrink-0">
+<!-- Store & Realtime Info -->
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container shadow-sm"></span>
+<span class="font-headline-md text-title-sm text-on-surface tracking-tight font-semibold">CyberHub Hà Nội</span>
+</div>
+<span class="font-label-md text-label-md text-outline">|</span>
+<div class="flex items-center gap-1.5 text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-sm text-primary">calendar_today</span>
+<span class="">Thứ Hai, 24/02/2026</span>
+<span class="text-outline">•</span>
+<span class="text-primary font-bold">14:35</span>
+</div>
+</div>
+<!-- Right Controls: Quick Search, Language, Manager Account -->
+<div class="flex items-center gap-4">
+<!-- Universal Quick Search -->
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-base pointer-events-none">search</span>
+<input class="w-full bg-surface-container-high text-on-surface placeholder:text-outline text-body-sm font-body-sm pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:bg-surface-bright transition-all" placeholder="Tìm nhanh khách hàng hoặc máy" type="text"/>
+</div>
+<!-- Language Selector -->
+<div class="flex items-center bg-surface-container-high rounded-lg p-0.5 font-label-md text-label-md">
+<button class="px-2 py-1 rounded bg-primary-container text-on-primary-container font-bold shadow-sm">VI</button>
+<button class="px-2 py-1 text-on-surface-variant hover:text-on-surface transition-colors">EN</button>
+</div>
+<!-- User Role Widget -->
+<div class="flex items-center gap-2.5 pl-2">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary flex items-center justify-center font-bold text-xs">
+          TK
+        </div>
+<div class="leading-tight text-left">
+<div class="font-title-sm text-body-sm font-semibold text-on-surface">Nguyễn Tuấn Kiệt</div>
+<div class="flex items-center gap-1">
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span class="font-label-md text-label-md text-primary font-bold uppercase tracking-wider">Quản Lý</span>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- WORKSPACE BODY (Fits remaining 664px height perfectly) -->
+<div class="flex-1 p-5 flex flex-col justify-between overflow-hidden gap-3">
+<!-- ROW 1: PAGE HEADING + ACTION -->
+<div class="flex items-center justify-between shrink-0"><div>
+<div class="flex items-center gap-3">
+<h1 class="font-headline-xl text-headline-md text-on-surface font-bold tracking-tight">Quản lý máy</h1>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Cấu hình, bảo trì và quản lý trạng thái máy</p>
+</div>
+<button class="flex items-center gap-2 bg-primary-container hover:bg-primary text-on-primary-container font-headline-md font-bold text-body-md px-4 py-2 rounded-lg transition-all shadow-md active:scale-95">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+<span class="">+ Thêm máy</span>
+</button></div>
+<!-- ROW 2: TELEMETRY METRIC CHIPS (5 Cards) -->
+<div class="grid grid-cols-5 gap-3 shrink-0">
+<!-- Total Nodes -->
+<div class="bg-surface-container-low p-2.5 rounded-lg flex items-center justify-between">
+<div>
+<span class="font-label-md text-label-md text-outline block">TỔNG SỐ MÁY</span>
+<span class="font-headline-xl text-headline-md text-on-surface font-bold">20</span>
+</div>
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-lg">dns</span>
+</div>
+</div>
+<!-- Available Nodes -->
+<div class="bg-surface-container-low p-2.5 rounded-lg flex items-center justify-between">
+<div>
+<span class="font-label-md text-label-md text-tertiary block">TRỐNG SẴN SÀNG</span>
+<span class="font-headline-xl text-headline-md text-tertiary font-bold">12</span>
+</div>
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-lg">check_circle</span>
+</div>
+</div>
+<!-- Busy Nodes -->
+<div class="bg-surface-container-low p-2.5 rounded-lg flex items-center justify-between">
+<div>
+<span class="font-label-md text-label-md text-error block">ĐANG SỬ DỤNG</span>
+<span class="font-headline-xl text-headline-md text-error font-bold">6</span>
+</div>
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-error">
+<span class="material-symbols-outlined text-lg">sports_esports</span>
+</div>
+</div>
+<!-- Maintenance Nodes -->
+<div class="bg-surface-container-low p-2.5 rounded-lg flex items-center justify-between">
+<div>
+<span class="font-label-md text-label-md text-secondary-fixed block">BẢO TRÌ KỸ THUẬT</span>
+<span class="font-headline-xl text-headline-md text-secondary-fixed font-bold">2</span>
+</div>
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-secondary-fixed">
+<span class="material-symbols-outlined text-lg">build</span>
+</div>
+</div>
+<!-- Archived Nodes -->
+<div class="bg-surface-container-low p-2.5 rounded-lg flex items-center justify-between opacity-80">
+<div>
+<span class="font-label-md text-label-md text-outline block">ĐÃ LƯU TRỮ</span>
+<span class="font-headline-xl text-headline-md text-outline font-bold">1</span>
+</div>
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-outline">
+<span class="material-symbols-outlined text-lg">archive</span>
+</div>
+</div>
+</div>
+<!-- ROW 3: FILTER CONTROLS & LOCAL SEARCH -->
+<div class="flex items-center justify-between shrink-0">
+<!-- Search inside table -->
+<div class="relative w-80">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-base">search</span>
+<input class="w-full bg-surface-container-low text-on-surface placeholder:text-outline text-body-sm font-body-sm pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:bg-surface-container" placeholder="Tìm theo mã hoặc tên máy..." type="text"/>
+</div>
+<!-- Segmented Status Tabs -->
+<div class="flex items-center bg-surface-container-lowest p-1 rounded-lg gap-1">
+<button class="px-3 py-1 rounded bg-primary-container text-on-primary-container font-label-md text-label-md font-bold">
+          Tất cả (20)
+        </button>
+<button class="px-3 py-1 rounded text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+          Trống (12)
+        </button>
+<button class="px-3 py-1 rounded text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+          Đang dùng (6)
+        </button>
+<button class="px-3 py-1 rounded text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+          Bảo trì (2)
+        </button>
+<button class="px-3 py-1 rounded text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+          Đã lưu trữ (1)
+        </button>
+</div>
+</div>
+<!-- ROW 4: DATA TABLE CONTAINER -->
+<div class="bg-surface-container-low rounded-lg flex-1 flex flex-col justify-between overflow-hidden shadow-sm"><div class="grid grid-cols-12 px-4 py-2.5 bg-surface-container font-label-md text-label-md text-outline uppercase tracking-wider items-center shrink-0">
+<div class="col-span-1">MÃ MÁY</div>
+<div class="col-span-2">TÊN MÁY</div>
+<div class="col-span-2">TRẠNG THÁI</div>
+<div class="col-span-2">GIÁ THEO GIỜ</div>
+<div class="col-span-2">PHIÊN HIỆN TẠI</div>
+<div class="col-span-2">CẬP NHẬT CUỐI</div>
+<div class="col-span-1 text-right pr-1">THAO TÁC</div>
+</div>
+<div class="divide-y divide-surface-container-high/40 flex-1 flex flex-col justify-around px-4">
+<!-- Row 1: PC-01 -->
+<div class="grid grid-cols-12 items-center py-2 hover:bg-surface-container/60 transition-colors">
+<div class="col-span-1">
+<span class="font-label-md text-label-lg font-bold text-primary">PC-01</span>
+</div>
+<div class="col-span-2 min-w-0 pr-2">
+<span class="font-headline-md text-body-md font-semibold text-on-surface truncate block">Máy VIP 01</span>
+</div>
+<div class="col-span-2">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-high text-tertiary font-label-md text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+Trống
+</span>
+</div>
+<div class="col-span-2">
+<span class="font-label-md text-body-sm font-semibold text-on-surface">12.000</span>
+<span class="font-label-md text-label-md text-outline"> VND/h</span>
+</div>
+<div class="col-span-2 text-outline font-body-sm text-body-sm">
+—
+</div>
+<div class="col-span-2 font-label-md text-label-md text-outline">
+5 phút trước
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1.5">
+<button class="p-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary transition-colors" title="Chỉnh sửa">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+<button class="p-1 rounded bg-surface-container-high hover:bg-secondary-fixed hover:text-on-secondary text-secondary-fixed transition-colors" title="Bảo trì">
+<span class="material-symbols-outlined text-sm">build</span>
+</button>
+<button class="p-1 rounded bg-surface-container-high hover:bg-error hover:text-on-error text-outline transition-colors" title="Lưu trữ">
+<span class="material-symbols-outlined text-sm">archive</span>
+</button>
+</div>
+</div>
+<!-- Row 2: PC-02 -->
+<div class="grid grid-cols-12 items-center py-2 hover:bg-surface-container/60 transition-colors">
+<div class="col-span-1">
+<span class="font-label-md text-label-lg font-bold text-primary">PC-02</span>
+</div>
+<div class="col-span-2 min-w-0 pr-2">
+<span class="font-headline-md text-body-md font-semibold text-on-surface truncate block">Máy Standard 02</span>
+</div>
+<div class="col-span-2">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-high text-error font-label-md text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-error animate-pulse"></span>
+Đang dùng
+</span>
+</div>
+<div class="col-span-2">
+<span class="font-label-md text-body-sm font-semibold text-on-surface">10.000</span>
+<span class="font-label-md text-label-md text-outline"> VND/h</span>
+</div>
+<div class="col-span-2">
+<div class="font-body-md text-body-sm text-on-surface font-medium truncate">Nguyễn Văn An</div>
+<div class="font-label-md text-label-md text-primary font-mono">1h 30m</div>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-outline">
+Vừa xong
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1.5">
+<button class="p-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary transition-colors" title="Chỉnh sửa">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+<button class="p-1 rounded bg-surface-container-lowest text-outline-variant opacity-40 cursor-not-allowed" disabled="" title="Máy đang có phiên hoạt động">
+<span class="material-symbols-outlined text-sm">build</span>
+</button>
+<button class="p-1 rounded bg-surface-container-lowest text-outline-variant opacity-40 cursor-not-allowed" disabled="" title="Máy đang có phiên hoạt động">
+<span class="material-symbols-outlined text-sm">archive</span>
+</button>
+</div>
+</div>
+<!-- Row 3: PC-03 -->
+<div class="grid grid-cols-12 items-center py-2 hover:bg-surface-container/60 transition-colors">
+<div class="col-span-1">
+<span class="font-label-md text-label-lg font-bold text-primary">PC-03</span>
+</div>
+<div class="col-span-2 min-w-0 pr-2">
+<span class="font-headline-md text-body-md font-semibold text-on-surface truncate block">Máy Standard 03</span>
+</div>
+<div class="col-span-2">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-high text-secondary-fixed font-label-md text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary-fixed"></span>
+Bảo trì
+</span>
+</div>
+<div class="col-span-2">
+<span class="font-label-md text-body-sm font-semibold text-on-surface">10.000</span>
+<span class="font-label-md text-label-md text-outline"> VND/h</span>
+</div>
+<div class="col-span-2 text-outline font-body-sm text-body-sm">
+—
+</div>
+<div class="col-span-2 font-label-md text-label-md text-outline">
+1 giờ trước
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1.5">
+<button class="p-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary transition-colors" title="Chỉnh sửa">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+<button class="p-1 rounded bg-secondary-fixed text-on-secondary-fixed font-bold hover:bg-secondary transition-colors" title="Kết thúc bảo trì">
+<span class="material-symbols-outlined text-sm">lock_open</span>
+</button>
+<button class="p-1 rounded bg-surface-container-lowest text-outline-variant opacity-40 cursor-not-allowed" disabled="" title="Máy đang bảo trì không thể lưu trữ">
+<span class="material-symbols-outlined text-sm">archive</span>
+</button>
+</div>
+</div>
+<!-- Row 4: PC-04 -->
+<div class="grid grid-cols-12 items-center py-2 hover:bg-surface-container/60 transition-colors">
+<div class="col-span-1">
+<span class="font-label-md text-label-lg font-bold text-primary">PC-04</span>
+</div>
+<div class="col-span-2 min-w-0 pr-2">
+<span class="font-headline-md text-body-md font-semibold text-on-surface truncate block">Máy Standard 04</span>
+</div>
+<div class="col-span-2">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-high text-tertiary font-label-md text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+Trống
+</span>
+</div>
+<div class="col-span-2">
+<span class="font-label-md text-body-sm font-semibold text-on-surface">10.000</span>
+<span class="font-label-md text-label-md text-outline"> VND/h</span>
+</div>
+<div class="col-span-2 text-outline font-body-sm text-body-sm">
+—
+</div>
+<div class="col-span-2 font-label-md text-label-md text-outline">
+12 phút trước
+</div>
+<div class="col-span-1 flex items-center justify-end gap-1.5">
+<button class="p-1 rounded bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary transition-colors" title="Chỉnh sửa">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+<button class="p-1 rounded bg-surface-container-high hover:bg-secondary-fixed hover:text-on-secondary text-secondary-fixed transition-colors" title="Bảo trì">
+<span class="material-symbols-outlined text-sm">build</span>
+</button>
+<button class="p-1 rounded bg-surface-container-high hover:bg-error hover:text-on-error text-outline transition-colors" title="Lưu trữ">
+<span class="material-symbols-outlined text-sm">archive</span>
+</button>
+</div>
+</div>
+<!-- Row 5: PC-20 -->
+<div class="grid grid-cols-12 items-center py-2 opacity-50 bg-surface-container-lowest/30">
+<div class="col-span-1">
+<span class="font-label-md text-label-lg font-bold text-outline">PC-20</span>
+</div>
+<div class="col-span-2 min-w-0 pr-2">
+<span class="font-headline-md text-body-md font-semibold text-outline truncate block">Máy Cũ 20</span>
+</div>
+<div class="col-span-2">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-outline font-label-md text-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+Đã lưu trữ
+</span>
+</div>
+<div class="col-span-2">
+<span class="font-label-md text-body-sm font-semibold text-outline">8.000</span>
+<span class="font-label-md text-label-md text-outline-variant"> VND/h</span>
+</div>
+<div class="col-span-2 text-outline-variant font-body-sm text-body-sm">
+—
+</div>
+<div class="col-span-2 font-label-md text-label-md text-outline-variant">
+15/02/2026
+</div>
+<div class="col-span-1 text-right pr-2">
+<span class="font-label-md text-label-md text-outline-variant">—</span>
+</div>
+</div>
+</div>
+<!-- Compact Table Footer with clean pagination -->
+<div class="px-4 py-2.5 bg-surface-container flex items-center justify-between text-body-sm shrink-0 border-t border-surface-container-high/40">
+<div class="flex items-center gap-2 text-outline font-label-md text-label-md">
+<span class="material-symbols-outlined text-xs text-primary">verified_user</span>
+<span class="">Tài khoản QUẢN LÝ • Yêu cầu xác thực khi chuyển bảo trì hoặc lưu trữ máy</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="font-label-md text-label-md text-outline">Hiển thị <b class="text-on-surface font-semibold">1-5</b> trên tổng số <b class="text-on-surface font-semibold">20</b> máy</span>
+<div class="flex items-center gap-1 font-label-md text-label-md">
+<button class="w-6 h-6 rounded bg-surface-container-high text-outline hover:text-on-surface flex items-center justify-center transition-colors" title="Trang trước">
+<span class="material-symbols-outlined text-xs">chevron_left</span>
+</button>
+<button class="w-6 h-6 rounded bg-primary-container text-on-primary-container font-bold flex items-center justify-center">1</button>
+<button class="w-6 h-6 rounded bg-surface-container-high text-on-surface hover:bg-surface-bright flex items-center justify-center transition-colors">2</button>
+<button class="w-6 h-6 rounded bg-surface-container-high text-on-surface hover:bg-surface-bright flex items-center justify-center transition-colors">3</button>
+<button class="w-6 h-6 rounded bg-surface-container-high text-on-surface hover:bg-surface-bright flex items-center justify-center transition-colors">4</button>
+<button class="w-6 h-6 rounded bg-surface-container-high text-outline hover:text-on-surface flex items-center justify-center transition-colors" title="Trang sau">
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+</button>
+</div>
+</div>
+</div></div>
+</div>
+</div></main>
+<div class="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-[2px]"><div class="w-full max-w-[500px] bg-[#121824] border border-[#273147] rounded-xl shadow-2xl p-6 relative flex flex-col gap-5"><div class="flex items-start justify-between pb-3 border-b border-[#222a3d]"><div><h2 class="text-lg font-semibold text-white tracking-tight">Thêm máy</h2><p class="text-xs text-slate-400 mt-0.5">Thêm máy mới vào cửa hàng CyberHub Hà Nội</p></div><button class="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-[#1b2234] flex items-center justify-center"><span class="material-symbols-outlined text-xl">close</span></button></div><div class="space-y-4"><div class="space-y-1.5"><label class="block text-xs font-semibold text-slate-200 uppercase tracking-wider">Mã máy <span class="text-[#00c6ff]">*</span></label><input class="w-full bg-[#0b101b] border border-[#273147] focus:border-[#00c6ff] focus:outline-none rounded-lg px-3.5 py-2 text-sm text-white placeholder:text-slate-500 font-mono transition-colors" placeholder="Ví dụ: PC-21" type="text" value="PC-21"/><p class="text-[11px] text-slate-400">Mã máy phải duy nhất trong hệ thống</p></div><div class="space-y-1.5"><label class="block text-xs font-semibold text-slate-200 uppercase tracking-wider">Tên máy <span class="text-[#00c6ff]">*</span></label><input class="w-full bg-[#0b101b] border border-[#273147] focus:border-[#00c6ff] focus:outline-none rounded-lg px-3.5 py-2 text-sm text-white placeholder:text-slate-500 transition-colors" placeholder="Ví dụ: Máy VIP 21" type="text"/></div><div class="space-y-1.5"><label class="block text-xs font-semibold text-slate-200 uppercase tracking-wider">Giá theo giờ <span class="text-[#00c6ff]">*</span></label><div class="relative flex items-center"><input class="w-full bg-[#0b101b] border border-[#273147] focus:border-[#00c6ff] focus:outline-none rounded-lg pl-3.5 pr-20 py-2 text-sm text-white placeholder:text-slate-500 font-mono transition-colors" placeholder="10000" type="number" value="10000"/><span class="absolute right-3 text-xs text-slate-400 font-medium pointer-events-none">VND/giờ</span></div></div><div class="grid grid-cols-2 gap-3 p-3 bg-[#0b101b] border border-[#222a3d] rounded-lg"><div class="space-y-0.5"><span class="text-[11px] text-slate-400 block">Cửa hàng</span><span class="text-xs font-semibold text-white flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#00c6ff]"></span>CyberHub Hà Nội</span></div><div class="space-y-0.5"><span class="text-[11px] text-slate-400 block">Trạng thái ban đầu</span><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Trống</span></div></div></div><div class="flex items-center justify-end gap-3 pt-3 border-t border-[#222a3d]"><button class="px-4 py-2 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-[#1b2234] border border-[#273147] transition-all font-medium" type="button">Hủy</button><button class="px-5 py-2 rounded-lg text-sm font-semibold bg-[#00c6ff] hover:bg-[#00c6ff]/90 text-[#090e19] transition-all shadow-md active:scale-95 flex items-center gap-1.5" type="button"><span class="material-symbols-outlined text-base">add</span>Thêm máy</button></div></div></div></body></html>
