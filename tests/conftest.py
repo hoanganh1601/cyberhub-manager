@@ -12,11 +12,19 @@ Không seed dữ liệu demo: test tự tạo dữ liệu với mã duy nhất (
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
+
+_ROOT = str(Path(__file__).resolve().parent.parent)
+_SRC = str(Path(__file__).resolve().parent.parent / "src")
+_TESTS = str(Path(__file__).resolve().parent)
+for _p in (_ROOT, _SRC, _TESTS):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import pytest
 from mysql.connector import Error as MySQLError
@@ -224,3 +232,41 @@ def test_scenario() -> Callable[..., SimpleNamespace]:
         )
 
     return make
+
+
+_SHARED_TK_ROOT = None
+
+
+def get_shared_tk_root():
+    """Retrieve or lazily create the shared root without destroying it."""
+    global _SHARED_TK_ROOT
+    if _SHARED_TK_ROOT is None:
+        import customtkinter as ctk
+
+        _SHARED_TK_ROOT = ctk.CTk()
+        _SHARED_TK_ROOT.geometry("1280x720")
+        _SHARED_TK_ROOT.withdraw()
+        ctk._SHARED_TEST_ROOT = _SHARED_TK_ROOT
+    return _SHARED_TK_ROOT
+
+
+@pytest.fixture(scope="session")
+def tk_root():
+    """Single session-scoped CTk root for all UI unit tests on Windows."""
+    root = get_shared_tk_root()
+    yield root
+    # Không destroy root giữa các fixture để tránh lỗi Tcl re-init trên Windows
+
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_tk_widgets():
+    """Cleanup child widgets from the shared root after each test."""
+    yield
+    if _SHARED_TK_ROOT is not None:
+        for child in list(_SHARED_TK_ROOT.winfo_children()):
+            try:
+                child.destroy()
+            except Exception:
+                pass
+
