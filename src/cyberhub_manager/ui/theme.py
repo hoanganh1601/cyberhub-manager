@@ -219,3 +219,53 @@ def load_stitch_fonts() -> None:
             with as_file(entry) as path:
                 ctk.FontManager.load_font(str(path))
 
+# ==============================================================================
+# 5. NG-03 — DASHBOARD & QUẢN LÝ MÁY THEO STITCH EXPORT
+# ==============================================================================
+# Màu Tailwind đặc (dùng cho nút và số liệu).
+STITCH_EMERALD = "#10B981"            # emerald-500: nút "Mở phiên"
+STITCH_EMERALD_HOVER = "#34D399"      # emerald-400
+STITCH_ROSE = "#F43F5E"               # rose-500: nút "Thanh toán"
+STITCH_ROSE_HOVER = "#E11D48"         # rose-600
+STITCH_AMBER = "#F59E0B"              # amber-500: nút "Kết thúc bảo trì"
+STITCH_AMBER_HOVER = "#FBBF24"        # amber-400
+
+# Màu pha sẵn trên nền STITCH_CARD_BG (#121824) — Tk không hỗ trợ alpha.
+STITCH_BADGE_SUCCESS_BG = "#082423"      # emerald-950/60
+STITCH_BADGE_SUCCESS_BORDER = "#114840"  # emerald-500/30
+STITCH_BADGE_DANGER_BG = "#350D1D"       # rose-950/60
+STITCH_BADGE_DANGER_BORDER = "#562435"   # rose-500/30
+STITCH_BADGE_WARNING_BG = "#311910"      # amber-950/60
+STITCH_BADGE_WARNING_BORDER = "#56401C"  # amber-500/30
+STITCH_MAINT_BOX_BG = "#1C181D"          # amber-950/20
+STITCH_INFO_BOX_BG = "#0E131E"           # hộp thông tin trong card
+STITCH_INFO_BOX_BORDER = "#1E273A"
+
+STITCH_KPI_SUCCESS_CARD_BG = "#101A24"   # thẻ KPI "Máy trống" nổi bật
+STITCH_ICON_SUCCESS_BG = "#123837"
+STITCH_ICON_SUCCESS_BORDER = "#115849"
+STITCH_ICON_DANGER_BG = "#3F2030"
+STITCH_ICON_DANGER_BORDER = "#6C283B"
+STITCH_ICON_WARNING_BG = "#3F331F"
+STITCH_ICON_WARNING_BORDER = "#6D4E1A"
+STITCH_ICON_CYAN_BG = "#0E3B50"
+STITCH_ICON_CYAN_BORDER = "#0B5E7C"
+
+# Viền tab lọc (pha trên STITCH_CHIP_BG #171F30).
+STITCH_TAB_SUCCESS_BORDER = "#154D48"
+STITCH_TAB_DANGER_BORDER = "#59293E"
+STITCH_TAB_WARNING_BORDER = "#5A4525"
+STITCH_TAB_HOVER = "#1E273A"
+STITCH_DANGER_SOFT_BG = "#291C2A"     # rose-500/10 trên STITCH_CARD_BG (nút nguy hiểm dạng viền)
+
+STITCH_MACHINE_CARD_HEIGHT = 196
+STITCH_GRID_COLUMNS = 4
+STITCH_GAP = 12
+
+FONT_ST_CARD_CODE = (STITCH_FONT_MONO, 16, "bold")
+FONT_ST_KPI_VALUE = (STITCH_FONT_MONO, 20, "bold")
+FONT_ST_MONO_VALUE = (STITCH_FONT_MONO, 14, "bold")
+FONT_ST_MONO_11 = (STITCH_FONT_MONO, 11, "normal")
+FONT_ST_LABEL_CAPS = (STITCH_FONT, 10, "bold")
+
+

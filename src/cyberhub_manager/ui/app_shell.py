@@ -534,8 +534,11 @@ class AppShell(ctk.CTkFrame):
         supported = callable(getattr(self._current_view, "handle_search", None))
         self._search_entry.configure(state="normal")
         self._search_entry.delete(0, "end")
+        # CTkEntry chỉ tự hiện lại placeholder khi mất focus; gán lại để hiện ngay.
+        self._search_entry.configure(placeholder_text=translate("header.search_placeholder", self._language))
         if not supported:
             self._search_entry.configure(state="disabled")
+
 
     def _on_search_submitted(self, _event: Any = None) -> None:
         handler = getattr(self._current_view, "handle_search", None)
@@ -625,6 +628,8 @@ def _run_demo() -> None:
     from ..services.mocks.factory import build_mock_services
     from ..services.mocks.fixtures import DEMO_PASSWORD
     from .theme import SHELL_HEIGHT, SHELL_WIDTH, load_stitch_fonts, setup_theme
+    from .theme import SHELL_HEIGHT, SHELL_WIDTH, load_stitch_fonts, setup_theme
+    from .views import default_view_factories
 
     username = sys.argv[1] if len(sys.argv) > 1 else "quanly01"
     setup_theme()
@@ -641,7 +646,13 @@ def _run_demo() -> None:
         print("Logout OK — HA-11 sẽ hiển thị LoginView tại đây.")
         root.after(300, root.destroy)
 
-    AppShell(root, services, session, on_logout=back_to_login).pack(fill="both", expand=True)
+    AppShell(
+        root,
+        services,
+        session,
+        on_logout=back_to_login,
+        view_factories=default_view_factories(),
+    ).pack(fill="both", expand=True)
     root.mainloop()
 
 
