@@ -24,6 +24,12 @@ from PIL import Image
 from ..domain.dtos import EmployeeSession
 from ..services.contracts import ServiceBundle
 from .components import ConfirmDialog, ToastManager
+from .customers_view import customers_view_factory
+from .dashboard_view import dashboard_view_factory
+from .invoices_view import invoices_view_factory
+from .machine_management_view import machine_management_view_factory
+from .reports_view import reports_view_factory
+from .icons import get_icon, get_nav_icon
 from .i18n import Language, normalize_language, translate
 from .messages import MSG_CANCEL, MSG_OPERATION_FAILED, get_user_friendly_error
 from .navigation import DEFAULT_NAV_KEY, NavKey, can_access, get_nav_item, visible_nav_items
@@ -181,6 +187,15 @@ def _vline(master: Any, height: int | None = None) -> tk.Frame:
         frame.configure(height=height)
     return frame
 
+DEFAULT_VIEW_FACTORIES: dict[NavKey, ViewFactory] = {
+    NavKey.DASHBOARD: dashboard_view_factory,
+    NavKey.CUSTOMERS: customers_view_factory,
+    NavKey.MACHINES: machine_management_view_factory,
+    NavKey.INVOICES: invoices_view_factory,
+    NavKey.REPORTS: reports_view_factory,
+}
+
+
 class AppShell(ctk.CTkFrame):
     """Khung ứng dụng sau đăng nhập: sidebar | (topbar / content)."""
 
@@ -198,7 +213,7 @@ class AppShell(ctk.CTkFrame):
         self._services = services
         self._session: EmployeeSession | None = session
         self._on_logout = on_logout
-        self._factories: dict[NavKey, ViewFactory] = dict(view_factories or {})
+        self._factories = dict(view_factories) if view_factories is not None else {}
         self._language: Language = normalize_language(language)
 
         self._nav_buttons: dict[NavKey, ctk.CTkButton] = {}
@@ -278,7 +293,7 @@ class AppShell(ctk.CTkFrame):
         ).pack(side="left", padx=(6, 0))
         ctk.CTkLabel(
             brand_text,
-            text="MANAGER",
+            text="MANAGER v2.4",
             font=FONT_ST_MONO_XS,
             text_color=STITCH_TEXT_MUTED,
             height=14,
@@ -289,18 +304,40 @@ class AppShell(ctk.CTkFrame):
         foot = ctk.CTkFrame(sidebar, fg_color=STITCH_BG_CHROME_FOOT, corner_radius=0)
         foot.pack(side="bottom", fill="x")
         _hline(sidebar).pack(side="bottom", fill="x")
-        foot_row = ctk.CTkFrame(foot, fg_color="transparent")
-        foot_row.pack(fill="x", padx=12, pady=10)
+        foot_col = ctk.CTkFrame(foot, fg_color="transparent")
+        foot_col.pack(fill="x", padx=12, pady=10)
+
+        # Hàng 1: ● Hệ thống sẵn sàng | Node-01
+        foot_row1 = ctk.CTkFrame(foot_col, fg_color="transparent")
+        foot_row1.pack(fill="x")
         self._status_label = ctk.CTkLabel(
-            foot_row, text="", font=FONT_ST_MONO_SM, text_color=STITCH_SUCCESS, height=16
+            foot_row1, text="● Hệ thống sẵn sàng", font=FONT_ST_MONO_SM, text_color=STITCH_SUCCESS, height=16
         )
         self._status_label.pack(side="left")
         ctk.CTkLabel(
-            foot_row,
-            text=self._session.store_code,
+            foot_row1,
+            text="Node-01",
             font=FONT_ST_MONO_XS,
             text_color=STITCH_TEXT_MUTED,
             height=16,
+        ).pack(side="right")
+
+        # Hàng 2: LAN: 192.168.1.1 | Port 8088
+        foot_row2 = ctk.CTkFrame(foot_col, fg_color="transparent")
+        foot_row2.pack(fill="x", pady=(2, 0))
+        ctk.CTkLabel(
+            foot_row2,
+            text="LAN: 192.168.1.1",
+            font=FONT_ST_MONO_XS,
+            text_color=STITCH_TEXT_DIM,
+            height=14,
+        ).pack(side="left")
+        ctk.CTkLabel(
+            foot_row2,
+            text="Port 8088",
+            font=FONT_ST_MONO_XS,
+            text_color=STITCH_TEXT_DIM,
+            height=14,
         ).pack(side="right")
 
         # Menu điều hướng theo role.
@@ -319,6 +356,7 @@ class AppShell(ctk.CTkFrame):
                 hover_color=STITCH_NAV_HOVER,
                 text_color=STITCH_TEXT_MUTED,
                 font=FONT_ST_BODY,
+                compound="left",
                 command=lambda key=item.key: self.navigate(key),
             )
             button.pack(fill="x", pady=2)
@@ -357,8 +395,9 @@ class AppShell(ctk.CTkFrame):
             corner_radius=STITCH_RADIUS,
         )
         chip.pack(side="left", padx=(20, 12))
+        self._store_icon = get_icon("store", STITCH_CYAN, (14, 14))
         ctk.CTkLabel(
-            chip, text="⌂", font=FONT_ST_BODY_STRONG, text_color=STITCH_CYAN, height=24
+            chip, text="", image=self._store_icon, height=24
         ).pack(side="left", padx=(10, 6), pady=2)
         ctk.CTkLabel(
             chip,
@@ -369,30 +408,31 @@ class AppShell(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 10), pady=2)
         ctk.CTkLabel(
             topbar,
-            text=f"•   {session.store_code}",
+            text="•   Ca sáng (07:00 - 15:00)",
             font=FONT_ST_BODY,
             text_color=STITCH_TEXT_MUTED,
         ).pack(side="left")
 
         # --- Phải (pack từ phải sang trái) ---
+        self._logout_icon_muted = get_icon("logout", STITCH_TEXT_MUTED, (16, 16))
+        self._logout_icon_danger = get_icon("logout", STITCH_DANGER, (16, 16))
         self._logout_button = ctk.CTkButton(
             topbar,
-            text="⇥",
+            text="",
+            image=self._logout_icon_muted,
             width=28,
             height=28,
             corner_radius=STITCH_RADIUS,
             fg_color="transparent",
             hover_color=STITCH_DANGER_HOVER_BG,
-            text_color=STITCH_TEXT_MUTED,
-            font=FONT_ST_BRAND,
             command=self._on_logout_clicked,
         )
         self._logout_button.pack(side="right", padx=(10, 20))
         self._logout_button.bind(
-            "<Enter>", lambda _e: self._logout_button.configure(text_color=STITCH_DANGER)
+            "<Enter>", lambda _e: self._logout_button.configure(image=self._logout_icon_danger)
         )
         self._logout_button.bind(
-            "<Leave>", lambda _e: self._logout_button.configure(text_color=STITCH_TEXT_MUTED)
+            "<Leave>", lambda _e: self._logout_button.configure(image=self._logout_icon_muted)
         )
 
         ctk.CTkLabel(
@@ -520,6 +560,7 @@ class AppShell(ctk.CTkFrame):
         for key, button in self._nav_buttons.items():
             active = key == self._current_key
             button.configure(
+                image=get_nav_icon(key.value, active=active, size=(16, 16)),
                 fg_color=STITCH_NAV_ACTIVE_BG if active else STITCH_BG_CHROME,
                 hover_color=STITCH_NAV_ACTIVE_BG if active else STITCH_NAV_HOVER,
                 border_color=STITCH_NAV_ACTIVE_BORDER if active else STITCH_BG_CHROME,
@@ -562,7 +603,12 @@ class AppShell(ctk.CTkFrame):
         lang = self._language
         for key, button in self._nav_buttons.items():
             item = get_nav_item(key)
-            button.configure(text=f"{item.icon}   {translate(item.i18n_key, lang)}")
+            active = key == self._current_key
+            button.configure(
+                text=f"  {translate(item.i18n_key, lang)}",
+                image=get_nav_icon(key.value, active=active, size=(16, 16)),
+                compound="left",
+            )
         for code, button in self._lang_buttons.items():
             active = code == lang
             button.configure(
@@ -641,7 +687,13 @@ def _run_demo() -> None:
         print("Logout OK — HA-11 sẽ hiển thị LoginView tại đây.")
         root.after(300, root.destroy)
 
-    AppShell(root, services, session, on_logout=back_to_login).pack(fill="both", expand=True)
+    AppShell(
+        root,
+        services,
+        session,
+        on_logout=back_to_login,
+        view_factories=DEFAULT_VIEW_FACTORIES,
+    ).pack(fill="both", expand=True)
     root.mainloop()
 
 
