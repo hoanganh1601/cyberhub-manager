@@ -6,6 +6,7 @@ from .customer_dialog import CustomerDialog
 from .customer_lock_dialog import CustomerLockDialog, LockAccountDialog
 from .machine_dialog import MachineDialog
 from .open_session_dialog import OpenSessionDialog
+from .payment_confirm_dialog import PaymentConfirmDialog
 from .topup_dialog import TopUpDialog
 
 __all__ = [
@@ -14,6 +15,6 @@ __all__ = [
     "LockAccountDialog",
     "MachineDialog",
     "OpenSessionDialog",
+    "PaymentConfirmDialog",
     "TopUpDialog",
 ]
-
