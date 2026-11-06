@@ -165,8 +165,10 @@ STITCH_CHIP_BORDER = "#27344E"
 STITCH_INPUT_BG = "#131926"           # ô tìm kiếm, công tắc VI/EN
 STITCH_INPUT_BORDER = "#263147"
 STITCH_AVATAR_BG = "#1E273A"
-STITCH_CARD_BG = "#121824"            # dùng cho view NG-03 trở đi
+STITCH_CARD_BG = "#121824"            # nền thẻ chính
 STITCH_CARD_BORDER = "#212B3E"
+STITCH_SUNKEN_BG = "#0E131E"          # khối thông tin chìm bên trong thẻ
+STITCH_SUNKEN_BORDER = "#1E273A"
 
 STITCH_CYAN = "#00C6FF"               # màu nhấn chính
 STITCH_NAV_ACTIVE_BG = "#0C2E40"      # cyan 15% trên STITCH_BG_CHROME
@@ -179,9 +181,14 @@ STITCH_TEXT = "#E2E8F0"               # slate-200
 STITCH_TEXT_MUTED = "#94A3B8"         # slate-400
 STITCH_TEXT_DIM = "#64748B"           # slate-500
 STITCH_TEXT_ON_CYAN = "#020617"       # slate-950
+
 STITCH_SUCCESS = "#34D399"            # emerald-400
+STITCH_EMERALD = STITCH_SUCCESS
 STITCH_DANGER = "#FB7185"             # rose-400
+STITCH_ROSE = STITCH_DANGER
 STITCH_WARNING = "#FBBF24"            # amber-400
+STITCH_AMBER = STITCH_WARNING
+STITCH_BLUE = "#0084FF"
 
 STITCH_SIDEBAR_WIDTH = 220
 STITCH_BRAND_HEIGHT = 60
@@ -192,10 +199,22 @@ STITCH_CONTENT_PADY = 14
 STITCH_RADIUS = 4
 STITCH_RADIUS_LG = 8
 
-# Font: cần cài Space Grotesk + JetBrains Mono (hoặc nạp bằng load_stitch_fonts()).
-# Thiếu font thì Tk tự dùng font mặc định, app vẫn chạy.
-STITCH_FONT = "Space Grotesk"
-STITCH_FONT_MONO = "JetBrains Mono"
+# Font: kiểm tra các font có sẵn trên hệ điều hành để ưu tiên Space Grotesk / JetBrains Mono
+def _resolve_font_family(preferred: str, fallbacks: tuple[str, ...]) -> str:
+    try:
+        import tkinter.font as tkfont
+        available = set(tkfont.families())
+        if preferred in available:
+            return preferred
+        for fb in fallbacks:
+            if fb in available:
+                return fb
+    except Exception:
+        pass
+    return preferred
+
+STITCH_FONT = _resolve_font_family("Space Grotesk", ("Segoe UI", "Roboto", "Arial"))
+STITCH_FONT_MONO = _resolve_font_family("JetBrains Mono", ("Cascadia Mono", "Consolas", "Courier New"))
 
 FONT_ST_BRAND = (STITCH_FONT, 14, "bold")
 FONT_ST_PAGE_TITLE = (STITCH_FONT, 18, "bold")
@@ -205,6 +224,8 @@ FONT_ST_MONO_XS = (STITCH_FONT_MONO, 10, "normal")
 FONT_ST_MONO_XS_STRONG = (STITCH_FONT_MONO, 10, "bold")
 FONT_ST_MONO_SM = (STITCH_FONT_MONO, 11, "bold")
 FONT_ST_MONO_BODY = (STITCH_FONT_MONO, 12, "normal")
+FONT_ST_METRIC_XL = (STITCH_FONT_MONO, 20, "bold")
+FONT_ST_METRIC_LG = (STITCH_FONT_MONO, 16, "bold")
 
 
 def load_stitch_fonts() -> None:

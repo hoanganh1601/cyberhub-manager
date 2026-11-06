@@ -43,6 +43,8 @@ class ActionButton(ctk.CTkButton):
         command: Callable[[], None] | None = None,
         height: int = HEIGHT_BUTTON,
         width: int = 120,
+        image: Any = None,
+        icon_image: Any = None,
         **kwargs: Any,
     ) -> None:
         self._original_text = text
@@ -52,15 +54,38 @@ class ActionButton(ctk.CTkButton):
         self._is_enabled = (initial_state != "disabled")
         self._external_command = command
 
-        fg_color, hover_color, text_color, border_width, border_color = self._resolve_colors(kind)
+        btn_image = image if image is not None else icon_image
+
+        def_fg, def_hov, def_txt, def_bw, def_bc = self._resolve_colors(kind)
+        self._active_fg = kwargs.pop("fg_color", def_fg)
+        self._active_hover = kwargs.pop("hover_color", def_hov)
+        self._active_text = kwargs.pop("text_color", def_txt)
+        self._active_border_width = kwargs.pop("border_width", def_bw)
+        self._active_border_color = kwargs.pop("border_color", def_bc)
+        font = kwargs.pop("font", FONT_BODY_STRONG)
+        corner_radius = kwargs.pop("corner_radius", RADIUS_BUTTON)
+
+        if not self._is_enabled:
+            fg_color = "#171F30"
+            hover_color = "#171F30"
+            text_color = "#64748B"
+            border_width = 1
+            border_color = "#27344E"
+        else:
+            fg_color = self._active_fg
+            hover_color = self._active_hover
+            text_color = self._active_text
+            border_width = self._active_border_width
+            border_color = self._active_border_color
 
         super().__init__(
             master=master,
             text=text,
-            font=FONT_BODY_STRONG,
-            corner_radius=RADIUS_BUTTON,
+            font=font,
+            corner_radius=corner_radius,
             height=height,
             width=width,
+            image=btn_image,
             fg_color=fg_color,
             hover_color=hover_color,
             text_color=text_color,
@@ -70,7 +95,21 @@ class ActionButton(ctk.CTkButton):
             **kwargs,
         )
 
+        try:
+            self._canvas.configure(takefocus=1)
+            self._canvas.bind("<space>", lambda _e: self._on_click() if self._is_enabled else None)
+        except Exception:
+            pass
+
     def _resolve_colors(self, kind: str) -> tuple[str, str, str, int, str]:
+        if kind in ("primary_cyan", "stitch_primary"):
+            return "#00C6FF", "#33D1FF", "#0B101B", 0, "#00C6FF"
+        if kind == "stitch_secondary":
+            return "#171F30", "#1E273A", "#E2E8F0", 1, "#27344E"
+        if kind == "stitch_danger":
+            return "#251218", "#381822", "#FB7185", 1, "#F43F5E"
+        if kind == "stitch_success":
+            return "#0B1B17", "#0F2D24", "#34D399", 1, "#10B981"
         if kind == "primary":
             return ACCENT, ACCENT_HOVER, TEXT_PRIMARY, 0, BORDER
         if kind == "secondary":
@@ -87,14 +126,20 @@ class ActionButton(ctk.CTkButton):
     def set_kind(self, kind: str) -> None:
         """Đổi phong cách (kind) của nút bấm."""
         self._kind = kind
-        fg_color, hover_color, text_color, border_width, border_color = self._resolve_colors(kind)
-        super().configure(
-            fg_color=fg_color,
-            hover_color=hover_color,
-            text_color=text_color,
-            border_width=border_width,
-            border_color=border_color,
-        )
+        def_fg, def_hov, def_txt, def_bw, def_bc = self._resolve_colors(kind)
+        self._active_fg = def_fg
+        self._active_hover = def_hov
+        self._active_text = def_txt
+        self._active_border_width = def_bw
+        self._active_border_color = def_bc
+        if self._is_enabled and not self._is_busy:
+            super().configure(
+                fg_color=self._active_fg,
+                hover_color=self._active_hover,
+                text_color=self._active_text,
+                border_width=self._active_border_width,
+                border_color=self._active_border_color,
+            )
 
     @property
     def is_busy(self) -> bool:
@@ -140,7 +185,24 @@ class ActionButton(ctk.CTkButton):
         """Bật hoặc tắt nút bấm."""
         self._is_enabled = enabled
         if not self._is_busy:
-            super().configure(state="normal" if enabled else "disabled")
+            if enabled:
+                super().configure(
+                    state="normal",
+                    fg_color=self._active_fg,
+                    hover_color=self._active_hover,
+                    text_color=self._active_text,
+                    border_width=self._active_border_width,
+                    border_color=self._active_border_color,
+                )
+            else:
+                super().configure(
+                    state="disabled",
+                    fg_color="#171F30",
+                    hover_color="#171F30",
+                    text_color="#64748B",
+                    border_width=1,
+                    border_color="#27344E",
+                )
 
     def configure(self, **kwargs: Any) -> None:
         """Cấu hình lại widget, đồng bộ nhãn gốc ngay cả khi đang busy."""
@@ -154,6 +216,28 @@ class ActionButton(ctk.CTkButton):
             self._is_enabled = (new_state != "disabled")
             if not self._is_busy:
                 kwargs["state"] = new_state
+                if not self._is_enabled:
+                    kwargs["fg_color"] = "#171F30"
+                    kwargs["hover_color"] = "#171F30"
+                    kwargs["text_color"] = "#64748B"
+                    kwargs["border_width"] = 1
+                    kwargs["border_color"] = "#27344E"
+                else:
+                    kwargs["fg_color"] = self._active_fg
+                    kwargs["hover_color"] = self._active_hover
+                    kwargs["text_color"] = self._active_text
+                    kwargs["border_width"] = self._active_border_width
+                    kwargs["border_color"] = self._active_border_color
+        if "fg_color" in kwargs:
+            self._active_fg = kwargs["fg_color"]
+        if "hover_color" in kwargs:
+            self._active_hover = kwargs["hover_color"]
+        if "text_color" in kwargs:
+            self._active_text = kwargs["text_color"]
+        if "border_width" in kwargs:
+            self._active_border_width = kwargs["border_width"]
+        if "border_color" in kwargs:
+            self._active_border_color = kwargs["border_color"]
         if "command" in kwargs:
             self._external_command = kwargs.pop("command")
         if "kind" in kwargs:
