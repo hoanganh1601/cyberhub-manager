@@ -81,14 +81,6 @@ def test_shell_does_not_depend_on_sql_layers() -> None:
 # ----------------------------------------------------------------------
 # 2. Widget — cần Tk
 # ----------------------------------------------------------------------
-@pytest.fixture(scope="module")
-def tk_root():
-    root = ctk.CTk()
-    root.geometry("1280x720")
-    yield root
-    root.destroy()
-
-
 def _make_shell(tk_root, username: str, **kwargs):
     services = build_mock_services()
     session = services.auth.login(username, DEMO_PASSWORD)

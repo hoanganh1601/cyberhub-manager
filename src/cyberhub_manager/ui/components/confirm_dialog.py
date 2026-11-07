@@ -116,6 +116,9 @@ class ConfirmDialog(ctk.CTkToplevel):
         self._center_window(parent)
 
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+        self.bind("<Escape>", lambda _e: self._on_cancel())
+        self.bind("<Return>", lambda _e: self._on_confirm())
+        self.after(50, self._confirm_btn.focus_set)
 
     def _center_window(self, parent: Any) -> None:
         """Căn giữa dialog so với cửa sổ cha."""
