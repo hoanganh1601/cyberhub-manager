@@ -63,21 +63,32 @@ class MachineDialog(ctk.CTkToplevel):
     def __init__(
         self,
         parent: Any,
-        context: ViewContext,
+        context: ViewContext | Any,
         *,
         machine: MachineSummary | None = None,
         runner: TaskRunner | None = None,
         on_saved: Callable[[Machine], None] | None = None,
+        actor: Any = None,
+        language: str = "vi",
+        on_success: Any = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(parent)
+        if not isinstance(context, ViewContext):
+            context = ViewContext(services=context, session=actor, language=language, navigate=lambda _: True)
         self._context = context
+        self._language = getattr(context, "language", language)
         self._machine = machine
         self._runner = runner or default_runner()
-        self._on_saved = on_saved
+        self._on_saved = on_saved or on_success
         self._submitting = False
         self._is_edit = machine is not None
 
-        self.title("Sửa máy" if self._is_edit else "Thêm máy")
+        is_vi = self._language == "vi"
+        if self._is_edit:
+            self.title("Sửa máy" if is_vi else "Edit Machine")
+        else:
+            self.title("Thêm máy" if is_vi else "Add Machine")
         self.configure(fg_color=STITCH_BG_CANVAS)
         self.resizable(False, False)
         self.transient(parent)
@@ -236,9 +247,14 @@ class MachineDialog(ctk.CTkToplevel):
         self._save_button.set_busy(submitting)
         self._cancel_button.set_enabled(not submitting)
 
+    def _on_escape(self) -> None:
+        self.cancel()
+
     def cancel(self) -> None:
         if not self._submitting:
             self.close()
+
+    _handle_close = cancel
 
     def close(self) -> None:
         try:
