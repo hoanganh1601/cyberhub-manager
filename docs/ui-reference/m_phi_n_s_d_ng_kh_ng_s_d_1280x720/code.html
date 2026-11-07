@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=1280, height=720, initial-scale=1.0" name="viewport"/>
+<title>Tổng quan phòng máy - CyberHub Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+          },
+          colors: {
+            brand: {
+              cyan: '#00c6ff',
+              blue: '#0072ff',
+              navy: '#0b101b',
+              dark: '#0e131e',
+              surface: '#151b2a',
+              card: '#1b2234',
+              border: '#273147'
+            }
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    html, body {
+      width: 1280px;
+      height: 720px;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0b101b;
+      color: #e2e8f0;
+      font-family: 'Space Grotesk', 'Inter', sans-serif;
+      user-select: none;
+    }
+  </style>
+<meta content="web_dashboard" name="shell-type"/></head>
+<body class="w-[1280px] h-[720px] max-w-[1280px] max-h-[720px] flex overflow-hidden bg-[#0b101b] text-slate-200 antialiased">
+<!-- LEFT SIDEBAR (Fixed 220px, Edge-to-Edge) -->
+<aside class="w-[220px] h-[720px] flex-shrink-0 bg-[#0e131e] border-r border-[#222a3d] flex flex-col justify-between z-20">
+<div>
+<!-- Brand Logo Header -->
+<div class="h-[60px] px-4 flex items-center gap-3 border-b border-[#222a3d]">
+<img alt="CyberHub Logo" class="h-9 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkyg1riKNyTQdJWDCy6tdBcehmixnt_zUzekIWQHlSeMNLWC_IXZRi7gFrOxUEN38VtYGdJ0tQPZgiOmoNCsbNvFjFGc88VWjBP7wqSlQN08fr_xu2qxPwD6TE3113zVe7gUdnWJ3LByECSAoOkYU67jtJ5MGGpsFYNr31u3b3YsTMgLBB4Dg-fr_Sz3RTgm7tnKaBLjri8FaH0oX-7iAaYpvwM8MbjYY8e1VIbxAA1omHNKVulr5elg"/>
+<div class="leading-tight">
+<div class="font-bold text-sm tracking-wide text-white flex items-center gap-1.5">
+            CyberHub
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#00c6ff]"></span>
+</div>
+<div class="text-[10px] text-slate-400 font-mono tracking-wider uppercase">Manager v2.4</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="p-3 space-y-1">
+<!-- Active Nav: Tổng quan -->
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#00c6ff]/15 border border-[#00c6ff]/40 text-[#00c6ff] font-semibold text-xs transition-all shadow-sm" href="#">
+<svg class="w-4 h-4 text-[#00c6ff]" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Tổng quan</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Khách hàng</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Quản lý máy</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Hóa đơn</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Doanh thu</span>
+</a>
+</nav>
+</div>
+<!-- Sidebar Bottom Status Widget -->
+<div class="p-3 border-t border-[#222a3d] bg-[#0a0e17]"><div class="flex items-center gap-2 text-xs font-medium text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span class="">Hệ thống sẵn sàng</span></div></div>
+</aside>
+<!-- MAIN OPERATIONAL VIEWPORT (Edge-to-Edge, Exactly fills remainder: 1060px x 720px) -->
+<main class="w-[1060px] h-[720px] flex flex-col bg-[#0b101b] overflow-hidden"><div class="flex flex-col w-full relative h-[720px] overflow-hidden select-none">
+<!-- DASHBOARD BACKGROUND (Tổng quan phòng máy) -->
+<div class="flex flex-col w-full h-full p-4 overflow-hidden bg-surface-container-lowest">
+<!-- Top Header Bar -->
+<header class="flex items-center justify-between pb-3">
+<div class="flex items-center gap-3">
+<h1 class="font-headline-md text-headline-md text-on-surface">Tổng quan phòng máy</h1>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high text-outline text-label-md font-label-md">Khu vực: CyberHub Hà Nội</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container">
+<span class="material-symbols-outlined text-primary text-body-md">account_circle</span>
+<span class="font-body-md text-body-md text-on-surface">Nguyễn Tuấn Kiệt</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-variant text-on-surface-variant font-label-md text-label-md uppercase">Quản lý</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant font-code-inline text-code-inline">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="">14:32:08</span>
+</div>
+</div>
+</header>
+<!-- 5 Counters Summary Metric Bar -->
+<section class="grid grid-cols-5 gap-3 mb-3">
+<div class="p-3 rounded-lg bg-surface-container flex items-center justify-between">
+<div>
+<div class="font-label-md text-label-md uppercase text-outline">Tổng số máy</div>
+<div class="font-headline-lg text-headline-lg text-on-surface">20</div>
+</div>
+<span class="material-symbols-outlined text-outline text-headline-lg">desktop_windows</span>
+</div>
+<div class="p-3 rounded-lg bg-surface-container flex items-center justify-between">
+<div>
+<div class="font-label-md text-label-md uppercase text-tertiary">Máy trống</div>
+<div class="font-headline-lg text-headline-lg text-tertiary">12</div>
+</div>
+<span class="material-symbols-outlined text-tertiary text-headline-lg">check_circle</span>
+</div>
+<div class="p-3 rounded-lg bg-surface-container flex items-center justify-between">
+<div>
+<div class="font-label-md text-label-md uppercase text-primary">Đang sử dụng</div>
+<div class="font-headline-lg text-headline-lg text-primary">6</div>
+</div>
+<span class="material-symbols-outlined text-primary text-headline-lg">sports_esports</span>
+</div>
+<div class="p-3 rounded-lg bg-surface-container flex items-center justify-between">
+<div>
+<div class="font-label-md text-label-md uppercase text-error">Bảo trì</div>
+<div class="font-headline-lg text-headline-lg text-error">2</div>
+</div>
+<span class="material-symbols-outlined text-error text-headline-lg">build_circle</span>
+</div>
+<div class="p-3 rounded-lg bg-surface-container flex items-center justify-between">
+<div>
+<div class="font-label-md text-label-md uppercase text-secondary">Khách hoạt động</div>
+<div class="font-headline-lg text-headline-lg text-secondary">6</div>
+</div>
+<span class="material-symbols-outlined text-secondary text-headline-lg">group</span>
+</div>
+</section>
+<!-- PC Grid Cards (Background Scene) -->
+<section class="grid grid-cols-4 gap-3 flex-1 overflow-hidden opacity-40">
+<!-- PC-01 (Target for Modal) -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-01</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-label-md text-label-md">Trống</span>
+</div>
+<div class="text-body-sm font-body-sm text-outline">Khu VIP • RTX 4070</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Đơn giá</span>
+<span class="text-label-md font-label-md text-primary font-bold">12.000 đ/h</span>
+</div>
+</div>
+<!-- PC-02 -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-02</span>
+<span class="px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-md text-label-md">Đang dùng</span>
+</div>
+<div class="text-body-sm font-body-sm text-on-surface">Nguyễn Văn An</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Thời gian</span>
+<span class="text-label-md font-label-md text-secondary font-bold">01:45:10</span>
+</div>
+</div>
+<!-- PC-03 -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-03</span>
+<span class="px-2 py-0.5 rounded-full bg-error/20 text-error font-label-md text-label-md">Bảo trì</span>
+</div>
+<div class="text-body-sm font-body-sm text-outline">Thay quạt tản nhiệt</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Trạng thái</span>
+<span class="text-label-md font-label-md text-error">Tạm khóa</span>
+</div>
+</div>
+<!-- PC-04 -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-04</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-label-md text-label-md">Trống</span>
+</div>
+<div class="text-body-sm font-body-sm text-outline">Khu Tiêu Chuẩn</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Đơn giá</span>
+<span class="text-label-md font-label-md text-primary font-bold">10.000 đ/h</span>
+</div>
+</div>
+<!-- PC-05 -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-05</span>
+<span class="px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-md text-label-md">Đang dùng</span>
+</div>
+<div class="text-body-sm font-body-sm text-on-surface">Trần Minh Huy</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Thời gian</span>
+<span class="text-label-md font-label-md text-secondary font-bold">00:32:15</span>
+</div>
+</div>
+<!-- PC-06 -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-06</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-label-md text-label-md">Trống</span>
+</div>
+<div class="text-body-sm font-body-sm text-outline">Khu Tiêu Chuẩn</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Đơn giá</span>
+<span class="text-label-md font-label-md text-primary font-bold">10.000 đ/h</span>
+</div>
+</div>
+<!-- PC-07 -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-07</span>
+<span class="px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-md text-label-md">Đang dùng</span>
+</div>
+<div class="text-body-sm font-body-sm text-on-surface">Lê Hoàng Nam</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Thời gian</span>
+<span class="text-label-md font-label-md text-secondary font-bold">02:10:44</span>
+</div>
+</div>
+<!-- PC-08 -->
+<div class="p-3 rounded-lg bg-surface-container flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-headline-md text-headline-md text-on-surface">PC-08</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-label-md text-label-md">Trống</span>
+</div>
+<div class="text-body-sm font-body-sm text-outline">Khu VIP • RTX 4070</div>
+<div class="flex items-center justify-between mt-2 pt-2 bg-surface-container-high/40 rounded px-2">
+<span class="text-label-md font-label-md text-outline">Đơn giá</span>
+<span class="text-label-md font-label-md text-primary font-bold">12.000 đ/h</span>
+</div>
+</div>
+</section>
+</div>
+<!-- DIMMED BACKDROP OVERLAY -->
+<div class="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-30 flex items-center justify-center"><div class="w-[580px] max-w-[580px] bg-[#111726] border border-slate-700/60 rounded-2xl shadow-2xl p-5 flex flex-col gap-3.5 z-40"><div class="flex items-start justify-between pb-1 border-b border-slate-800/60"><div><h2 class="font-title-sm text-title-sm text-on-surface font-bold">Mở phiên sử dụng</h2><p class="font-body-sm text-body-sm text-slate-400 mt-0.5">Kiểm tra khách hàng và xác nhận mở phiên</p></div><button class="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800 flex items-center justify-center" id="closeModalBtn"><span class="material-symbols-outlined text-body-lg">close</span></button></div><div class="bg-[#0d121f] border border-slate-800/80 rounded-xl p-3"><div class="font-label-md text-label-md text-slate-400 uppercase tracking-wider mb-2 font-semibold">Thông tin máy</div><div class="grid grid-cols-4 gap-2 items-center"><div><span class="font-label-md text-label-md text-slate-400 block">Mã máy</span><span class="font-headline-md text-headline-md text-white font-bold">PC-01</span></div><div><span class="font-label-md text-label-md text-slate-400 block">Tên máy</span><span class="font-body-md text-body-md text-slate-200 font-medium">Máy VIP 01</span></div><div><span class="font-label-md text-label-md text-slate-400 block">Trạng thái</span><span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 font-label-md text-label-md font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Trống</span></div><div><span class="font-label-md text-label-md text-slate-400 block">Giá hiện tại</span><span class="font-title-sm text-title-sm text-[#00c6ff] font-bold">12.000 VND/giờ</span></div></div></div><div class="flex flex-col gap-2"><div class="flex items-center justify-between"><label class="font-label-lg text-label-lg text-white font-medium">Khách hàng</label><span class="text-emerald-400 font-label-md text-label-md flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Đã định danh</span></div><div class="relative flex items-center"><span class="material-symbols-outlined absolute left-3 text-slate-400 text-body-md">search</span><input class="w-full bg-[#090e19] border border-slate-700/60 text-white pl-9 pr-9 py-2 rounded-lg font-body-md text-body-md focus:outline-none" placeholder="Tìm theo mã, tên, SĐT hoặc tên đăng nhập" readonly="" type="text" value="0987654321 - Trần Minh Quân"/><span class="material-symbols-outlined absolute right-3 text-emerald-400 text-body-md">check_circle</span></div><div class="bg-[#0d121f] border border-slate-700/60 rounded-xl p-3.5 flex flex-col gap-2.5"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="px-2 py-0.5 rounded bg-[#00c6ff]/15 border border-[#00c6ff]/30 text-[#00c6ff] font-code-inline text-code-inline font-medium">CUS-0002</span><span class="font-title-sm text-title-sm text-white font-bold">Trần Minh Quân</span><span class="font-body-sm text-body-sm text-slate-400">• 0987654321</span></div><span class="font-code-inline text-code-inline text-slate-300 font-medium px-2 py-0.5 rounded bg-slate-800/80">TK: quan.tm</span></div><div class="flex items-center gap-2.5 pt-1 border-t border-slate-800/60"><div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 text-xs font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Trạng thái KH: Hoạt động</span></div><div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 text-xs font-medium"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Trạng thái TK: Hoạt động</span></div></div></div></div><div class="bg-[#0d121f] border border-slate-800/80 rounded-xl p-3"><div class="grid grid-cols-3 gap-2"><div><span class="font-label-md text-label-md text-slate-400 block">Số dư hiện tại</span><span class="font-title-sm text-title-sm text-error font-bold">5.000 VND</span></div><div><span class="font-label-md text-label-md text-slate-400 block">Số dư tối thiểu</span><span class="font-title-sm text-title-sm text-slate-200 font-medium">10.000 VND</span></div><div><span class="font-label-md text-label-md text-slate-400 block">Thời gian ước tính</span><span class="font-title-sm text-title-sm text-slate-400 font-medium">Không khả dụng</span></div></div><div class="mt-2.5 px-3 py-2 rounded-lg bg-error-container/20 border border-error/30 flex items-start gap-2.5 text-error font-label-lg text-label-lg"><span class="material-symbols-outlined text-body-md flex-shrink-0 mt-0.5">warning</span><div class="flex flex-col"><span class="font-semibold text-body-sm leading-tight text-white">Số dư chưa đạt mức tối thiểu để mở phiên</span><span class="text-xs text-error font-normal mt-0.5">Vui lòng nạp thêm ít nhất 5.000 VND</span></div></div></div><div class="flex items-start gap-2 text-slate-400"><span class="material-symbols-outlined text-body-sm text-slate-500 mt-0.5">info</span><p class="font-body-sm text-body-sm leading-tight text-slate-400">Đơn giá 12.000 VND/giờ sẽ được ghi nhận vào phiên. Phiên chưa trừ tiền cho đến khi kết thúc hoặc tính cước theo thời gian thực.</p></div><div class="border-t border-slate-800/80 pt-3.5 flex items-center justify-between"><div class="text-xs text-slate-400 font-medium">Nhấn <kbd class="px-1.5 py-0.5 rounded bg-slate-800 font-code-inline text-code-inline text-slate-300">Esc</kbd> để hủy</div><div class="flex items-center gap-2.5"><button class="border border-slate-600 hover:bg-slate-800 text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors" id="cancelModalBtn">Hủy</button><button class="bg-[#00c6ff] hover:bg-primary text-[#090e19] font-semibold px-4 py-2 rounded-lg text-sm flex items-center gap-1.5 shadow-lg transition-all" id="topupBtn"><span class="material-symbols-outlined text-body-md font-bold">add_circle</span><span>Nạp tiền</span></button><button class="bg-slate-800 text-slate-500 border border-slate-700/60 font-semibold px-5 py-2 rounded-lg text-sm flex items-center gap-2 opacity-40 select-none cursor-not-allowed" disabled="" id="confirmSessionBtn"><span class="material-symbols-outlined text-body-md">play_arrow</span><span>Xác nhận mở phiên</span></button></div></div></div></div>
+</div>
+<script>
+  (function initModalKeyEvents() {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        const btn = document.getElementById('cancelModalBtn');
+        if (btn) btn.click();
+      } else if (e.key === 'Enter') {
+        const btn = document.getElementById('confirmSessionBtn');
+        if (btn) btn.click();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    const confirmBtn = document.getElementById('confirmSessionBtn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        confirmBtn.innerHTML = '<span class="material-symbols-outlined text-body-md animate-spin">refresh</span> Đang mở máy...';
+        setTimeout(() => {
+          confirmBtn.innerHTML = '<span class="material-symbols-outlined text-body-md">check</span> Đã kích hoạt PC-01';
+        }, 600);
+      });
+    }
+  })();
+</script></main>
+</body></html>

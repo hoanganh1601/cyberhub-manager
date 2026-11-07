@@ -391,3 +391,7 @@ class MachineManagementView(ctk.CTkFrame):
     def shutdown(self) -> None:
         """App Shell gọi trước khi hủy view: bỏ qua kết quả tải về sau đó."""
         self._closed = True
+
+
+machine_management_view_factory = MachineManagementView
+
