@@ -9,13 +9,28 @@ from typing import Any
 
 import customtkinter as ctk
 
-from .config import load_settings
-from .domain.dtos import EmployeeSession
-from .services.contracts import ServiceBundle
-from .services.mocks.factory import build_mock_services
-from .ui.app_shell import DEFAULT_VIEW_FACTORIES, AppShell
-from .ui.login_view import LoginView
-from .ui.theme import STITCH_BG_CANVAS, load_stitch_fonts, setup_theme
+if __package__ is None or __package__ == "":
+    import os
+    _src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _src_dir not in sys.path:
+        sys.path.insert(0, _src_dir)
+    from cyberhub_manager.config import load_settings
+    from cyberhub_manager.domain.dtos import EmployeeSession
+    from cyberhub_manager.services.contracts import ServiceBundle
+    from cyberhub_manager.services.mocks.factory import build_mock_services
+    from cyberhub_manager.ui.app_shell import AppShell
+    from cyberhub_manager.ui.login_view import LoginView
+    from cyberhub_manager.ui.theme import STITCH_BG_CANVAS, load_stitch_fonts, setup_theme
+    from cyberhub_manager.ui.views import default_view_factories
+else:
+    from .config import load_settings
+    from .domain.dtos import EmployeeSession
+    from .services.contracts import ServiceBundle
+    from .services.mocks.factory import build_mock_services
+    from .ui.app_shell import AppShell
+    from .ui.login_view import LoginView
+    from .ui.theme import STITCH_BG_CANVAS, load_stitch_fonts, setup_theme
+    from .ui.views import default_view_factories
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +173,7 @@ class CyberHubApp(ctk.CTk):
             services=self._services,
             session=self._session,
             on_logout=self._show_login,
-            view_factories=DEFAULT_VIEW_FACTORIES,
+            view_factories=default_view_factories(),
             language=self._language,
         )
         shell.pack(fill="both", expand=True)
