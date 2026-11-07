@@ -6,7 +6,6 @@ import threading
 import time
 from unittest.mock import patch
 
-import customtkinter as ctk
 import pytest
 
 from cyberhub_manager.domain.dtos import MachineArchiveResult
@@ -118,14 +117,6 @@ def test_archive_message() -> None:
 # ----------------------------------------------------------------------
 # 2. Dashboard
 # ----------------------------------------------------------------------
-@pytest.fixture(scope="module")
-def tk_root():
-    root = ctk.CTk()
-    root.geometry("1280x720")
-    yield root
-    root.destroy()
-
-
 def _dashboard(tk_root, username: str = "quanly01", scenario=MockScenario.SUCCESS, **kwargs):
     services, session = _login(username, scenario)
     view = DashboardView(tk_root, _context(services, session), runner=RUNNER, **kwargs)
