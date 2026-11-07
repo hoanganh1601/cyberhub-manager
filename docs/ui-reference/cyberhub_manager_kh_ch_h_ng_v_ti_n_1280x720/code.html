@@ -1,0 +1,326 @@
+<!DOCTYPE html><html class="h-full" lang="vi"><head>
+<meta charset="utf-8">
+<meta content="width=1280, height=720, initial-scale=1.0" name="viewport">
+<title>Tổng quan phòng máy - CyberHub Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+          },
+          colors: {
+            brand: {
+              cyan: '#00c6ff',
+              blue: '#0072ff',
+              navy: '#0b101b',
+              dark: '#0e131e',
+              surface: '#151b2a',
+              card: '#1b2234',
+              border: '#273147'
+            }
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    html, body {
+      width: 1280px;
+      height: 720px;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0b101b;
+      color: #e2e8f0;
+      font-family: 'Space Grotesk', 'Inter', sans-serif;
+      user-select: none;
+    }
+  </style>
+<meta content="web_dashboard" name="shell-type"></head>
+<body class="w-[1280px] h-[720px] max-w-[1280px] max-h-[720px] flex overflow-hidden bg-[#0b101b] text-slate-200 antialiased">
+<!-- LEFT SIDEBAR (Fixed 220px, Edge-to-Edge) -->
+<aside class="w-[220px] h-[720px] flex-shrink-0 bg-[#0e131e] border-r border-[#222a3d] flex flex-col justify-between z-20">
+<div>
+<!-- Brand Logo Header -->
+<div class="h-[60px] px-4 flex items-center gap-3 border-b border-[#222a3d]">
+<img alt="CyberHub Logo" class="h-9 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkyg1riKNyTQdJWDCy6tdBcehmixnt_zUzekIWQHlSeMNLWC_IXZRi7gFrOxUEN38VtYGdJ0tQPZgiOmoNCsbNvFjFGc88VWjBP7wqSlQN08fr_xu2qxPwD6TE3113zVe7gUdnWJ3LByECSAoOkYU67jtJ5MGGpsFYNr31u3b3YsTMgLBB4Dg-fr_Sz3RTgm7tnKaBLjri8FaH0oX-7iAaYpvwM8MbjYY8e1VIbxAA1omHNKVulr5elg">
+<div class="leading-tight">
+<div class="font-bold text-sm tracking-wide text-white flex items-center gap-1.5">
+            CyberHub
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#00c6ff]"></span>
+</div>
+<div class="text-[10px] text-slate-400 font-mono tracking-wider uppercase">Manager v2.4</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="p-3 space-y-1"><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Tổng quan</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#00c6ff]/15 border border-[#00c6ff]/40 text-[#00c6ff] font-semibold text-xs transition-all shadow-sm" href="#"><svg class="w-4 h-4 text-[#00c6ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Khách hàng</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Quản lý máy</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Hóa đơn</span></a><a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors" href="#"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">Doanh thu</span></a></nav>
+</div>
+<!-- Sidebar Bottom Status Widget -->
+<div class="p-3 border-t border-[#222a3d] bg-[#0a0e17]"><div class="flex items-center gap-2 text-[11px] font-mono text-emerald-400 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span class="">Hệ thống sẵn sàng</span></div></div>
+</aside>
+<!-- MAIN OPERATIONAL VIEWPORT (Edge-to-Edge, Exactly fills remainder: 1060px x 720px) -->
+<main class="w-[1060px] h-[720px] flex flex-col bg-[#0b101b] overflow-hidden"><div class="flex flex-col w-full h-[720px] max-h-[720px] overflow-hidden text-on-surface">
+<!-- TOP BAR: Edge-to-edge system telemetry & operational context (52px) -->
+<header class="h-[52px] w-full px-5 bg-surface border-b border-[#222a3d] flex items-center justify-between flex-shrink-0 select-none">
+<!-- Left Context Badges -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2 px-2.5 py-1 rounded bg-surface-container-low border border-[#273147] text-label-md font-label-md">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+<span class="text-on-surface-variant font-medium">CyberHub Hà Nội</span>
+</div>
+<div class="flex items-center gap-2 px-2.5 py-1 rounded bg-surface-container-low border border-[#273147] text-label-md font-label-md text-on-surface-variant"><span class="material-symbols-outlined text-[13px] text-primary">schedule</span><span class="">Thứ Hai, 24/02/2026 • 14:35</span></div>
+</div>
+<!-- Center Search Command -->
+<div class="w-[300px] relative">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[16px] pointer-events-none">search</span>
+<input class="w-full h-8 pl-8 pr-3 text-body-sm font-body-sm bg-surface-container-lowest border border-[#273147] rounded text-on-surface placeholder:text-outline focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all" placeholder="Tìm nhanh khách hàng hoặc máy" type="text">
+<span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-label-md text-outline bg-surface-container px-1 py-0.5 rounded border border-[#273147]">⌘K</span>
+</div>
+<!-- Right Controls & Admin Identity -->
+<div class="flex items-center gap-4">
+<!-- Language Pill Toggle -->
+<div class="flex items-center bg-surface-container-lowest border border-[#273147] rounded p-0.5 text-label-md font-label-md">
+<button class="px-2 py-0.5 rounded bg-primary-container text-on-primary font-bold transition-all shadow-sm">VI</button>
+<button class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors">EN</button>
+</div>
+<!-- Manager Identity Module -->
+<div class="flex items-center gap-2.5 pl-3 border-l border-[#273147]">
+<div class="w-7 h-7 rounded bg-gradient-to-tr from-brand-blue to-primary-container flex items-center justify-center font-label-md font-bold text-on-primary text-[11px] shadow-sm">
+          TK
+        </div>
+<div class="flex flex-col text-left">
+<span class="text-body-sm font-body-sm font-semibold text-on-surface leading-tight">Nguyễn Tuấn Kiệt</span>
+<span class="text-[10px] font-label-md text-primary uppercase tracking-wider font-semibold">QUẢN LÝ</span>
+</div>
+</div>
+<!-- Exit Button -->
+<button class="p-1.5 rounded hover:bg-surface-container text-outline hover:text-error transition-colors flex items-center justify-center" title="Đăng xuất">
+<span class="material-symbols-outlined text-[18px]">logout</span>
+</button>
+</div>
+</header>
+<!-- WORKSPACE BODY: Header strip + Split Master/Detail grid (fills 668px) -->
+<div class="flex-1 flex flex-col p-4 gap-3 overflow-hidden bg-background">
+<!-- PAGE ACTION HEADER (38px compact row) -->
+<section class="flex flex-col gap-2.5 flex-shrink-0"><div class="flex items-center justify-between"><div class="flex items-baseline gap-3"><h1 class="text-headline-md font-headline-md text-on-surface tracking-tight font-bold">Khách hàng</h1><span class="text-body-sm font-body-sm text-outline">Quản lý hồ sơ, tài khoản và số dư khách hàng</span></div><button class="h-8 px-4 rounded bg-gradient-to-r from-brand-blue to-primary-container hover:shadow-[0_0_12px_rgba(0,198,255,0.4)] text-[#0b101b] font-label-md font-bold text-label-md flex items-center gap-1.5 transition-all flex-shrink-0"><span class="material-symbols-outlined text-[16px] font-bold">person_add</span><span class="">+ Tạo khách hàng</span></button></div><div class="flex items-center justify-between gap-4"><div class="relative w-[320px]"><span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-outline text-[15px]">person_search</span><input class="w-full h-8 pl-8 pr-3 text-body-sm font-body-sm bg-surface-container border border-[#273147] rounded text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-all" placeholder="Tìm theo mã, tên, SĐT..." type="text"></div><div class="flex items-center bg-surface-container border border-[#273147] rounded p-0.5 text-label-md font-label-md"><button class="px-3 py-1 rounded bg-[#00c6ff]/15 text-[#00c6ff] font-semibold border border-[#00c6ff]/30">Tất cả</button><button class="px-3 py-1 text-on-surface-variant hover:text-on-surface transition-colors">Hoạt động</button><button class="px-3 py-1 text-on-surface-variant hover:text-on-surface transition-colors">Ngừng hoạt động</button></div></div></section>
+<!-- CONTENT WORKSPACE: Master (65%) & Detail Rail (35%) -->
+<div class="flex-1 grid grid-cols-12 gap-3 min-h-0 overflow-hidden">
+<!-- LEFT PANEL: 65% (Cols 8 of 12) - CUSTOMER DATA TABLE -->
+<section class="col-span-8 flex flex-col bg-surface border border-[#222a3d] rounded-lg overflow-hidden shadow-md">
+<!-- Table Column Headers -->
+<div class="h-9 px-3.5 bg-surface-container-low border-b border-[#222a3d] grid grid-cols-12 items-center text-label-md font-label-md text-outline uppercase tracking-wider flex-shrink-0">
+<div class="col-span-2">Mã KH</div>
+<div class="col-span-3">Họ và tên</div>
+<div class="col-span-2">Số điện thoại</div>
+<div class="col-span-2">Tên đăng nhập</div>
+<div class="col-span-2 text-right pr-2">Số dư</div>
+<div class="col-span-1 text-center">Trạng thái</div>
+</div>
+<!-- Scrollable Table Content (7 Fixed Rows) -->
+<div class="flex-1 flex flex-col divide-y divide-[#1e2638] overflow-hidden text-body-sm font-body-sm">
+<!-- ROW 1 (SELECTED ROW with Cyan border and active highlight) -->
+<div class="h-[64px] px-3.5 grid grid-cols-12 items-center bg-[#00c6ff]/10 border-l-4 border-l-[#00c6ff] cursor-pointer transition-colors">
+<div class="col-span-2 flex items-center gap-1.5">
+<span class="font-label-md text-label-md text-[#00c6ff] font-bold">CUS-0001</span>
+</div>
+<div class="col-span-3 flex flex-col justify-center">
+<span class="font-semibold text-white">Nguyễn Văn An</span>
+<span class="text-[11px] text-outline font-label-md">Đăng ký: 12/01/2026</span>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-slate-300">0912345678</div>
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">an.nv</div>
+<div class="col-span-2 text-right pr-2 font-label-md text-label-lg font-bold text-tertiary">50.000 VND</div>
+<div class="col-span-1 flex justify-center">
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-tertiary/10 border border-tertiary/30 text-tertiary text-[10px] font-label-md font-semibold">
+<span class="w-1 h-1 rounded-full bg-tertiary animate-pulse"></span>
+                Hoạt động
+              </span>
+</div>
+</div>
+<!-- ROW 2 (Negative Balance Warning) -->
+<div class="h-[64px] px-3.5 grid grid-cols-12 items-center hover:bg-surface-container-high/60 cursor-pointer transition-colors border-l-4 border-l-transparent">
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">CUS-0002</div>
+<div class="col-span-3 flex flex-col justify-center">
+<span class="font-medium text-on-surface">Trần Minh Quân</span>
+<span class="text-[11px] text-outline font-label-md">Đăng ký: 15/01/2026</span>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-slate-400">0987654321</div>
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">quan.tm</div>
+<div class="col-span-2 text-right pr-2 font-label-md text-label-lg font-bold text-error">-10.000 VND</div>
+<div class="col-span-1 flex justify-center">
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-tertiary/10 border border-tertiary/30 text-tertiary text-[10px] font-label-md font-semibold">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+                Hoạt động
+              </span>
+</div>
+</div>
+<!-- ROW 3 -->
+<div class="h-[64px] px-3.5 grid grid-cols-12 items-center hover:bg-surface-container-high/60 cursor-pointer transition-colors border-l-4 border-l-transparent">
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">CUS-0003</div>
+<div class="col-span-3 flex flex-col justify-center">
+<span class="font-medium text-on-surface">Lê Hoàng Phúc</span>
+<span class="text-[11px] text-outline font-label-md">Đăng ký: 22/01/2026</span>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-slate-400">0903112233</div>
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">phuc.lh</div>
+<div class="col-span-2 text-right pr-2 font-label-md text-label-lg font-semibold text-on-surface">120.000 VND</div>
+<div class="col-span-1 flex justify-center">
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-tertiary/10 border border-tertiary/30 text-tertiary text-[10px] font-label-md font-semibold">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+                Hoạt động
+              </span>
+</div>
+</div>
+<!-- ROW 4 (Inactive Status) -->
+<div class="h-[64px] px-3.5 grid grid-cols-12 items-center hover:bg-surface-container-high/60 cursor-pointer transition-colors border-l-4 border-l-transparent bg-surface-container-lowest/30">
+<div class="col-span-2 font-label-md text-label-md text-outline">CUS-0004</div>
+<div class="col-span-3 flex flex-col justify-center">
+<span class="font-medium text-outline">Phạm Đức Thắng</span>
+<span class="text-[11px] text-outline/60 font-label-md">Đăng ký: 03/02/2026</span>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-outline">0938445566</div>
+<div class="col-span-2 font-label-md text-label-md text-outline">thang.pd</div>
+<div class="col-span-2 text-right pr-2 font-label-md text-label-lg text-outline">0 VND</div>
+<div class="col-span-1 flex justify-center"><span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container-high border border-[#273147] text-outline text-[10px] font-label-md font-medium">Ngừng hoạt động</span></div>
+</div>
+<!-- ROW 5 (Locked Account) -->
+<div class="h-[64px] px-3.5 grid grid-cols-12 items-center hover:bg-surface-container-high/60 cursor-pointer transition-colors border-l-4 border-l-transparent">
+<div class="col-span-2 font-label-md text-label-md text-error/80">CUS-0005</div>
+<div class="col-span-3 flex flex-col justify-center">
+<span class="font-medium text-on-surface">Hoàng Gia Bảo</span>
+<span class="text-[11px] text-outline font-label-md">Đăng ký: 10/02/2026</span>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-slate-400">0971223344</div>
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">bao.hg</div>
+<div class="col-span-2 text-right pr-2 font-label-md text-label-lg font-semibold text-on-surface">15.000 VND</div>
+<div class="col-span-1 flex justify-center"><span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container-high border border-[#273147] text-outline text-[10px] font-label-md font-medium">Ngừng hoạt động</span></div>
+</div>
+<!-- ROW 6 -->
+<div class="h-[64px] px-3.5 grid grid-cols-12 items-center hover:bg-surface-container-high/60 cursor-pointer transition-colors border-l-4 border-l-transparent">
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">CUS-0006</div>
+<div class="col-span-3 flex flex-col justify-center">
+<span class="font-medium text-on-surface">Đỗ Phương Linh</span>
+<span class="text-[11px] text-outline font-label-md">Đăng ký: 18/02/2026</span>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-slate-400">0945667788</div>
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">linh.dp</div>
+<div class="col-span-2 text-right pr-2 font-label-md text-label-lg font-semibold text-on-surface">85.000 VND</div>
+<div class="col-span-1 flex justify-center">
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-tertiary/10 border border-tertiary/30 text-tertiary text-[10px] font-label-md font-semibold">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+                Hoạt động
+              </span>
+</div>
+</div>
+<!-- ROW 7 -->
+<div class="h-[64px] px-3.5 grid grid-cols-12 items-center hover:bg-surface-container-high/60 cursor-pointer transition-colors border-l-4 border-l-transparent">
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">CUS-0007</div>
+<div class="col-span-3 flex flex-col justify-center">
+<span class="font-medium text-on-surface">Vũ Tiến Đạt</span>
+<span class="text-[11px] text-outline font-label-md">Đăng ký: 24/02/2026</span>
+</div>
+<div class="col-span-2 font-label-md text-label-md text-slate-400">0922334455</div>
+<div class="col-span-2 font-label-md text-label-md text-on-surface-variant">dat.vt</div>
+<div class="col-span-2 text-right pr-2 font-label-md text-label-lg font-semibold text-on-surface">30.000 VND</div>
+<div class="col-span-1 flex justify-center">
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-tertiary/10 border border-tertiary/30 text-tertiary text-[10px] font-label-md font-semibold">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+                Hoạt động
+              </span>
+</div>
+</div>
+</div>
+<!-- Table Footer: Pagination Bar -->
+<div class="h-10 px-3.5 bg-surface-container-lowest border-t border-[#222a3d] flex items-center justify-between flex-shrink-0 text-label-md font-label-md">
+<span class="text-outline">Hiển thị <strong class="text-on-surface">1-7</strong> trên tổng số <strong class="text-on-surface">142</strong> khách hàng</span>
+<div class="flex items-center gap-1">
+<button class="w-6 h-6 flex items-center justify-center rounded bg-surface-container border border-[#273147] text-outline hover:text-on-surface disabled:opacity-40">
+<span class="material-symbols-outlined text-[13px]">chevron_left</span>
+</button>
+<button class="w-6 h-6 flex items-center justify-center rounded bg-primary-container text-on-primary font-bold">1</button>
+<button class="w-6 h-6 flex items-center justify-center rounded bg-surface-container border border-[#273147] text-on-surface-variant hover:bg-surface-bright">2</button>
+<button class="w-6 h-6 flex items-center justify-center rounded bg-surface-container border border-[#273147] text-on-surface-variant hover:bg-surface-bright">3</button>
+<span class="px-1 text-outline">...</span>
+<button class="w-6 h-6 flex items-center justify-center rounded bg-surface-container border border-[#273147] text-on-surface-variant hover:bg-surface-bright">21</button>
+<button class="w-6 h-6 flex items-center justify-center rounded bg-surface-container border border-[#273147] text-outline hover:text-on-surface">
+<span class="material-symbols-outlined text-[13px]">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- RIGHT PANEL: 35% (Cols 4 of 12) - CUSTOMER PROFILE & WALLET LEDGER -->
+<section class="col-span-4 flex flex-col justify-between bg-surface border border-[#222a3d] rounded-lg p-3 overflow-hidden shadow-md">
+<!-- TOP: Profile Header & Details -->
+<div class="flex flex-col gap-2.5">
+<!-- Customer Identity Card -->
+<div class="flex items-start justify-between"><div class="flex items-center gap-2.5"><div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-blue/30 to-primary-container/20 border border-primary-container/40 flex items-center justify-center font-headline-md font-bold text-primary-container shadow-inner">NA</div><div class="flex flex-col"><div class="flex items-center gap-1.5"><h3 class="font-headline-md text-[17px] leading-tight font-bold text-white">Nguyễn Văn An</h3></div><span class="text-label-md font-label-md text-primary font-bold">Mã hồ sơ: CUS-0001</span></div></div><div class="flex flex-col items-end gap-1"><div class="flex items-center gap-1"><span class="text-[9px] text-outline uppercase font-label-md">KH:</span><span class="px-1.5 py-0.2 rounded bg-tertiary/10 border border-tertiary/40 text-tertiary text-[10px] font-label-md font-semibold">Hoạt động</span></div><div class="flex items-center gap-1"><span class="text-[9px] text-outline uppercase font-label-md">TK:</span><span class="px-1.5 py-0.2 rounded bg-tertiary/10 border border-tertiary/40 text-tertiary text-[10px] font-label-md font-semibold">Hoạt động</span></div></div></div>
+<!-- Metadata Spec Grid -->
+<div class="grid grid-cols-3 gap-1.5 p-2 bg-surface-container-lowest/80 rounded border border-[#222a3d] text-label-md font-label-md">
+<div class="flex flex-col">
+<span class="text-[10px] text-outline uppercase">SĐT</span>
+<span class="text-on-surface font-semibold truncate">0912345678</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] text-outline uppercase">Tài khoản</span>
+<span class="text-on-surface font-semibold truncate">an.nv</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] text-outline uppercase">Ngày tạo</span>
+<span class="text-on-surface font-semibold truncate">12/01/2026</span>
+</div>
+</div>
+<!-- Balance Showcase Card (High Contrast Glowing HUD) -->
+<div class="relative overflow-hidden p-3 rounded bg-gradient-to-br from-[#0c182b] to-surface-container border border-primary-container/40 shadow-[0_0_15px_rgba(0,198,255,0.08)]">
+<div class="flex items-center justify-between mb-1">
+<span class="text-[10px] font-label-md uppercase tracking-wider text-primary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">account_balance_wallet</span>
+                SỐ DƯ HIỆN TẠI
+              </span>
+<span class="text-[10px] font-label-md text-tertiary bg-tertiary/10 px-1.5 py-0.2 rounded border border-tertiary/20">KHẢ DỤNG</span>
+</div>
+<div class="text-headline-xl font-headline-xl text-white tracking-tight leading-none font-bold">
+              50.000 <span class="text-title-sm font-label-md text-primary font-normal">VND</span>
+</div>
+</div>
+<!-- Primary Control Button Row -->
+<div class="grid grid-cols-12 gap-1.5">
+<button class="col-span-5 h-8 bg-gradient-to-r from-brand-blue to-primary-container hover:shadow-[0_0_12px_rgba(0,198,255,0.5)] text-[#0b101b] font-label-md font-bold text-label-md rounded flex items-center justify-center gap-1 transition-all">
+<span class="material-symbols-outlined text-[15px] font-bold">add_circle</span>
+<span class="">+ Nạp tiền</span>
+</button>
+<button class="col-span-4 h-8 bg-surface-container hover:bg-surface-bright border border-[#273147] text-on-surface font-label-md text-label-md rounded flex items-center justify-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[14px]">edit</span>
+<span class="">Chỉnh sửa</span>
+</button>
+<button class="col-span-3 h-8 bg-error-container/10 hover:bg-error-container/20 border border-error/40 text-error font-label-md text-[11px] rounded flex items-center justify-center gap-1 transition-colors" title="Chỉ dành cho Quản lý">
+<span class="material-symbols-outlined text-[14px]">lock</span>
+<span class="">Khóa</span>
+</button>
+</div>
+</div>
+<!-- BOTTOM: Real-time Transaction Ledger (3 strictly CASH/TRANSFER records) -->
+<div class="flex flex-col flex-1 justify-end pt-2 border-t border-[#222a3d]">
+<div class="flex items-center justify-between mb-2">
+<span class="text-label-md font-label-md text-white font-semibold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-primary">history</span>
+              Lịch sử giao dịch gần đây
+            </span>
+<span class="text-[10px] font-label-md text-outline bg-surface-container px-1 py-0.5 rounded">Hôm nay</span>
+</div>
+<!-- Transaction Stack -->
+<div class="space-y-1.5"><div class="p-2 rounded bg-surface-container-lowest border border-[#222a3d] flex items-center justify-between"><div class="flex flex-col"><div class="flex items-center gap-1.5"><span class="px-1 py-0.2 rounded bg-primary-container/15 text-primary text-[9px] font-label-md font-bold border border-primary-container/30">TOP_UP</span><span class="text-body-sm font-body-sm text-on-surface font-medium">14:15 - Hôm nay</span></div><span class="text-[10px] font-label-md text-outline mt-0.5">Tiền mặt • NV: Kiệt NT</span></div><div class="text-right"><span class="font-label-md text-label-md font-bold text-tertiary">+50.000 VND</span></div></div><div class="p-2 rounded bg-surface-container-lowest border border-[#222a3d] flex items-center justify-between"><div class="flex flex-col"><div class="flex items-center gap-1.5"><span class="px-1 py-0.2 rounded bg-surface-variant text-on-surface-variant text-[9px] font-label-md font-bold border border-[#3d484f]">PHIÊN CHƠI</span><span class="text-body-sm font-body-sm text-on-surface font-medium">12:30 - Hôm nay</span></div><span class="text-[10px] font-label-md text-outline mt-0.5">PC-02 • Tự động trừ</span></div><div class="text-right"><span class="font-label-md text-label-md font-bold text-error">-25.000 VND</span></div></div><div class="p-2 rounded bg-surface-container-lowest border border-[#222a3d] flex items-center justify-between"><div class="flex flex-col"><div class="flex items-center gap-1.5"><span class="px-1 py-0.2 rounded bg-primary-container/15 text-primary text-[9px] font-label-md font-bold border border-primary-container/30">TOP_UP</span><span class="text-body-sm font-body-sm text-on-surface font-medium">10:05 - Hôm nay</span></div><span class="text-[10px] font-label-md text-outline mt-0.5">Chuyển khoản • NV: Kiệt NT</span></div><div class="text-right"><span class="font-label-md text-label-md font-bold text-tertiary">+100.000 VND</span></div></div></div>
+</div>
+</section>
+</div>
+</div>
+</div></main>
+
+
+</body></html>

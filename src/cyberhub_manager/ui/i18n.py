@@ -35,8 +35,8 @@ _TRANSLATIONS: Final[dict[str, dict[Language, str]]] = {
         "en": "Revenue",
     },
     "header.search_placeholder": {
-        "vi": "Tìm kiếm máy, khách hàng…",
-        "en": "Search machines or customers…",
+        "vi": "Tìm kiếm máy...",
+        "en": "Search machines...",
     },
     "header.logout": {
         "vi": "Đăng xuất",

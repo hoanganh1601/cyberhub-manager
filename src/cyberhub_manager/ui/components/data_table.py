@@ -25,9 +25,23 @@ from ..theme import (
     FONT_BODY,
     FONT_BODY_STRONG,
     FONT_CAPTION,
+    FONT_ST_BODY,
+    FONT_ST_BODY_STRONG,
+    FONT_ST_MONO_SM,
+    FONT_ST_MONO_XS,
+    FONT_ST_MONO_XS_STRONG,
     RADIUS_INPUT,
     SPACING_MD,
     SPACING_SM,
+    STITCH_CARD_BG,
+    STITCH_CARD_BORDER,
+    STITCH_CYAN,
+    STITCH_NAV_ACTIVE_BG,
+    STITCH_NAV_ACTIVE_BORDER,
+    STITCH_SUNKEN_BG,
+    STITCH_TEXT,
+    STITCH_TEXT_MUTED,
+    STITCH_TEXT_STRONG,
     TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
@@ -51,6 +65,13 @@ class TableRow:
 
     key: int | str
     cells: dict[str, str] = field(default_factory=dict)
+    cell_colors: dict[str, str] = field(default_factory=dict)
+    cell_subtexts: dict[str, str] = field(default_factory=dict)
+    badges: dict[str, tuple[str, str, str]] = field(default_factory=dict)  # (text, text_color, bg_color)
+    action_buttons: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    ratio_bars: dict[str, tuple[float, str]] = field(default_factory=dict)  # (pct 0-100, label)
+    inline_tags: dict[str, tuple[str, str, str]] = field(default_factory=dict)  # (tag_text, tag_fg, tag_bg)
+    dimmed: bool = False
 
 
 class DataTable(ctk.CTkFrame):
@@ -79,6 +100,7 @@ class DataTable(ctk.CTkFrame):
         self._on_select: Callable[[int | str], None] | None = on_select
         self._selected_key: int | str | None = None
         self._row_frames: dict[int | str, ctk.CTkFrame] = {}
+        self._row_indicators: dict[int | str, ctk.CTkFrame] = {}
 
         # 1. Header frame cố định phía trên
         self._header_frame = ctk.CTkFrame(
@@ -201,23 +223,26 @@ class DataTable(ctk.CTkFrame):
         if not self._columns:
             return
 
+        self._header_frame.configure(fg_color=STITCH_SUNKEN_BG)
+
         for idx, col in enumerate(self._columns):
             anchor = "w" if col.align == "left" else ("e" if col.align == "right" else "center")
             lbl = ctk.CTkLabel(
                 self._header_frame,
                 text=col.label,
-                font=FONT_BODY_STRONG,
-                text_color=TEXT_PRIMARY,
+                font=FONT_ST_MONO_XS_STRONG,
+                text_color=STITCH_TEXT_MUTED,
                 anchor=anchor,
                 width=col.width,
             )
-            lbl.pack(side="left", padx=SPACING_SM, pady=SPACING_SM, fill="x", expand=False)
+            lbl.pack(side="left", padx=4, pady=6, fill="x", expand=False)
 
     def _clear_body(self) -> None:
         """Xóa sạch nội dung hiện tại trong body."""
         for child in self._body_frame.winfo_children():
             child.destroy()
         self._row_frames.clear()
+        self._row_indicators.clear()
 
     def _render_rows(self) -> None:
         """Hiển thị danh sách các dòng dữ liệu."""
@@ -225,18 +250,36 @@ class DataTable(ctk.CTkFrame):
 
         for idx, row in enumerate(self._rows):
             is_selected = (row.key == self._selected_key)
-            row_bg = BG_SURFACE_HOVER if is_selected else (
-                BG_ROW_ALT if idx % 2 == 1 else "transparent"
-            )
+            if row.dimmed:
+                row_bg = "#0B0F17" if not is_selected else STITCH_NAV_ACTIVE_BG
+            else:
+                row_bg = STITCH_NAV_ACTIVE_BG if is_selected else (
+                    "#121824" if idx % 2 == 1 else "transparent"
+                )
+            border_w = 1 if is_selected else 0
+            border_c = STITCH_NAV_ACTIVE_BORDER if is_selected else None
 
             row_frame = ctk.CTkFrame(
                 self._body_frame,
                 fg_color=row_bg,
                 corner_radius=4,
-                height=40,
+                border_width=border_w,
+                border_color=border_c,
+                height=48,
             )
             row_frame.pack(fill="x", pady=1)
+            row_frame.pack_propagate(False)
             self._row_frames[row.key] = row_frame
+
+            # Dải viền cyan rộng 4px ở cạnh trái của dòng được chọn theo chuẩn Stitch
+            indicator = ctk.CTkFrame(
+                row_frame,
+                width=4,
+                fg_color=STITCH_CYAN if is_selected else "transparent",
+                corner_radius=2,
+            )
+            indicator.pack(side="left", fill="y", padx=(1, 3))
+            self._row_indicators[row.key] = indicator
 
             # Gắn sự kiện click và hover
             self._bind_row_events(row_frame, row.key, row_bg)
@@ -244,20 +287,187 @@ class DataTable(ctk.CTkFrame):
             for col in self._columns:
                 cell_text = row.cells.get(col.key, "")
                 anchor = "w" if col.align == "left" else ("e" if col.align == "right" else "center")
+                text_col = row.cell_colors.get(col.key, STITCH_TEXT)
 
+                # 1. Trường hợp có Badge
+                if col.key in row.badges:
+                    badge_text, b_fg, b_bg = row.badges[col.key]
+                    badge_wrap = ctk.CTkFrame(row_frame, fg_color="transparent", width=col.width, height=48)
+                    badge_wrap.pack(side="left", padx=4, fill="y", expand=False)
+                    badge_wrap.pack_propagate(False)
+
+                    b_chip = ctk.CTkLabel(
+                        badge_wrap,
+                        text=badge_text,
+                        font=FONT_ST_MONO_XS_STRONG,
+                        text_color=b_fg,
+                        fg_color=b_bg,
+                        corner_radius=4,
+                        padx=6,
+                        pady=2,
+                    )
+                    b_chip.pack(expand=True)
+                    self._bind_row_events(badge_wrap, row.key, row_bg)
+                    self._bind_row_events(b_chip, row.key, row_bg)
+                    continue
+
+                # 2. Trường hợp có subtext (ví dụ Tên + Ngày đăng ký)
+                if col.key in row.cell_subtexts:
+                    sub_text = row.cell_subtexts[col.key]
+                    cell_wrap = ctk.CTkFrame(row_frame, fg_color="transparent", width=col.width, height=48)
+                    cell_wrap.pack(side="left", padx=4, fill="y", expand=False)
+                    cell_wrap.pack_propagate(False)
+
+                    inner_txt = ctk.CTkFrame(cell_wrap, fg_color="transparent")
+                    inner_txt.pack(expand=True, fill="x")
+
+                    main_lbl = ctk.CTkLabel(
+                        inner_txt,
+                        text=cell_text,
+                        font=FONT_ST_BODY_STRONG,
+                        text_color=text_col,
+                        anchor=anchor,
+                    )
+                    main_lbl.pack(anchor=anchor, fill="x")
+
+                    sub_lbl = ctk.CTkLabel(
+                        inner_txt,
+                        text=sub_text,
+                        font=FONT_ST_MONO_XS,
+                        text_color=STITCH_TEXT_MUTED,
+                        anchor=anchor,
+                    )
+                    sub_lbl.pack(anchor=anchor, fill="x")
+
+                    self._bind_row_events(cell_wrap, row.key, row_bg)
+                    self._bind_row_events(inner_txt, row.key, row_bg)
+                    self._bind_row_events(main_lbl, row.key, row_bg)
+                    self._bind_row_events(sub_lbl, row.key, row_bg)
+                    continue
+
+                # 3. Trường hợp có action buttons
+                if col.key in row.action_buttons:
+                    actions = row.action_buttons[col.key]
+                    btn_wrap = ctk.CTkFrame(row_frame, fg_color="transparent", width=col.width, height=48)
+                    btn_wrap.pack(side="left", padx=4, fill="y", expand=False)
+                    btn_wrap.pack_propagate(False)
+
+                    inner_btns = ctk.CTkFrame(btn_wrap, fg_color="transparent")
+                    pack_side = "right" if col.align == "right" else "left"
+                    inner_btns.pack(side=pack_side, expand=True)
+
+                    for b_def in actions:
+                        btn_txt = b_def.get("text", "")
+                        btn_cmd = b_def.get("command")
+                        btn_enabled = b_def.get("enabled", True)
+                        btn_fg = b_def.get("fg_color", "#1E273A")
+                        btn_hover = b_def.get("hover_color", "#27344E")
+                        btn_tc = b_def.get("text_color", STITCH_CYAN)
+                        btn_w = b_def.get("width", 26)
+                        btn_h = b_def.get("height", 26)
+                        btn_corner = b_def.get("corner_radius", 6)
+
+                        if not btn_enabled:
+                            btn_fg = "#141A26"
+                            btn_tc = "#475569"
+                            btn_hover = "#141A26"
+
+                        btn_wgt = ctk.CTkButton(
+                            inner_btns,
+                            text=btn_txt,
+                            width=btn_w,
+                            height=btn_h,
+                            corner_radius=btn_corner,
+                            fg_color=btn_fg,
+                            hover_color=btn_hover,
+                            text_color=btn_tc,
+                            font=FONT_ST_MONO_XS_STRONG,
+                            state="normal" if btn_enabled else "disabled",
+                            command=btn_cmd if btn_enabled else None,
+                        )
+                        btn_wgt.pack(side="left", padx=2)
+
+                    self._bind_row_events(btn_wrap, row.key, row_bg)
+                    self._bind_row_events(inner_btns, row.key, row_bg)
+                    continue
+
+                # 4. Trường hợp có Ratio Bar trực quan
+                if col.key in row.ratio_bars:
+                    pct, pct_label = row.ratio_bars[col.key]
+                    bar_wrap = ctk.CTkFrame(row_frame, fg_color="transparent", width=col.width, height=48)
+                    bar_wrap.pack(side="left", padx=4, fill="y", expand=False)
+                    bar_wrap.pack_propagate(False)
+
+                    inner = ctk.CTkFrame(bar_wrap, fg_color="transparent")
+                    pack_side = "right" if col.align == "right" else "left"
+                    inner.pack(side=pack_side, expand=True, padx=4)
+
+                    track = ctk.CTkFrame(inner, width=64, height=6, fg_color="#171F30", corner_radius=3)
+                    track.pack(side="left", padx=(0, 6))
+                    track.pack_propagate(False)
+
+                    fill_w = max(2, min(64, int(64 * (pct / 100.0)))) if pct > 0 else 0
+                    if fill_w > 0:
+                        fill_b = ctk.CTkFrame(track, width=fill_w, height=6, fg_color=STITCH_CYAN, corner_radius=3)
+                        fill_b.pack(side="left")
+                        self._bind_row_events(fill_b, row.key, row_bg)
+
+                    pct_lbl = ctk.CTkLabel(inner, text=pct_label, font=FONT_ST_MONO_SM, text_color=text_col)
+                    pct_lbl.pack(side="left")
+
+                    self._bind_row_events(bar_wrap, row.key, row_bg)
+                    self._bind_row_events(inner, row.key, row_bg)
+                    self._bind_row_events(track, row.key, row_bg)
+                    self._bind_row_events(pct_lbl, row.key, row_bg)
+                    continue
+
+                # 5. Trường hợp có Inline Tag (ví dụ Ngày + Badge HÔM NAY)
+                if col.key in row.inline_tags:
+                    tag_txt, tag_fg, tag_bg = row.inline_tags[col.key]
+                    tag_wrap = ctk.CTkFrame(row_frame, fg_color="transparent", width=col.width, height=48)
+                    tag_wrap.pack(side="left", padx=4, fill="y", expand=False)
+                    tag_wrap.pack_propagate(False)
+
+                    inner = ctk.CTkFrame(tag_wrap, fg_color="transparent")
+                    pack_side = "left" if col.align == "left" else "right"
+                    inner.pack(side=pack_side, expand=True)
+
+                    main_lbl = ctk.CTkLabel(inner, text=cell_text, font=FONT_ST_BODY_STRONG, text_color=text_col)
+                    main_lbl.pack(side="left", padx=(0, 6))
+
+                    chip = ctk.CTkLabel(
+                        inner,
+                        text=tag_txt,
+                        font=FONT_ST_MONO_XS_STRONG,
+                        text_color=tag_fg,
+                        fg_color=tag_bg,
+                        corner_radius=4,
+                        padx=4,
+                        pady=1,
+                    )
+                    chip.pack(side="left")
+
+                    self._bind_row_events(tag_wrap, row.key, row_bg)
+                    self._bind_row_events(inner, row.key, row_bg)
+                    self._bind_row_events(main_lbl, row.key, row_bg)
+                    self._bind_row_events(chip, row.key, row_bg)
+                    continue
+
+                # 6. Text đơn thông thường
+                cell_font = FONT_ST_BODY_STRONG if col.key in ("code", "balance") else FONT_ST_BODY
                 cell_lbl = ctk.CTkLabel(
                     row_frame,
                     text=cell_text,
-                    font=FONT_BODY,
-                    text_color=TEXT_PRIMARY,
+                    font=cell_font,
+                    text_color=text_col,
                     anchor=anchor,
                     width=col.width,
                 )
-                cell_lbl.pack(side="left", padx=SPACING_SM, pady=8, fill="x", expand=False)
+                cell_lbl.pack(side="left", padx=4, pady=4, fill="y", expand=False)
                 self._bind_row_events(cell_lbl, row.key, row_bg)
 
     def _bind_row_events(self, widget: Any, row_key: int | str, original_bg: str) -> None:
-        """Gắn sự kiện hover và click cho dòng và các label con."""
+        """Gắn sự kiện hover và click cho dòng và các widget con."""
         def on_click(_event: Any) -> None:
             self._select_row(row_key)
 
@@ -265,13 +475,16 @@ class DataTable(ctk.CTkFrame):
             if row_key != self._selected_key:
                 frame = self._row_frames.get(row_key)
                 if frame and frame.winfo_exists():
-                    frame.configure(fg_color=BG_SURFACE_HOVER)
+                    frame.configure(fg_color="#161D2D")
 
         def on_leave(_event: Any) -> None:
             if row_key != self._selected_key:
                 frame = self._row_frames.get(row_key)
                 if frame and frame.winfo_exists():
-                    frame.configure(fg_color=original_bg)
+                    # Tìm lại màu ban đầu theo index
+                    idx = next((i for i, r in enumerate(self._rows) if r.key == row_key), 0)
+                    bg = "#121824" if idx % 2 == 1 else "transparent"
+                    frame.configure(fg_color=bg)
 
         widget.bind("<Button-1>", on_click)
         widget.bind("<Enter>", on_enter)
@@ -286,16 +499,59 @@ class DataTable(ctk.CTkFrame):
         if old_key is not None and old_key in self._row_frames:
             old_frame = self._row_frames[old_key]
             if old_frame.winfo_exists():
-                # Tìm lại màu ban đầu theo index
                 old_idx = next((i for i, r in enumerate(self._rows) if r.key == old_key), 0)
-                old_bg = BG_ROW_ALT if old_idx % 2 == 1 else "transparent"
-                old_frame.configure(fg_color=old_bg)
+                old_bg = "#121824" if old_idx % 2 == 1 else "transparent"
+                old_frame.configure(fg_color=old_bg, border_width=0)
+            if old_key in self._row_indicators:
+                old_ind = self._row_indicators[old_key]
+                if old_ind.winfo_exists():
+                    old_ind.configure(fg_color="transparent")
 
         # Đổi màu dòng đang chọn
         if row_key in self._row_frames:
             new_frame = self._row_frames[row_key]
             if new_frame.winfo_exists():
-                new_frame.configure(fg_color=BG_SURFACE_HOVER)
+                new_frame.configure(
+                    fg_color=STITCH_NAV_ACTIVE_BG,
+                    border_width=1,
+                    border_color=STITCH_NAV_ACTIVE_BORDER,
+                )
+            if row_key in self._row_indicators:
+                new_ind = self._row_indicators[row_key]
+                if new_ind.winfo_exists():
+                    new_ind.configure(fg_color=STITCH_CYAN)
 
         if self._on_select:
+            self._on_select(row_key)
+
+    def select_row(self, row_key: int | str, *, trigger_callback: bool = False) -> None:
+        """Chọn và highlight một dòng theo key từ bên ngoài."""
+        old_key = self._selected_key
+        self._selected_key = row_key
+
+        if old_key is not None and old_key in self._row_frames:
+            old_frame = self._row_frames[old_key]
+            if old_frame.winfo_exists():
+                old_idx = next((i for i, r in enumerate(self._rows) if r.key == old_key), 0)
+                old_bg = "#121824" if old_idx % 2 == 1 else "transparent"
+                old_frame.configure(fg_color=old_bg, border_width=0)
+            if old_key in self._row_indicators:
+                old_ind = self._row_indicators[old_key]
+                if old_ind.winfo_exists():
+                    old_ind.configure(fg_color="transparent")
+
+        if row_key in self._row_frames:
+            new_frame = self._row_frames[row_key]
+            if new_frame.winfo_exists():
+                new_frame.configure(
+                    fg_color=STITCH_NAV_ACTIVE_BG,
+                    border_width=1,
+                    border_color=STITCH_NAV_ACTIVE_BORDER,
+                )
+            if row_key in self._row_indicators:
+                new_ind = self._row_indicators[row_key]
+                if new_ind.winfo_exists():
+                    new_ind.configure(fg_color=STITCH_CYAN)
+
+        if trigger_callback and self._on_select:
             self._on_select(row_key)

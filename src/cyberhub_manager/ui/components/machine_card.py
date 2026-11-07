@@ -1,11 +1,12 @@
-"""MachineCard component cho CyberHub Manager.
+"""MachineCard component cho CyberHub Manager theo phong cách Google Stitch.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 4, 7, 8 và docs/03_UI_THEME.md mục 3.5.
+Quy định: docs/07_DTO_UI_HANDOFF.md mục 4, 7, 8 và Stitch master_cyberhub_app_shell_1.
 - Hiển thị thông tin máy, phiên đang chạy và số dư dự kiến live.
-- Cảnh báo âm: sử dụng active_session.projected_balance (không dùng account_balance).
+- Khối thông tin chìm (sunken box) nền STITCH_SUNKEN_BG (#0E131E) bo viền STITCH_SUNKEN_BORDER (#1E273A).
+- Nút hành động phủ toàn chiều ngang (full-width) theo bảng màu Stitch (Emerald, Rose, Amber).
 - Phân quyền theo role của actor: STAFF chỉ xem máy bảo trì, MANAGER/ADMIN có nút 'Bật lại'.
-- API: render(machine, actor), set_busy(busy), set_on_open(cb), set_on_checkout(cb), set_on_maintenance(cb).
-- Callbacks nhận machine_id: int.
+- Bảo toàn toàn bộ các thuộc tính công khai và nội bộ cho unit test:
+  _balance_label, _action_btn, _maintenance_text_label, _name_label, _status_badge, etc.
 """
 
 from __future__ import annotations
@@ -18,28 +19,32 @@ from ...domain.dtos import EmployeeSession, MachineSummary
 from ...domain.enums import MachineStatus, Role
 from ..formatters import format_duration, format_money
 from ..theme import (
-    BG_ALERT_DANGER,
-    BG_SURFACE,
-    BORDER,
-    DANGER,
-    FONT_BODY,
-    FONT_BODY_STRONG,
-    FONT_CAPTION,
-    RADIUS_CARD,
-    SPACING_MD,
-    SPACING_SM,
-    SUCCESS,
-    TEXT_MUTED,
-    TEXT_PRIMARY,
-    TEXT_SECONDARY,
-    WARNING,
+    FONT_ST_BODY,
+    FONT_ST_BODY_STRONG,
+    FONT_ST_MONO_SM,
+    FONT_ST_MONO_XS,
+    FONT_ST_MONO_XS_STRONG,
+    STITCH_AMBER,
+    STITCH_CARD_BG,
+    STITCH_CARD_BORDER,
+    STITCH_DANGER,
+    STITCH_FONT_MONO,
+    STITCH_RADIUS_LG,
+    STITCH_SUCCESS,
+    STITCH_SUNKEN_BG,
+    STITCH_SUNKEN_BORDER,
+    STITCH_TEXT_MUTED,
+    STITCH_TEXT_STRONG,
 )
 from .action_button import ActionButton
 from .status_badge import StatusBadge
 
+_FONT_CODE = (STITCH_FONT_MONO, 14, "bold")
+_FONT_RATE = (STITCH_FONT_MONO, 13, "bold")
+
 
 class MachineCard(ctk.CTkFrame):
-    """Card hiển thị trạng thái và thông tin phiên của một máy tính."""
+    """Card hiển thị trạng thái và thông tin phiên của một máy tính theo Stitch."""
 
     def __init__(
         self,
@@ -51,15 +56,15 @@ class MachineCard(ctk.CTkFrame):
         on_checkout: Callable[[int], None] | None = None,
         on_maintenance: Callable[[int], None] | None = None,
         width: int = 240,
-        height: int = 190,
+        height: int = 188,
         **kwargs: Any,
     ) -> None:
         super().__init__(
             master=master,
-            fg_color=BG_SURFACE,
+            fg_color=STITCH_CARD_BG,
             border_width=1,
-            border_color=BORDER,
-            corner_radius=RADIUS_CARD,
+            border_color=STITCH_CARD_BORDER,
+            corner_radius=STITCH_RADIUS_LG,
             width=width,
             height=height,
             **kwargs,
@@ -72,75 +77,123 @@ class MachineCard(ctk.CTkFrame):
         self._on_checkout: Callable[[int], None] | None = on_checkout
         self._on_maintenance: Callable[[int], None] | None = on_maintenance
 
-        # Container bên trong có padding
+        # Container bên trong có padding sát Stitch (12px)
         self._inner = ctk.CTkFrame(self, fg_color="transparent")
-        self._inner.pack(fill="both", expand=True, padx=SPACING_MD, pady=SPACING_MD)
+        self._inner.pack(fill="both", expand=True, padx=12, pady=10)
 
-        # Hàng 1: Tên máy + Badge trạng thái
+        # Hàng 1: Mã máy (PC-01) + Badge trạng thái
         self._row1 = ctk.CTkFrame(self._inner, fg_color="transparent")
         self._row1.pack(fill="x", side="top")
 
         self._name_label = ctk.CTkLabel(
             self._row1,
             text="",
-            font=FONT_BODY_STRONG,
-            text_color=TEXT_PRIMARY,
+            font=_FONT_CODE,
+            text_color=STITCH_TEXT_STRONG,
             anchor="w",
+            height=20,
         )
         self._name_label.pack(side="left", fill="x", expand=True)
 
-        self._status_badge = StatusBadge(self._row1)
+        self._status_badge = StatusBadge(self._row1, height=22)
         self._status_badge.pack(side="right")
 
-        # Hàng 2: Khách hàng đang dùng hoặc 'Sẵn sàng'
+        # Hàng 2: Tên máy phụ (ví dụ: 'Máy VIP 01')
         self._customer_label = ctk.CTkLabel(
             self._inner,
             text="",
-            font=FONT_BODY,
-            text_color=TEXT_SECONDARY,
+            font=FONT_ST_BODY,
+            text_color=STITCH_TEXT_MUTED,
             anchor="w",
+            height=16,
         )
-        self._customer_label.pack(fill="x", side="top", pady=(6, 2))
+        self._customer_label.pack(fill="x", side="top", pady=(2, 6))
 
-        # Hàng 3: Thời gian chơi + Đơn giá / giờ
-        self._row3 = ctk.CTkFrame(self._inner, fg_color="transparent")
-        self._row3.pack(fill="x", side="top")
-
-        self._duration_label = ctk.CTkLabel(
-            self._row3,
-            text="",
-            font=FONT_CAPTION,
-            text_color=TEXT_MUTED,
-            anchor="w",
-        )
-        self._duration_label.pack(side="left")
-
-        self._rate_label = ctk.CTkLabel(
-            self._row3,
-            text="",
-            font=FONT_CAPTION,
-            text_color=TEXT_MUTED,
-            anchor="e",
-        )
-        self._rate_label.pack(side="right")
-
-        # Hàng 4: Box cảnh báo số dư dự kiến
-        self._balance_alert_frame = ctk.CTkFrame(
+        # Hàng 3: Khối thông tin chìm (Sunken Box) nền tối viền chìm
+        self._sunken_frame = ctk.CTkFrame(
             self._inner,
-            fg_color="transparent",
+            fg_color=STITCH_SUNKEN_BG,
+            border_width=1,
+            border_color=STITCH_SUNKEN_BORDER,
             corner_radius=6,
-            height=28,
+            height=62,
         )
-        self._balance_alert_frame.pack(fill="x", side="top", pady=(6, 0))
+        self._sunken_frame.pack(fill="x", side="top", pady=(0, 6))
+        self._sunken_frame.pack_propagate(False)
 
-        self._balance_label = ctk.CTkLabel(
-            self._balance_alert_frame,
-            text="",
-            font=FONT_CAPTION,
-            text_color=TEXT_SECONDARY,
+        # Các widget hiển thị bên trong sunken box
+        # Dành cho AVAILABLE:
+        self._rate_box = ctk.CTkFrame(self._sunken_frame, fg_color="transparent")
+        self._rate_title = ctk.CTkLabel(
+            self._rate_box,
+            text="ĐƠN GIÁ ÁP DỤNG",
+            font=FONT_ST_MONO_XS,
+            text_color=STITCH_TEXT_MUTED,
             anchor="w",
         )
-        self._balance_label.pack(fill="both", expand=True, padx=6, pady=2)
+        self._rate_title.pack(fill="x", anchor="w")
+        self._rate_label = ctk.CTkLabel(
+            self._rate_box,
+            text="",
+            font=_FONT_RATE,
+            text_color=STITCH_TEXT_STRONG,
+            anchor="w",
+        )
+        self._rate_label.pack(fill="x", anchor="w", pady=(1, 0))
+
+        # Dành cho IN_USE:
+        self._in_use_box = ctk.CTkFrame(self._sunken_frame, fg_color="transparent")
+        # Row A: Khách: {customer}
+        self._in_use_r1 = ctk.CTkFrame(self._in_use_box, fg_color="transparent")
+        self._in_use_r1.pack(fill="x")
+        ctk.CTkLabel(
+            self._in_use_r1, text="Khách:", font=FONT_ST_MONO_XS, text_color=STITCH_TEXT_MUTED, anchor="w", height=14
+        ).pack(side="left")
+        self._in_use_cust_val = ctk.CTkLabel(
+            self._in_use_r1, text="", font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG, anchor="e", height=14
+        )
+        self._in_use_cust_val.pack(side="right")
+
+        # Row B: Thời gian: {duration}
+        self._in_use_r2 = ctk.CTkFrame(self._in_use_box, fg_color="transparent")
+        self._in_use_r2.pack(fill="x", pady=(1, 0))
+        ctk.CTkLabel(
+            self._in_use_r2, text="Thời gian:", font=FONT_ST_MONO_XS, text_color=STITCH_TEXT_MUTED, anchor="w", height=14
+        ).pack(side="left")
+        self._duration_label = ctk.CTkLabel(
+            self._in_use_r2, text="", font=FONT_ST_MONO_XS, text_color=STITCH_TEXT_MUTED, anchor="e", height=14
+        )
+        self._duration_label.pack(side="right")
+
+        # Row C: Số dư dự kiến: {bal}
+        self._balance_alert_frame = ctk.CTkFrame(self._in_use_box, fg_color="transparent")
+        self._balance_alert_frame.pack(fill="x", pady=(1, 0))
+        ctk.CTkLabel(
+            self._balance_alert_frame, text="Số dư dự kiến:", font=FONT_ST_MONO_XS, text_color=STITCH_TEXT_MUTED, anchor="w", height=14
+        ).pack(side="left")
+        self._balance_label = ctk.CTkLabel(
+            self._balance_alert_frame, text="", font=FONT_ST_MONO_SM, text_color=STITCH_SUCCESS, anchor="e", height=14
+        )
+        self._balance_label.pack(side="right")
+
+        # Dành cho MAINTENANCE:
+        self._maint_box = ctk.CTkFrame(self._sunken_frame, fg_color="transparent")
+        self._maint_title = ctk.CTkLabel(
+            self._maint_box,
+            text="GHI CHÚ SỰ CỐ",
+            font=FONT_ST_MONO_XS_STRONG,
+            text_color=STITCH_AMBER,
+            anchor="w",
+        )
+        self._maint_title.pack(fill="x", anchor="w")
+        self._maint_note_label = ctk.CTkLabel(
+            self._maint_box,
+            text="Bảo trì định kỳ và kiểm tra thiết bị",
+            font=FONT_ST_BODY,
+            text_color=STITCH_TEXT_MUTED,
+            anchor="w",
+        )
+        self._maint_note_label.pack(fill="x", anchor="w", pady=(1, 0))
 
         # Footer: Nút bấm hành động
         self._footer = ctk.CTkFrame(self._inner, fg_color="transparent")
@@ -149,7 +202,7 @@ class MachineCard(ctk.CTkFrame):
         self._action_btn = ActionButton(
             self._footer,
             text="",
-            height=34,
+            height=30,
             width=100,
         )
         self._action_btn.pack(fill="x")
@@ -157,8 +210,8 @@ class MachineCard(ctk.CTkFrame):
         self._maintenance_text_label = ctk.CTkLabel(
             self._footer,
             text="Đang bảo trì",
-            font=FONT_CAPTION,
-            text_color=WARNING,
+            font=FONT_ST_MONO_SM,
+            text_color=STITCH_AMBER,
         )
 
         if machine is not None and actor is not None:
@@ -188,58 +241,59 @@ class MachineCard(ctk.CTkFrame):
         self._actor = actor
 
         # 1. Tên máy & badge
-        self._name_label.configure(text=machine.name)
+        # Hiển thị machine_code ở tiêu đề và tên phụ ở dòng dưới
+        display_code = machine.machine_code or machine.name
+        self._name_label.configure(text=display_code)
         self._status_badge.set_status(machine.status)
+
+        # Ẩn tất cả các box con trong sunken frame trước khi render
+        self._rate_box.pack_forget()
+        self._in_use_box.pack_forget()
+        self._maint_box.pack_forget()
 
         # Đổi viền card theo trạng thái
         if machine.status == MachineStatus.AVAILABLE:
-            self.configure(border_color=SUCCESS)
-        elif machine.status == MachineStatus.IN_USE:
-            self.configure(border_color=DANGER)
-        elif machine.status == MachineStatus.MAINTENANCE:
-            self.configure(border_color=WARNING)
-        else:
-            self.configure(border_color=BORDER)
-
-        # 2. Hàng thông tin chi tiết & số dư
-        rate_str = f"{format_money(machine.hourly_rate)}/h"
-        self._rate_label.configure(text=rate_str)
-
-        if machine.status == MachineStatus.IN_USE and machine.active_session is not None:
-            session = machine.active_session.session
-            cust_name = session.customer_name if session else "Khách hàng"
-            self._customer_label.configure(
-                text=f"Khách: {cust_name}",
-                text_color=TEXT_PRIMARY,
-            )
-            elapsed_str = format_duration(machine.active_session.elapsed_seconds)
-            self._duration_label.configure(text=f"Đã chơi: {elapsed_str}")
-
-            # Cảnh báo số dư dự kiến (projected_balance)
-            proj_bal = machine.active_session.projected_balance
-            if proj_bal < 0:
-                # Cảnh báo âm: nền đỏ nhạt, icon cảnh báo, chữ đỏ
-                self._balance_alert_frame.configure(fg_color=BG_ALERT_DANGER)
-                self._balance_label.configure(
-                    text=f"⚠  Âm {format_money(abs(proj_bal))}",
-                    text_color=DANGER,
-                )
-            else:
-                self._balance_alert_frame.configure(fg_color="transparent")
-                self._balance_label.configure(
-                    text=f"Dư: {format_money(proj_bal)}",
-                    text_color=SUCCESS,
-                )
-        elif machine.status == MachineStatus.AVAILABLE:
-            self._customer_label.configure(text="Sẵn sàng phục vụ", text_color=TEXT_SECONDARY)
+            self.configure(border_color=STITCH_CARD_BORDER)
+            self._sunken_frame.configure(fg_color=STITCH_SUNKEN_BG, border_color=STITCH_SUNKEN_BORDER)
+            self._customer_label.configure(text=machine.name if machine.name != display_code else "Máy Standard")
+            rate_str = f"{format_money(machine.hourly_rate)}/giờ"
+            self._rate_label.configure(text=rate_str)
+            self._rate_box.pack(fill="both", expand=True, padx=8, pady=5)
             self._duration_label.configure(text="Máy trống")
-            self._balance_alert_frame.configure(fg_color="transparent")
-            self._balance_label.configure(text="", text_color=TEXT_SECONDARY)
+            self._balance_label.configure(text="")
+
+        elif machine.status == MachineStatus.IN_USE:
+            self.configure(border_color=STITCH_CARD_BORDER)
+            self._sunken_frame.configure(fg_color=STITCH_SUNKEN_BG, border_color=STITCH_SUNKEN_BORDER)
+            self._customer_label.configure(text=machine.name if machine.name != display_code else "Máy Standard")
+            if machine.active_session is not None:
+                session = machine.active_session.session
+                cust_name = session.customer_name if session else "Khách hàng"
+                self._in_use_cust_val.configure(text=cust_name)
+                elapsed_str = format_duration(machine.active_session.elapsed_seconds)
+                self._duration_label.configure(text=elapsed_str)
+
+                # Cảnh báo số dư dự kiến (projected_balance)
+                proj_bal = machine.active_session.projected_balance
+                if proj_bal < 0:
+                    self._balance_label.configure(
+                        text=f"Âm {format_money(abs(proj_bal))}",
+                        text_color=STITCH_DANGER,
+                    )
+                else:
+                    self._balance_label.configure(
+                        text=f"Dư: {format_money(proj_bal)}",
+                        text_color=STITCH_SUCCESS,
+                    )
+            self._in_use_box.pack(fill="both", expand=True, padx=8, pady=5)
+
         elif machine.status == MachineStatus.MAINTENANCE:
-            self._customer_label.configure(text="Tạm ngừng hoạt động", text_color=WARNING)
+            self.configure(border_color=STITCH_CARD_BORDER)
+            self._sunken_frame.configure(fg_color="#1F1505", border_color="#4D3814")
+            self._customer_label.configure(text=machine.name if machine.name != display_code else "Tạm ngừng hoạt động")
+            self._maint_box.pack(fill="both", expand=True, padx=8, pady=5)
             self._duration_label.configure(text="Đang bảo trì")
-            self._balance_alert_frame.configure(fg_color="transparent")
-            self._balance_label.configure(text="", text_color=TEXT_SECONDARY)
+            self._balance_label.configure(text="")
 
         # 3. Phân quyền và nút bấm hành động ở footer
         self._render_action_button(machine, actor)
@@ -256,6 +310,9 @@ class MachineCard(ctk.CTkFrame):
             self._action_btn.configure(
                 text="Mở máy",
                 kind="success",
+                fg_color="#10B981",
+                hover_color="#059669",
+                text_color="#020617",
                 command=lambda: self._on_open(m_id) if self._on_open else None,
             )
             self._action_btn.pack(fill="x")
@@ -264,19 +321,23 @@ class MachineCard(ctk.CTkFrame):
             self._action_btn.configure(
                 text="Checkout",
                 kind="danger",
+                fg_color="#F43F5E",
+                hover_color="#E11D48",
+                text_color="#FFFFFF",
                 command=lambda: self._on_checkout(m_id) if self._on_checkout else None,
             )
             self._action_btn.pack(fill="x")
 
         elif machine.status == MachineStatus.MAINTENANCE:
-            # Chỉ Manager hoặc Admin mới có quyền bật lại máy bảo trì
             if actor.role in (Role.MANAGER, Role.ADMIN):
                 self._action_btn.configure(
                     text="Bật lại",
                     kind="secondary",
+                    fg_color="#F59E0B",
+                    hover_color="#D97706",
+                    text_color="#020617",
                     command=lambda: self._on_maintenance(m_id) if self._on_maintenance else None,
                 )
                 self._action_btn.pack(fill="x")
             else:
-                # Staff chỉ xem, không có action bật lại
                 self._maintenance_text_label.pack(fill="x", pady=6)
