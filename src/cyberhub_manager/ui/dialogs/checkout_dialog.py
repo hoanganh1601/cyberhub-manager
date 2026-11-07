@@ -19,7 +19,7 @@ import hashlib
 import tkinter as tk
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 import customtkinter as ctk
@@ -28,11 +28,11 @@ from ...domain.dtos import CheckoutPreview, CheckoutResult, MachineSummary
 from ...domain.enums import PaymentMethod
 from ...domain.exceptions import ConflictError, SettlementRequiredError
 from ...domain.models import Customer
-from ...services.contracts import ServiceBundle
 from ..app_shell import ViewContext
 from ..background import TaskRunner, default_runner
 from ..feedback import notify_error
 from ..formatters import format_datetime, format_duration, format_money
+from ..report_filters import service_now
 from ..theme import (
     FONT_ST_BODY,
     FONT_ST_BODY_STRONG,
@@ -85,25 +85,6 @@ FONT_BIG = (STITCH_FONT_MONO, 16, "bold")
 # ----------------------------------------------------------------------
 # Hàm thuần (test được không cần Tk)
 # ----------------------------------------------------------------------
-def service_now(services: ServiceBundle) -> datetime:
-    """Giờ tính phí lấy từ đồng hồ của SessionService.
-
-    complete_checkout tính lại theo đồng hồ của chính service, nên preview cũng phải dùng
-    đúng đồng hồ đó: mock dùng MockClock cố định (có .now()), service thật dùng callable UTC.
-    Không đọc được thì dùng giờ UTC hiện tại.
-    """
-    clock = getattr(services.sessions, "_clock", None)
-    reader = getattr(clock, "now", clock)
-    if callable(reader):
-        try:
-            value = reader()
-        except TypeError:
-            value = None
-        if isinstance(value, datetime) and value.tzinfo is not None:
-            return value
-    return datetime.now(timezone.utc)
-
-
 @dataclass(frozen=True)
 class CostBreakdown:
     usage_cost: int

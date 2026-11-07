@@ -9,8 +9,10 @@ from __future__ import annotations
 from .app_shell import ViewFactory
 from .customers_view import CustomersView
 from .dashboard_view import DashboardView
+from .invoices_view import InvoicesView
 from .machine_management_view import MachineManagementView
 from .navigation import NavKey
+from .reports_view import ReportsView
 
 
 def default_view_factories() -> dict[NavKey, ViewFactory]:
@@ -18,4 +20,6 @@ def default_view_factories() -> dict[NavKey, ViewFactory]:
         NavKey.DASHBOARD: DashboardView,
         NavKey.CUSTOMERS: CustomersView,
         NavKey.MACHINES: MachineManagementView,
+        NavKey.INVOICES: InvoicesView,
+        NavKey.REPORTS: ReportsView,
     }
