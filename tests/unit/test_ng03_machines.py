@@ -6,7 +6,6 @@ import threading
 import time
 from unittest.mock import patch
 
-import customtkinter as ctk
 import pytest
 
 from cyberhub_manager.domain.dtos import MachineArchiveResult
@@ -30,6 +29,7 @@ from cyberhub_manager.ui.machine_management_view import (
 )
 from cyberhub_manager.ui.navigation import NavKey
 from cyberhub_manager.ui.state import ViewState
+from cyberhub_manager.ui.theme import STITCH_DANGER, STITCH_INPUT_BORDER
 from cyberhub_manager.ui.views import default_view_factories
 
 RUNNER = ImmediateTaskRunner()
@@ -52,9 +52,7 @@ def _machine(services, session, code: str):
 @pytest.fixture(autouse=True)
 def _silence_feedback():
     """Toast/Dialog thật cần cửa sổ hiển thị; trong test chỉ ghi lại lời gọi."""
-    with patch.object(feedback_module.ToastManager, "show") as toast, patch.object(
-        dashboard_module.ToastManager, "show", toast
-    ):
+    with patch.object(feedback_module.ToastManager, "show") as toast:
         yield toast
 
 
@@ -117,14 +115,6 @@ def test_archive_message() -> None:
 # ----------------------------------------------------------------------
 # 2. Dashboard
 # ----------------------------------------------------------------------
-@pytest.fixture(scope="module")
-def tk_root():
-    root = ctk.CTk()
-    root.geometry("1280x720")
-    yield root
-    root.destroy()
-
-
 def _dashboard(tk_root, username: str = "quanly01", scenario=MockScenario.SUCCESS, **kwargs):
     services, session = _login(username, scenario)
     view = DashboardView(tk_root, _context(services, session), runner=RUNNER, **kwargs)
@@ -191,14 +181,15 @@ def test_cancel_end_maintenance_changes_nothing(tk_root) -> None:
     view.destroy()
 
 
-def test_open_and_checkout_use_callbacks(tk_root, _silence_feedback) -> None:
+def test_open_and_checkout_use_callbacks(tk_root) -> None:
     opened: list[int] = []
-    view, services, session = _dashboard(tk_root, on_open_session=opened.append)
+    checked_out: list[int] = []
+    view, services, session = _dashboard(tk_root, on_open_session=opened.append, on_checkout=checked_out.append)
     pc01, pc02 = _machine(services, session, "PC01"), _machine(services, session, "PC02")
     view.card_for(pc01.machine_id)._on_click()
     assert opened == [pc01.machine_id]
-    view.card_for(pc02.machine_id)._on_click()  # chưa có NG-06 -> Toast "chưa hỗ trợ"
-    assert _silence_feedback.call_args.args[1] == dashboard_module.FEATURE_PENDING
+    view.card_for(pc02.machine_id)._on_click()  # PC02 đang dùng -> Thanh toán
+    assert checked_out == [pc02.machine_id]
     view.destroy()
 
 
@@ -270,38 +261,63 @@ def _management(tk_root, username: str = "quanly01"):
 def test_management_lists_machines_and_blocks_in_use_actions(tk_root) -> None:
     view, services, session = _management(tk_root)
     assert len(view.machines) == 20
-    assert not view.buttons["edit"].is_enabled  # chưa chọn dòng
-    view.select(_machine(services, session, "PC02").machine_id)
-    assert view.buttons["edit"].is_enabled
-    assert not view.buttons["maintenance"].is_enabled
-    assert not view.buttons["archive"].is_enabled
-    assert view._hint_label.cget("text") == management_module.IN_USE_HINT
+    assert view.state == ViewState.READY
+    assert len(view.visible_machine_ids) == management_module.PAGE_SIZE
+    assert view._kpi_labels["in_use"].cget("text") == "2"
+    buttons = view.row_buttons(_machine(services, session, "PC02").machine_id)
+    assert buttons["edit"].is_enabled
+    assert not buttons["maintenance"].is_enabled
+    assert not buttons["archive"].is_enabled
+    view.destroy()
+
+
+def test_management_filter_search_and_pages(tk_root) -> None:
+    view, services, session = _management(tk_root)
+    assert view.current_page.total_pages == 3
+    view.go_to_page(3)
+    assert len(view.visible_machine_ids) == 6
+    assert view._caption_label.cget("text") == "Hiển thị 15-20 trên tổng số 20 máy"
+    view.set_status_filter(MachineStatus.IN_USE)
+    assert view.current_page.number == 1
+    in_use = {_machine(services, session, code).machine_id for code in ("PC02", "PC05")}
+    assert set(view.visible_machine_ids) == in_use
+    view.set_status_filter(None)
+    view.handle_search("pc03")  # từ ô tìm kiếm trên topbar
+    assert view.visible_machine_ids == [_machine(services, session, "PC03").machine_id]
+    assert view._search_entry.get() == "pc03"
+    view.handle_search("không-có-máy-này")
+    assert view.state == ViewState.EMPTY
     view.destroy()
 
 
 def test_management_toggles_maintenance(tk_root) -> None:
     view, services, session = _management(tk_root)
     pc01 = _machine(services, session, "PC01")
-    view.select(pc01.machine_id)
     with patch.object(management_module.ConfirmDialog, "ask", return_value=True):
-        view._toggle_maintenance()
+        view._toggle_maintenance(pc01)
     assert _machine(services, session, "PC01").status == MachineStatus.MAINTENANCE
-    assert view.buttons["maintenance"].cget("text") == "Kết thúc bảo trì"
+    assert view.row_buttons(pc01.machine_id)["maintenance"].cget("text") == "↺"
     view.destroy()
 
 
 def test_management_archive_requires_confirmation(tk_root) -> None:
     view, services, session = _management(tk_root)
     pc04 = _machine(services, session, "PC04")
-    view.select(pc04.machine_id)
     with patch.object(management_module.ConfirmDialog, "ask", return_value=False):
-        view._archive()
+        view._archive(pc04)
     assert len(view.machines) == 20
     with patch.object(management_module.ConfirmDialog, "ask", return_value=True) as ask:
-        view._archive()
+        view._archive(pc04)
         assert ask.call_args.kwargs["is_danger"] is True
     assert pc04.machine_id not in {m.machine_id for m in view.machines}
-    assert view.selected_machine is None
+    view.destroy()
+
+
+def test_management_unavailable_service_shows_retry(tk_root) -> None:
+    services, session = _login(scenario=MockScenario.UNAVAILABLE)
+    view = MachineManagementView(tk_root, _context(services, session), runner=RUNNER)
+    assert view.state == ViewState.ERROR
+    assert view._retry_button.winfo_manager() == "pack"
     view.destroy()
 
 
@@ -309,7 +325,8 @@ def test_staff_cannot_load_management_view(tk_root) -> None:
     view, _, session = _management(tk_root, "nhanvien01")
     assert session.role == Role.STAFF
     assert view.machines == []
-    assert not view.buttons["add"].is_enabled
+    assert view.state == ViewState.ERROR
+    assert not view.add_button.is_enabled
     view.destroy()
 
 
@@ -368,6 +385,20 @@ def test_dialog_edits_machine_without_code_field(tk_root) -> None:
     dialog.fields["hourly_rate"].set_value("20000")
     dialog.submit()
     assert _machine(services, session, "PC01").hourly_rate == 20000
+
+
+def test_dialog_error_border_and_close_button(tk_root) -> None:
+    services, session = _login()
+    dialog = _dialog(tk_root, services, session)
+    code = dialog.fields["code"]
+    code.set_error("Machine code already exists.")
+    assert code._box.cget("border_color") == STITCH_DANGER
+    assert code._error_label.winfo_manager() == "pack"
+    code.set_error(None)
+    assert code._box.cget("border_color") == STITCH_INPUT_BORDER
+    assert code._error_label.winfo_manager() == ""
+    dialog._close_button.invoke()  # nút ✕ ở góc phải = Hủy
+    assert not dialog.winfo_exists()
 
 
 # ----------------------------------------------------------------------

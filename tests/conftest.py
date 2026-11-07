@@ -224,3 +224,36 @@ def test_scenario() -> Callable[..., SimpleNamespace]:
         )
 
     return make
+
+
+# ----------------------------------------------------------------------
+# Tk root dùng chung cho unit test giao diện
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="session")
+def tk_root() -> Iterator[Any]:
+    """Một CTk root cho cả phiên test.
+
+    Trên Windows, hủy rồi tạo lại Tk root nhiều lần trong cùng một process đôi khi làm Tcl
+    khởi tạo lỗi ("Can't find a usable init.tcl"). Vì vậy mọi module UI dùng chung root này
+    và chỉ hủy nó khi kết thúc phiên.
+    """
+    import customtkinter as ctk
+
+    root = ctk.CTk()
+    root.geometry("1280x720")
+    yield root
+    root.destroy()
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_tk_children(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Sau mỗi test dùng tk_root: hủy widget/dialog còn sót để test sau bắt đầu sạch."""
+    yield
+    if "tk_root" not in request.fixturenames:
+        return
+    root = request.getfixturevalue("tk_root")
+    for child in list(root.winfo_children()):
+        try:
+            child.destroy()
+        except Exception:  # noqa: BLE001 — widget đã bị hủy trong test
+            pass
