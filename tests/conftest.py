@@ -244,14 +244,6 @@ def get_shared_tk_root():
     import sys
     import customtkinter as ctk
 
-    # Ensure TCL_LIBRARY and TK_LIBRARY are set on Windows if python has them
-    if sys.platform == "win32":
-        tcl_dir = Path(sys.base_prefix) / "tcl" / "tcl8.6"
-        tk_dir = Path(sys.base_prefix) / "tcl" / "tk8.6"
-        if tcl_dir.exists() and "TCL_LIBRARY" not in os.environ:
-            os.environ["TCL_LIBRARY"] = str(tcl_dir)
-        if tk_dir.exists() and "TK_LIBRARY" not in os.environ:
-            os.environ["TK_LIBRARY"] = str(tk_dir)
 
     root = getattr(ctk, "_SHARED_TEST_ROOT", None)
     if root is not None:
