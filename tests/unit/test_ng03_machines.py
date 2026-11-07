@@ -119,10 +119,10 @@ def test_archive_message() -> None:
 # ----------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def tk_root():
-    root = ctk.CTk()
-    root.geometry("1280x720")
+    from tests.conftest import get_shared_tk_root
+
+    root = get_shared_tk_root()
     yield root
-    root.destroy()
 
 
 def _dashboard(tk_root, username: str = "quanly01", scenario=MockScenario.SUCCESS, **kwargs):

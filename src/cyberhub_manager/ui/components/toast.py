@@ -46,68 +46,79 @@ class ToastNotification(ctk.CTkFrame):
         on_close: Any = None,
         **kwargs: Any,
     ) -> None:
-        icon, fg_color, border_color = self._resolve_kind(kind)
+        icon, fg_color, border_color, text_color, icon_bg = self._resolve_kind(kind)
 
         super().__init__(
             master=master,
             fg_color=fg_color,
             border_width=1,
             border_color=border_color,
-            corner_radius=RADIUS_CARD,
+            corner_radius=8,
             **kwargs,
         )
         self._on_close = on_close
         self._timer_id: str | None = None
 
-        # Icon
-        self._icon_label = ctk.CTkLabel(
-            self,
+        # Container inner with horizontal layout matching Stitch
+        inner = ctk.CTkFrame(self, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=12, pady=8)
+
+        # Icon pill (20x20 circular pill)
+        self._icon_box = ctk.CTkLabel(
+            inner,
             text=icon,
-            font=FONT_BODY,
-            text_color=border_color,
-            width=24,
+            font=("Inter", 11, "bold"),
+            text_color=text_color,
+            fg_color=icon_bg,
+            width=22,
+            height=22,
+            corner_radius=11,
         )
-        self._icon_label.pack(side="left", padx=(SPACING_MD, SPACING_SM), pady=SPACING_MD)
+        self._icon_box.pack(side="left", padx=(0, 10))
 
         # Message text
         self._message_label = ctk.CTkLabel(
-            self,
+            inner,
             text=message,
-            font=FONT_BODY,
-            text_color=TEXT_PRIMARY,
+            font=("Inter", 12, "bold"),
+            text_color=text_color,
             anchor="w",
             justify="left",
-            wraplength=320,
+            wraplength=340,
         )
-        self._message_label.pack(side="left", fill="both", expand=True, pady=SPACING_MD)
+        self._message_label.pack(side="left", fill="both", expand=True)
 
         # Nút đóng
         self._close_btn = ctk.CTkButton(
-            self,
+            inner,
             text="✕",
-            width=24,
-            height=24,
-            font=FONT_CAPTION,
+            width=20,
+            height=20,
+            font=("Inter", 10, "normal"),
             fg_color="transparent",
-            hover_color=BG_MUTED_SUBTLE,
-            text_color=TEXT_SECONDARY,
+            hover_color=icon_bg,
+            text_color=text_color,
             command=self.dismiss,
         )
-        self._close_btn.pack(side="right", padx=(SPACING_SM, SPACING_MD), pady=SPACING_MD)
+        self._close_btn.pack(side="right", padx=(8, 0))
 
         # Tự đóng sau duration_ms (nếu duration_ms > 0)
         if duration_ms > 0:
             self._timer_id = self.after(duration_ms, self.dismiss)
 
-    def _resolve_kind(self, kind: str) -> tuple[str, str, str]:
+    def _resolve_kind(self, kind: str) -> tuple[str, str, str, str, str]:
+        """Trả về (icon, bg_color, border_color, text_color, icon_bg) theo chuẩn Stitch."""
         if kind == "success":
-            return "✓", BG_SUCCESS_SUBTLE, SUCCESS
+            # Stitch: bg-[#0b1b17] border-emerald-500/40 text-emerald-400
+            return "✓", "#0B1B17", "#059669", "#34D399", "#0F2D24"
         if kind == "warning":
-            return "⚠", BG_WARNING_SUBTLE, WARNING
+            # Stitch warning dark amber
+            return "⚠", "#261E10", "#D97706", "#FBBF24", "#3D2C14"
         if kind == "error":
-            return "✕", BG_DANGER_SUBTLE, DANGER
-        # Default info
-        return "ℹ", BG_INFO_SUBTLE, INFO
+            # Stitch: bg-[#251218] border-rose-500/40 text-rose-400
+            return "✕", "#251218", "#E11D48", "#FB7185", "#381822"
+        # Default info: Stitch Cyan
+        return "ℹ", "#0C1E2B", "#0088CC", "#00C6FF", "#0E2E42"
 
     def dismiss(self) -> None:
         """Đóng và gỡ bỏ toast."""
@@ -168,7 +179,7 @@ class ToastManager:
 
     @classmethod
     def _reposition_toasts(cls) -> None:
-        y_offset = 20
+        y_offset = 56
         for toast in cls._active_toasts:
             try:
                 if toast.winfo_exists():

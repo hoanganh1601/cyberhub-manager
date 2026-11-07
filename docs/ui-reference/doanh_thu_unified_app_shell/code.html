@@ -1,0 +1,147 @@
+<!DOCTYPE html><html lang="vi" class="h-full"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1280, height=720, initial-scale=1.0">
+  <title>Doanh thu - CyberHub Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+          },
+          colors: {
+            brand: {
+              cyan: '#00c6ff',
+              blue: '#0072ff',
+              navy: '#0b101b',
+              dark: '#0e131e',
+              surface: '#151b2a',
+              card: '#1b2234',
+              border: '#273147'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body {
+      width: 1280px;
+      height: 720px;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0b101b;
+      color: #e2e8f0;
+      font-family: 'Space Grotesk', 'Inter', sans-serif;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="w-[1280px] h-[720px] max-w-[1280px] max-h-[720px] flex overflow-hidden bg-[#0b101b] text-slate-200 antialiased">
+
+  <!-- LEFT SIDEBAR (Fixed 220px, Edge-to-Edge) -->
+  <aside class="w-[220px] h-[720px] flex-shrink-0 bg-[#0e131e] border-r border-[#222a3d] flex flex-col justify-between z-20">
+    <div>
+      <!-- Brand Logo Header -->
+      <div class="h-[60px] px-4 flex items-center gap-3 border-b border-[#222a3d]">
+        <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkyg1riKNyTQdJWDCy6tdBcehmixnt_zUzekIWQHlSeMNLWC_IXZRi7gFrOxUEN38VtYGdJ0tQPZgiOmoNCsbNvFjFGc88VWjBP7wqSlQN08fr_xu2qxPwD6TE3113zVe7gUdnWJ3LByECSAoOkYU67jtJ5MGGpsFYNr31u3b3YsTMgLBB4Dg-fr_Sz3RTgm7tnKaBLjri8FaH0oX-7iAaYpvwM8MbjYY8e1VIbxAA1omHNKVulr5elg" alt="CyberHub Logo" class="h-9 w-auto object-contain">
+        <div class="leading-tight">
+          <div class="font-bold text-sm tracking-wide text-white flex items-center gap-1.5">
+            CyberHub
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#00c6ff]"></span>
+          </div>
+          <div class="text-[10px] text-slate-400 font-mono tracking-wider uppercase">Manager v2.4</div>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="p-3 space-y-1"><a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg><span class="">Tổng quan</span></a><a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg><span class="">Khách hàng</span></a><a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg><span class="">Quản lý máy</span></a><a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-[#161d2d] text-xs font-medium transition-colors"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg><span class="">Hóa đơn</span></a><a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#00c6ff]/15 border border-[#00c6ff]/40 text-[#00c6ff] font-semibold text-xs transition-all shadow-sm"><svg class="w-4 h-4 text-[#00c6ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span class="">Doanh thu</span></a></nav>
+    </div>
+
+    <!-- Sidebar Bottom Status Widget -->
+    <div class="p-3 border-t border-[#222a3d] bg-[#0a0e17]">
+      <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-1.5">
+        <span class="flex items-center gap-1.5 text-emerald-400 font-semibold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> SẴN SÀNG
+        </span>
+        <span class="">Node-01</span>
+      </div>
+      <div class="text-[10px] text-slate-500 font-mono flex justify-between">
+        <span class="">LAN: 192.168.1.1</span>
+        <span class="">Port 8088</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN OPERATIONAL VIEWPORT (Edge-to-Edge, Exactly fills remainder: 1060px x 720px) -->
+  <main class="w-[1060px] h-[720px] flex flex-col bg-[#0b101b] overflow-hidden">
+
+    <!-- COMPACT TOP HEADER (Height: 52px) -->
+    <header class="h-[52px] px-5 bg-[#0e131e] border-b border-[#222a3d] flex items-center justify-between flex-shrink-0 z-10">
+      <!-- Left: Branch title -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-2.5 py-1 rounded bg-[#171f30] border border-[#27344e] text-xs font-semibold text-slate-200">
+          <svg class="w-3.5 h-3.5 text-[#00c6ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+          </svg>
+          <span class="">CyberHub Hà Nội</span>
+        </div>
+        <div class="text-xs text-slate-400 flex items-center gap-2">
+          <span class="">•</span>
+          <span class="">Ca sáng (07:00 - 15:00)</span>
+        </div>
+      </div>
+
+      <!-- Right: Search, Language Switcher, Staff Profile -->
+      <div class="flex items-center gap-3.5">
+        <!-- Compact Search -->
+        <div class="relative w-48">
+          <input type="text" placeholder="Tìm kiếm máy..." class="w-full h-8 pl-8 pr-3 bg-[#131926] border border-[#263147] rounded-md text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#00c6ff]/60 font-sans">
+          <svg class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+
+        <!-- Compact Language Switcher: VI | EN (VI active) -->
+        <div class="flex items-center bg-[#131926] border border-[#27344e] rounded-md p-0.5 text-[11px] font-semibold">
+          <button type="button" class="px-2 py-0.5 rounded bg-[#00c6ff] text-slate-950 font-bold shadow-sm">VI</button>
+          <button type="button" class="px-2 py-0.5 rounded text-slate-400 hover:text-slate-200">EN</button>
+        </div>
+
+        <!-- Staff & Manager Role -->
+        <div class="flex items-center gap-2.5 pl-2 border-l border-[#222a3d]">
+          <div class="text-right leading-none">
+            <div class="text-xs font-semibold text-slate-200">Nguyễn Tuấn Kiệt</div>
+            <div class="text-[10px] text-[#00c6ff] font-mono font-semibold uppercase mt-0.5 tracking-wide">QUẢN LÝ</div>
+          </div>
+          <div class="w-8 h-8 rounded-full bg-[#1e273a] border border-[#2e3b56] flex items-center justify-center text-xs font-bold text-slate-300">
+            TK
+          </div>
+        </div>
+
+        <!-- Exit action -->
+        <button type="button" title="Đăng xuất" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT BODY (Height: Exactly 668px, no scrolling, edge-to-edge structure) -->
+    <div class="h-[668px] px-5 py-3.5 flex flex-col justify-between overflow-hidden"><!-- TOP SECTION: Page Header & Filter Row --><div class="space-y-2.5 flex-shrink-0"><!-- Page Header Row --><div class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="flex items-baseline gap-2"><h1 class="text-lg font-bold text-white tracking-tight">Doanh thu</h1><span class="text-xs text-slate-400 font-mono">Theo dõi doanh thu hóa đơn đã thanh toán</span></div><span class="px-2 py-0.5 rounded bg-[#171f30] border border-[#27344e] text-[11px] font-mono text-[#00c6ff]">Cơ sở: CyberHub Hà Nội</span></div><div class="flex items-center gap-3"><span class="text-[11px] font-mono text-slate-400">Cập nhật: <span class="text-slate-200 font-semibold">14:30:22</span></span><button type="button" class="h-7 px-2.5 rounded bg-[#171f30] border border-[#27344e] text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition-colors"><svg class="w-3 h-3 text-[#00c6ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span class="">Làm mới</span></button></div></div><!-- Filter Row --><div class="flex items-center justify-between bg-[#121824] border border-[#212b3e] rounded-lg px-3 py-1.5"><div class="flex items-center gap-3 text-xs"><div class="flex items-center gap-2"><span class="text-slate-400 font-medium text-[11px]">Từ ngày:</span><div class="flex items-center bg-[#171f30] border border-[#27344e] rounded px-2 py-1 text-white font-mono text-xs gap-1.5"><svg class="w-3 h-3 text-[#00c6ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="">01/02/2026</span></div></div><div class="flex items-center gap-2"><span class="text-slate-400 font-medium text-[11px]">Đến ngày:</span><div class="flex items-center bg-[#171f30] border border-[#27344e] rounded px-2 py-1 text-white font-mono text-xs gap-1.5"><svg class="w-3 h-3 text-[#00c6ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="">24/02/2026</span></div></div><span class="px-2 py-0.5 rounded bg-[#161c2b] border border-[#222d42] text-[10px] font-mono text-slate-400">Asia/Ho_Chi_Minh</span><button type="button" class="h-6 px-3 rounded bg-[#00c6ff] hover:bg-[#00c6ff]/90 text-slate-950 font-bold text-xs shadow-sm transition-colors">Áp dụng</button><button type="button" class="text-xs text-slate-400 hover:text-slate-200 transition-colors">Xóa bộ lọc</button></div><div class="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="">Chỉ tính hóa đơn ĐÃ THANH TOÁN</span></div></div><!-- KPI Cards Row (5 Cards) --><div class="grid grid-cols-5 gap-3"><div class="bg-[#121824] border border-[#212b3e] rounded-lg px-3.5 py-2"><div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">TỔNG DOANH THU</div><div class="text-lg font-bold text-[#00c6ff] font-mono leading-tight mt-0.5">12.450.000 VND</div><div class="text-[10px] text-slate-400 font-mono mt-0.5">Từ 428 HĐ thành công</div></div><div class="bg-[#121824] border border-[#212b3e] rounded-lg px-3.5 py-2"><div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">HĐ ĐÃ THANH TOÁN</div><div class="text-lg font-bold text-white font-mono leading-tight mt-0.5">428 đơn</div><div class="text-[10px] text-emerald-400 font-mono mt-0.5">Đã thu hoàn tất</div></div><div class="bg-[#121824] border border-[#212b3e] rounded-lg px-3.5 py-2"><div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">DOANH THU TB / HĐ</div><div class="text-lg font-bold text-white font-mono leading-tight mt-0.5">29.089 VND</div><div class="text-[10px] text-slate-400 font-mono mt-0.5">TB mỗi phiên nạp/giờ</div></div><div class="bg-[#121824] border border-[#212b3e] rounded-lg px-3.5 py-2"><div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">NGÀY CAO NHẤT</div><div class="text-lg font-bold text-white font-mono leading-tight mt-0.5">24/02/2026</div><div class="text-[10px] text-emerald-400 font-mono mt-0.5">Hôm nay / Đạt đỉnh kỳ</div></div><div class="bg-[#121824] border border-emerald-500/30 bg-emerald-950/10 rounded-lg px-3.5 py-2"><div class="flex items-center justify-between"><span class="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">DOANH THU NGÀY MAX</span><span class="text-[9px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/40">ĐỈNH ĐIỂM</span></div><div class="text-lg font-bold text-emerald-400 font-mono leading-tight mt-0.5">1.250.000 VND</div><div class="text-[10px] text-slate-400 font-mono mt-0.5">Chiếm 10.0% tổng kỳ</div></div></div></div><!-- MAIN CONTENT SPLIT (Left ~68%, Right ~32%) --><div class="flex gap-3.5 flex-1 my-2 min-h-0"><!-- Left Card: Doanh thu theo ngày --><div class="flex-[68] bg-[#121824] border border-[#212b3e] rounded-lg p-3 flex flex-col justify-between overflow-hidden"><div class="flex flex-col min-h-0"><div class="flex items-center justify-between pb-2 border-b border-[#1e273a] flex-shrink-0"><div><div class="text-sm font-bold text-white flex items-center gap-2"><span class="">Doanh thu theo ngày</span><span class="text-[11px] font-normal text-slate-400 font-mono">(Mới nhất trước)</span></div></div><span class="text-[11px] font-mono text-[#00c6ff] bg-[#171f30] border border-[#27344e] px-2 py-0.5 rounded">Kỳ: 01/02 – 24/02/2026</span></div><!-- Table --><div class="mt-2 overflow-hidden flex-1"><table class="w-full text-left border-collapse text-xs"><thead class="text-[10px] text-slate-400 uppercase font-semibold border-b border-[#1e273a] bg-[#0e131e]"><tr><th class="py-2 px-2.5 font-mono">NGÀY</th><th class="py-2 px-2.5 text-right font-mono">SỐ HĐ ĐÃ THANH TOÁN</th><th class="py-2 px-2.5 text-right font-mono">DOANH THU (VND)</th><th class="py-2 px-2.5 text-right font-mono w-36">TỶ TRỌNG (%)</th></tr></thead><tbody class="divide-y divide-[#1e273a] font-mono text-xs"><tr class="hover:bg-[#161d2d] bg-[#00c6ff]/5"><td class="py-1.5 px-2.5 font-medium text-white flex items-center gap-1.5"><span class="">24/02/2026</span><span class="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/40">HÔM NAY</span></td><td class="py-1.5 px-2.5 text-right text-slate-300">42 HĐ</td><td class="py-1.5 px-2.5 text-right font-bold text-[#00c6ff]">1.250.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff] h-full rounded-full" style="width: 10%"></div></div><span class="text-slate-300 w-8 text-right">10.0%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">23/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">38 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">1.080.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 8.7%"></div></div><span class="text-slate-400 w-8 text-right">8.7%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">22/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">35 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">950.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 7.6%"></div></div><span class="text-slate-400 w-8 text-right">7.6%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">21/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">31 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">825.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 6.6%"></div></div><span class="text-slate-400 w-8 text-right">6.6%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">20/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">29 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">760.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 6.1%"></div></div><span class="text-slate-400 w-8 text-right">6.1%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">19/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">27 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">710.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 5.7%"></div></div><span class="text-slate-400 w-8 text-right">5.7%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">18/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">26 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">690.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 5.5%"></div></div><span class="text-slate-400 w-8 text-right">5.5%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">17/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">24 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">640.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 5.1%"></div></div><span class="text-slate-400 w-8 text-right">5.1%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">16/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">22 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">580.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 4.7%"></div></div><span class="text-slate-400 w-8 text-right">4.7%</span></div></td></tr><tr class="hover:bg-[#161d2d]"><td class="py-1.5 px-2.5 font-medium text-slate-300">15/02/2026</td><td class="py-1.5 px-2.5 text-right text-slate-400">20 HĐ</td><td class="py-1.5 px-2.5 text-right font-semibold text-white">520.000</td><td class="py-1.5 px-2.5 text-right"><div class="flex items-center justify-end gap-2"><div class="w-16 h-1.5 bg-[#171f30] rounded-full overflow-hidden"><div class="bg-[#00c6ff]/80 h-full rounded-full" style="width: 4.2%"></div></div><span class="text-slate-400 w-8 text-right">4.2%</span></div></td></tr></tbody></table></div></div><!-- Compact pagination --><div class="flex items-center justify-between pt-2 border-t border-[#1e273a] text-xs text-slate-400 flex-shrink-0"><div class="text-[11px] font-mono">Hiển thị 1 - 10 trên 24 ngày</div><div class="flex items-center gap-1 font-mono text-xs"><button type="button" class="w-6 h-6 rounded bg-[#171f30] border border-[#27344e] flex items-center justify-center text-slate-400 hover:text-white transition-colors">&lt;</button><button type="button" class="w-6 h-6 rounded bg-[#00c6ff] text-slate-950 font-bold flex items-center justify-center shadow-sm">1</button><button type="button" class="w-6 h-6 rounded bg-[#171f30] border border-[#27344e] flex items-center justify-center text-slate-300 hover:text-white transition-colors">2</button><button type="button" class="w-6 h-6 rounded bg-[#171f30] border border-[#27344e] flex items-center justify-center text-slate-300 hover:text-white transition-colors">3</button><button type="button" class="w-6 h-6 rounded bg-[#171f30] border border-[#27344e] flex items-center justify-center text-slate-400 hover:text-white transition-colors">&gt;</button></div></div></div><!-- Right Card: Tổng kết kỳ báo cáo --><div class="flex-[32] bg-[#121824] border border-[#212b3e] rounded-lg p-3 flex flex-col justify-between overflow-hidden"><div class="flex items-center gap-2 pb-2 border-b border-[#1e273a] flex-shrink-0"><svg class="w-4 h-4 text-[#00c6ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg><span class="text-sm font-bold text-white">Tổng kết kỳ báo cáo</span></div><div class="flex flex-col justify-between flex-1 py-1.5 gap-2"><!-- Section 1: Phạm vi báo cáo --><div class="bg-[#0e131e] p-2.5 rounded border border-[#1e273a] space-y-1.5 text-xs"><div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider font-mono">Phạm vi báo cáo</div><div class="flex justify-between"><span class="text-slate-400">Cơ sở áp dụng:</span><span class="font-medium text-slate-200">CyberHub Hà Nội</span></div><div class="flex justify-between"><span class="text-slate-400">Khoảng thời gian:</span><span class="font-mono text-slate-200">01/02 – 24/02/2026</span></div><div class="flex justify-between"><span class="text-slate-400">Số ngày có doanh thu:</span><span class="font-mono text-white font-semibold">24 ngày</span></div><div class="flex justify-between"><span class="text-slate-400">Tổng hóa đơn PAID:</span><span class="font-mono text-emerald-400 font-semibold">428 hóa đơn</span></div></div><!-- Section 2: Chỉ số tài chính tổng hợp --><div class="p-2.5 rounded bg-[#171f30] border border-[#27344e] space-y-2 text-xs"><div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider font-mono">Chỉ số tài chính tổng hợp</div><div class="flex items-baseline justify-between"><span class="text-slate-300 font-medium">Tổng thu trong kỳ:</span><span class="text-base font-bold text-[#00c6ff] font-mono">12.450.000 VND</span></div><div class="pt-1.5 border-t border-[#222d42] space-y-1"><div class="flex justify-between"><span class="text-slate-400">Doanh thu TB / ngày:</span><span class="font-mono text-slate-200">518.750 VND</span></div><div class="flex justify-between"><span class="text-slate-400">Doanh thu TB / HĐ:</span><span class="font-mono text-slate-200">29.089 VND</span></div></div></div><!-- Section 3: Nguyên tắc ghi nhận --><div class="p-2.5 rounded bg-emerald-950/15 border border-emerald-500/25 text-xs space-y-1"><div class="flex items-center gap-1.5 text-emerald-400 font-semibold text-[11px]"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg><span class="">Nguyên tắc ghi nhận</span></div><div class="text-[11px] text-slate-300 leading-relaxed">Lưu ý: Hóa đơn đã hủy không được tính vào doanh thu. Chỉ tính các hóa đơn trạng thái <span class="text-emerald-400 font-semibold">ĐÃ THANH TOÁN</span>.</div></div><!-- Section 4: Trạng thái dữ liệu --><div class="p-2.5 rounded bg-[#0e131e] border border-[#1e273a] text-xs space-y-1"><div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider font-mono">Trạng thái dữ liệu</div><div class="text-[10px] text-slate-400 leading-relaxed">Dữ liệu được tổng hợp thời gian thực từ hóa đơn <span class="text-emerald-400 font-semibold">ĐÃ THANH TOÁN</span> của cửa hàng hiện tại.</div><div class="text-[10px] text-slate-500 font-mono pt-1 border-t border-[#1e273a] flex justify-between"><span class="">Đồng bộ lần cuối:</span><span class="text-slate-300 font-semibold">14:30:22</span></div></div></div></div></div><!-- FOOTER NOTE --><div class="h-6 flex items-center justify-between text-xs text-slate-400 border-t border-[#1e273a] pt-1.5 flex-shrink-0"><div class="font-mono text-slate-400 text-[11px] flex items-center gap-2"><span class="inline-block w-1.5 h-1.5 rounded-full bg-[#00c6ff]"></span><span class="">Dữ liệu báo cáo doanh thu thời gian thực • CyberHub Hà Nội</span></div><div class="text-[11px] text-slate-500 font-mono">CyberHub Operations • 1280×720</div></div></div>
+  </main>
+
+
+
+
+
+
+
+</body></html>
