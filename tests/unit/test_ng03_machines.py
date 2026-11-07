@@ -270,38 +270,63 @@ def _management(tk_root, username: str = "quanly01"):
 def test_management_lists_machines_and_blocks_in_use_actions(tk_root) -> None:
     view, services, session = _management(tk_root)
     assert len(view.machines) == 20
-    assert not view.buttons["edit"].is_enabled  # chưa chọn dòng
-    view.select(_machine(services, session, "PC02").machine_id)
-    assert view.buttons["edit"].is_enabled
-    assert not view.buttons["maintenance"].is_enabled
-    assert not view.buttons["archive"].is_enabled
-    assert view._hint_label.cget("text") == management_module.IN_USE_HINT
+    assert view.state == ViewState.READY
+    assert len(view.visible_machine_ids) == management_module.PAGE_SIZE
+    assert view._kpi_labels["in_use"].cget("text") == "2"
+    buttons = view.row_buttons(_machine(services, session, "PC02").machine_id)
+    assert buttons["edit"].is_enabled
+    assert not buttons["maintenance"].is_enabled
+    assert not buttons["archive"].is_enabled
+    view.destroy()
+
+
+def test_management_filter_search_and_pages(tk_root) -> None:
+    view, services, session = _management(tk_root)
+    assert view.current_page.total_pages == 4
+    view.go_to_page(4)
+    assert len(view.visible_machine_ids) == 2
+    assert view._caption_label.cget("text") == "Hiển thị 19-20 trên tổng số 20 máy"
+    view.set_status_filter(MachineStatus.IN_USE)
+    assert view.current_page.number == 1
+    in_use = {_machine(services, session, code).machine_id for code in ("PC02", "PC05")}
+    assert set(view.visible_machine_ids) == in_use
+    view.set_status_filter(None)
+    view.handle_search("pc03")  # từ ô tìm kiếm trên topbar
+    assert view.visible_machine_ids == [_machine(services, session, "PC03").machine_id]
+    assert view._search_entry.get() == "pc03"
+    view.handle_search("không-có-máy-này")
+    assert view.state == ViewState.EMPTY
     view.destroy()
 
 
 def test_management_toggles_maintenance(tk_root) -> None:
     view, services, session = _management(tk_root)
     pc01 = _machine(services, session, "PC01")
-    view.select(pc01.machine_id)
     with patch.object(management_module.ConfirmDialog, "ask", return_value=True):
-        view._toggle_maintenance()
+        view._toggle_maintenance(pc01)
     assert _machine(services, session, "PC01").status == MachineStatus.MAINTENANCE
-    assert view.buttons["maintenance"].cget("text") == "Kết thúc bảo trì"
+    assert view.row_buttons(pc01.machine_id)["maintenance"].cget("text") == "↺"
     view.destroy()
 
 
 def test_management_archive_requires_confirmation(tk_root) -> None:
     view, services, session = _management(tk_root)
     pc04 = _machine(services, session, "PC04")
-    view.select(pc04.machine_id)
     with patch.object(management_module.ConfirmDialog, "ask", return_value=False):
-        view._archive()
+        view._archive(pc04)
     assert len(view.machines) == 20
     with patch.object(management_module.ConfirmDialog, "ask", return_value=True) as ask:
-        view._archive()
+        view._archive(pc04)
         assert ask.call_args.kwargs["is_danger"] is True
     assert pc04.machine_id not in {m.machine_id for m in view.machines}
-    assert view.selected_machine is None
+    view.destroy()
+
+
+def test_management_unavailable_service_shows_retry(tk_root) -> None:
+    services, session = _login(scenario=MockScenario.UNAVAILABLE)
+    view = MachineManagementView(tk_root, _context(services, session), runner=RUNNER)
+    assert view.state == ViewState.ERROR
+    assert view._retry_button.winfo_manager() == "pack"
     view.destroy()
 
 
@@ -309,7 +334,8 @@ def test_staff_cannot_load_management_view(tk_root) -> None:
     view, _, session = _management(tk_root, "nhanvien01")
     assert session.role == Role.STAFF
     assert view.machines == []
-    assert not view.buttons["add"].is_enabled
+    assert view.state == ViewState.ERROR
+    assert not view.add_button.is_enabled
     view.destroy()
 
 
