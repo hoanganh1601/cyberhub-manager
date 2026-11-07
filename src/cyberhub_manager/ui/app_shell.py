@@ -207,6 +207,7 @@ class AppShell(ctk.CTkFrame):
         self._current_view: ctk.CTkFrame | None = None
         self._is_closed = False
         self._logo_icon = _load_logo_icon()
+        self._shortcut_ids: list[tuple[str, str]] = []
 
         self.grid_columnconfigure(0, weight=0)  # sidebar
         self.grid_columnconfigure(1, weight=0)  # đường kẻ dọc
@@ -217,6 +218,7 @@ class AppShell(ctk.CTkFrame):
         _vline(self).grid(row=0, column=1, sticky="ns")
         self._build_main()
         self._apply_language()
+        self._bind_shortcuts()
         self.navigate(DEFAULT_NAV_KEY)
 
     # ------------------------------------------------------------------
@@ -546,6 +548,70 @@ class AppShell(ctk.CTkFrame):
             handler(self._search_entry.get().strip())
 
     # ------------------------------------------------------------------
+    # Phím tắt (NG-08): Ctrl+F tìm kiếm, F5 làm mới, Esc xóa ô tìm kiếm, Ctrl+1..5 chuyển menu
+    # ------------------------------------------------------------------
+    def _bind_shortcuts(self) -> None:
+        window = self.winfo_toplevel()
+        specs = [
+            ("<Control-f>", self.focus_search),
+            ("<Control-F>", self.focus_search),
+            ("<F5>", self.refresh_current_view),
+        ]
+        for index in range(1, 6):
+            specs.append((f"<Control-Key-{index}>", lambda _e=None, i=index: self._navigate_by_index(i)))
+        for sequence, handler in specs:
+            funcid = window.bind(sequence, lambda event, h=handler: h(event), add="+")
+            self._shortcut_ids.append((sequence, funcid))
+        self._search_entry.bind("<Escape>", self.clear_search, add="+")
+
+    def _unbind_shortcuts(self) -> None:
+        try:
+            window = self.winfo_toplevel()
+            for sequence, funcid in self._shortcut_ids:
+                window.unbind(sequence, funcid)
+        except tk.TclError:
+            pass  # cửa sổ đã đóng
+        self._shortcut_ids.clear()
+
+    def focus_search(self, _event: Any = None) -> str:
+        """Ctrl+F: đưa con trỏ vào ô tìm kiếm trên topbar."""
+        if not self._is_closed:
+            self._search_entry.focus_set()
+            self._search_entry.select_range(0, "end")
+        return "break"
+
+    def clear_search(self, _event: Any = None) -> str:
+        """Esc trong ô tìm kiếm: xóa từ khóa và trả màn hiện tại về danh sách đầy đủ."""
+        if self._search_entry.get():
+            self._search_entry.delete(0, "end")
+            self._on_search_submitted()
+        return "break"
+
+    def refresh_current_view(self, _event: Any = None) -> str:
+        """F5: tải lại màn hiện tại (refresh(manual=True) của dashboard hoặc reload() của các màn khác)."""
+        view = self._current_view
+        if self._is_closed or view is None:
+            return "break"
+        refresh = getattr(view, "refresh", None)
+        reload = getattr(view, "reload", None)
+        try:
+            if callable(refresh):
+                refresh(manual=True)
+            elif callable(reload):
+                reload()
+        except Exception:  # noqa: BLE001 — không để phím tắt làm crash app
+            logger.exception("Không làm mới được màn %s", self._current_key)
+            ToastManager.show(self, MSG_OPERATION_FAILED, kind="error")
+        return "break"
+
+    def _navigate_by_index(self, index: int) -> str:
+        """Ctrl+1..5: mở mục menu thứ `index` mà vai trò hiện tại được thấy."""
+        keys = self.nav_keys
+        if 1 <= index <= len(keys):
+            self.navigate(keys[index - 1])
+        return "break"
+
+    # ------------------------------------------------------------------
     # Ngôn ngữ
     # ------------------------------------------------------------------
     def set_language(self, language: str) -> None:
@@ -606,6 +672,7 @@ class AppShell(ctk.CTkFrame):
         if self._is_closed:
             return
         self._is_closed = True
+        self._unbind_shortcuts()
         self._dispose_current_view()
         self._session = None
         self._nav_buttons.clear()
