@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -34,6 +33,8 @@ from .formatters import format_datetime
 from .messages import MSG_LOADING, MSG_NO_DATA, MSG_RETRY, get_user_friendly_error
 from .navigation import MANAGEMENT_ROLES
 from .state import ViewState
+from .table_kit import Page, bind_hover, build_pager
+from .table_kit import paginate as _paginate
 from .theme import (
     FONT_ST_BODY,
     FONT_ST_BODY_STRONG,
@@ -67,7 +68,6 @@ from .theme import (
     STITCH_ICON_WARNING_BORDER,
     STITCH_INPUT_BG,
     STITCH_INPUT_BORDER,
-    STITCH_NAV_HOVER,
     STITCH_RADIUS,
     STITCH_RADIUS_LG,
     STITCH_SUCCESS,
@@ -145,27 +145,9 @@ def format_updated_ago(updated_at: datetime, now: datetime) -> str:
     return format_datetime(updated_at).split(" ")[1]  # "HH:MM dd/mm/yyyy" -> "dd/mm/yyyy"
 
 
-@dataclass(frozen=True)
-class Page:
-    """Một trang của bảng: items + thông tin cho chân bảng."""
-
-    items: list[Any]
-    number: int  # trang hiện tại, bắt đầu từ 1
-    total_pages: int
-    first: int  # số thứ tự dòng đầu (1-based); 0 khi rỗng
-    last: int
-    total: int
-
-
 def paginate(items: Iterable[Any], page: int, page_size: int = PAGE_SIZE) -> Page:
-    """Cắt trang; page ngoài khoảng được kéo về trang hợp lệ gần nhất."""
-    items = list(items)
-    total = len(items)
-    total_pages = max(1, math.ceil(total / page_size))
-    number = min(max(page, 1), total_pages)
-    start = (number - 1) * page_size
-    chunk = items[start : start + page_size]
-    return Page(chunk, number, total_pages, start + 1 if chunk else 0, start + len(chunk), total)
+    """Cắt trang (table_kit.paginate) với số dòng mặc định của màn Quản lý máy."""
+    return _paginate(items, page, page_size)
 
 
 def page_caption(page: Page) -> str:
@@ -225,33 +207,6 @@ ROW_HEIGHT = 50
 def _gap(index: int, count: int) -> tuple[int, int]:
     half = STITCH_GAP // 2
     return (0 if index == 0 else half, 0 if index == count - 1 else half)
-
-
-def _bind_hover(row: Any) -> None:
-    """Tô nền dòng khi rê chuột (Stitch: hover:bg-[#161d2d]); chuột đi vào ô con không làm tắt."""
-
-    def inside() -> bool:
-        widget = row.winfo_containing(row.winfo_pointerx(), row.winfo_pointery())
-        while widget is not None:
-            if widget is row:
-                return True
-            widget = widget.master
-        return False
-
-    def enter(_event: Any = None) -> None:
-        row.configure(fg_color=STITCH_NAV_HOVER)
-
-    def leave(_event: Any = None) -> None:
-        if row.winfo_exists() and not inside():
-            row.configure(fg_color="transparent")
-
-    def bind_all(widget: Any) -> None:
-        widget.bind("<Enter>", enter, add="+")
-        widget.bind("<Leave>", leave, add="+")
-        for child in widget.winfo_children():
-            bind_all(child)
-
-    bind_all(row)
 
 
 def _configure_columns(frame: Any) -> None:
@@ -627,7 +582,7 @@ class MachineManagementView(ctk.CTkFrame):
 
         cell(5, ctk.CTkLabel(row, text=format_updated_ago(machine.updated_at, now), font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED))
         cell(6, self._build_row_actions(row, machine))
-        _bind_hover(row)
+        bind_hover(row)
 
     def _build_row_actions(self, row: Any, machine: MachineSummary) -> ctk.CTkFrame:
         actions = machine_actions(machine)
@@ -650,30 +605,7 @@ class MachineManagementView(ctk.CTkFrame):
 
     def _render_pager(self, page: Page) -> None:
         self._caption_label.configure(text=page_caption(page))
-        for child in self._pager.winfo_children():
-            child.destroy()
-
-        def pager_button(text: str, target: int, *, active: bool = False, enabled: bool = True) -> None:
-            button = ctk.CTkButton(
-                self._pager,
-                text=text,
-                width=26,
-                height=24,
-                corner_radius=STITCH_RADIUS,
-                font=FONT_ST_MONO_11,
-                fg_color=STITCH_CYAN if active else STITCH_CHIP_BG,
-                hover_color=STITCH_CYAN if active else STITCH_TAB_HOVER,
-                text_color=STITCH_TEXT_ON_CYAN if active else STITCH_TEXT_MUTED,
-                state="normal" if enabled else "disabled",
-                command=lambda: self.go_to_page(target),
-            )
-            button.pack(side="left", padx=(4, 0))
-
-        pager_button("‹", page.number - 1, enabled=page.number > 1)
-        start = max(1, min(page.number - 2, page.total_pages - 4))
-        for number in range(start, min(page.total_pages, start + 4) + 1):
-            pager_button(str(number), number, active=number == page.number)
-        pager_button("›", page.number + 1, enabled=page.number < page.total_pages)
+        build_pager(self._pager, page, self.go_to_page)
 
     # ------------------------------------------------------------------
     # Hành động

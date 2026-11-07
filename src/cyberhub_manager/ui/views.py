@@ -7,6 +7,7 @@ Composition root (app.py — HA-11) gọi:
 from __future__ import annotations
 
 from .app_shell import ViewFactory
+from .customers_view import CustomersView
 from .dashboard_view import DashboardView
 from .machine_management_view import MachineManagementView
 from .navigation import NavKey
@@ -15,5 +16,6 @@ from .navigation import NavKey
 def default_view_factories() -> dict[NavKey, ViewFactory]:
     return {
         NavKey.DASHBOARD: DashboardView,
+        NavKey.CUSTOMERS: CustomersView,
         NavKey.MACHINES: MachineManagementView,
     }
