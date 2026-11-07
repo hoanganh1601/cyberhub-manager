@@ -8,9 +8,10 @@
 """
 
 from __future__ import annotations
-
+import math
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 import customtkinter as ctk
@@ -24,7 +25,7 @@ from .components import ConfirmDialog, DataTable, TableColumn, TableRow
 from .components.stitch_button import stitch_button
 from .dialogs.machine_dialog import MachineDialog
 from .feedback import notify_error, notify_success
-from .formatters import format_money
+from .formatters import format_datetime, format_money
 from .messages import get_user_friendly_error
 from .navigation import MANAGEMENT_ROLES
 from .state import ViewState
@@ -104,6 +105,65 @@ def search_machines(machines: Iterable[MachineSummary], keyword: str) -> list[Ma
         return list(machines)
     return [m for m in machines if needle in m.machine_code.casefold() or needle in m.name.casefold()]
 
+PAGE_SIZE = 6  # số dòng mỗi trang; chỉnh ở bước dựng bảng nếu cần cho vừa 1280x720
+
+
+def format_short_duration(seconds: int) -> str:
+    """Thời lượng gọn cho cột "Phiên hiện tại" theo Stitch: "45m", "1h 30m"."""
+    total_minutes = max(seconds, 0) // 60
+    hours, minutes = divmod(total_minutes, 60)
+    return f"{hours}h {minutes}m" if hours else f"{minutes}m"
+
+
+def current_session_cells(machine: MachineSummary) -> tuple[str, str]:
+    """(tên khách, thời lượng) của phiên đang chạy; máy không có phiên -> ("—", "")."""
+    active = machine.active_session
+    if active is None:
+        return "—", ""
+    return active.session.customer_name, format_short_duration(active.elapsed_seconds)
+
+
+def format_updated_ago(updated_at: datetime, now: datetime) -> str:
+    """Cột "Cập nhật cuối": Vừa xong / N phút trước / N giờ trước / dd/mm/yyyy (giờ VN)."""
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    seconds = (now - updated_at).total_seconds()
+    if seconds < 60:  # gồm cả lệch đồng hồ (số âm)
+        return "Vừa xong"
+    if seconds < 3600:
+        return f"{int(seconds // 60)} phút trước"
+    if seconds < 24 * 3600:
+        return f"{int(seconds // 3600)} giờ trước"
+    return format_datetime(updated_at).split(" ")[1]  # "HH:MM dd/mm/yyyy" -> "dd/mm/yyyy"
+
+
+@dataclass(frozen=True)
+class Page:
+    """Một trang của bảng: items + thông tin cho chân bảng."""
+
+    items: list[Any]
+    number: int  # trang hiện tại, bắt đầu từ 1
+    total_pages: int
+    first: int  # số thứ tự dòng đầu (1-based); 0 khi rỗng
+    last: int
+    total: int
+
+
+def paginate(items: Iterable[Any], page: int, page_size: int = PAGE_SIZE) -> Page:
+    """Cắt trang; page ngoài khoảng được kéo về trang hợp lệ gần nhất."""
+    items = list(items)
+    total = len(items)
+    total_pages = max(1, math.ceil(total / page_size))
+    number = min(max(page, 1), total_pages)
+    start = (number - 1) * page_size
+    chunk = items[start : start + page_size]
+    return Page(chunk, number, total_pages, start + 1 if chunk else 0, start + len(chunk), total)
+
+
+def page_caption(page: Page) -> str:
+    return f"Hiển thị {page.first}-{page.last} trên tổng số {page.total} máy"
 
 def archive_message(result: MachineArchiveResult) -> str:
     if result.action == MachineArchiveAction.DELETED:
