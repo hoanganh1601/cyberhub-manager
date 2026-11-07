@@ -1,9 +1,12 @@
-"""NG-03 — Dialog thêm / sửa máy (Manager/Admin).
+"""NG-03 — Dialog thêm / sửa máy (Manager/Admin) theo Stitch `th_m_m_y_cyberhub_manager_1280x720`.
 
-- Thêm: mã máy, tên máy, đơn giá/giờ -> machines.create_machine(...)
-- Sửa: tên máy, đơn giá/giờ (mã máy không đổi) -> machines.update_machine(...)
+- Thêm: mã máy, tên máy, giá theo giờ -> machines.create_machine(...)
+- Sửa: tên máy, giá theo giờ (mã máy chỉ hiển thị) -> machines.update_machine(...)
+- Bố cục Stitch: tiêu đề + phụ đề + nút ✕, nhãn in hoa có dấu * cyan, chú thích dưới ô,
+  đuôi "VND/giờ" trong ô giá, hộp thông tin cửa hàng / trạng thái, nút Hủy + Thêm máy.
 - Kiểm tra sơ bộ ở UI (bắt buộc nhập, đơn giá nguyên dương); service vẫn kiểm tra lại.
 - Lỗi Validation/Conflict gắn vào đúng field qua get_field_errors_safe(); giữ dữ liệu đã nhập.
+- Thông báo lỗi giữ tiếng Anh theo quy định chung trong messages.py.
 - Đang lưu: nút "Processing…", chặn double click/Enter (07 mục 7).
 """
 
@@ -17,35 +20,55 @@ from typing import Any
 import customtkinter as ctk
 
 from ...domain.dtos import MachineSummary
+from ...domain.enums import MachineStatus
 from ...domain.models import Machine
 from ..app_shell import ViewContext
 from ..background import TaskRunner, default_runner
-from ..components import FormField, ToastManager
+from ..components import ToastManager
 from ..components.stitch_button import stitch_button
 from ..feedback import notify_error
-from ..messages import (
-    FIELD_ERROR_MESSAGES,
-    MSG_CANCEL,
-    get_field_errors_safe,
-    get_user_friendly_error,
-)
+from ..messages import FIELD_ERROR_MESSAGES, get_field_errors_safe, get_user_friendly_error
 from ..theme import (
-    DIALOG_WIDTH_MIN,
     FONT_ST_BODY,
-    FONT_ST_MONO_VALUE,
-    FONT_ST_MONO_XS,
+    FONT_ST_BODY_STRONG,
+    FONT_ST_LABEL_CAPS,
+    FONT_ST_MONO_11,
+    FONT_ST_MONO_BODY,
+    FONT_ST_MONO_XS_STRONG,
     FONT_ST_PAGE_TITLE,
+    STITCH_BADGE_DANGER_BG,
+    STITCH_BADGE_DANGER_BORDER,
+    STITCH_BADGE_SUCCESS_BG,
+    STITCH_BADGE_SUCCESS_BORDER,
+    STITCH_BADGE_WARNING_BG,
+    STITCH_BADGE_WARNING_BORDER,
     STITCH_BG_CANVAS,
+    STITCH_BORDER,
     STITCH_CARD_BG,
-    STITCH_NAV_ACTIVE_BORDER,
+    STITCH_CYAN,
+    STITCH_DANGER,
+    STITCH_INPUT_BORDER,
     STITCH_RADIUS_LG,
+    STITCH_SUCCESS,
+    STITCH_TAB_HOVER,
+    STITCH_TEXT,
+    STITCH_TEXT_DIM,
     STITCH_TEXT_MUTED,
     STITCH_TEXT_STRONG,
+    STITCH_WARNING,
 )
 
 REQUIRED = FIELD_ERROR_MESSAGES["REQUIRED"]
 INVALID_RATE = FIELD_ERROR_MESSAGES["INVALID_HOURLY_RATE"]
 _MONEY_SEPARATORS = re.compile(r"[\s.,_]|vnd|đ", re.IGNORECASE)
+DIALOG_WIDTH = 500
+
+# status -> (nhãn, chữ, nền, viền) cho ô "Trạng thái"
+_STATUS_CHIPS: dict[MachineStatus, tuple[str, str, str, str]] = {
+    MachineStatus.AVAILABLE: ("Trống", STITCH_SUCCESS, STITCH_BADGE_SUCCESS_BG, STITCH_BADGE_SUCCESS_BORDER),
+    MachineStatus.IN_USE: ("Đang dùng", STITCH_DANGER, STITCH_BADGE_DANGER_BG, STITCH_BADGE_DANGER_BORDER),
+    MachineStatus.MAINTENANCE: ("Bảo trì", STITCH_WARNING, STITCH_BADGE_WARNING_BG, STITCH_BADGE_WARNING_BORDER),
+}
 
 
 def parse_positive_int(text: str) -> int | None:
@@ -55,6 +78,93 @@ def parse_positive_int(text: str) -> int | None:
         return None
     value = int(cleaned)
     return value if value > 0 else None
+
+
+class StitchField(ctk.CTkFrame):
+    """Ô nhập theo Stitch: nhãn in hoa + dấu * cyan, ô nền tối viền cyan khi focus,
+    đuôi đơn vị (tùy chọn), chú thích xám và dòng lỗi đỏ bên dưới.
+
+    Cùng API với FormField: get_value / set_value / set_error / focus / bind_return.
+    """
+
+    def __init__(
+        self,
+        master: Any,
+        label: str,
+        *,
+        placeholder: str = "",
+        hint: str = "",
+        suffix: str = "",
+        mono: bool = False,
+        required: bool = True,
+    ) -> None:
+        super().__init__(master, fg_color="transparent")
+        self._has_error = False
+
+        title = ctk.CTkFrame(self, fg_color="transparent")
+        title.pack(fill="x")
+        ctk.CTkLabel(title, text=label.upper(), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT, height=16).pack(side="left")
+        if required:
+            ctk.CTkLabel(title, text=" *", font=FONT_ST_LABEL_CAPS, text_color=STITCH_CYAN, height=16).pack(side="left")
+
+        self._box = ctk.CTkFrame(
+            self, fg_color=STITCH_BG_CANVAS, border_width=1, border_color=STITCH_INPUT_BORDER, corner_radius=STITCH_RADIUS_LG
+        )
+        self._box.pack(fill="x", pady=(6, 0))
+        self._entry = ctk.CTkEntry(
+            self._box,
+            height=34,
+            border_width=0,
+            corner_radius=0,  # khung bo góc là self._box; entry vuông để không lộ mép
+            fg_color=STITCH_BG_CANVAS,
+            text_color=STITCH_TEXT_STRONG,
+            placeholder_text=placeholder,
+            placeholder_text_color=STITCH_TEXT_DIM,
+            font=FONT_ST_MONO_BODY if mono else FONT_ST_BODY,
+        )
+        self._entry.pack(side="left", fill="x", expand=True, padx=(8, 4), pady=2)
+        if suffix:
+            ctk.CTkLabel(self._box, text=suffix, font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED).pack(
+                side="right", padx=(0, 12)
+            )
+        self._entry.bind("<FocusIn>", lambda _e: self._paint_border(focused=True), add="+")
+        self._entry.bind("<FocusOut>", lambda _e: self._paint_border(focused=False), add="+")
+
+        self._hint_label: ctk.CTkLabel | None = None
+        if hint:
+            self._hint_label = ctk.CTkLabel(self, text=hint, font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED, anchor="w", height=16)
+            self._hint_label.pack(fill="x", pady=(4, 0))
+        self._error_label = ctk.CTkLabel(self, text="", font=FONT_ST_MONO_11, text_color=STITCH_DANGER, anchor="w", height=16)
+
+    def _paint_border(self, *, focused: bool) -> None:
+        if self._has_error:
+            color = STITCH_DANGER
+        else:
+            color = STITCH_CYAN if focused else STITCH_INPUT_BORDER
+        self._box.configure(border_color=color)
+
+    def get_value(self) -> str:
+        return self._entry.get()
+
+    def set_value(self, value: str) -> None:
+        self._entry.delete(0, "end")
+        self._entry.insert(0, value)
+
+    def set_error(self, message: str | None) -> None:
+        self._has_error = bool(message)
+        self._error_label.configure(text=message or "")
+        # winfo_manager() thay vì winfo_ismapped(): đúng cả khi cửa sổ chưa hiện (test).
+        if message and not self._error_label.winfo_manager():
+            self._error_label.pack(fill="x", pady=(4, 0))
+        elif not message and self._error_label.winfo_manager():
+            self._error_label.pack_forget()
+        self._paint_border(focused=False)
+
+    def focus(self) -> None:
+        self._entry.focus_set()
+
+    def bind_return(self, callback: Callable[[], None]) -> None:
+        self._entry.bind("<Return>", lambda _event: callback())
 
 
 class MachineDialog(ctk.CTkToplevel):
@@ -76,6 +186,7 @@ class MachineDialog(ctk.CTkToplevel):
         self._on_saved = on_saved
         self._submitting = False
         self._is_edit = machine is not None
+        store_name = context.session.store_name
 
         self.title("Sửa máy" if self._is_edit else "Thêm máy")
         self.configure(fg_color=STITCH_BG_CANVAS)
@@ -84,79 +195,159 @@ class MachineDialog(ctk.CTkToplevel):
 
         box = ctk.CTkFrame(
             self,
+            width=DIALOG_WIDTH,
             fg_color=STITCH_CARD_BG,
             border_width=1,
-            border_color=STITCH_NAV_ACTIVE_BORDER,
-            corner_radius=STITCH_RADIUS_LG,
+            border_color=STITCH_INPUT_BORDER,
+            corner_radius=12,
         )
         box.pack(fill="both", expand=True, padx=8, pady=8)
         body = ctk.CTkFrame(box, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=24, pady=20)
 
+        # Header: tiêu đề + phụ đề, nút ✕
+        header = ctk.CTkFrame(body, fg_color="transparent")
+        header.pack(fill="x")
+        titles = ctk.CTkFrame(header, fg_color="transparent")
+        titles.pack(side="left", fill="x", expand=True)
         ctk.CTkLabel(
-            body,
-            text="Sửa thông tin máy" if self._is_edit else "Thêm máy mới",
+            titles,
+            text="Sửa máy" if self._is_edit else "Thêm máy",
             font=FONT_ST_PAGE_TITLE,
             text_color=STITCH_TEXT_STRONG,
             anchor="w",
+            height=24,
         ).pack(fill="x")
-        ctk.CTkLabel(
-            body,
-            text=(
-                "Đổi đơn giá không ảnh hưởng phiên đang chạy."
-                if self._is_edit
-                else "Máy mới ở trạng thái Trống."
-            ),
-            font=FONT_ST_BODY,
+        subtitle = (
+            f"Cập nhật máy {machine.machine_code} tại cửa hàng {store_name}"
+            if machine is not None
+            else f"Thêm máy mới vào cửa hàng {store_name}"
+        )
+        ctk.CTkLabel(titles, text=subtitle, font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, anchor="w", height=18).pack(fill="x")
+        self._close_button = ctk.CTkButton(
+            header,
+            text="✕",
+            width=30,
+            height=30,
+            corner_radius=STITCH_RADIUS_LG,
+            fg_color="transparent",
+            hover_color=STITCH_TAB_HOVER,
             text_color=STITCH_TEXT_MUTED,
-            anchor="w",
-        ).pack(fill="x", pady=(2, 14))
+            font=FONT_ST_BODY_STRONG,
+            command=self.cancel,
+        )
+        self._close_button.pack(side="right", anchor="n")
+        self._divider(body, pady=(12, 16))
 
-        self._fields: dict[str, FormField] = {}
-        if self._is_edit:
-            assert machine is not None
-            ctk.CTkLabel(body, text="MÃ MÁY", font=FONT_ST_MONO_XS, text_color=STITCH_TEXT_MUTED, anchor="w").pack(fill="x")
-            ctk.CTkLabel(
-                body, text=machine.machine_code, font=FONT_ST_MONO_VALUE, text_color=STITCH_TEXT_STRONG, anchor="w"
-            ).pack(fill="x", pady=(0, 10))
+        # Các ô nhập
+        self._fields: dict[str, StitchField] = {}
+        if machine is not None:
+            self._read_only(body, "Mã máy", machine.machine_code)
         else:
-            self._add_field(body, "code", "Mã máy", "VD: PC21")
-        self._add_field(body, "name", "Tên máy", "VD: Máy VIP 21")
-        self._add_field(body, "hourly_rate", "Đơn giá/giờ (VND)", "VD: 12000")
+            self._add_field(body, "code", "Mã máy", placeholder="VD: PC-21", hint="Mã máy phải duy nhất trong hệ thống", mono=True)
+        self._add_field(body, "name", "Tên máy", placeholder="Ví dụ: Máy VIP 21")
+        self._add_field(
+            body,
+            "hourly_rate",
+            "Giá theo giờ",
+            placeholder="10000",
+            suffix="VND/giờ",
+            mono=True,
+            hint="Đổi đơn giá không ảnh hưởng phiên đang chạy" if machine is not None else "",
+        )
         if machine is not None:
             self._fields["name"].set_value(machine.name)
             self._fields["hourly_rate"].set_value(str(machine.hourly_rate))
 
+        self._build_info_box(body, store_name, machine.status if machine is not None else MachineStatus.AVAILABLE)
+        self._divider(body, pady=(18, 14))
+
+        # Nút
         buttons = ctk.CTkFrame(body, fg_color="transparent")
-        buttons.pack(fill="x", pady=(16, 0))
+        buttons.pack(fill="x")
         self._save_button = stitch_button(
-            buttons, "Lưu" if self._is_edit else "Thêm máy", kind="primary", command=self.submit
+            buttons,
+            "✓  Lưu thay đổi" if self._is_edit else "＋  Thêm máy",
+            kind="primary",
+            command=self.submit,
+            width=130,
+            height=34,
         )
         self._save_button.pack(side="right")
-        self._cancel_button = stitch_button(buttons, MSG_CANCEL, kind="secondary", command=self.cancel, width=90)
-        self._cancel_button.pack(side="right", padx=(0, 8))
+        self._cancel_button = stitch_button(buttons, "Hủy", kind="secondary", command=self.cancel, width=72, height=34)
+        self._cancel_button.pack(side="right", padx=(0, 10))
 
         for field in self._fields.values():
             field.bind_return(self.submit)
         self.bind("<Escape>", lambda _e: self.cancel())
         self.protocol("WM_DELETE_WINDOW", self.cancel)
         # Không cố định chiều cao: dialog tự giãn khi hiện lỗi dưới field (tránh cắt nút).
-        self.minsize(DIALOG_WIDTH_MIN, 1)
+        self.minsize(DIALOG_WIDTH, 1)
         self.after(0, self._grab_and_focus)
 
     # ------------------------------------------------------------------
     @property
-    def fields(self) -> dict[str, FormField]:
+    def fields(self) -> dict[str, StitchField]:
         return self._fields
 
     @property
     def is_submitting(self) -> bool:
         return self._submitting
 
-    def _add_field(self, master: Any, key: str, label: str, placeholder: str) -> None:
-        field = FormField(master, label, placeholder=placeholder)
-        field.pack(fill="x", pady=(0, 10))
+    # ------------------------------------------------------------------
+    # Dựng giao diện
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _divider(master: Any, *, pady: tuple[int, int]) -> None:
+        ctk.CTkFrame(master, fg_color=STITCH_BORDER, height=1, corner_radius=0).pack(fill="x", pady=pady)
+
+    def _add_field(self, master: Any, key: str, label: str, **options: Any) -> None:
+        field = StitchField(master, label, **options)
+        field.pack(fill="x", pady=(0, 14))
         self._fields[key] = field
+
+    @staticmethod
+    def _read_only(master: Any, label: str, value: str) -> None:
+        """Mã máy khi sửa: chỉ hiển thị, không cho đổi."""
+        wrapper = ctk.CTkFrame(master, fg_color="transparent")
+        wrapper.pack(fill="x", pady=(0, 14))
+        ctk.CTkLabel(wrapper, text=label.upper(), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT, anchor="w", height=16).pack(fill="x")
+        box = ctk.CTkFrame(wrapper, fg_color=STITCH_CARD_BG, border_width=1, border_color=STITCH_BORDER, corner_radius=STITCH_RADIUS_LG)
+        box.pack(fill="x", pady=(6, 0))
+        ctk.CTkLabel(box, text=value, font=FONT_ST_MONO_BODY, text_color=STITCH_CYAN, anchor="w", height=34).pack(
+            side="left", padx=14
+        )
+        ctk.CTkLabel(box, text="Không thể đổi", font=FONT_ST_MONO_11, text_color=STITCH_TEXT_DIM).pack(side="right", padx=12)
+
+    def _build_info_box(self, master: Any, store_name: str, status: MachineStatus) -> None:
+        info = ctk.CTkFrame(master, fg_color=STITCH_BG_CANVAS, border_width=1, border_color=STITCH_BORDER, corner_radius=STITCH_RADIUS_LG)
+        info.pack(fill="x", pady=(2, 0))
+        info.grid_columnconfigure((0, 1), weight=1, uniform="info")
+
+        store = ctk.CTkFrame(info, fg_color="transparent")
+        store.grid(row=0, column=0, sticky="w", padx=14, pady=10)
+        ctk.CTkLabel(store, text="Cửa hàng", font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED, anchor="w", height=16).pack(anchor="w")
+        store_line = ctk.CTkFrame(store, fg_color="transparent")
+        store_line.pack(anchor="w")
+        ctk.CTkLabel(store_line, text="●", font=FONT_ST_BODY_STRONG, text_color=STITCH_CYAN, height=18).pack(side="left")
+        ctk.CTkLabel(
+            store_line, text=f" {store_name}", font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG, height=18
+        ).pack(side="left")
+
+        state = ctk.CTkFrame(info, fg_color="transparent")
+        state.grid(row=0, column=1, sticky="w", padx=14, pady=10)
+        ctk.CTkLabel(
+            state,
+            text="Trạng thái hiện tại" if self._is_edit else "Trạng thái ban đầu",
+            font=FONT_ST_MONO_11,
+            text_color=STITCH_TEXT_MUTED,
+            anchor="w",
+            height=16,
+        ).pack(anchor="w")
+        label, color, bg, border = _STATUS_CHIPS[status]
+        chip = ctk.CTkFrame(state, fg_color=bg, border_width=1, border_color=border, corner_radius=10)
+        chip.pack(anchor="w", pady=(2, 0))
+        ctk.CTkLabel(chip, text=f"● {label}", font=FONT_ST_MONO_XS_STRONG, text_color=color, height=18).pack(padx=8)
 
     def _grab_and_focus(self) -> None:
         try:
@@ -166,6 +357,8 @@ class MachineDialog(ctk.CTkToplevel):
         first = self._fields.get("code") or self._fields["name"]
         first.focus()
 
+    # ------------------------------------------------------------------
+    # Kiểm tra + lưu
     # ------------------------------------------------------------------
     def validate(self) -> tuple[dict[str, Any], dict[str, str]]:
         """Trả (giá trị đã chuẩn hóa, lỗi theo field)."""
@@ -235,6 +428,7 @@ class MachineDialog(ctk.CTkToplevel):
         self._submitting = submitting
         self._save_button.set_busy(submitting)
         self._cancel_button.set_enabled(not submitting)
+        self._close_button.configure(state="disabled" if submitting else "normal")
 
     def cancel(self) -> None:
         if not self._submitting:
