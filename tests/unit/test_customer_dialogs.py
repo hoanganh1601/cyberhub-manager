@@ -53,11 +53,9 @@ _SHARED_ROOT: ctk.CTk | None = None
 def setUpModule():
     global _SHARED_ROOT
     setup_theme()
-    _SHARED_ROOT = getattr(ctk, "_SHARED_TEST_ROOT", None)
-    if _SHARED_ROOT is None:
-        _SHARED_ROOT = ctk.CTk()
-        _SHARED_ROOT.withdraw()
-        ctk._SHARED_TEST_ROOT = _SHARED_ROOT
+    from tests.conftest import get_shared_tk_root
+
+    _SHARED_ROOT = get_shared_tk_root()
 
 
 def tearDownModule():

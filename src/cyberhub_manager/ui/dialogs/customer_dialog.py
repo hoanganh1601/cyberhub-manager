@@ -122,15 +122,26 @@ class CustomerDialog(ctk.CTkToplevel):
         h_inner.pack(fill="both", expand=True, padx=18, pady=10)
 
         icon_name = "edit" if self._is_edit else "add"
-        icon_box = ctk.CTkLabel(
-            h_inner,
-            text="",
-            image=get_icon(icon_name, STITCH_CYAN, size=(18, 18)),
-            width=36,
-            height=36,
-            corner_radius=8,
-            fg_color="#0C2E40",
-        )
+        try:
+            icon_img = get_icon(icon_name, STITCH_CYAN, size=(18, 18))
+            icon_box = ctk.CTkLabel(
+                h_inner,
+                text="",
+                image=icon_img,
+                width=36,
+                height=36,
+                corner_radius=8,
+                fg_color="#0C2E40",
+            )
+        except Exception:
+            icon_box = ctk.CTkLabel(
+                h_inner,
+                text="E" if self._is_edit else "+",
+                width=36,
+                height=36,
+                corner_radius=8,
+                fg_color="#0C2E40",
+            )
         icon_box.pack(side="left")
 
         title_box = ctk.CTkFrame(h_inner, fg_color="transparent")
