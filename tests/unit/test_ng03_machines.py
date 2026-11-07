@@ -52,9 +52,7 @@ def _machine(services, session, code: str):
 @pytest.fixture(autouse=True)
 def _silence_feedback():
     """Toast/Dialog thật cần cửa sổ hiển thị; trong test chỉ ghi lại lời gọi."""
-    with patch.object(feedback_module.ToastManager, "show") as toast, patch.object(
-        dashboard_module.ToastManager, "show", toast
-    ):
+    with patch.object(feedback_module.ToastManager, "show") as toast:
         yield toast
 
 
@@ -183,14 +181,15 @@ def test_cancel_end_maintenance_changes_nothing(tk_root) -> None:
     view.destroy()
 
 
-def test_open_and_checkout_use_callbacks(tk_root, _silence_feedback) -> None:
+def test_open_and_checkout_use_callbacks(tk_root) -> None:
     opened: list[int] = []
-    view, services, session = _dashboard(tk_root, on_open_session=opened.append)
+    checked_out: list[int] = []
+    view, services, session = _dashboard(tk_root, on_open_session=opened.append, on_checkout=checked_out.append)
     pc01, pc02 = _machine(services, session, "PC01"), _machine(services, session, "PC02")
     view.card_for(pc01.machine_id)._on_click()
     assert opened == [pc01.machine_id]
-    view.card_for(pc02.machine_id)._on_click()  # chưa có NG-06 -> Toast "chưa hỗ trợ"
-    assert _silence_feedback.call_args.args[1] == dashboard_module.FEATURE_PENDING
+    view.card_for(pc02.machine_id)._on_click()  # PC02 đang dùng -> Thanh toán
+    assert checked_out == [pc02.machine_id]
     view.destroy()
 
 

@@ -84,8 +84,8 @@ def _new_customer(services, phone: str = "0909111222"):
 def _silence_feedback():
     """Toast/alert thật cần cửa sổ hiển thị; trong test chỉ ghi lại lời gọi."""
     with patch.object(feedback_module.ToastManager, "show") as toast, patch.object(
-        dashboard_module.ToastManager, "show", toast
-    ), patch.object(feedback_module.ConfirmDialog, "alert") as alert:
+        feedback_module.ConfirmDialog, "alert"
+    ) as alert:
         toast.alert = alert
         yield toast
 

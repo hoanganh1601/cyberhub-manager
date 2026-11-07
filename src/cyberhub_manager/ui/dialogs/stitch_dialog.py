@@ -112,6 +112,7 @@ class StitchDialog(ctk.CTkToplevel):
         confirm_text: str = "Lưu",
         confirm_kind: str = "primary",
         cancel_text: str = "Hủy",
+        badge: str = "",
     ) -> None:
         super().__init__(parent)
         self._submitting = False
@@ -127,15 +128,21 @@ class StitchDialog(ctk.CTkToplevel):
         # Header
         header = ctk.CTkFrame(shell, fg_color="transparent")
         header.pack(fill="x", padx=22, pady=(18, 14))
+        color, bg, border = _ICON_TONES.get(icon_tone, _ICON_TONES["cyan"])
         if icon:  # Stitch "Mở phiên" không có ô icon
-            color, bg, border = _ICON_TONES.get(icon_tone, _ICON_TONES["cyan"])
             icon_box = ctk.CTkFrame(header, width=40, height=40, fg_color=bg, border_width=1, border_color=border, corner_radius=STITCH_RADIUS_LG)
             icon_box.pack(side="left")
             icon_box.pack_propagate(False)
             ctk.CTkLabel(icon_box, text=icon, font=("Segoe UI Symbol", 16), text_color=color).pack(expand=True)
         titles = ctk.CTkFrame(header, fg_color="transparent")
         titles.pack(side="left", padx=12 if icon else 0, fill="x", expand=True)
-        ctk.CTkLabel(titles, text=title, font=FONT_ST_PAGE_TITLE, text_color=STITCH_TEXT_STRONG, anchor="w", height=24).pack(fill="x")
+        title_row = ctk.CTkFrame(titles, fg_color="transparent")
+        title_row.pack(fill="x")
+        ctk.CTkLabel(title_row, text=title, font=FONT_ST_PAGE_TITLE, text_color=STITCH_TEXT_STRONG, anchor="w", height=24).pack(side="left")
+        if badge:  # chip cạnh tiêu đề, vd. "ĐÃ THANH TOÁN" (màu theo icon_tone)
+            badge_box = ctk.CTkFrame(title_row, fg_color=bg, border_width=1, border_color=border, corner_radius=STITCH_RADIUS)
+            badge_box.pack(side="left", padx=(10, 0))
+            ctk.CTkLabel(badge_box, text=badge, font=FONT_ST_MONO_XS_STRONG, text_color=color, height=18).pack(padx=8)
         ctk.CTkLabel(titles, text=subtitle, font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, anchor="w", height=18).pack(fill="x")
         self._close_button = ctk.CTkButton(
             header,
