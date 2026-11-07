@@ -26,6 +26,7 @@ from ..app_shell import ViewContext
 from ..background import TaskRunner, default_runner
 from ..components import ToastManager
 from ..components.stitch_button import stitch_button
+from ..components.stitch_field import StitchField
 from ..feedback import notify_error
 from ..messages import FIELD_ERROR_MESSAGES, get_field_errors_safe, get_user_friendly_error
 from ..theme import (
@@ -78,93 +79,6 @@ def parse_positive_int(text: str) -> int | None:
         return None
     value = int(cleaned)
     return value if value > 0 else None
-
-
-class StitchField(ctk.CTkFrame):
-    """Ô nhập theo Stitch: nhãn in hoa + dấu * cyan, ô nền tối viền cyan khi focus,
-    đuôi đơn vị (tùy chọn), chú thích xám và dòng lỗi đỏ bên dưới.
-
-    Cùng API với FormField: get_value / set_value / set_error / focus / bind_return.
-    """
-
-    def __init__(
-        self,
-        master: Any,
-        label: str,
-        *,
-        placeholder: str = "",
-        hint: str = "",
-        suffix: str = "",
-        mono: bool = False,
-        required: bool = True,
-    ) -> None:
-        super().__init__(master, fg_color="transparent")
-        self._has_error = False
-
-        title = ctk.CTkFrame(self, fg_color="transparent")
-        title.pack(fill="x")
-        ctk.CTkLabel(title, text=label.upper(), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT, height=16).pack(side="left")
-        if required:
-            ctk.CTkLabel(title, text=" *", font=FONT_ST_LABEL_CAPS, text_color=STITCH_CYAN, height=16).pack(side="left")
-
-        self._box = ctk.CTkFrame(
-            self, fg_color=STITCH_BG_CANVAS, border_width=1, border_color=STITCH_INPUT_BORDER, corner_radius=STITCH_RADIUS_LG
-        )
-        self._box.pack(fill="x", pady=(6, 0))
-        self._entry = ctk.CTkEntry(
-            self._box,
-            height=34,
-            border_width=0,
-            corner_radius=0,  # khung bo góc là self._box; entry vuông để không lộ mép
-            fg_color=STITCH_BG_CANVAS,
-            text_color=STITCH_TEXT_STRONG,
-            placeholder_text=placeholder,
-            placeholder_text_color=STITCH_TEXT_DIM,
-            font=FONT_ST_MONO_BODY if mono else FONT_ST_BODY,
-        )
-        self._entry.pack(side="left", fill="x", expand=True, padx=(8, 4), pady=2)
-        if suffix:
-            ctk.CTkLabel(self._box, text=suffix, font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED).pack(
-                side="right", padx=(0, 12)
-            )
-        self._entry.bind("<FocusIn>", lambda _e: self._paint_border(focused=True), add="+")
-        self._entry.bind("<FocusOut>", lambda _e: self._paint_border(focused=False), add="+")
-
-        self._hint_label: ctk.CTkLabel | None = None
-        if hint:
-            self._hint_label = ctk.CTkLabel(self, text=hint, font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED, anchor="w", height=16)
-            self._hint_label.pack(fill="x", pady=(4, 0))
-        self._error_label = ctk.CTkLabel(self, text="", font=FONT_ST_MONO_11, text_color=STITCH_DANGER, anchor="w", height=16)
-
-    def _paint_border(self, *, focused: bool) -> None:
-        if self._has_error:
-            color = STITCH_DANGER
-        else:
-            color = STITCH_CYAN if focused else STITCH_INPUT_BORDER
-        self._box.configure(border_color=color)
-
-    def get_value(self) -> str:
-        return self._entry.get()
-
-    def set_value(self, value: str) -> None:
-        self._entry.delete(0, "end")
-        self._entry.insert(0, value)
-
-    def set_error(self, message: str | None) -> None:
-        self._has_error = bool(message)
-        self._error_label.configure(text=message or "")
-        # winfo_manager() thay vì winfo_ismapped(): đúng cả khi cửa sổ chưa hiện (test).
-        if message and not self._error_label.winfo_manager():
-            self._error_label.pack(fill="x", pady=(4, 0))
-        elif not message and self._error_label.winfo_manager():
-            self._error_label.pack_forget()
-        self._paint_border(focused=False)
-
-    def focus(self) -> None:
-        self._entry.focus_set()
-
-    def bind_return(self, callback: Callable[[], None]) -> None:
-        self._entry.bind("<Return>", lambda _event: callback())
 
 
 class MachineDialog(ctk.CTkToplevel):
