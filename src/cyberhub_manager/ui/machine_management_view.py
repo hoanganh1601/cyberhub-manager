@@ -67,6 +67,7 @@ from .theme import (
     STITCH_ICON_WARNING_BORDER,
     STITCH_INPUT_BG,
     STITCH_INPUT_BORDER,
+    STITCH_NAV_HOVER,
     STITCH_RADIUS,
     STITCH_RADIUS_LG,
     STITCH_SUCCESS,
@@ -110,7 +111,7 @@ def machine_actions(machine: MachineSummary | None) -> MachineActions:
     )
 
 
-PAGE_SIZE = 6  # số dòng mỗi trang; chỉnh ở bước dựng bảng nếu cần cho vừa 1280x720
+PAGE_SIZE = 7  # số dòng mỗi trang: vừa khít bảng ở cửa sổ 1280x720
 
 
 def format_short_duration(seconds: int) -> str:
@@ -224,6 +225,33 @@ ROW_HEIGHT = 50
 def _gap(index: int, count: int) -> tuple[int, int]:
     half = STITCH_GAP // 2
     return (0 if index == 0 else half, 0 if index == count - 1 else half)
+
+
+def _bind_hover(row: Any) -> None:
+    """Tô nền dòng khi rê chuột (Stitch: hover:bg-[#161d2d]); chuột đi vào ô con không làm tắt."""
+
+    def inside() -> bool:
+        widget = row.winfo_containing(row.winfo_pointerx(), row.winfo_pointery())
+        while widget is not None:
+            if widget is row:
+                return True
+            widget = widget.master
+        return False
+
+    def enter(_event: Any = None) -> None:
+        row.configure(fg_color=STITCH_NAV_HOVER)
+
+    def leave(_event: Any = None) -> None:
+        if row.winfo_exists() and not inside():
+            row.configure(fg_color="transparent")
+
+    def bind_all(widget: Any) -> None:
+        widget.bind("<Enter>", enter, add="+")
+        widget.bind("<Leave>", leave, add="+")
+        for child in widget.winfo_children():
+            bind_all(child)
+
+    bind_all(row)
 
 
 def _configure_columns(frame: Any) -> None:
@@ -599,6 +627,7 @@ class MachineManagementView(ctk.CTkFrame):
 
         cell(5, ctk.CTkLabel(row, text=format_updated_ago(machine.updated_at, now), font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED))
         cell(6, self._build_row_actions(row, machine))
+        _bind_hover(row)
 
     def _build_row_actions(self, row: Any, machine: MachineSummary) -> ctk.CTkFrame:
         actions = machine_actions(machine)

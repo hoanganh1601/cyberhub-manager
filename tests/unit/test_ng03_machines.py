@@ -282,10 +282,10 @@ def test_management_lists_machines_and_blocks_in_use_actions(tk_root) -> None:
 
 def test_management_filter_search_and_pages(tk_root) -> None:
     view, services, session = _management(tk_root)
-    assert view.current_page.total_pages == 4
-    view.go_to_page(4)
-    assert len(view.visible_machine_ids) == 2
-    assert view._caption_label.cget("text") == "Hiển thị 19-20 trên tổng số 20 máy"
+    assert view.current_page.total_pages == 3
+    view.go_to_page(3)
+    assert len(view.visible_machine_ids) == 6
+    assert view._caption_label.cget("text") == "Hiển thị 15-20 trên tổng số 20 máy"
     view.set_status_filter(MachineStatus.IN_USE)
     assert view.current_page.number == 1
     in_use = {_machine(services, session, code).machine_id for code in ("PC02", "PC05")}
