@@ -30,6 +30,7 @@ from cyberhub_manager.ui.machine_management_view import (
 )
 from cyberhub_manager.ui.navigation import NavKey
 from cyberhub_manager.ui.state import ViewState
+from cyberhub_manager.ui.theme import STITCH_DANGER, STITCH_INPUT_BORDER
 from cyberhub_manager.ui.views import default_view_factories
 
 RUNNER = ImmediateTaskRunner()
@@ -394,6 +395,20 @@ def test_dialog_edits_machine_without_code_field(tk_root) -> None:
     dialog.fields["hourly_rate"].set_value("20000")
     dialog.submit()
     assert _machine(services, session, "PC01").hourly_rate == 20000
+
+
+def test_dialog_error_border_and_close_button(tk_root) -> None:
+    services, session = _login()
+    dialog = _dialog(tk_root, services, session)
+    code = dialog.fields["code"]
+    code.set_error("Machine code already exists.")
+    assert code._box.cget("border_color") == STITCH_DANGER
+    assert code._error_label.winfo_manager() == "pack"
+    code.set_error(None)
+    assert code._box.cget("border_color") == STITCH_INPUT_BORDER
+    assert code._error_label.winfo_manager() == ""
+    dialog._close_button.invoke()  # nút ✕ ở góc phải = Hủy
+    assert not dialog.winfo_exists()
 
 
 # ----------------------------------------------------------------------
