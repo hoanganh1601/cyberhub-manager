@@ -241,6 +241,9 @@ def tk_root() -> Iterator[Any]:
 
     root = ctk.CTk()
     root.geometry("1280x720")
+    # Không cho đóng cửa sổ test giữa chừng (Alt+F4 / nút ✕): Tk root không tạo lại được trong
+    # cùng process, mất root là mọi test UI sau đó lỗi "application has been destroyed".
+    root.protocol("WM_DELETE_WINDOW", lambda: None)
     yield root
     root.destroy()
 
