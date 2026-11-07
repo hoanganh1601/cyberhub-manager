@@ -270,6 +270,12 @@ def get_shared_tk_root():
         except Exception:
             pass
 
+    try:
+        ctk.CTk._windows_set_titlebar_color = lambda self, color: None
+        ctk.CTkToplevel._windows_set_titlebar_color = lambda self, color: None
+    except Exception:
+        pass
+
     _SHARED_TK_ROOT = ctk.CTk()
     _SHARED_TK_ROOT.geometry("1280x720")
     _SHARED_TK_ROOT.withdraw()
