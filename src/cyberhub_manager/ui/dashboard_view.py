@@ -4,7 +4,9 @@
 - Tự làm mới mỗi 15 giây (docs/04_LINEAR_BACKLOG.md NG-03); shutdown() hủy lịch khi rời màn.
 - Làm mới nền thất bại: giữ snapshot cũ và đánh dấu "chưa cập nhật" (07 mục 7).
 - Không tự tính phí/số dư: chỉ hiển thị số liệu service trả về (07 mục 4.2).
-- Mở phiên/Thanh toán gọi callback do NG-05/NG-06 cung cấp; chưa có thì báo "chưa hỗ trợ".
+- Mở phiên (NG-05): mở OpenSessionDialog, mở xong báo Toast và làm mới ngay.
+- Thanh toán (NG-06): mở CheckoutDialog; thành công thì hiện hóa đơn và làm mới ngay.
+- Truyền on_open_session / on_checkout để thay hành vi mặc định (dùng trong test).
 """
 
 from __future__ import annotations
@@ -18,15 +20,17 @@ from typing import Any
 
 import customtkinter as ctk
 
-from ..domain.dtos import MachineSummary
+from ..domain.dtos import MachineSummary, SessionSummary
 from ..domain.enums import MachineStatus
 from .app_shell import ViewContext
 from .background import TaskRunner, default_runner
-from .components import ConfirmDialog, ToastManager
+from .components import ConfirmDialog
 from .components.stitch_button import stitch_button
 from .components.stitch_machine_card import StitchMachineCard
+from .dialogs.checkout_dialog import CheckoutDialog
+from .dialogs.open_session_dialog import OpenSessionDialog
 from .feedback import notify_error, notify_success
-from .messages import MSG_LOADING, MSG_NO_DATA, MSG_RETRY, MSG_UNABLE_TO_LOAD
+from .messages import MSG_LOADING, MSG_NO_DATA, MSG_RETRY, MSG_UNABLE_TO_LOAD, get_user_friendly_error
 from .state import ViewState
 from .theme import (
     FONT_ST_BODY,
@@ -73,9 +77,9 @@ from .theme import (
 logger = logging.getLogger(__name__)
 
 REFRESH_MS = 15_000
-FEATURE_PENDING = "This feature is not available yet."
 END_MAINTENANCE_TITLE = "End maintenance"
 MAINTENANCE_DONE = "Machine is available again."
+SESSION_OPENED = "Session started on {machine}."
 
 
 # ----------------------------------------------------------------------
@@ -387,7 +391,8 @@ class DashboardView(ctk.CTkFrame):
         self._finish_loading()
         logger.warning("Tải danh sách máy thất bại: %s", type(error).__name__)
         if not self._loaded_once:
-            self._show_state(ViewState.ERROR)
+            # NG-08: nêu lý do như các màn khác (câu tiếng Anh an toàn, không lộ lỗi nội bộ).
+            self._show_state(ViewState.ERROR, f"{MSG_UNABLE_TO_LOAD}. {get_user_friendly_error(error)}")
         else:
             # Giữ snapshot cũ, chỉ đánh dấu chưa cập nhật (07 mục 7).
             self._stale = True
@@ -495,7 +500,7 @@ class DashboardView(ctk.CTkFrame):
                 pady=(0, STITCH_GAP),
             )
 
-    def _show_state(self, state: ViewState) -> None:
+    def _show_state(self, state: ViewState, message: str | None = None) -> None:
         self._state = state
         if state == ViewState.READY:
             self._state_frame.pack_forget()
@@ -507,7 +512,7 @@ class DashboardView(ctk.CTkFrame):
             ViewState.LOADING: MSG_LOADING,
             ViewState.EMPTY: MSG_NO_DATA,
             ViewState.ERROR: MSG_UNABLE_TO_LOAD,
-        }[state]
+        }[state] if message is None else message
         self._state_label.configure(
             text=text, text_color=STITCH_DANGER if state == ViewState.ERROR else STITCH_TEXT_MUTED
         )
@@ -538,16 +543,33 @@ class DashboardView(ctk.CTkFrame):
     # Hành động trên card
     # ------------------------------------------------------------------
     def _open_session(self, machine_id: int) -> None:
-        if self._on_open_session is None:
-            ToastManager.show(self, FEATURE_PENDING, kind="info")  # NG-05 sẽ cắm dialog vào đây
+        if self._on_open_session is not None:
+            self._on_open_session(machine_id)
             return
-        self._on_open_session(machine_id)
+        card = self._cards.get(machine_id)
+        if card is None or card.is_busy or card.machine is None:
+            return
+        OpenSessionDialog(self.winfo_toplevel(), self._context, card.machine, runner=self._runner, on_opened=self._session_opened)
+
+    def _session_opened(self, session: SessionSummary) -> None:
+        notify_success(self, SESSION_OPENED.format(machine=session.machine_code))
+        self.refresh()
 
     def _checkout(self, machine_id: int) -> None:
-        if self._on_checkout is None:
-            ToastManager.show(self, FEATURE_PENDING, kind="info")  # NG-06 sẽ cắm dialog vào đây
+        if self._on_checkout is not None:
+            self._on_checkout(machine_id)
             return
-        self._on_checkout(machine_id)
+        card = self._cards.get(machine_id)
+        if card is None or card.is_busy or card.machine is None:
+            return
+        CheckoutDialog(
+            self.winfo_toplevel(),
+            self._context,
+            card.machine,
+            runner=self._runner,
+            on_completed=lambda _result: self.refresh(),
+            on_conflict=self.refresh,
+        )
 
     def _end_maintenance(self, machine_id: int) -> None:
         card = self._cards.get(machine_id)
