@@ -164,11 +164,22 @@ def test_unavailable_service_shows_retry(tk_root) -> None:
     view.destroy()
 
 
-def test_pending_actions_show_toast(tk_root) -> None:
+def test_action_buttons_open_dialogs(tk_root) -> None:
     view, _, _ = _view(tk_root)
-    with patch.object(customers_module.ToastManager, "show") as toast:
+    view._account_code = "TK001"
+    with patch.object(customers_module, "TopUpDialog") as top_up, patch.object(
+        customers_module, "CustomerDialog"
+    ) as customer_dialog, patch.object(customers_module, "CustomerLockDialog") as lock:
         view.action_buttons["top_up"].invoke()
-    assert toast.call_args.args[1] == customers_module.FEATURE_PENDING
+        view.action_buttons["edit"].invoke()
+        view.action_buttons["lock"].invoke()
+        view._create_button.invoke()
+    assert top_up.call_args.args[2].customer_code == "KH001"
+    assert top_up.call_args.kwargs["account_code"] == "TK001"
+    edit_call, create_call = customer_dialog.call_args_list
+    assert edit_call.kwargs["customer"].customer_code == "KH001"
+    assert "customer" not in create_call.kwargs
+    assert lock.call_args.args[2].customer_code == "KH001"
     view.destroy()
 
 

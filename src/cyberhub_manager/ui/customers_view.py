@@ -6,6 +6,8 @@
 - Nút Khóa / Mở khóa chỉ hiện với MANAGER/ADMIN; service vẫn kiểm tra quyền (LI-03).
 - Không có "Hội viên VIP" / ngày đăng ký như Stitch: ngoài phạm vi P0 và DTO không có dữ liệu.
 - UI không tự tính tiền: chỉ hiển thị số dư và giao dịch service trả về.
+- Nút mở dialog: Tạo/Sửa (customer_dialog), Nạp tiền (topup_dialog), Khóa/Mở khóa (customer_lock_dialog);
+  lưu xong tải lại danh sách và giữ khách vừa thao tác được chọn.
 """
 
 from __future__ import annotations
@@ -17,13 +19,17 @@ from typing import Any
 
 import customtkinter as ctk
 
-from ..domain.dtos import CustomerSummary, TransactionSummary
+from ..domain.dtos import CustomerSummary, TopUpResult, TransactionSummary
 from ..domain.enums import AccountStatus, CustomerStatus, PaymentMethod, TransactionType
+from ..domain.models import Customer
 from .app_shell import ViewContext, initials
 from .background import TaskRunner, default_runner
-from .components import ToastManager
 from .components.action_button import ActionButton
 from .components.stitch_button import stitch_button
+from .dialogs.customer_dialog import CustomerDialog
+from .dialogs.customer_lock_dialog import CustomerLockDialog
+from .dialogs.topup_dialog import TopUpDialog
+from .feedback import notify_success
 from .formatters import format_datetime, format_money
 from .messages import MSG_LOADING, MSG_NO_DATA, MSG_RETRY, get_user_friendly_error
 from .navigation import MANAGEMENT_ROLES
@@ -69,7 +75,6 @@ from .theme import (
     STITCH_WARNING,
 )
 
-FEATURE_PENDING = "This feature is not available yet."
 PAGE_SIZE = 10
 RECENT_TRANSACTIONS = 4
 ROW_HEIGHT = 40
@@ -689,19 +694,66 @@ class CustomersView(ctk.CTkFrame):
             ctk.CTkLabel(item, text=line.time, font=FONT_ST_MONO_11, text_color=STITCH_TEXT_DIM).pack(side="right", padx=8)
 
     # ------------------------------------------------------------------
-    # Hành động (dialog ở các bước 4b–4d)
+    # Hành động: mở dialog NG-04 (tạo/sửa, nạp tiền, khóa/mở khóa)
     # ------------------------------------------------------------------
     def _open_create(self) -> None:
-        ToastManager.show(self, FEATURE_PENDING, kind="info")
+        CustomerDialog(self.winfo_toplevel(), self._context, runner=self._runner, on_saved=self._after_created)
+
+    def _after_created(self, customer: Customer) -> None:
+        notify_success(self, "Customer created.")
+        self.reload(select_id=customer.id)
 
     def _open_edit(self) -> None:
-        ToastManager.show(self, FEATURE_PENDING, kind="info")
+        customer = self.selected_customer
+        if customer is None:
+            return
+        CustomerDialog(
+            self.winfo_toplevel(),
+            self._context,
+            customer=customer,
+            account_code=self._account_code,
+            runner=self._runner,
+            on_saved=self._after_updated,
+        )
+
+    def _after_updated(self, customer: Customer) -> None:
+        notify_success(self, "Customer updated.")
+        self.reload(select_id=customer.id)
 
     def _open_top_up(self) -> None:
-        ToastManager.show(self, FEATURE_PENDING, kind="info")
+        customer = self.selected_customer
+        if customer is None:
+            return
+        TopUpDialog(
+            self.winfo_toplevel(),
+            self._context,
+            customer,
+            account_code=self._account_code,
+            runner=self._runner,
+            on_success=self._after_top_up,
+        )
+
+    def _after_top_up(self, result: TopUpResult) -> None:
+        notify_success(self, f"Top-up successful. New balance: {format_money(result.balance_after)}")
+        self.reload(select_id=result.customer_id)
 
     def _open_lock(self) -> None:
-        ToastManager.show(self, FEATURE_PENDING, kind="info")
+        customer = self.selected_customer
+        if customer is None or not self.can_manage:
+            return
+        CustomerLockDialog(
+            self.winfo_toplevel(),
+            self._context,
+            customer,
+            account_code=self._account_code,
+            runner=self._runner,
+            on_done=self._after_status_changed,
+        )
+
+    def _after_status_changed(self, customer: Customer) -> None:
+        locked = customer.status == CustomerStatus.INACTIVE
+        notify_success(self, "Customer locked." if locked else "Customer unlocked.")
+        self.reload(select_id=customer.id)
 
     def shutdown(self) -> None:
         """App Shell gọi trước khi hủy view: bỏ qua kết quả tải về sau đó."""
