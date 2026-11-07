@@ -579,3 +579,7 @@ class DashboardView(ctk.CTkFrame):
             done,
             failed,
         )
+
+
+dashboard_view_factory = DashboardView
+

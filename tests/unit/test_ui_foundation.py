@@ -80,12 +80,6 @@ from cyberhub_manager.ui.theme import (
 )
 
 
-@pytest.fixture(scope="module")
-def tk_root():
-    root = ctk.CTk()
-    root.geometry("800x600")
-    yield root
-    root.destroy()
 
 
 # ==============================================================================

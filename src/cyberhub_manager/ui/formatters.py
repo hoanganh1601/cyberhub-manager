@@ -69,3 +69,14 @@ def format_duration(seconds: int) -> str:
     if hours > 0:
         return f"{hours} giờ {minutes} phút"
     return f"{minutes} phút"
+
+
+def initials(full_name: str) -> str:
+    """'Nguyễn Tuấn Kiệt' -> 'TK'; 'An' -> 'AN'; '' -> '?'."""
+    words = full_name.split()
+    if not words:
+        return "?"
+    if len(words) == 1:
+        return words[0][:2].upper()
+    return (words[-2][0] + words[-1][0]).upper()
+
