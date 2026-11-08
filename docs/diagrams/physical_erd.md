@@ -256,6 +256,7 @@ erDiagram
 - Máy đang `IN_USE` không được chuyển sang `MAINTENANCE`.
 - Máy chưa có lịch sử có thể xóa cứng.
 - Máy đã có lịch sử chỉ được archive bằng cách đặt `is_active = FALSE`.
+- Máy đã archive không được ở trạng thái `IN_USE` (CHECK `chk_machines_archived_not_in_use`).
 - Khi thay đổi `hourly_rate`, phiên đang chạy không bị thay đổi đơn giá vì đơn giá đã được snapshot vào `usage_sessions`.
 
 ## 10. Quy tắc `usage_sessions`
@@ -273,8 +274,11 @@ erDiagram
   - `ACTIVE`
   - `COMPLETED`
   - `CANCELLED`
-- Phiên `ACTIVE` phải có `ended_at`, `closed_by` và `cost` bằng `NULL`.
-- Phiên `COMPLETED` phải có `ended_at`, `closed_by` và `cost`.
+- Phiên `ACTIVE` phải có `ended_at` và `cost` bằng `NULL`; phiên `COMPLETED` phải có cả hai;
+  phiên `CANCELLED` phải có `ended_at` (CHECK `chk_usage_sessions_state`).
+- `ended_at` không được trước `started_at` (CHECK `chk_usage_sessions_time_order`).
+- `closed_by` không có CHECK ở database: service ghi `closed_by` cùng `ended_at`, `cost` trong transaction
+  checkout, nên phiên `COMPLETED` do ứng dụng tạo luôn có `closed_by`.
 - `active_machine_id` và `active_customer_id` là generated columns phục vụ ràng buộc database.
 - Hai generated columns không thuộc Domain Model hoặc DTO.
 
@@ -319,14 +323,25 @@ Ngoài primary key và unique key thể hiện trên ERD, physical schema cần 
 | `usage_sessions` | `UNIQUE(active_machine_id)` | Chống mở trùng máy |
 | `usage_sessions` | `UNIQUE(active_customer_id)` | Chống khách mở nhiều phiên |
 
-Index plan sẽ được kiểm chứng bằng `EXPLAIN` trong HA-09; không tạo index trùng với index do primary key hoặc unique constraint đã sinh.
+Index plan đã được kiểm chứng bằng `EXPLAIN` trong HA-09 với 60.000 hóa đơn: mọi thao tác dưới 2 giây,
+không cần thêm index (xem [HA09_DB_REVIEW.md](../testing/HA09_DB_REVIEW.md)). Không tạo index trùng với index
+do primary key hoặc unique constraint đã sinh. Danh sách đầy đủ index và ràng buộc: [data dictionary](data_dictionary.md).
 
 ## 13. Transaction và toàn vẹn dữ liệu
 
-- Nạp tiền khóa account bằng `SELECT ... FOR UPDATE`, cập nhật số dư và ghi giao dịch trong cùng transaction.
-- Mở phiên khóa account và machine; tạo phiên rồi chuyển máy sang `IN_USE` trong cùng transaction.
-- Checkout khóa account, machine và active session; ghi giao dịch, đóng phiên, trả máy về `AVAILABLE` và tạo hóa đơn trong cùng transaction.
-- Repository không tự commit; service điều phối `BEGIN`, `COMMIT` và `ROLLBACK`.
+Mọi nghiệp vụ ghi khóa dòng bằng `SELECT ... FOR UPDATE` theo cùng một thứ tự **máy → tài khoản → phiên**,
+nên hai thao tác đồng thời không chờ vòng lẫn nhau do lệch thứ tự khóa.
+
+| Nghiệp vụ | Khóa | Thay đổi trong cùng transaction |
+|---|---|---|
+| Nạp tiền | `accounts` | Cộng `balance`, ghi `account_transactions` (`TOP_UP`) |
+| Mở phiên | `machines` → `accounts` → phiên ACTIVE của máy và của khách | Tạo `usage_sessions` (snapshot `hourly_rate`), máy → `IN_USE` |
+| Checkout | `machines` → `accounts` → phiên ACTIVE của máy | Ghi tiền bù (`DEBT_SETTLEMENT`) nếu có, trừ phí (`USAGE_PAYMENT`), đóng phiên, máy → `AVAILABLE`, tạo `invoices` |
+
+- Repository không tự commit; `transaction()` điều phối `BEGIN`, `COMMIT`, `ROLLBACK` và trả connection về pool.
+- Lưới an toàn cuối: unique index `uq_usage_sessions_active_machine`, `uq_usage_sessions_active_customer`,
+  `uq_invoices_session`. Vi phạm được đổi thành lỗi nghiệp vụ có field cho UI (LI-10).
+- Deadlock (1213) được chạy lại tối đa 3 lần; mỗi lần là một transaction mới vì lần trước đã rollback toàn bộ (LI-10).
 - Credential được đọc từ environment và không xuất hiện trong script SQL hoặc tài liệu.
 
 ## 14. Artefact cài đặt
