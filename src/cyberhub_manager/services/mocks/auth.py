@@ -30,7 +30,7 @@ class MockAuthService(MockServiceBase):
             employee is None
             or expected is None
             or not isinstance(password, str)
-            or not hmac.compare_digest(password, expected)
+            or not hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8"))
             or employee.status != EmployeeStatus.ACTIVE
         ):
             raise AuthenticationError()

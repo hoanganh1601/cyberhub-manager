@@ -1,0 +1,21 @@
+# Render Blueprint: deploy the browser demo; see docs/WEB_DEPLOYMENT.md for MySQL.
+services:
+  - type: web
+    name: cyberhub-manager-web
+    runtime: python
+    plan: free
+    branch: develop
+    buildCommand: pip install ".[web]"
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --access-logfile - cyberhub_manager.web.wsgi:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.14
+      - key: CYBERHUB_WEB_MODE
+        value: demo
+      - key: CYBERHUB_SECRET_KEY
+        generateValue: true
+      - key: CYBERHUB_COOKIE_SECURE
+        value: "true"
+      - key: CYBERHUB_TRUST_PROXY
+        value: "true"

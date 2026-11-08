@@ -1,6 +1,7 @@
 # CyberHub Manager — Hệ thống quản lý quán Net
 
-CyberHub Manager là ứng dụng desktop hỗ trợ nhân viên và quản lý vận hành quán net tập trung.
+CyberHub Manager hỗ trợ nhân viên và quản lý vận hành quán net qua ứng dụng desktop
+và giao diện web dùng chung các service nghiệp vụ Python/MySQL.
 
 ## Công nghệ
 
@@ -69,6 +70,18 @@ python -m pip check
 ```
 
 ## Cấu hình môi trường
+
+### Chạy bản web (không cần màn hình desktop hoặc MySQL để demo)
+
+```bash
+python -m pip install -e '.[web]'
+python -m cyberhub_manager.web --host 0.0.0.0 --port 8000
+```
+
+Mở `http://localhost:8000`, đăng nhập `quanly01 / demo123` hoặc `nhanvien01 / demo123`.
+Demo có dữ liệu riêng cho mỗi phiên đăng nhập và mất khi server khởi động lại.
+Xem [WEB_DEPLOYMENT.md](docs/WEB_DEPLOYMENT.md) để dùng MySQL thật, triển khai Render
+qua `render.yaml` hoặc Railway qua `railway.json` / `Dockerfile.web`.
 
 ### Xem Login và full UI không cần MySQL
 
