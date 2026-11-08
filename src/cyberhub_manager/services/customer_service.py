@@ -12,18 +12,12 @@ from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 from uuid import uuid4
 
-from mysql.connector import Error as MySQLError
-from mysql.connector import errorcode
-from mysql.connector.errors import IntegrityError
-
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import CustomerSummary, EmployeeSession
 from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus, Role
 from cyberhub_manager.domain.exceptions import (
-    ConflictError,
     NotFoundError,
     PermissionDeniedError,
-    ServiceUnavailableError,
     ValidationError,
 )
 from cyberhub_manager.domain.models import Customer
@@ -31,6 +25,7 @@ from cyberhub_manager.repositories.account_repository import AccountRepository
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.security import hash_password
+from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 
 MANAGER_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
 ActorProvider = Callable[[], EmployeeSession | None]
@@ -47,10 +42,10 @@ PHONE_TAKEN = "Số điện thoại đã được sử dụng"
 USERNAME_TAKEN = "Tên đăng nhập đã được sử dụng"
 
 # Tên UNIQUE constraint trong sql/001_initial_schema.sql -> field lỗi cho UI.
-_DUPLICATE_FIELDS = (
-    ("uq_customers_phone", "phone", PHONE_TAKEN),
-    ("uq_accounts_username", "username", USERNAME_TAKEN),
-)
+_DUPLICATES = {
+    "uq_customers_phone": ("phone", PHONE_TAKEN),
+    "uq_accounts_username": ("username", USERNAME_TAKEN),
+}
 
 _PHONE_PATTERN = re.compile(r"0[0-9]{9}")
 _USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_.]{4,30}")
@@ -108,17 +103,6 @@ def _new_code(prefix: str) -> str:
     return prefix + uuid4().hex[:CODE_HEX_LENGTH]
 
 
-def _conflict_from(exc: IntegrityError) -> ConflictError | None:
-    """Đổi lỗi trùng UNIQUE của MySQL thành ConflictError có field cho UI."""
-
-    if exc.errno != errorcode.ER_DUP_ENTRY:
-        return None
-    for constraint, field, message in _DUPLICATE_FIELDS:
-        if constraint in str(exc):
-            return ConflictError(message, field_errors={field: message})
-    return None
-
-
 class CustomerService:
     """Triển khai CustomerServiceProtocol trên MySQL."""
 
@@ -136,6 +120,7 @@ class CustomerService:
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
 
+    @retry_on_transient
     def create_customer(
         self,
         full_name: str,
@@ -185,6 +170,7 @@ class CustomerService:
             self._require_actor(conn)
             return self._customers.search(conn, _clean(keyword))
 
+    @retry_on_transient
     def update_customer(
         self,
         customer_id: int,
@@ -209,6 +195,7 @@ class CustomerService:
             )
             return self._get_customer(conn, customer_id)
 
+    @retry_on_transient
     def set_customer_status(
         self,
         customer_id: int,
@@ -297,16 +284,9 @@ class CustomerService:
     def _database(self) -> Iterator[Any]:
         """Mở transaction và đổi lỗi MySQL thành lỗi nghiệp vụ theo contract."""
 
-        try:
+        with translate_db_errors(duplicates=_DUPLICATES):
             with self._transaction() as conn:
                 yield conn
-        except IntegrityError as exc:
-            conflict = _conflict_from(exc)
-            if conflict is not None:
-                raise conflict from exc
-            raise ServiceUnavailableError() from exc
-        except MySQLError as exc:
-            raise ServiceUnavailableError() from exc
 
     def _get_customer(self, conn: Any, customer_id: int) -> Customer:
         if _is_positive_id(customer_id):

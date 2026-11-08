@@ -11,8 +11,6 @@ from contextlib import AbstractContextManager, contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
-from mysql.connector import Error as MySQLError
-
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import (
     DailyRevenue,
@@ -27,7 +25,6 @@ from cyberhub_manager.domain.exceptions import (
     ConflictError,
     NotFoundError,
     PermissionDeniedError,
-    ServiceUnavailableError,
     ValidationError,
 )
 from cyberhub_manager.repositories.auth_repository import AuthRepository
@@ -35,6 +32,7 @@ from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
+from cyberhub_manager.services.db_errors import translate_db_errors
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
@@ -289,8 +287,6 @@ class ReportService:
     def _database(self) -> Iterator[Any]:
         """Mở transaction và đổi lỗi MySQL thành lỗi nghiệp vụ theo contract."""
 
-        try:
+        with translate_db_errors():
             with self._transaction() as conn:
                 yield conn
-        except MySQLError as exc:
-            raise ServiceUnavailableError() from exc

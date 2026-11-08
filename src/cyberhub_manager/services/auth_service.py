@@ -10,16 +10,14 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any
 
-from mysql.connector import Error as MySQLError
-
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.exceptions import (
     AuthenticationError,
-    ServiceUnavailableError,
 )
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.security import verify_password
+from cyberhub_manager.services.db_errors import translate_db_errors
 
 
 class AuthService:
@@ -39,12 +37,10 @@ class AuthService:
         if not normalized or not isinstance(password, str) or not password:
             raise AuthenticationError()
 
-        try:
+        with translate_db_errors():
             with self._transaction() as conn:
                 # Repository chỉ trả nhân viên ACTIVE thuộc cửa hàng ACTIVE.
                 record = self._auth.get_active_by_username(conn, normalized)
-        except MySQLError as exc:
-            raise ServiceUnavailableError() from exc
 
         # Mọi trường hợp sai dùng chung một thông báo để không lộ username nào tồn tại.
         if record is None or not verify_password(password, record.password_hash):

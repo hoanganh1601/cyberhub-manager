@@ -12,10 +12,6 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from mysql.connector import Error as MySQLError
-from mysql.connector import errorcode
-from mysql.connector.errors import IntegrityError
-
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import (
     CheckoutPreview,
@@ -58,6 +54,7 @@ from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
+from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 from cyberhub_manager.services.wallet_service import new_transaction_code
 
 ActorProvider = Callable[[], EmployeeSession | None]
@@ -95,6 +92,13 @@ SETTLEMENT_NOT_ENOUGH = "Tiền bù chưa đủ để số dư không âm"
 SETTLEMENT_EXCESS = "Tiền bù phải bằng đúng số tiền còn thiếu"
 METHOD_INVALID = "Phương thức chỉ được là tiền mặt hoặc chuyển khoản"
 METHOD_NOT_ALLOWED = "Không chọn phương thức khi không có tiền bù"
+
+# Lưới an toàn cuối của unique index: hai phiên ACTIVE (SES-03), mỗi phiên một hóa đơn (INV-01).
+_DUPLICATES = {
+    "uq_usage_sessions_active_machine": ("machine_id", MACHINE_BUSY),
+    "uq_usage_sessions_active_customer": ("customer_id", CUSTOMER_BUSY),
+    "uq_invoices_session": ("machine_id", ALREADY_CHECKED_OUT),
+}
 
 
 def _utc_now() -> datetime:
@@ -273,6 +277,7 @@ class SessionService:
             as_of=self._clock(),
         )
 
+    @retry_on_transient
     def open_session(
         self,
         customer_id: int,
@@ -348,6 +353,7 @@ class SessionService:
             session, customer, machine, customer.account.balance, at
         )
 
+    @retry_on_transient
     def complete_checkout(
         self,
         machine_id: int,
@@ -567,24 +573,6 @@ class SessionService:
     def _database(self) -> Iterator[Any]:
         """Mở transaction và đổi lỗi MySQL thành lỗi nghiệp vụ theo contract."""
 
-        try:
+        with translate_db_errors(duplicates=_DUPLICATES):
             with self._transaction() as conn:
                 yield conn
-        except IntegrityError as exc:
-            # Lưới an toàn cuối: unique index chặn hai phiên ACTIVE (SES-03).
-            if exc.errno == errorcode.ER_DUP_ENTRY:
-                message = str(exc)
-                if "uq_usage_sessions_active_machine" in message:
-                    raise ConflictError(
-                        MACHINE_BUSY, field_errors={"machine_id": MACHINE_BUSY}
-                    ) from exc
-                if "uq_usage_sessions_active_customer" in message:
-                    raise ConflictError(
-                        CUSTOMER_BUSY, field_errors={"customer_id": CUSTOMER_BUSY}
-                    ) from exc
-                # Lưới an toàn cuối: mỗi phiên chỉ có một hóa đơn (INV-01).
-                if "uq_invoices_session" in message:
-                    raise _conflict("machine_id", ALREADY_CHECKED_OUT) from exc
-            raise ServiceUnavailableError() from exc
-        except MySQLError as exc:
-            raise ServiceUnavailableError() from exc
