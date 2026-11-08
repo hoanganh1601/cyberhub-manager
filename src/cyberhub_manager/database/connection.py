@@ -49,10 +49,9 @@ def init_pool() -> MySQLConnectionPool:
                     connection_timeout=CONNECTION_TIMEOUT,
                     autocommit=False,
                 )
-            except MySQLError:
-                logger.exception(
-                    "Không thể khởi tạo MySQL connection pool."
-                )
+            except MySQLError as exc:
+                # LI-10: chỉ debug; services/db_errors ghi warning khi đổi lỗi cho UI.
+                logger.debug("Không thể khởi tạo MySQL connection pool: %s", exc)
                 raise
 
             logger.info(
@@ -70,10 +69,8 @@ def get_connection() -> PooledMySQLConnection:
 
     try:
         return pool.get_connection()
-    except MySQLError:
-        logger.exception(
-            "Không thể mượn kết nối từ MySQL connection pool."
-        )
+    except MySQLError as exc:
+        logger.debug("Không thể mượn kết nối từ MySQL connection pool: %s", exc)
         raise
 
 @contextmanager
