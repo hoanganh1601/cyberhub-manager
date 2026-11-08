@@ -400,3 +400,42 @@ def test_web_english_errors_and_http_only_cookie(app):
     assert cookie.http_only is True
     assert cookie.same_site == "Lax"
     assert c.get("/api/customers").headers["Cache-Control"] == "no-store"
+
+
+def test_locked_customer_can_top_up_to_repay_debt_without_unlocking(app):
+    c = app.test_client()
+    token = login(c)
+    before = c.get("/api/customers/3").json["customer"]
+    assert before["account_status"] == "LOCKED"
+    result = post(c, "/api/customers/3/topup", token, dict(amount=10000, method="CASH"))
+    assert result.status_code == 200, result.json
+    after = c.get("/api/customers/3").json["customer"]
+    assert after["balance"] == before["balance"] + 10000
+    assert after["account_status"] == "LOCKED"
+    assert post(c, "/api/machines/1/open", token, dict(customer_id=3)).status_code == 409
+
+
+@pytest.mark.parametrize("raw_mysql", [False, True])
+def test_li10_error_mapping_never_exposes_database_diagnostics(app, monkeypatch, caplog, raw_mysql):
+    from mysql.connector import OperationalError
+    from cyberhub_manager.domain.exceptions import ServiceUnavailableError
+
+    c = app.test_client()
+    token = login(c)
+    workspace = next(iter(app.extensions["cyberhub_demo"].entries.values()))
+    failure = (
+        OperationalError("secret_sql_host", errno=2013)
+        if raw_mysql else ServiceUnavailableError(details={"errno": 2013, "db_error": "connection"})
+    )
+
+    def fail(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(workspace.services.wallet, "top_up", fail)
+    result = post(c, "/api/customers/1/topup", token, dict(amount=10000, method="CASH"))
+    assert result.status_code == 503
+    assert result.json["error"]["code"] == "SERVICE_UNAVAILABLE"
+    assert result.json["error"]["details"] == {}
+    assert "secret_sql_host" not in result.get_data(as_text=True)
+    if raw_mysql:
+        assert "errno=2013" in caplog.text

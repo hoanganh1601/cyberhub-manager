@@ -170,8 +170,8 @@ const copy = {
   paymentMethod: ["Phương thức thanh toán", "Payment method"],
   expectedBalance: ["Số dư dự kiến sau nạp", "Expected balance after top-up"],
   transferNote: [
-    "P0 ghi nhận chuyển khoản thủ công; không có kết nối ngân hàng hay tự xác thực giao dịch.",
-    "P0 records bank transfers manually; no bank connection or automatic payment verification.",
+    "Chỉ xác nhận sau khi kiểm tra đã nhận đủ tiền. Chuyển khoản được nhân viên xác nhận thủ công.",
+    "Confirm only after checking that the full payment was received. Staff verify transfers manually.",
   ],
   receivedConfirm: [
     "Tôi đã xác nhận nhận đủ tiền",
@@ -207,8 +207,8 @@ const copy = {
   minimumBalance: ["Số dư tối thiểu", "Minimum balance"],
   estimatedTime: ["Thời gian ước tính", "Estimated time"],
   rateSnapshot: [
-    "Đơn giá được ghi nhận vào phiên. UI không tự tính phí sử dụng.",
-    "The hourly rate is recorded in the session. Usage fees are calculated by the service.",
+    "Đơn giá tại thời điểm mở phiên được giữ cho đến khi thanh toán.",
+    "The hourly rate at session start is kept until checkout.",
   ],
   checkoutTitle: ["Xác nhận thanh toán", "Confirm checkout"],
   checkoutSub: [
@@ -222,8 +222,8 @@ const copy = {
   cashReceived: ["Tiền khách đưa", "Cash received"],
   change: ["Tiền thừa trả khách", "Change to return"],
   settlementNote: [
-    "Chỉ số tiền còn thiếu được ghi nhận thanh toán; tiền khách đưa và tiền thừa thuộc UI. Phần dư muốn giữ trong ví phải nạp tiền riêng.",
-    "Only the outstanding amount is recorded as settlement. Cash received and change are UI-only; crediting extra money requires a separate top-up.",
+    "Chỉ số tiền còn thiếu được dùng để thanh toán. Trả lại tiền thừa cho khách; muốn giữ phần dư trong ví, hãy nạp tiền riêng.",
+    "Only the outstanding amount pays for this session. Return any change; keeping extra money in the wallet requires a separate top-up.",
   ],
   noSettlement: [
     "Số dư đủ thanh toán. Phiên kết thúc và máy chuyển về Trống sau khi xác nhận.",
@@ -659,7 +659,7 @@ function customerDetail() {
   const { customer: c, history } = state.detail;
   const allowed =
     c.customer_status === "ACTIVE" && c.account_status === "ACTIVE";
-  return `<div class="panel-body"><div class="detail-identity"><div class="avatar">${esc(initials(c.full_name))}</div><div><strong>${esc(c.full_name)}</strong><small class="cyan">${esc(c.customer_code)}</small></div></div><div class="key-values">${kv("account", esc(c.account_code))}${kv("phone", esc(c.phone))}${kv("username", esc(c.username))}${kv("customerStatus", badge(c.customer_status))}${kv("accountStatus", badge(c.account_status))}</div><div class="balance-box"><p>${t("balance")}</p><strong class="money ${c.balance < 0 ? "red" : "green"}">${money(c.balance)}</strong></div><div class="actions"><button class="btn primary small" data-action="topup" data-id="${c.customer_id}" ${allowed ? "" : "disabled"}>${icon("plus")}${t("topup")}</button><button class="btn small" data-action="customer-edit" data-id="${c.customer_id}">${icon("edit")}${t("edit")}</button>${isManager() ? `<button class="btn ghost small ${allowed ? "red" : "cyan"}" data-action="customer-status" data-id="${c.customer_id}">${icon("lock")}${t(c.customer_status === "ACTIVE" ? "lock" : "unlock")}</button>` : ""}</div><h3 class="history-title">${t("recentHistory")}</h3>${
+  return `<div class="panel-body"><div class="detail-identity"><div class="avatar">${esc(initials(c.full_name))}</div><div><strong>${esc(c.full_name)}</strong><small class="cyan">${esc(c.customer_code)}</small></div></div><div class="key-values">${kv("account", esc(c.account_code))}${kv("phone", esc(c.phone))}${kv("username", esc(c.username))}${kv("customerStatus", badge(c.customer_status))}${kv("accountStatus", badge(c.account_status))}</div><div class="balance-box"><p>${t("balance")}</p><strong class="money ${c.balance < 0 ? "red" : "green"}">${money(c.balance)}</strong></div><div class="actions"><button class="btn primary small" data-action="topup" data-id="${c.customer_id}">${icon("plus")}${t("topup")}</button><button class="btn small" data-action="customer-edit" data-id="${c.customer_id}">${icon("edit")}${t("edit")}</button>${isManager() ? `<button class="btn ghost small ${allowed ? "red" : "cyan"}" data-action="customer-status" data-id="${c.customer_id}">${icon("lock")}${t(c.customer_status === "ACTIVE" ? "lock" : "unlock")}</button>` : ""}</div><h3 class="history-title">${t("recentHistory")}</h3>${
     history.length
       ? history
           .slice(0, 8)
@@ -817,14 +817,14 @@ async function showCustomerForm(edit = false) {
     edit ? "save" : "newCustomer",
   );
 }
-async function showTopup(id) {
+async function showTopup(id, returnOpen = null) {
   const c = (await api(`/customers/${id}`)).customer;
   modal(
     "topup",
     "customersSub",
     `<div class="form-card"><div class="row between"><strong>${esc(c.full_name)}</strong><span class="table-code">${esc(c.customer_code)}</span></div><div class="row between"><small>${t("balance")}</small><strong class="money">${money(c.balance)}</strong></div></div>${field("amount", "amount", "", "number")}<small>${t("amountHint")}</small><div class="quick-amounts">${[10000, 20000, 50000, 100000].map((amount) => `<button class="btn small" type="button" data-action="quick-amount" data-amount="${amount}">${new Intl.NumberFormat(state.lang).format(amount)}</button>`).join("")}</div><label><span>${t("paymentMethod")}</span><select name="method"><option value="CASH">${t("CASH")}</option><option value="TRANSFER">${t("TRANSFER")}</option></select></label><div class="notice info">${t("transferNote")}</div><label class="check-label"><input type="checkbox" name="received"><span>${t("receivedConfirm")}</span></label><div class="form-card row between"><span>${t("expectedBalance")}</span><strong class="money green" id="topup-balance">—</strong></div>`,
     "topup",
-    { id, balance: c.balance },
+    { id, balance: c.balance, returnOpen },
     "topup",
   );
   $("#modal-submit").disabled = true;
@@ -873,7 +873,7 @@ async function updateOpenPreview() {
     )
       return;
     $("#open-preview").innerHTML =
-      `<div class="key-values">${kv("balance", money(p.balance))}${kv("minimumBalance", money(p.minimum_balance))}${kv("estimatedTime", `${p.estimated_minutes} ${t("minute")}`)}</div><p style="margin-top:14px" class="${p.can_open ? "green" : "amber"}">${t(p.can_open ? "openAllowed" : "openBlocked")}</p>`;
+      `<div class="key-values">${kv("balance", money(p.balance))}${kv("minimumBalance", money(p.minimum_balance))}${kv("estimatedTime", `${p.estimated_minutes} ${t("minute")}`)}</div><p style="margin-top:14px" class="${p.can_open ? "green" : "amber"}">${t(p.can_open ? "openAllowed" : "openBlocked")}</p>${!p.can_open ? `<button type="button" class="btn primary" data-action="topup-for-open" data-id="${selected}">${icon("plus")}${t("topup")}</button>` : ""}`;
     $("#modal-submit").disabled = !p.can_open;
   } catch (error) {
     if (modalContext === context) {
@@ -1010,6 +1010,11 @@ async function submitModal(event) {
       state.tablePage = 1;
     }
     await loadPage(true);
+    if (context.action === "topup" && context.returnOpen) {
+      await showOpen(context.returnOpen.machineId);
+      $("#open-customer").value = String(context.id);
+      await updateOpenPreview();
+    }
     if (context.action === "checkout") receipt(result);
     else toast(t("success"));
   } catch (error) {
@@ -1117,6 +1122,9 @@ document.addEventListener("click", async (event) => {
       await showCustomerForm(true);
     }
     if (action === "topup") await showTopup(id);
+    if (action === "topup-for-open") {
+      await showTopup(id, { machineId: modalContext.id });
+    }
     if (action === "quick-amount") {
       $("[name=amount]", $("#modal")).value = button.dataset.amount;
       updateModalControls();

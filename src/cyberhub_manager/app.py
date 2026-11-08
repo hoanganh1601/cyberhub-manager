@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import logging
+from collections.abc import Callable
 
 import customtkinter as ctk
 
@@ -18,6 +20,28 @@ from .ui.theme import (
     load_stitch_fonts,
     setup_theme,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def install_error_hook(root, language_provider: Callable[[], str] | None = None) -> None:
+    """Log unexpected Tk callback failures and display only localized safe text."""
+    def report(exc_type, exc, traceback):
+        from .ui.components import ToastManager
+
+        logger.error("Unexpected desktop callback failure", exc_info=(exc_type, exc, traceback))
+        language = language_provider() if language_provider else "vi"
+        message = (
+            "An unexpected error occurred. Please try again."
+            if language == "en"
+            else "Có lỗi xảy ra. Vui lòng thử lại."
+        )
+        try:
+            ToastManager.show(root, message, kind="error")
+        except Exception:
+            logger.exception("Unable to display the desktop error notification")
+
+    root.report_callback_exception = report
 
 
 class CyberHubApp(ctk.CTk):
@@ -46,6 +70,7 @@ class CyberHubApp(ctk.CTk):
         self._runner = runner
         self._mock = mock
         self._content: ctk.CTkFrame | None = None
+        install_error_hook(self, lambda: getattr(self._content, "language", self._language))
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self._show_login()
 
@@ -105,20 +130,28 @@ class CyberHubApp(ctk.CTk):
         super().destroy()
 
 
-def main(argv: list[str] | None = None) -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="CyberHub Manager desktop")
     parser.add_argument(
         "--mock", action="store_true", help="Use demo data without MySQL"
     )
     parser.add_argument("--lang", choices=("vi", "en"), default="vi")
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    log_level = "INFO"
     if not args.mock:
         from .config import load_settings
 
         try:
-            load_settings()
+            log_level = load_settings().log_level
         except RuntimeError as error:
-            parser.error(f"{error}. Configure .env or use --mock for a preview.")
+            argparse.ArgumentParser(prog="cyberhub-manager").error(
+                f"{error}. Configure .env or use --mock for a preview."
+            )
+    logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     app = CyberHubApp(mock=args.mock, language=args.lang)
     app.mainloop()
 

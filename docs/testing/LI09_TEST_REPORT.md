@@ -1,5 +1,8 @@
 # LI-09 Test Report
 
+Đây là kết quả lịch sử của LI-09. Kết quả chạy lại sau khi tích hợp LI-10, HA-09,
+HA-10 và UI desktop/web hiện tại nằm trong [HA_LI_NG_RELEASE_AUDIT.md](HA_LI_NG_RELEASE_AUDIT.md).
+
 ## 1. Phạm vi
 
 Báo cáo xác nhận automated test suite sau khi LI-07, LI-08 và các thay đổi mới

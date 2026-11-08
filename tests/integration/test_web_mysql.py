@@ -87,6 +87,26 @@ def signed_in(app, username, password):
     return c, response.json["csrf_token"]
 
 
+def test_mysql_actor_lookup_outage_is_safe_and_session_can_recover(mysql_web, monkeypatch, caplog):
+    from mysql.connector import OperationalError
+    from cyberhub_manager.repositories.auth_repository import AuthRepository
+
+    app, records, username, password, token, customer_ids = mysql_web
+    c, csrf = signed_in(app, username, password)
+
+    def unavailable(*args, **kwargs):
+        raise OperationalError("internal_db_host", errno=2013)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(AuthRepository, "get_active_session_by_id", unavailable)
+        response = c.get("/api/customers")
+    assert response.status_code == 503
+    assert response.json["error"]["details"] == {}
+    assert "internal_db_host" not in response.get_data(as_text=True)
+    assert "errno=2013" in caplog.text
+    assert c.get("/api/customers").status_code == 200
+
+
 def test_mysql_web_customer_wallet_session_invoice_and_revenue(mysql_web):
     app, records, username, password, token, customer_ids = mysql_web
     c, csrf = signed_in(app, username, password)

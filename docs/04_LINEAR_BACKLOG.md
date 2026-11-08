@@ -149,7 +149,7 @@ Phân bổ sau khi cân lại: Hoàng Anh **44 points**, Linh **45 points**, Ng�
 
 - Epic: Machine & Session; Estimate: 3; Priority: High.
 - Output: list machine summary, create/update/maintenance/archive, kiểm tra store/role.
-- Acceptance: staff không quản trị máy; không sửa/bảo trì/archive máy `IN_USE`; máy có lịch sử không xóa cứng; DTO có live status cho UI.
+- Acceptance: staff không quản trị máy; MANAGER/ADMIN được sửa tên/đơn giá máy `IN_USE` (phiên hiện tại giữ đơn giá snapshot), nhưng không được bảo trì/archive máy đang dùng; máy có lịch sử không xóa cứng; DTO có live status cho UI.
 - Dependency: HA-07, LI-01.
 
 ### LI-06 — Open session và live estimate
@@ -207,7 +207,7 @@ Phân bổ sau khi cân lại: Hoàng Anh **44 points**, Linh **45 points**, Ng�
 
 - Epic: Machine & Session; Estimate: 8; Priority: High.
 - Output: dashboard summary/filter/grid; màn Manager thêm/sửa/bảo trì/archive máy; machine dialog; refresh 15 giây.
-- Acceptance: ba trạng thái đúng theme; live duration/balance; cảnh báo âm rõ; role ẩn/hiện action đúng; không quản trị máy `IN_USE`; archive có confirm; loading/empty/error; chống double click.
+- Acceptance: ba trạng thái đúng theme; live duration/balance; cảnh báo âm rõ; role ẩn/hiện action đúng; máy `IN_USE` chỉ cho quản lý sửa tên/đơn giá, chặn bảo trì/archive; archive có confirm; loading/empty/error; chống double click.
 - Dependency: NG-01, mock LI-02; tích hợp LI-05/LI-06.
 
 ### NG-04 — Màn khách hàng và nạp tiền

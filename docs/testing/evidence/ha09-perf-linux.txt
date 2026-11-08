@@ -1,0 +1,38 @@
+Database: cyberhub_manager_test; namespace: PFD1B50446
+Seed: 5000 khách, 60000 phiên/hóa đơn, 80000 giao dịch (5.4s)
+
+Thao tác                     Thời gian  SELECT  Kết quả
+login                            181ms       1  OK
+list_machines                      3ms       3  OK
+search_customers (tên)            12ms       2  OK
+search_customers (sđt)            12ms       2  OK
+search_customers (rỗng)            2ms       2  OK
+get_customer                       1ms       2  OK
+top_up                             3ms       4  OK
+get_history                        2ms       3  OK
+preview_open                       2ms       5  OK
+open_session                       3ms       6  OK
+preview_checkout                   2ms       5  OK
+complete_checkout                  5ms       9  OK
+list_invoices (hôm nay)           13ms       2  OK
+list_invoices (30 ngày)          203ms       2  OK
+list_invoices (từ khóa)           58ms       2  OK
+get_invoice                        2ms       5  OK
+daily_revenue (30 ngày)           22ms       2  OK
+daily_revenue (90 ngày)           37ms       2  OK
+
+EXPLAIN (bảng bị quét toàn bộ hoặc filesort):
+- [list_machines] machines: type=ALL key=None rows=60 extra=Using where; Using filesort
+    SELECT id, code, store_id, name, status, hourly_rate, is_active, updated_at FROM machines WHERE store_id = %s AND is_active = TRUE ORDER BY code, id
+- [list_machines] s: type=ref key=idx_usage_sessions_status_started_at rows=1 extra=Using temporary; Using filesort
+    SELECT s.id, s.code, s.customer_id, s.machine_id, s.opened_by, s.closed_by, s.started_at, s.ended_at, s.hourly_rate, s.cost, s.status FROM usage_sessions AS s JOIN machines AS m ON m.id = s.machine_id WHERE m.store_id =
+- [top_up] t: type=ref key=idx_account_transactions_account_created_at rows=18 extra=Using temporary; Using filesort
+    SELECT t.id AS transaction_id, t.code AS transaction_code, t.account_id, t.session_id, t.type, t.amount, t.method, t.employee_id, e.full_name AS employee_name, t.created_at FROM account_transactions AS t JOIN employees A
+- [list_invoices (hôm nay)] st: type=const key=PRIMARY rows=1 extra=Using temporary; Using filesort
+    SELECT i.id AS invoice_id, i.code AS invoice_code, i.session_id, i.customer_id, c.full_name AS customer_name, i.employee_id, e.full_name AS employee_name, i.store_id, st.name AS store_name, i.usage_cost, i.settlement_amo
+- [list_invoices (từ khóa)] st: type=const key=PRIMARY rows=1 extra=Using temporary; Using filesort
+    SELECT i.id AS invoice_id, i.code AS invoice_code, i.session_id, i.customer_id, c.full_name AS customer_name, i.employee_id, e.full_name AS employee_name, i.store_id, st.name AS store_name, i.usage_cost, i.settlement_amo
+- [daily_revenue (30 ngày)] i: type=ALL key=None rows=59671 extra=Using where; Using temporary; Using filesort
+    SELECT DATE(DATE_ADD(i.created_at, INTERVAL 7 HOUR)) AS local_day, COUNT(*) AS invoice_count, SUM(i.usage_cost) AS revenue FROM invoices AS i WHERE i.store_id = %s AND i.status = %s AND i.created_at >= %s AND i.created_a
+
+Tổng: 20 câu SELECT khác nhau, 6 dòng cần xem, 0 thao tác chậm hơn 2.0s

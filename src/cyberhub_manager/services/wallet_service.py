@@ -11,10 +11,6 @@ from contextlib import AbstractContextManager
 from typing import Any
 from uuid import uuid4
 
-from mysql.connector import Error as MySQLError
-from mysql.connector import errorcode
-from mysql.connector.errors import IntegrityError
-
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import (
     EmployeeSession,
@@ -25,13 +21,13 @@ from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import (
     NotFoundError,
     PermissionDeniedError,
-    ServiceUnavailableError,
     ValidationError,
 )
 from cyberhub_manager.domain.models import Customer
 from cyberhub_manager.repositories.account_repository import AccountRepository
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
+from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 
 
 MAX_TOP_UP_AMOUNT = 100_000_000
@@ -101,6 +97,7 @@ class WalletService:
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
 
+    @retry_on_transient
     def top_up(
         self,
         customer_id: int,
@@ -113,7 +110,8 @@ class WalletService:
         if not _is_positive_id(employee_id):
             raise PermissionDeniedError()
 
-        try:
+        # employee_id không tồn tại vi phạm FK fk_account_transactions_employee => từ chối quyền.
+        with translate_db_errors(on_foreign_key=PermissionDeniedError):
             with self._transaction() as conn:
                 # Xác thực actor trước khi đọc khách hay đụng tới số dư.
                 actor = self._require_actor(conn, employee_id)
@@ -141,13 +139,6 @@ class WalletService:
                 summary = self._get_created_transaction(
                     conn, account.id, transaction_id
                 )
-        except IntegrityError as exc:
-            # employee_id không tồn tại vi phạm FK fk_account_transactions_employee.
-            if exc.errno == errorcode.ER_NO_REFERENCED_ROW_2:
-                raise PermissionDeniedError() from exc
-            raise ServiceUnavailableError() from exc
-        except MySQLError as exc:
-            raise ServiceUnavailableError() from exc
 
         return TopUpResult(
             customer_id=customer.id,
@@ -158,13 +149,11 @@ class WalletService:
         )
 
     def get_history(self, customer_id: int) -> list[TransactionSummary]:
-        try:
+        with translate_db_errors():
             with self._transaction() as conn:
                 self._require_actor(conn)
                 customer = self._get_customer(conn, customer_id)
                 return self._accounts.list_transactions(conn, customer.account.id)
-        except MySQLError as exc:
-            raise ServiceUnavailableError() from exc
 
     def _get_customer(self, conn: Any, customer_id: int) -> Customer:
         if _is_positive_id(customer_id):

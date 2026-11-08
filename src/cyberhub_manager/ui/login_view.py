@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 import tkinter as tk
 from typing import Any
 
 import customtkinter as ctk
 
 from ..domain.dtos import EmployeeSession
-from ..domain.exceptions import AuthenticationError
+from ..domain.exceptions import AuthenticationError, ServiceUnavailableError
 from ..services.contracts import AuthServiceProtocol
 from . import theme as t
 from .background import TaskRunner, default_runner
 from .i18n import Language, normalize_language
 from .login_art import BrandPanel, icon_image
+
+logger = logging.getLogger(__name__)
 
 
 _COPY = {
@@ -341,6 +344,8 @@ class LoginView(ctk.CTkFrame):
     def _login_failed(self, error: Exception) -> None:
         if self._closed:
             return
+        if not isinstance(error, (AuthenticationError, ServiceUnavailableError)):
+            logger.error("Unexpected sign-in failure", exc_info=(type(error), error, error.__traceback__))
         self._set_busy(False)
         self._feedback_key = "invalid" if isinstance(error, AuthenticationError) else "unavailable"
         if isinstance(error, AuthenticationError):
@@ -370,4 +375,3 @@ if __name__ == "__main__":
     from ..app import main
 
     main(["--mock"])
-
