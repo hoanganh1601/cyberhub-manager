@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict, deque
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 from functools import wraps
@@ -17,6 +17,7 @@ from typing import Any
 
 from flask import (
     Flask,
+    Response,
     g,
     jsonify,
     render_template,
@@ -43,6 +44,9 @@ from cyberhub_manager.domain.exceptions import (
 )
 from cyberhub_manager.services.bootstrap import create_service_bundle
 from cyberhub_manager.services.contracts import ServiceBundle
+from cyberhub_manager.domain.p1 import CustomerSession, Promotion, ROLE_PERMISSIONS
+from cyberhub_manager.domain.loyalty import LoyaltySettings
+from cyberhub_manager.services.invoice_export import invoice_html, invoice_csv
 
 UTC = timezone.utc
 LOCAL = timezone(timedelta(hours=7))
@@ -55,7 +59,10 @@ def serialize(value: Any) -> Any:
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if is_dataclass(value) and not isinstance(value, type):
-        return serialize(asdict(value))
+        data = asdict(value)
+        if hasattr(value,"cash_balance"):
+            data["cash_balance"] = value.cash_balance
+        return serialize(data)
     if isinstance(value, dict):
         return {key: serialize(item) for key, item in value.items()}
     if isinstance(value, (tuple, list)):
@@ -75,6 +82,8 @@ def customer_public(customer: Any) -> dict:
         account_code=account.code,
         username=account.username,
         balance=account.balance,
+        cash_balance=account.cash_balance,
+        bonus_balance=account.bonus_balance,
         account_status=account.status,
     )
 
@@ -133,7 +142,7 @@ class DemoRegistry:
             self.entries.pop(key or "", None)
 
 
-def _demo_bundle() -> ServiceBundle:
+def _demo_bundle(*, customer_portal=False) -> ServiceBundle:
     from cyberhub_manager.services.mocks.clock import MockClock
     from cyberhub_manager.services.mocks.factory import build_mock_services
 
@@ -141,7 +150,7 @@ def _demo_bundle() -> ServiceBundle:
         def now(self) -> datetime:
             return datetime.now(UTC)
 
-    return build_mock_services(clock=RunningClock(datetime.now(UTC)))
+    return build_mock_services(clock=RunningClock(datetime.now(UTC)),p1=True,customer_offers=customer_portal)
 
 
 def create_app(config: dict | None = None) -> Flask:
@@ -199,6 +208,20 @@ def create_app(config: dict | None = None) -> Flask:
         )
 
     def current_actor() -> EmployeeSession | None:
+        g.customer = None
+        if session.get("customer_id"):
+            if demo:
+                workspace = registry.get(session.get("workspace"))
+                if workspace is None:
+                    return None
+                workspace.lock.acquire()
+                g.workspace_lock = workspace.lock
+                g.services = workspace.services
+            else:
+                g.services = real_services
+            principal = CustomerSession(session["customer_id"],session["account_id"],"","",session.get("customer_auth_version",0))
+            g.customer = g.services.portal.validate(principal)
+            return None
         if demo:
             workspace = registry.get(session.get("workspace"))
             if workspace is None:
@@ -206,7 +229,7 @@ def create_app(config: dict | None = None) -> Flask:
             workspace.lock.acquire()
             g.workspace_lock = workspace.lock
             g.services = workspace.services
-            return workspace.actor
+            return workspace.services.management.validate_actor(workspace.actor)
         employee_id = session.get("employee_id")
         if type(employee_id) is not int:
             return None
@@ -217,13 +240,19 @@ def create_app(config: dict | None = None) -> Flask:
         with translate_db_errors():
             with transaction() as conn:
                 actor = AuthRepository().get_active_session_by_id(conn, employee_id)
-        if actor is None or actor.store_id != session.get("store_id"):
+        if actor is None:
             return None
         g.services = real_services
+        if actor.store_id!=session.get("store_id"):
+            from cyberhub_manager.services.access import operating_actor
+            with translate_db_errors(), transaction() as conn:
+                actor = operating_actor(conn,AuthRepository(),replace(actor,store_id=session["store_id"]))
         return actor
 
     @app.before_request
     def prepare_request():
+        if request.path=="/api/portal/avatar":
+            request.max_content_length=2*1024*1024+32768
         if not request.path.startswith("/api/"):
             return None
         session.setdefault("csrf", secrets.token_urlsafe(32))
@@ -238,7 +267,11 @@ def create_app(config: dict | None = None) -> Flask:
                 )
         if request.path not in ("/api/login",):
             g.actor = current_actor()
-            if g.actor is None and request.path != "/api/session":
+            customer_route = request.path.startswith("/api/portal/")
+            if customer_route and g.customer is None:
+                raise PermissionDeniedError()
+            allowed_customer = g.customer is not None and (customer_route or request.path in ("/api/session","/api/logout"))
+            if g.actor is None and request.path != "/api/session" and not allowed_customer:
                 return error(
                     "AUTH_REQUIRED",
                     "Vui lòng đăng nhập lại.",
@@ -297,6 +330,22 @@ def create_app(config: dict | None = None) -> Flask:
             "method": "Select cash or bank transfer.",
             "settlement_amount": "The settlement must equal the current outstanding amount.",
             "hourly_rate": "Enter a positive whole hourly rate.",
+            "days": "Choose a 7, 30 or 90 day period.",
+            "store_id": "Select an active store.",
+            "date_from": "Enter a valid start date.",
+            "date_to": "Enter a valid end date on or after the start date.",
+            "page": "Select a valid page.",
+            "keys": "These notifications are no longer available. Please refresh.",
+            "current_password": "Enter the correct current password.",
+            "new_password": "Use a different password with at least 6 characters and at most 72 UTF-8 bytes.",
+            "confirmation": "Enter the new password again, exactly as above.",
+            "room_type": "Choose Standard or VIP.",
+            "avatar": "Choose a static JPEG, PNG or WebP image up to 2 MB and 16 megapixels.",
+            "minimum_tier": "Choose a valid membership tier.",
+            "minimum_points": "Enter a whole point threshold from 0 to 1,000,000,000.",
+            "target_customer_id": "Select an existing customer or all eligible customers.",
+            "unit_amount": "Enter a positive whole VND amount per point.",
+            "platinum_spend": "Tier thresholds must be positive and strictly increasing.",
         }
         return reply(
             dict(
@@ -398,6 +447,10 @@ def create_app(config: dict | None = None) -> Flask:
     def index():
         return render_template("index.html")
 
+    @app.get("/customer")
+    def customer_portal_page():
+        return render_template("index.html",customer_portal=True)
+
     @app.get("/healthz")
     def health():
         return reply(dict(status="ok", mode=app.config["WEB_MODE"]))
@@ -411,6 +464,7 @@ def create_app(config: dict | None = None) -> Flask:
         return reply(
             dict(
                 actor=g.actor,
+                customer=getattr(g,"customer",None),
                 csrf_token=session["csrf"],
                 mode=app.config["WEB_MODE"],
                 today=today(),
@@ -440,24 +494,26 @@ def create_app(config: dict | None = None) -> Flask:
             attempts.move_to_end(remote)
             if len(attempts) > 4096:
                 attempts.popitem(last=False)
-        services = _demo_bundle() if demo else real_services
-        actor = services.auth.login(username, password)
+        customer_login = data.get("kind")=="customer"
+        services = _demo_bundle(customer_portal=customer_login) if demo else real_services
+        actor = services.portal.login(username,password) if customer_login else services.auth.login(username, password)
         workspace = registry.add(services, actor) if demo else None
         registry.remove(session.get("workspace"))
         session.clear()
         session.permanent = True
-        session.update(
-            csrf=secrets.token_urlsafe(32),
-            employee_id=actor.employee_id,
-            store_id=actor.store_id,
-        )
+        session["csrf"] = secrets.token_urlsafe(32)
+        if customer_login:
+            session.update(customer_id=actor.customer_id,account_id=actor.account_id,customer_auth_version=actor.auth_version)
+        else:
+            session.update(employee_id=actor.employee_id,store_id=actor.store_id)
         if demo:
             session["workspace"] = workspace
         with attempts_lock:
             attempts.pop(remote, None)
         return reply(
             dict(
-                actor=actor,
+                actor=None if customer_login else actor,
+                customer=actor if customer_login else None,
                 csrf_token=session["csrf"],
                 mode=app.config["WEB_MODE"],
                 today=today(),
@@ -470,6 +526,188 @@ def create_app(config: dict | None = None) -> Flask:
         session.clear()
         session["csrf"] = secrets.token_urlsafe(32)
         return reply(dict(csrf_token=session["csrf"]))
+
+    @app.get("/api/management")
+    def management_overview():
+        return reply(dict(stores=g.services.management.list_stores(g.actor),permissions=sorted(str(p) for p in ROLE_PERMISSIONS[g.actor.role])))
+
+    @app.post("/api/store/switch")
+    def switch_store():
+        actor = g.services.management.switch_store(g.actor,integer(body(),"store_id",minimum=1))
+        session["store_id"] = actor.store_id
+        if demo:
+            registry.get(session["workspace"]).actor = actor
+        return reply(dict(actor=actor))
+
+    @app.get("/api/stores")
+    def list_stores():
+        return reply(g.services.management.list_stores(g.actor))
+
+    @app.route("/api/stores",methods=["POST"])
+    @app.route("/api/stores/<int:store_id>",methods=["PATCH"])
+    def save_store(store_id=None):
+        d = body()
+        return reply(g.services.management.save_store(g.actor,store_id,text(d,"code"),text(d,"name"),text(d,"address"),d.get("status","ACTIVE")))
+
+    @app.get("/api/employees")
+    def list_employees():
+        return reply(g.services.management.list_employees(g.actor))
+
+    @app.route("/api/employees",methods=["POST"])
+    @app.route("/api/employees/<int:employee_id>",methods=["PATCH"])
+    def save_employee(employee_id=None):
+        d = body()
+        return reply(g.services.management.save_employee(g.actor,employee_id,integer(d,"store_id",minimum=1),
+            text(d,"full_name"),text(d,"username"),d.get("role","STAFF"),d.get("status","ACTIVE"),d.get("password","")))
+
+    @app.get("/api/promotions")
+    def list_promotions():
+        return reply(g.services.management.list_promotions(g.actor))
+
+    @app.route("/api/promotions",methods=["POST"])
+    @app.route("/api/promotions/<int:promotion_id>",methods=["PATCH"])
+    def save_promotion(promotion_id=None):
+        d = body()
+        try:
+            start,end = datetime.fromisoformat(text(d,"starts_at")),datetime.fromisoformat(text(d,"ends_at"))
+        except ValueError:
+            raise ValidationError(field_errors={"ends_at":"Ngày giờ không hợp lệ"}) from None
+        store_id = None if d.get("store_id") is None else integer(d,"store_id",minimum=1)
+        old=next((p for p in g.services.management.list_promotions(g.actor) if p.id==promotion_id),None) if promotion_id else None
+        target=d.get('target_customer_id',old.target_customer_id if old else None)
+        if target is not None:
+            target=integer({'target_customer_id':target},'target_customer_id',minimum=1)
+        policy = Promotion(promotion_id or 0,text(d,"code"),text(d,"name"),store_id,
+                           integer(d,"minimum_amount",minimum=1),integer(d,"bonus_percent"),start,end,d.get("is_active",True),
+                           d.get('minimum_tier',old.minimum_tier if old else 'BRONZE'),
+                           d.get('minimum_points',old.minimum_points if old else 0),target)
+        return reply(g.services.management.save_promotion(g.actor,policy))
+
+    @app.post("/api/customers/<int:customer_id>/topup-preview")
+    def topup_preview(customer_id):
+        return reply(g.services.wallet.preview_top_up(customer_id,integer(body(),"amount",minimum=1),g.actor.employee_id))
+
+    def exported(detail):
+        csv_format = request.args.get("format")=="csv"
+        import re
+        filename = re.sub(r"[^A-Za-z0-9_-]","_",detail.invoice.invoice_code)
+        content = invoice_csv(detail) if csv_format else invoice_html(detail,"en" if english() else "vi")
+        response = Response(content,content_type="text/csv; charset=utf-8" if csv_format else "text/html; charset=utf-8")
+        disposition = "attachment" if csv_format or request.args.get("download")=="1" else "inline"
+        response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}.{ "csv" if csv_format else "html" }"'
+        return response
+
+    @app.get("/api/invoices/<int:invoice_id>/export")
+    def export_invoice(invoice_id):
+        detail = g.services.reports.get_invoice(invoice_id)
+        if detail.invoice.store_id!=g.actor.store_id:
+            raise PermissionDeniedError()
+        return exported(detail)
+
+    @app.get("/api/portal/snapshot")
+    def portal_snapshot():
+        return reply(g.services.portal.snapshot(g.customer))
+
+    def portal_integer(name, default=None):
+        value = request.args.get(name)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except ValueError:
+            raise ValidationError(field_errors={name: "Số nguyên không hợp lệ"}) from None
+
+    @app.get("/api/portal/dashboard")
+    def portal_dashboard():
+        return reply(g.services.portal.dashboard(g.customer, portal_integer("days", 30), portal_integer("store_id")))
+
+    @app.get("/api/portal/history")
+    def portal_history():
+        return reply(g.services.portal.history(
+            g.customer, request.args.get("kind", "transactions"), request.args.get("status", "all"),
+            request.args.get("date_from"), request.args.get("date_to"),
+            portal_integer("page", 1), portal_integer("page_size", 10)))
+
+    @app.post("/api/portal/topup-preview")
+    def portal_promotion_quote():
+        data = body()
+        return reply(g.services.portal.promotion_quote(
+            g.customer, integer(data, "store_id", minimum=1), integer(data, "amount", minimum=1)))
+
+    @app.get("/api/portal/notifications")
+    def portal_notifications():
+        return reply(g.services.portal.notifications(g.customer))
+
+    @app.post("/api/portal/notifications/read")
+    def portal_notifications_read():
+        return reply(g.services.portal.mark_notifications_read(g.customer, body().get("keys")))
+
+    @app.get("/api/portal/availability")
+    def portal_availability():
+        return reply(g.services.portal.availability(g.customer,portal_integer("store_id")))
+
+    @app.get("/api/portal/usage")
+    def portal_usage():
+        return reply(g.services.portal.usage_analysis(g.customer,portal_integer("days",30)))
+
+    @app.get("/api/portal/profile")
+    def portal_profile():
+        return reply(g.services.portal.profile(g.customer))
+
+    @app.patch("/api/portal/profile")
+    def portal_profile_update():
+        data=body()
+        return reply(g.services.portal.update_profile(g.customer,text(data,"full_name"),text(data,"phone"),data.get("current_password")))
+
+    @app.post("/api/portal/password")
+    def portal_password():
+        data=body()
+        customer=g.services.portal.change_password(g.customer,data.get("current_password"),data.get("new_password"),data.get("confirmation"))
+        session["customer_auth_version"]=customer.auth_version
+        session["csrf"]=secrets.token_urlsafe(32)
+        return reply(dict(customer=customer,csrf_token=session["csrf"]))
+
+    @app.get('/api/portal/member')
+    def portal_member():
+        return reply(g.services.portal.member(g.customer,portal_integer('page',1)))
+
+    @app.get('/api/portal/avatar')
+    def portal_avatar():
+        image=g.services.portal.avatar(g.customer)
+        return Response(image['image_data'],content_type='image/webp')
+
+    @app.post('/api/portal/avatar')
+    def portal_avatar_upload():
+        upload=request.files.get('avatar')
+        if upload is None:
+            raise ValidationError(field_errors={'avatar':'Vui lòng chọn ảnh đại diện'})
+        return reply(g.services.portal.update_avatar(g.customer,upload.read(2*1024*1024+1)))
+
+    @app.delete('/api/portal/avatar')
+    def portal_avatar_remove():
+        return reply(g.services.portal.remove_avatar(g.customer))
+
+    @app.get('/api/loyalty/settings')
+    def loyalty_settings():
+        return reply(g.services.management.loyalty_settings(g.actor))
+
+    @app.put('/api/loyalty/settings')
+    def loyalty_settings_update():
+        data=body()
+        values={k:integer(data,k,minimum=1) for k in ('unit_amount','silver_spend','gold_spend','platinum_spend','version')}
+        return reply(g.services.management.update_loyalty_settings(g.actor,LoyaltySettings(enabled=data.get('enabled'),**values)))
+
+    @app.get("/api/machine-rooms")
+    def machine_rooms():
+        return reply(g.services.management.list_machine_rooms(g.actor))
+
+    @app.patch("/api/machines/<int:machine_id>/room-type")
+    def machine_room_update(machine_id):
+        return reply(g.services.management.set_machine_room(g.actor,machine_id,body().get("room_type")))
+
+    @app.get("/api/portal/invoices/<int:invoice_id>/export")
+    def portal_export(invoice_id):
+        return exported(g.services.portal.invoice(g.customer,invoice_id))
 
     @app.get("/api/machines")
     def machines():
@@ -652,7 +890,10 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.get("/api/invoices/<int:invoice_id>")
     def invoice(invoice_id):
-        return reply(g.services.reports.get_invoice(invoice_id))
+        detail = g.services.reports.get_invoice(invoice_id)
+        if detail.invoice.store_id!=g.actor.store_id:
+            raise PermissionDeniedError()
+        return reply(detail)
 
     @app.get("/api/revenue")
     def revenue():

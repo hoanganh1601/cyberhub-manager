@@ -120,9 +120,11 @@ class MockServiceBase:
         if (
             employee is None
             or employee.status != EmployeeStatus.ACTIVE
-            or employee.store_id != actor.store_id
+            or employee.store_id != actor.store_id and employee.role != Role.ADMIN
             or employee.role != actor.role
         ):
+            raise PermissionDeniedError()
+        if self._data.get_store(actor.store_id).status != "ACTIVE":
             raise PermissionDeniedError()
         return employee
 

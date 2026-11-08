@@ -84,6 +84,7 @@ class AuthRepository:
                 WHERE e.id = %s
                   AND e.status = 'ACTIVE'
                   AND s.status = 'ACTIVE'
+                FOR SHARE
                 """,
                 (employee_id,),
             )

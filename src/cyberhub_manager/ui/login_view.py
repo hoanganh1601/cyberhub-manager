@@ -118,9 +118,11 @@ class LoginView(ctk.CTkFrame):
 
     def __init__(self, master: Any, auth_service: AuthServiceProtocol, *,
                  on_login_success: Callable[[EmployeeSession], None], language: str = "vi",
-                 runner: TaskRunner | None = None, demo: bool = False) -> None:
+                 runner: TaskRunner | None = None, demo: bool = False, portal_service=None) -> None:
         super().__init__(master, fg_color=t.LOGIN_BG, corner_radius=0)
         self._auth_service = auth_service
+        self._portal_service = portal_service
+        self._customer_mode = False
         self._on_login_success = on_login_success
         self._runner = runner or default_runner()
         self._language: Language = normalize_language(language)
@@ -141,6 +143,10 @@ class LoginView(ctk.CTkFrame):
         tk.Frame(self.panel, bg=t.LOGIN_BORDER, bd=0).place(x=0, y=0, width=1, relheight=1)
         self._build_topbar()
         self._build_form()
+        self.mode_button = ctk.CTkButton(self.panel, text="", fg_color="transparent", text_color=t.LOGIN_PRIMARY,
+            hover_color=t.LOGIN_SURFACE, command=self._toggle_mode)
+        if portal_service:
+            self.mode_button.place(relx=.5, rely=.84, anchor="center")
         self._build_footer()
         self._bind_focus_order()
         self.set_language(self._language)
@@ -268,8 +274,13 @@ class LoginView(ctk.CTkFrame):
             return
         self._language = normalize_language(language)
         self.portal.configure(text=self._tr("portal"))
+        self.mode_button.configure(text=("Về cổng nhân viên" if self._customer_mode else "Khách hàng · Xem số dư") if self.language=="vi" else ("Staff sign in" if self._customer_mode else "Customer · View my wallet"))
+        if self._customer_mode:
+            self.portal.configure(text="CỔNG KHÁCH HÀNG" if self.language=="vi" else "CUSTOMER PORTAL")
         self.title_label.configure(text=self._tr("title"))
         self.subtitle.configure(text=self._tr("subtitle"))
+        if self._customer_mode:
+            self.subtitle.configure(text="Xem số dư, lịch sử và hóa đơn của bạn" if self.language=="vi" else "Your wallet, history and invoices")
         for name, field in (("username", self.username), ("password", self.password)):
             field.label.configure(text=self._tr(name))
             field.set_placeholder(self._tr(f"{name}_placeholder"))
@@ -308,9 +319,18 @@ class LoginView(ctk.CTkFrame):
             (self.username if not username else self.password).entry.focus_set()
             return "break"
         self._set_busy(True)
-        self._runner.submit(self, lambda: self._auth_service.login(username, password),
+        service = self._portal_service if self._customer_mode else self._auth_service
+        self._runner.submit(self, lambda: service.login(username, password),
                             self._login_succeeded, self._login_failed)
         return "break"
+
+    def _toggle_mode(self):
+        if self._busy:
+            return
+        self._customer_mode = not self._customer_mode
+        self.password.entry.delete(0,"end")
+        self.feedback.pack_forget()
+        self.set_language(self.language)
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy

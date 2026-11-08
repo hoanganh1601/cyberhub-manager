@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.services.access import operating_actor
 from cyberhub_manager.domain.dtos import (
     ActiveSessionSummary,
     EmployeeSession,
@@ -341,13 +342,7 @@ class MachineService:
         ):
             raise PermissionDeniedError()
 
-        current_actor = self._auth.get_active_session_by_id(
-            conn,
-            actor.employee_id,
-        )
-
-        if current_actor is None or current_actor.store_id != actor.store_id:
-            raise PermissionDeniedError()
+        current_actor = operating_actor(conn,self._auth,actor)
 
         if (
             requested_store_id is not None

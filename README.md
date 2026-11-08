@@ -3,6 +3,18 @@
 CyberHub Manager hỗ trợ nhân viên và quản lý vận hành quán net qua ứng dụng desktop
 và giao diện web dùng chung các service nghiệp vụ Python/MySQL.
 
+P1 cho cả hai bản: ví chính/khuyến mãi, thưởng theo mốc nạp, quản trị nhân viên/cơ sở,
+cổng khách hàng và xuất/in hóa đơn. Xem [hướng dẫn chạy và nghiệm thu P1](docs/P1_DESKTOP_WEB.md).
+
+Web khách hàng đợt 1 có dashboard, biểu đồ chi tiêu, ưu đãi theo cơ sở, lịch sử phân trang
+và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/CUSTOMER_PORTAL_PHASE1.md).
+
+Đợt 2 bổ sung số máy trống phòng thường/VIP theo cơ sở (5 phút/lần), biểu đồ sử dụng và hồ sơ/đổi mật khẩu.
+Xem [hướng dẫn đợt 2](docs/CUSTOMER_PORTAL_PHASE2.md).
+
+Đợt 3 có menu avatar góc phải, tải ảnh đại diện, điểm/hạng thành viên và ưu đãi theo từng khách.
+Xem [quy tắc nghiệp vụ và hướng dẫn đợt 3](docs/CUSTOMER_PORTAL_PHASE3.md).
+
 ## Công nghệ
 
 - Python 3.11 trở lên

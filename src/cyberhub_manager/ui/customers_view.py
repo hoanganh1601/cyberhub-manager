@@ -657,6 +657,11 @@ class CustomersView(ctk.CTkFrame):
             card, text=format_money(customer.balance, language=self._t.language), font=FONT_ST_KPI_VALUE, text_color=balance_color(customer.balance), height=28, anchor="w"
         )
         self._balance_label.pack(anchor="w", padx=12, pady=(0, 8))
+        for label,value in ((self._t("Số dư chính"),customer.cash_balance),(self._t("Số dư khuyến mãi"),customer.bonus_balance)):
+            line = ctk.CTkFrame(card,fg_color="transparent")
+            line.pack(fill="x",padx=12,pady=(0,6))
+            ctk.CTkLabel(line,text=label,font=FONT_ST_BODY,text_color=STITCH_TEXT_MUTED).pack(side="left")
+            ctk.CTkLabel(line,text=format_money(value,language=self._t.language),font=FONT_ST_BODY,text_color=STITCH_CYAN).pack(side="right")
 
         # Nút thao tác
         actions = ctk.CTkFrame(panel, fg_color="transparent")

@@ -37,3 +37,7 @@ def verify_password(raw_password: str, password_hash: str) -> bool:
         )
     except ValueError:
         return False
+
+
+# Not an account credential; used to keep unknown-customer authentication work comparable.
+DUMMY_PASSWORD_HASH = hash_password("cyberhub-dummy-not-an-account")

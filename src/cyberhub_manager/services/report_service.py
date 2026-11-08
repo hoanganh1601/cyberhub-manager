@@ -12,6 +12,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.services.access import operating_actor
 from cyberhub_manager.domain.dtos import (
     DailyRevenue,
     EmployeeSession,
@@ -267,7 +268,7 @@ class ReportService:
             raise PermissionDeniedError()
 
         # Repository chỉ trả nhân viên ACTIVE thuộc cửa hàng ACTIVE.
-        current = self._auth.get_active_session_by_id(conn, actor.employee_id)
+        current = operating_actor(conn,self._auth,actor)
         if (
             current is None
             or current.store_id != actor.store_id

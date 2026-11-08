@@ -167,6 +167,7 @@ class MockSessionService(MockServiceBase):
         # Dựng mọi bản ghi mới trước; chỉ thay đổi kho khi tất cả đã hợp lệ.
         account = self._data.get_customer(session.customer_id).account
         cost = preview.usage_cost
+        bonus_used = min(account.bonus_balance,cost)
         new_transactions = []
         if settlement_amount:
             new_transactions.append(
@@ -214,10 +215,16 @@ class MockSessionService(MockServiceBase):
         account.debit(cost)
         for transaction in new_transactions:
             self._data.transactions[transaction.id] = transaction
+            self._data.transaction_stores[transaction.id] = machine.store_id
         self._data.invoices[invoice_id] = invoice
+        self._data.invoice_bonus[invoice_id] = bonus_used
+        from cyberhub_manager.domain.loyalty import invoice_award
+        self._data.invoice_loyalty[invoice_id]=invoice_award(cost,bonus_used,self._data.loyalty_settings)
         return CheckoutResult(
             invoice=self._data.to_invoice_detail(invoice),
             balance_after=account.balance,
+            bonus_used=bonus_used,
+            bonus_balance_after=account.bonus_balance,
         )
 
     # ----- Nội bộ --------------------------------------------------------
@@ -258,6 +265,7 @@ class MockSessionService(MockServiceBase):
         self, session: UsageSession, at: datetime
     ) -> CheckoutPreview:
         balance = self._data.get_customer(session.customer_id).account.balance
+        bonus = self._data.get_customer(session.customer_id).account.bonus_balance
         cost = session.calculate_cost(at)
         projected = balance - cost
         return CheckoutPreview(
@@ -269,6 +277,8 @@ class MockSessionService(MockServiceBase):
             balance_before=balance,
             projected_balance=projected,
             settlement_required=max(0, -projected),
+            bonus_balance=bonus,
+            bonus_used=min(bonus,cost),
         )
 
     @staticmethod

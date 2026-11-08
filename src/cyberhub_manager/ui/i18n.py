@@ -11,6 +11,9 @@ DEFAULT_LANGUAGE: Final[Language] = "vi"
 SUPPORTED_LANGUAGES: Final[tuple[Language, ...]] = ("vi", "en")
 
 _TRANSLATIONS: Final[dict[str, dict[Language, str]]] = {
+    "nav.employees": {"vi": "Nhân viên", "en": "Employees"},
+    "nav.promotions": {"vi": "Khuyến mãi", "en": "Promotions"},
+    "nav.stores": {"vi": "Cơ sở", "en": "Stores"},
     "app.name": {
         "vi": "CyberHub Manager",
         "en": "CyberHub Manager",

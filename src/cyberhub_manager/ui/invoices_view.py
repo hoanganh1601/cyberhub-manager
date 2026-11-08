@@ -616,6 +616,11 @@ class InvoicesView(ctk.CTkFrame):
             return
         session = detail.session
         inv = detail.invoice
+        from .p1_views import export_detail
+        exports = ctk.CTkFrame(panel,fg_color="transparent")
+        exports.pack(fill="x",pady=(0,10))
+        icon_action(exports,self._t("Xuất hóa đơn"),"invoices",command=lambda:export_detail(self,detail,self._t.language),width=130).pack(side="left")
+        icon_action(exports,self._t("In / Lưu PDF"),"copy",command=lambda:export_detail(self,detail,self._t.language,True),width=130).pack(side="right")
         summary = ctk.CTkFrame(panel, fg_color=STITCH_BADGE_DANGER_BG if inv.status == InvoiceStatus.VOID else STITCH_NAV_ACTIVE_BG,
                                border_width=1, border_color=STITCH_CARD_BORDER, corner_radius=10)
         summary.pack(fill="x", pady=(0, 12))
@@ -657,6 +662,7 @@ class InvoicesView(ctk.CTkFrame):
         inv = detail.invoice
         for label, value, color in (
             (self._t('Chi phí sử dụng:'), format_money(inv.usage_cost, language=self._t.language), STITCH_TEXT),
+            (self._t('Khuyến mãi đã sử dụng:'), format_money(inv.bonus_used,language=self._t.language), STITCH_CYAN),
             (self._t('Trong đó khách bù (tiền mặt/CK):'), format_money(inv.settlement_amount, language=self._t.language), STITCH_TEXT),
         ):
             line = ctk.CTkFrame(money, fg_color="transparent")

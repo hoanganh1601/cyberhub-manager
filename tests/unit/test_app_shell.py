@@ -31,6 +31,9 @@ def test_menu_order_is_fixed() -> None:
         NavKey.MACHINES,
         NavKey.INVOICES,
         NavKey.REPORTS,
+        NavKey.EMPLOYEES,
+        NavKey.PROMOTIONS,
+        NavKey.STORES,
     ]
 
 

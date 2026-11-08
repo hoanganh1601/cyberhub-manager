@@ -41,6 +41,11 @@ class CustomerSummary:
     balance: int
     customer_status: CustomerStatus
     account_status: AccountStatus
+    bonus_balance: int = 0
+
+    @property
+    def cash_balance(self) -> int:
+        return self.balance - self.bonus_balance
 
 
 @dataclass(frozen=True)
@@ -102,6 +107,9 @@ class TopUpResult:
     balance_before: int
     balance_after: int
     transaction: TransactionSummary
+    bonus_amount: int = 0
+    bonus_balance_after: int = 0
+    bonus_transaction: TransactionSummary | None = None
 
 
 @dataclass(frozen=True)
@@ -127,6 +135,8 @@ class CheckoutPreview:
     balance_before: int
     projected_balance: int
     settlement_required: int
+    bonus_balance: int = 0
+    bonus_used: int = 0
 
 
 @dataclass(frozen=True)
@@ -145,6 +155,7 @@ class InvoiceSummary:
     total_amount: int
     status: InvoiceStatus
     created_at: datetime
+    bonus_used: int = 0
 
 
 @dataclass(frozen=True)
@@ -159,6 +170,8 @@ class InvoiceDetail:
 class CheckoutResult:
     invoice: InvoiceDetail
     balance_after: int
+    bonus_used: int = 0
+    bonus_balance_after: int = 0
 
 
 @dataclass(frozen=True)

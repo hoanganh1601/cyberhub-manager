@@ -14,7 +14,8 @@ def create_service_bundle(
     if mock:
         from .mocks.factory import build_mock_services
 
-        return build_mock_services()
+        from .mocks.clock import RunningClock
+        return build_mock_services(p1=True,clock=RunningClock())
 
     from .auth_service import AuthService
     from .customer_service import CustomerService
@@ -22,6 +23,8 @@ def create_service_bundle(
     from .report_service import ReportService
     from .session_service import SessionService
     from .wallet_service import WalletService
+    from .management_service import ManagementService
+    from .portal_service import PortalService
 
     return ServiceBundle(
         auth=AuthService(),
@@ -30,4 +33,6 @@ def create_service_bundle(
         machines=MachineService(actor_provider=actor_provider),
         sessions=SessionService(actor_provider=actor_provider),
         reports=ReportService(actor_provider=actor_provider),
+        management=ManagementService(actor_provider=actor_provider),
+        portal=PortalService(),
     )

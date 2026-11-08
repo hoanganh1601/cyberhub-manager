@@ -89,6 +89,9 @@ class FakeCustomerRepository:
 
 
 class FakeAccountRepository:
+    def tag_transaction_store(self, conn, transaction_id, store_id):
+        pass
+
     def __init__(self, account):
         self.account = account
         self.locked_for_update = False
@@ -180,6 +183,9 @@ def build_wallet(customer=None, actor=STAFF, current=STAFF, with_provider=True):
         auth_repo=auth,
         actor_provider=(lambda: actor) if with_provider else None,
         transaction_factory=tx,
+        promotion_repo=SimpleNamespace(
+            list_promotions=lambda conn, store_id, lock=False: []
+        ),
     )
     return SimpleNamespace(
         service=service, customers=customers, accounts=accounts, auth=auth, tx=tx
@@ -189,6 +195,7 @@ def build_wallet(customer=None, actor=STAFF, current=STAFF, with_provider=True):
 @pytest.fixture
 def wallet():
     return build_wallet()
+
 
 # ----- Contract --------------------------------------------------------------
 
@@ -223,9 +230,7 @@ def test_top_up_rejects_invalid_amount_before_touching_database(wallet, amount):
 
 @pytest.mark.parametrize("amount", [1, MAX_TOP_UP_AMOUNT])
 def test_top_up_accepts_amount_boundaries(wallet, amount):
-    result = wallet.service.top_up(
-        CUSTOMER_ID, amount, PaymentMethod.CASH, EMPLOYEE_ID
-    )
+    result = wallet.service.top_up(CUSTOMER_ID, amount, PaymentMethod.CASH, EMPLOYEE_ID)
 
     assert result.transaction.amount == amount
 
@@ -279,9 +284,7 @@ def test_top_up_rejects_invalid_employee_id(wallet, employee_id):
 
 
 def test_top_up_locks_account_credits_and_records_transaction(wallet):
-    result = wallet.service.top_up(
-        CUSTOMER_ID, 20_000, PaymentMethod.CASH, EMPLOYEE_ID
-    )
+    result = wallet.service.top_up(CUSTOMER_ID, 20_000, PaymentMethod.CASH, EMPLOYEE_ID)
 
     assert wallet.tx.calls == 1
     assert wallet.accounts.locked_for_update is True
@@ -302,9 +305,7 @@ def test_top_up_allows_locked_account_to_pay_debt():
         customer=make_customer(balance=-3_000, account_status=AccountStatus.LOCKED)
     )
 
-    result = wallet.service.top_up(
-        CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID
-    )
+    result = wallet.service.top_up(CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID)
 
     assert result.balance_before == -3_000
     assert result.balance_after == 7_000
@@ -361,18 +362,14 @@ def test_get_history_denies_invalid_actor(options):
 
 def test_top_up_denies_employee_id_different_from_actor(wallet):
     with pytest.raises(PermissionDeniedError):
-        wallet.service.top_up(
-            CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID + 1
-        )
+        wallet.service.top_up(CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID + 1)
 
     assert_nothing_touched(wallet)
     assert wallet.auth.lookups == []
 
 
 def test_top_up_rechecks_actor_against_database(wallet):
-    result = wallet.service.top_up(
-        CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID
-    )
+    result = wallet.service.top_up(CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID)
 
     assert wallet.auth.lookups == [EMPLOYEE_ID]
     assert result.balance_after == 15_000

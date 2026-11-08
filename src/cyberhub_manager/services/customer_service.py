@@ -13,6 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.services.access import operating_actor
 from cyberhub_manager.domain.dtos import CustomerSummary, EmployeeSession
 from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus, Role
 from cyberhub_manager.domain.exceptions import (
@@ -267,13 +268,7 @@ class CustomerService:
         ):
             raise PermissionDeniedError()
 
-        current_actor = self._auth.get_active_session_by_id(
-            conn,
-            actor.employee_id,
-        )
-
-        if current_actor is None or current_actor.store_id != actor.store_id:
-            raise PermissionDeniedError()
+        current_actor = operating_actor(conn,self._auth,actor)
 
         if manager_only and current_actor.role not in MANAGER_ROLES:
             raise PermissionDeniedError()

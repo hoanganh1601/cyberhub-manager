@@ -48,6 +48,7 @@ class CustomerRepository:
                     a.code AS account_code,
                     a.username,
                     a.balance,
+                    a.bonus_balance,
                     a.status AS account_status
                 FROM customers AS c
                 JOIN accounts AS a ON a.customer_id = c.id
@@ -69,6 +70,7 @@ class CustomerRepository:
             username = row["username"],
             balance = row["balance"],
             status = AccountStatus(row["account_status"]),
+            bonus_balance = row.get("bonus_balance",0),
         )
         return Customer(
             id = row["customer_id"],
@@ -137,6 +139,7 @@ class CustomerRepository:
                     a.id AS account_id,
                     a.username,
                     a.balance,
+                    a.bonus_balance,
                     a.status AS account_status
                 FROM customers AS c
                 JOIN accounts AS a ON a.customer_id = c.id
@@ -164,6 +167,7 @@ class CustomerRepository:
                 balance = row["balance"],
                 customer_status = CustomerStatus(row["customer_status"]),
                 account_status = AccountStatus(row["account_status"]),
+                bonus_balance = row.get("bonus_balance",0),
             )
             for row in rows
         ]

@@ -10,6 +10,11 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any
 from uuid import uuid4
+from datetime import datetime, timezone
+from cyberhub_manager.domain.p1 import quote_top_up
+from cyberhub_manager.domain.loyalty import personalized
+from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.services.access import operating_actor
 
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import (
@@ -89,6 +94,8 @@ class WalletService:
         auth_repo: AuthRepository | None = None,
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
+        promotion_repo=None,
+        clock=None,
     ) -> None:
         self._customers = customer_repo or CustomerRepository()
         self._accounts = account_repo or AccountRepository()
@@ -96,6 +103,21 @@ class WalletService:
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
+        self._promotions = promotion_repo or P1Repository()
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+
+    def preview_top_up(self, customer_id, amount, employee_id):
+        with translate_db_errors(), self._transaction() as conn:
+            actor = self._require_actor(conn,employee_id)
+            customer=self._get_customer(conn,customer_id)
+            return self._customer_quote(conn,customer,amount,actor.store_id)
+
+    def _customer_quote(self,conn,customer,amount,store_id):
+        policies=self._promotions.list_promotions(conn,store_id,lock='share')
+        if str(customer.status)!='ACTIVE' or str(customer.account.status)!='ACTIVE':
+            policies=[p for p in policies if not personalized(p)]
+        member=self._promotions.loyalty_summary(conn,customer.id,current=True) if any(personalized(p) for p in policies) else None
+        return quote_top_up(amount,policies,store_id,self._clock(),customer_id=customer.id,member=member)
 
     @retry_on_transient
     def top_up(
@@ -125,6 +147,8 @@ class WalletService:
                 if account is None:
                     raise NotFoundError("Không tìm thấy tài khoản của khách hàng")
                 balance_before = account.balance
+                quote = self._customer_quote(conn,customer,amount,actor.store_id)
+                bonus_transaction = None
 
                 if not self._accounts.credit_balance(conn, account.id, amount):
                     raise NotFoundError("Không tìm thấy tài khoản của khách hàng")
@@ -139,13 +163,23 @@ class WalletService:
                 summary = self._get_created_transaction(
                     conn, account.id, transaction_id
                 )
+                self._accounts.tag_transaction_store(conn,transaction_id,actor.store_id)
+                if quote.bonus_amount:
+                    if not self._accounts.credit_bonus(conn,account.id,quote.bonus_amount):
+                        raise NotFoundError()
+                    bonus_id = self._accounts.insert_bonus_transaction(conn,code=new_transaction_code(),account_id=account.id,
+                        employee_id=actor.employee_id,amount=quote.bonus_amount,store_id=actor.store_id,promotion_id=quote.promotion.id)
+                    bonus_transaction = self._get_created_transaction(conn,account.id,bonus_id)
 
         return TopUpResult(
             customer_id=customer.id,
             account_id=account.id,
             balance_before=balance_before,
-            balance_after=balance_before + amount,
+            balance_after=balance_before + amount + quote.bonus_amount,
             transaction=summary,
+            bonus_amount=quote.bonus_amount,
+            bonus_balance_after=account.bonus_balance+quote.bonus_amount,
+            bonus_transaction=bonus_transaction,
         )
 
     def get_history(self, customer_id: int) -> list[TransactionSummary]:
@@ -173,9 +207,7 @@ class WalletService:
         ):
             raise PermissionDeniedError()
         # Tra lại DB: nhân viên/cửa hàng có thể đã bị khóa hoặc nhân viên đã chuyển cửa hàng.
-        current = self._auth.get_active_session_by_id(conn, actor.employee_id)
-        if current is None or current.store_id != actor.store_id:
-            raise PermissionDeniedError()
+        current = operating_actor(conn,self._auth,actor)
         return current
 
     def _get_created_transaction(

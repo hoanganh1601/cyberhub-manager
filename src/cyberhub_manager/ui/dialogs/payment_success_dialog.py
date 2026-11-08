@@ -155,6 +155,7 @@ class PaymentSuccessDialog(StitchDialog):
         settlement = invoice.settlement_amount
         _row(payment, self._t('Tổng chi phí phiên:'), format_money(invoice.usage_cost, language=self._t.language))
         _row(payment, self._t('Thanh toán từ số dư:'), format_money(invoice.usage_cost - settlement, language=self._t.language))
+        _row(payment,self._t("Khuyến mãi đã sử dụng:"),format_money(invoice.bonus_used,language=self._t.language))
         if settlement > 0:
             label = self._t('Thanh toán chuyển khoản:') if method == PaymentMethod.TRANSFER else self._t('Thanh toán tiền mặt:')
             _row(payment, label, format_money(settlement, language=self._t.language), STITCH_TEXT_STRONG, strong=True)
@@ -175,6 +176,12 @@ class PaymentSuccessDialog(StitchDialog):
         _row(payment, self._t('Số dư tài khoản còn lại:'), format_money(result.balance_after, language=self._t.language), STITCH_TEXT_STRONG, strong=True)
 
         self._build_confirmations(columns)
+        from ..p1_views import export_detail
+        from ..components.workspace import icon_action
+        actions = ctk.CTkFrame(self.body,fg_color="transparent")
+        actions.pack(fill="x",pady=(12,0))
+        icon_action(actions,self._t("Xuất hóa đơn"),"invoices",command=lambda:export_detail(self,detail,self._t.language)).pack(side="left")
+        icon_action(actions,self._t("In / Lưu PDF"),"copy",command=lambda:export_detail(self,detail,self._t.language,True)).pack(side="right")
         self.finish(focus=self.confirm_button.focus_set)
 
     # ------------------------------------------------------------------
