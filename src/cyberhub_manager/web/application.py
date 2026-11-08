@@ -141,7 +141,7 @@ class DemoRegistry:
             self.entries.pop(key or "", None)
 
 
-def _demo_bundle() -> ServiceBundle:
+def _demo_bundle(*, customer_portal=False) -> ServiceBundle:
     from cyberhub_manager.services.mocks.clock import MockClock
     from cyberhub_manager.services.mocks.factory import build_mock_services
 
@@ -149,7 +149,7 @@ def _demo_bundle() -> ServiceBundle:
         def now(self) -> datetime:
             return datetime.now(UTC)
 
-    return build_mock_services(clock=RunningClock(datetime.now(UTC)),p1=True)
+    return build_mock_services(clock=RunningClock(datetime.now(UTC)),p1=True,customer_offers=customer_portal)
 
 
 def create_app(config: dict | None = None) -> Flask:
@@ -327,6 +327,12 @@ def create_app(config: dict | None = None) -> Flask:
             "method": "Select cash or bank transfer.",
             "settlement_amount": "The settlement must equal the current outstanding amount.",
             "hourly_rate": "Enter a positive whole hourly rate.",
+            "days": "Choose a 7, 30 or 90 day period.",
+            "store_id": "Select an active store.",
+            "date_from": "Enter a valid start date.",
+            "date_to": "Enter a valid end date on or after the start date.",
+            "page": "Select a valid page.",
+            "keys": "These notifications are no longer available. Please refresh.",
         }
         return reply(
             dict(
@@ -475,8 +481,8 @@ def create_app(config: dict | None = None) -> Flask:
             attempts.move_to_end(remote)
             if len(attempts) > 4096:
                 attempts.popitem(last=False)
-        services = _demo_bundle() if demo else real_services
         customer_login = data.get("kind")=="customer"
+        services = _demo_bundle(customer_portal=customer_login) if demo else real_services
         actor = services.portal.login(username,password) if customer_login else services.auth.login(username, password)
         workspace = registry.add(services, actor) if demo else None
         registry.remove(session.get("workspace"))
@@ -582,6 +588,40 @@ def create_app(config: dict | None = None) -> Flask:
     @app.get("/api/portal/snapshot")
     def portal_snapshot():
         return reply(g.services.portal.snapshot(g.customer))
+
+    def portal_integer(name, default=None):
+        value = request.args.get(name)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except ValueError:
+            raise ValidationError(field_errors={name: "Số nguyên không hợp lệ"}) from None
+
+    @app.get("/api/portal/dashboard")
+    def portal_dashboard():
+        return reply(g.services.portal.dashboard(g.customer, portal_integer("days", 30), portal_integer("store_id")))
+
+    @app.get("/api/portal/history")
+    def portal_history():
+        return reply(g.services.portal.history(
+            g.customer, request.args.get("kind", "transactions"), request.args.get("status", "all"),
+            request.args.get("date_from"), request.args.get("date_to"),
+            portal_integer("page", 1), portal_integer("page_size", 10)))
+
+    @app.post("/api/portal/topup-preview")
+    def portal_promotion_quote():
+        data = body()
+        return reply(g.services.portal.promotion_quote(
+            g.customer, integer(data, "store_id", minimum=1), integer(data, "amount", minimum=1)))
+
+    @app.get("/api/portal/notifications")
+    def portal_notifications():
+        return reply(g.services.portal.notifications(g.customer))
+
+    @app.post("/api/portal/notifications/read")
+    def portal_notifications_read():
+        return reply(g.services.portal.mark_notifications_read(g.customer, body().get("keys")))
 
     @app.get("/api/portal/invoices/<int:invoice_id>/export")
     def portal_export(invoice_id):

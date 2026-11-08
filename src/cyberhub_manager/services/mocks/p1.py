@@ -17,9 +17,10 @@ from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.domain.models import Employee, Store
 from cyberhub_manager.domain.p1 import CustomerSession, EmployeeSummary, StoreSummary
 from cyberhub_manager.security import hash_password
+from .portal import MemoryPortalRepositoryMixin
 
 
-class MemoryP1Repository:
+class MemoryP1Repository(MemoryPortalRepositoryMixin):
     def customer_invoice(self, conn, principal, invoice_id):
         from cyberhub_manager.domain.exceptions import NotFoundError
 
@@ -31,6 +32,7 @@ class MemoryP1Repository:
     def __init__(self, data):
         self.data = data
         self.lock = RLock()
+        self.notification_reads = set()
 
     @contextmanager
     def transaction(self):
@@ -45,6 +47,7 @@ class MemoryP1Repository:
                     self.data._last_ids,
                     self.data.employee_passwords,
                     self.data.operating_stores,
+                    self.notification_reads,
                 )
             )
             try:
@@ -59,6 +62,7 @@ class MemoryP1Repository:
                     self.data._last_ids,
                     self.data.employee_passwords,
                     self.data.operating_stores,
+                    self.notification_reads,
                 ) = snapshot
                 raise
 

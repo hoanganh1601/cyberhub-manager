@@ -6,6 +6,9 @@ và giao diện web dùng chung các service nghiệp vụ Python/MySQL.
 P1 cho cả hai bản: ví chính/khuyến mãi, thưởng theo mốc nạp, quản trị nhân viên/cơ sở,
 cổng khách hàng và xuất/in hóa đơn. Xem [hướng dẫn chạy và nghiệm thu P1](docs/P1_DESKTOP_WEB.md).
 
+Web khách hàng đợt 1 có dashboard, biểu đồ chi tiêu, ưu đãi theo cơ sở, lịch sử phân trang
+và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/CUSTOMER_PORTAL_PHASE1.md).
+
 ## Công nghệ
 
 - Python 3.11 trở lên

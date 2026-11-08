@@ -8,10 +8,13 @@ from cyberhub_manager.domain.p1 import CustomerSession
 from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.security import verify_password
 from .p1_runtime import errors
+from .portal_experience import PortalExperienceMixin
+from datetime import datetime, timezone
 
 
-class PortalService:
-    def __init__(self, repo=None, transaction_factory=None):
+class PortalService(PortalExperienceMixin):
+    def __init__(self, repo=None, transaction_factory=None, clock=None):
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._memory = hasattr(repo, "resolve_actor")
         if transaction_factory is None:
             from cyberhub_manager.database.transaction import transaction

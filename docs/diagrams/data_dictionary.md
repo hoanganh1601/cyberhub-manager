@@ -3,7 +3,7 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
 tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi khóa ngoại `RESTRICT` (không xóa dây chuyền).
 
 ## 1. Danh sách bảng
@@ -20,6 +20,7 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi k
 | [`invoices`](#invoices) | Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử. | 12 |
 | [`promotions`](#promotions) | Chính sách thưởng theo mốc nạp, phạm vi và thời gian. | 10 |
 | [`management_audit`](#management_audit) | Lịch sử thay đổi quản trị, không lưu mật khẩu. | 6 |
+| [`customer_notification_reads`](#customer_notification_reads) | Trạng thái đã đọc thông báo riêng của từng tài khoản khách; không thay đổi sổ tiền. | 3 |
 
 ## 2. Quan hệ và cardinality
 
@@ -43,6 +44,7 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `customers` | 1 — 0..n | `usage_sessions` | `usage_sessions.customer_id` → `customers.id` | Khách dùng máy. |
 | `customers` | 1 — 0..n | `invoices` | `invoices.customer_id` → `customers.id` | Khách (lưu thẳng để báo cáo không phải đi qua phiên). |
 | `accounts` | 1 — 0..n | `account_transactions` | `account_transactions.account_id` → `accounts.id` | Tài khoản bị thay đổi số dư. |
+| `accounts` | 1 — 0..n | `customer_notification_reads` | `customer_notification_reads.account_id` → `accounts.id` | Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `usage_sessions` | 0..1 — 0..n | `account_transactions` | `account_transactions.session_id` → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
 | `usage_sessions` | 1 — 0..1 | `invoices` | `invoices.session_id` → `usage_sessions.id` | Phiên được thanh toán; UNIQUE ⇒ mỗi phiên tối đa một hóa đơn. |
@@ -366,3 +368,18 @@ Ràng buộc:
 - PRIMARY KEY (`id`)
 - FOREIGN KEY `fk_management_audit_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
 - FOREIGN KEY `fk_management_audit_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+
+### customer_notification_reads
+
+Trạng thái đã đọc thông báo riêng của từng tài khoản khách; không thay đổi sổ tiền.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `account_id` | `bigint unsigned` | Không | — | PK, FK → `accounts.id` | Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính. |
+| `notification_key` | `varchar(100)` | Không | — | PK | Khóa sự kiện ổn định, phân biệt hoa/thường; phần thứ hai của khóa chính. |
+| `read_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đánh dấu đã đọc (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`account_id,notification_key`)
+- FOREIGN KEY `fk_customer_notification_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT

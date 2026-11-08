@@ -1,6 +1,7 @@
 """Parameterized P1 persistence. Callers own the transaction and authorization."""
 
 from datetime import timezone
+from .portal_repository import PortalRepositoryMixin
 
 from cyberhub_manager.domain.p1 import (
     CustomerSession,
@@ -32,7 +33,7 @@ def utc(value):
     return value.replace(tzinfo=timezone.utc)
 
 
-class P1Repository:
+class P1Repository(PortalRepositoryMixin):
     def customer_invoice(self, conn, principal, invoice_id):
         from cyberhub_manager.domain.exceptions import NotFoundError
         from cyberhub_manager.domain.dtos import InvoiceDetail, SessionSummary

@@ -33,6 +33,7 @@ TABLES = (
     "invoices",
     "promotions",
     "management_audit",
+    "customer_notification_reads",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -166,6 +167,15 @@ DESCRIPTIONS["management_audit"] = ("Lịch sử thay đổi quản trị, khôn
     "id":"Khóa chính.","employee_id":"Nhân viên thực hiện.","store_id":"Cơ sở đang vận hành.",
     "action":"Loại thay đổi quản trị.","entity_id":"ID đối tượng được thay đổi.","created_at":"Thời điểm thay đổi (UTC)."})
 
+DESCRIPTIONS["customer_notification_reads"] = (
+    "Trạng thái đã đọc thông báo riêng của từng tài khoản khách; không thay đổi sổ tiền.",
+    {
+        "account_id": "Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính.",
+        "notification_key": "Khóa sự kiện ổn định, phân biệt hoa/thường; phần thứ hai của khóa chính.",
+        "read_at": "Thời điểm đánh dấu đã đọc (UTC).",
+    },
+)
+
 _KIND_ORDER = {"PRIMARY KEY": 0, "UNIQUE": 1, "FOREIGN KEY": 2, "CHECK": 3}
 
 
@@ -277,7 +287,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi khóa ngoại `RESTRICT` (không xóa dây chuyền).")
     w("")
     w("## 1. Danh sách bảng")

@@ -142,19 +142,7 @@ function queueTopupQuote(){
   }catch(error){if(seq===quoteSeq&&modalContext===context)$("#bonus-quote").textContent=error.message;}},250);
 }
 async function renderPortal(){
-  clearInterval(refreshTimer);state.actor=null;
-  try{
-    const data=await api("/portal/snapshot");if(!state.customer)return;
-    const wallet=data.wallet;
-    const rows=(key,headers,values)=>`<section class="panel"><header class="panel-heading"><h3>${t(key)}</h3><small>${Math.min(100,values.length)} / 100</small></header>${values.length?table(headers,values.join("")):empty()}</section>`;
-    $("#app").innerHTML=`<div class="customer-workspace"><header class="portal-header"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub"><span class="spacer"></span>${langControl()}<button class="btn" data-p1="portal-refresh">${t("refresh")}</button><button class="btn" data-p1="portal-logout">${t("logout")}</button></header><main><header class="page-head"><div><small class="cyan">${t("customerPortal")}</small><h1>${esc(data.profile.full_name)}</h1><p>${esc(data.profile.username)} · ${esc(wallet.account_code)}</p></div></header><div class="metrics">${metric("cashBalance",money(wallet.cash_balance),"","wallet")}${metric("bonusBalance",money(wallet.bonus_balance),"green","wallet",t("bonusNote"))}${metric("balance",money(wallet.balance),"cyan","wallet")}</div><div class="portal-history">${rows("transactions",["code","created","type","transactionAmount","store"],data.transactions.map(x=>`<tr><td>${esc(x.code)}</td><td>${dt(x.created_at)}</td><td>${t(x.type)}</td><td class="money ${x.amount<0?"red":"green"}">${money(x.amount)}</td><td>${esc(x.store_name||"—")}</td></tr>`))}${rows("sessions",["code","machine","store","startAt","endAt","status"],data.sessions.map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.machine_code)}</td><td>${esc(x.store_name)}</td><td>${dt(x.started_at)}</td><td>${dt(x.ended_at)}</td><td>${badge(x.status)}</td></tr>`))}${rows("myInvoices",["invoiceCode","store","created","total","status","actions"],data.invoices.map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.store_name)}</td><td>${dt(x.created_at)}</td><td class="money">${money(x.usage_cost)}</td><td>${badge(x.status)}</td><td><div class="actions"><button class="btn small" data-p1="portal-print" data-id="${x.id}">${t("print")}</button><button class="btn small" data-p1="portal-export" data-id="${x.id}">CSV</button></div></td></tr>`))}</div></main></div>`;
-    for(const table of document.querySelectorAll('.customer-workspace table')) {
-      const headers=[...table.querySelectorAll('th')].map(h=>h.textContent);
-      for(const row of table.querySelectorAll('tbody tr')) [...row.children].forEach((cell,index)=>cell.dataset.label=headers[index]);
-    }
-    document.title="CyberHub — "+t("customerPortal");
-    refreshTimer=setInterval(()=>{if(state.customer&&!document.hidden)renderPortal();},15000);
-  }catch(error){if(error.code==="PERMISSION_DENIED"){state.customer=null;renderLogin();}toast(error.message,true);}
+  return renderCustomerPortal();
 }
 document.addEventListener("click",async event=>{
   const button=event.target.closest("[data-p1]");if(!button||button.disabled)return;

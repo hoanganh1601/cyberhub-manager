@@ -21,6 +21,7 @@ def build_mock_services(
     *,
     clock: MockClock | None = None,
     p1: bool = False,
+    customer_offers: bool = False,
 ) -> ServiceBundle:
     """Tạo một bộ dữ liệu demo mới và sáu mock service dùng chung bộ dữ liệu đó.
 
@@ -49,6 +50,15 @@ def build_mock_services(
         data.stores[store_id] = Store(store_id,data.make_code("store",store_id),"CyberHub Hà Đông","Hà Đông, Hà Nội",StoreStatus.ACTIVE,clock.now(),clock.now())
         password_hash = hash_password(DEMO_PASSWORD)
         data.customer_password_hashes.update({c.account.id:password_hash for c in data.customers.values()})
+        if customer_offers:
+            from datetime import timedelta
+            from cyberhub_manager.domain.p1 import Promotion
+
+            for code, threshold, percent in (("DEMO100", 100000, 10), ("DEMO200", 200000, 20)):
+                entity_id = data.next_id("promotion")
+                data.promotions[entity_id] = Promotion(
+                    entity_id, code, "CyberHub " + str(percent) + "%", None,
+                    threshold, percent, clock.now()-timedelta(days=1), clock.now()+timedelta(days=7))
     repo = MemoryP1Repository(data)
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
@@ -58,5 +68,5 @@ def build_mock_services(
         sessions=MockSessionService(data, clock, scenario),
         reports=MockReportService(data, clock, scenario),
         management=ManagementService(repo=repo,transaction_factory=repo.transaction),
-        portal=PortalService(repo=repo,transaction_factory=repo.transaction),
+        portal=PortalService(repo=repo,transaction_factory=repo.transaction,clock=clock.now),
     )

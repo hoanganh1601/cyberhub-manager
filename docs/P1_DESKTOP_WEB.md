@@ -72,7 +72,7 @@ nhân viên sẽ giữ mật khẩu hiện tại. Thay đổi quản trị đư�
 ## Nâng cấp database đang dùng
 
 1. Sao lưu database bằng quy trình backup hiện tại và đóng các ứng dụng cũ trước khi migrate.
-2. Giữ `.env` hiện có. Chạy `python scripts/init_db.py` để áp dụng `003_p1_management_wallet.sql`.
+2. Giữ `.env` hiện có. Chạy `python scripts/init_db.py` để áp dụng migration P1 và `004_customer_notifications.sql`.
    Không sửa checksum của migration 001/002. MySQL DDL tự commit, nên phục hồi bản sao lưu nếu migration
    bị gián đoạn; không tự chạy lại phần ALTER đã áp dụng khi chưa kiểm tra `schema_migrations`.
 3. Nếu chưa có Admin, tạo **tài khoản mới** qua công cụ bootstrap, dùng mã cơ sở đang hoạt động:
@@ -97,7 +97,8 @@ Giữ thiết lập HTTPS/cookie/proxy trong hướng dẫn triển khai web hi�
 4. **Hóa đơn → Xuất/In**: HTML/CSV; cửa sổ biên lai dùng Ctrl+P để in hoặc lưu PDF. Hóa đơn hủy có nhãn riêng.
 5. Admin bấm tên cơ sở ở thanh trên, chọn cơ sở khác; danh sách máy/hóa đơn/doanh thu đổi theo cơ sở.
 6. Tạo nhân viên STAFF và thử đăng nhập. Manager không được cấp MANAGER/ADMIN hoặc sửa nhân viên cơ sở khác.
-7. Khách đăng nhập cổng riêng: chỉ xem ví, 100 giao dịch/phiên/hóa đơn gần nhất của mình và xuất/in hóa đơn của mình.
+7. Khách đăng nhập cổng riêng: xem ví và xuất/in hóa đơn của mình. Desktop hiển thị 100 bản ghi gần nhất;
+   web có dashboard, ưu đãi, lịch sử phân trang toàn bộ dữ liệu và thông báo theo [hướng dẫn đợt 1](CUSTOMER_PORTAL_PHASE1.md).
 8. Chuyển VI/EN ở các màn mới; kiểm tra cửa sổ desktop 1100×650 và web trên điện thoại.
 
 Không có chính sách khuyến mãi mặc định tự kích hoạt trên dữ liệu thật. Tài khoản/cơ sở mẫu chỉ ở chế độ demo.
