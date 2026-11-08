@@ -114,15 +114,47 @@ Dừng container mà vẫn giữ dữ liệu:
 docker compose down
 ```
 
+## Chuẩn bị database ứng dụng (lần đầu)
+
+Database `cyberhub_manager` trong container mới chưa có bảng. Tạo bảng và dữ liệu demo
+một lần trước khi chạy ứng dụng:
+
+```powershell
+python scripts/init_db.py
+python -c "from scripts.seed_db import run_seed; run_seed(expected_database='cyberhub_manager')"
+```
+
+- `init_db.py` áp dụng các file trong `sql/` theo thứ tự; chạy lại sẽ bỏ qua migration đã áp dụng.
+- Seed hỏi **mật khẩu demo** hai lần (không phải mật khẩu MySQL). Mật khẩu này dùng cho
+  mọi tài khoản demo bên dưới. Seed chạy lại không tạo bản ghi trùng.
+
+| Dữ liệu demo | Giá trị |
+|---|---|
+| Quản lý | `demo.manager` |
+| Nhân viên | `demo.staff01`, `demo.staff02` |
+| Khách hàng | `DEMO_CUS_01` đến `DEMO_CUS_05`, số dư 0đ |
+| Máy | `DEMO_PC_01` đến `DEMO_PC_20`, 10.000đ/giờ |
+
+Nếu bỏ qua bước này, màn đăng nhập sẽ báo *Service is temporarily unavailable* vì chưa có bảng.
+
 ## Chạy ứng dụng
 
-Đảm bảo virtual environment đang hoạt động và MySQL đang chạy:
+Đảm bảo virtual environment đang hoạt động, MySQL đang chạy và database đã được chuẩn bị:
 
 ```powershell
 cyberhub-manager
 ```
 
-Ứng dụng sẽ mở cửa sổ desktop có tiêu đề `CyberHub Manager`.
+Ứng dụng sẽ mở cửa sổ desktop có tiêu đề `CyberHub Manager`. Đăng nhập bằng `demo.manager`
+và mật khẩu demo đã nhập khi seed.
+
+| Lệnh | Mục đích |
+|---|---|
+| `cyberhub-manager` | Chạy với MySQL theo `.env` |
+| `cyberhub-manager --mock` | Demo giao diện không cần MySQL/`.env` (`quanly01` hoặc `nhanvien01`, mật khẩu `demo123`) |
+| `cyberhub-manager --lang en` | Mở giao diện tiếng Anh |
+
+Thiếu `.env` thì lệnh dừng ngay với hướng dẫn `Copy .env.example to .env` (exit code 2).
 
 ## Chuẩn bị và chạy kiểm thử
 
@@ -190,6 +222,16 @@ Kèm báo cáo coverage (chỉ báo hỗ trợ, không thay thế việc kiểm 
 ```powershell
 python -m pytest --cov=cyberhub_manager --cov-report=term-missing
 ```
+
+Đo thời gian thao tác và `EXPLAIN` các câu SELECT trên dữ liệu lớn (HA-09). Script chỉ chạy
+trên `cyberhub_manager_test`, tạo dữ liệu mã `PERF...` rồi tự xóa:
+
+```powershell
+python scripts/perf_check.py              # 5.000 khách, 60.000 phiên/hóa đơn
+python scripts/perf_check.py --scale 0.2  # nhanh hơn
+```
+
+Kết quả review database: [docs/testing/HA09_DB_REVIEW.md](docs/testing/HA09_DB_REVIEW.md).
 
 ### Quy tắc database test
 
