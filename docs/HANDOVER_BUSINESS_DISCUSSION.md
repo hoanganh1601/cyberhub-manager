@@ -277,7 +277,7 @@ Giới hạn bắt buộc:
    ↓
 Đợt 4: Quảng cáo nhận thưởng
    ↓
-Đợt 5: AI hỗ trợ
+Đợt 5: AI hỗ trợ (phần này Hoàng Anh làm, làm cho bạn 4 phần trên trước nhé)
 ```
 
 Không nên triển khai quảng cáo hoặc AI trước khi voucher, audit log và cơ chế chống gian lận đã ổn định.
