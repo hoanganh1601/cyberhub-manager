@@ -20,6 +20,7 @@ import customtkinter as ctk
 from ...domain.dtos import CustomerSummary, TopUpResult
 from ...domain.enums import AccountStatus, CustomerStatus, PaymentMethod
 from ..app_shell import ViewContext
+from ..i18n import UIStrings
 from ..background import TaskRunner, default_runner
 from ..components import ToastManager
 from ..components.stitch_field import StitchField
@@ -79,8 +80,8 @@ def validate_amount(text: str) -> tuple[int | None, str | None]:
     return amount, None
 
 
-def format_amount_input(amount: int) -> str:
-    return f"{amount:,}".replace(",", ".")
+def format_amount_input(amount: int, language: str = "vi") -> str:
+    return f"{amount:,}" if language == "en" else f"{amount:,}".replace(",", ".")
 
 
 class TopUpDialog(StitchDialog):
@@ -94,14 +95,16 @@ class TopUpDialog(StitchDialog):
         runner: TaskRunner | None = None,
         on_success: Callable[[TopUpResult], None] | None = None,
     ) -> None:
+        self._t = UIStrings(context.language)
         super().__init__(
             parent,
-            title="Nạp tiền",
-            subtitle="Cộng số dư và ghi nhận lịch sử giao dịch",
+            language=context.language,
+            title=self._t('Nạp tiền'),
+            subtitle=self._t('Cộng số dư và ghi nhận lịch sử giao dịch'),
             icon="▭",
             width=580,
-            hint="Nhấn Enter để nạp • Esc để hủy",
-            confirm_text="Xác nhận nạp tiền",
+            hint=self._t('Nhấn Enter để nạp • Esc để hủy'),
+            confirm_text=self._t('Xác nhận nạp tiền'),
         )
         self._context = context
         self._customer = customer
@@ -114,13 +117,13 @@ class TopUpDialog(StitchDialog):
         self._build_customer_card(account_code)
         self.amount_field = StitchField(
             self.body,
-            "Số tiền nạp",
+            self._t('Số tiền nạp'),
             placeholder="0",
             suffix="VND",
             mono=True,
             justify="right",
             uppercase_label=False,
-            hint="Số tiền phải là số nguyên dương và không vượt quá 100.000.000 VND.",
+            hint=self._t('Số tiền phải là số nguyên dương và không vượt quá 100.000.000 VND.'),
         )
         self.amount_field.pack(fill="x", pady=(14, 0))
         self.amount_field.bind_change(self._refresh_preview)
@@ -144,7 +147,7 @@ class TopUpDialog(StitchDialog):
 
         top = ctk.CTkFrame(inner, fg_color="transparent")
         top.pack(fill="x")
-        ctk.CTkLabel(top, text="Khách hàng: ", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
+        ctk.CTkLabel(top, text=self._t('Khách hàng: '), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
         ctk.CTkLabel(top, text=customer.full_name, font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG, height=20).pack(side="left")
         code = ctk.CTkFrame(top, fg_color=STITCH_CHIP_BG, border_width=1, border_color=STITCH_CHIP_BORDER, corner_radius=STITCH_RADIUS)
         code.pack(side="right")
@@ -152,24 +155,24 @@ class TopUpDialog(StitchDialog):
 
         second = ctk.CTkFrame(inner, fg_color="transparent")
         second.pack(fill="x", pady=(4, 0))
-        ctk.CTkLabel(second, text="Tài khoản: ", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
+        ctk.CTkLabel(second, text=self._t('Tài khoản: '), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
         ctk.CTkLabel(second, text=customer.username, font=FONT_ST_MONO_BODY, text_color=STITCH_TEXT, height=20).pack(side="left")
-        ctk.CTkLabel(second, text=f"Mã TK: {account_code or '—'}", font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED, height=20).pack(side="right")
+        ctk.CTkLabel(second, text=self._t('Mã TK: {v0}', v0=f"{account_code or '—'}"), font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED, height=20).pack(side="right")
 
         divider(inner, pady=(8, 8))
         third = ctk.CTkFrame(inner, fg_color="transparent")
         third.pack(fill="x")
-        ctk.CTkLabel(third, text="Số dư hiện tại: ", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
+        ctk.CTkLabel(third, text=self._t('Số dư hiện tại: '), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
         ctk.CTkLabel(
             third,
-            text=format_money(customer.balance),
+            text=format_money(customer.balance, language=self._t.language),
             font=FONT_ST_MONO_SM,
             text_color=STITCH_DANGER if customer.balance < 0 else STITCH_CYAN,
             height=20,
         ).pack(side="left")
         account_ok = customer.account_status == AccountStatus.ACTIVE
         customer_ok = customer.customer_status == CustomerStatus.ACTIVE
-        for text, ok in (("TK: " + ("Hoạt động" if account_ok else "Đã khóa"), account_ok), ("KH: " + ("Hoạt động" if customer_ok else "Ngừng"), customer_ok)):
+        for text, ok in ((self._t('TK: ') + (self._t('Hoạt động') if account_ok else self._t('Đã khóa')), account_ok), (self._t('KH: ') + (self._t('Hoạt động') if customer_ok else self._t('Ngừng')), customer_ok)):
             colors = (STITCH_SUCCESS, STITCH_BADGE_SUCCESS_BG, STITCH_BADGE_SUCCESS_BORDER) if ok else (STITCH_DANGER, STITCH_BADGE_DANGER_BG, STITCH_BADGE_DANGER_BORDER)
             chip(third, text, *colors).pack(side="right", padx=(6, 0))
 
@@ -180,7 +183,7 @@ class TopUpDialog(StitchDialog):
             row.grid_columnconfigure(index, weight=1, uniform="quick")
             button = ctk.CTkButton(
                 row,
-                text=format_amount_input(amount),
+                text=format_amount_input(amount, self._t.language),
                 height=30,
                 corner_radius=STITCH_RADIUS,
                 border_width=1,
@@ -191,7 +194,7 @@ class TopUpDialog(StitchDialog):
             self._quick_buttons[amount] = button
 
     def _build_methods(self) -> None:
-        ctk.CTkLabel(self.body, text="Phương thức nạp tiền", font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT, anchor="w", height=18).pack(
+        ctk.CTkLabel(self.body, text=self._t('Phương thức nạp tiền'), font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT, anchor="w", height=18).pack(
             fill="x", pady=(14, 6)
         )
         row = ctk.CTkFrame(self.body, fg_color="transparent")
@@ -200,7 +203,7 @@ class TopUpDialog(StitchDialog):
             row.grid_columnconfigure(index, weight=1, uniform="method")
             button = ctk.CTkButton(
                 row,
-                text=METHOD_LABELS[method],
+                text=self._t(METHOD_LABELS[method]),
                 height=34,
                 corner_radius=STITCH_RADIUS_LG,
                 border_width=1,
@@ -219,7 +222,7 @@ class TopUpDialog(StitchDialog):
         inner = ctk.CTkFrame(box, fg_color="transparent")
         inner.pack(fill="x", padx=14, pady=10)
         self._preview: dict[str, ctk.CTkLabel] = {}
-        for key, label in (("current", "Số dư hiện tại"), ("amount", "Số tiền nạp")):
+        for key, label in (("current", self._t('Số dư hiện tại')), ("amount", self._t('Số tiền nạp'))):
             line = ctk.CTkFrame(inner, fg_color="transparent")
             line.pack(fill="x", pady=1)
             ctk.CTkLabel(line, text=label, font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
@@ -228,13 +231,13 @@ class TopUpDialog(StitchDialog):
         divider(inner, pady=(6, 6))
         line = ctk.CTkFrame(inner, fg_color="transparent")
         line.pack(fill="x")
-        ctk.CTkLabel(line, text="Số dư mới", font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG, height=24).pack(side="left")
+        ctk.CTkLabel(line, text=self._t('Số dư mới'), font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG, height=24).pack(side="left")
         self._preview["new"] = ctk.CTkLabel(line, text="", font=FONT_ST_MONO_VALUE, text_color=STITCH_SUCCESS, height=24)
         self._preview["new"].pack(side="right")
 
     # ------------------------------------------------------------------
     def set_amount(self, amount: int) -> None:
-        self.amount_field.set_value(format_amount_input(amount))
+        self.amount_field.set_value(format_amount_input(amount, self._t.language))
         self.amount_field.set_error(None)
         self._refresh_preview()
 
@@ -250,18 +253,18 @@ class TopUpDialog(StitchDialog):
                 font=FONT_ST_BODY_STRONG if active else FONT_ST_BODY,
             )
         self._method_note.configure(
-            text="ⓘ  Chuyển khoản được ghi nhận thủ công trong P0." if method == PaymentMethod.TRANSFER else "ⓘ  Nhận tiền mặt tại quầy."
+            text=self._t('ⓘ  Chuyển khoản được ghi nhận thủ công trong P0.') if method == PaymentMethod.TRANSFER else self._t('ⓘ  Nhận tiền mặt tại quầy.')
         )
 
     def _refresh_preview(self) -> None:
         amount = parse_amount(self.amount_field.get_value())
         valid = amount is not None and 0 < amount <= MAX_TOP_UP
         balance = self._customer.balance
-        self._preview["current"].configure(text=format_money(balance))
-        self._preview["amount"].configure(text=f"+{format_money(amount)}" if valid else "—", text_color=STITCH_SUCCESS if valid else STITCH_TEXT_MUTED)
+        self._preview["current"].configure(text=format_money(balance, language=self._t.language))
+        self._preview["amount"].configure(text=f"+{format_money(amount, language=self._t.language)}" if valid else "—", text_color=STITCH_SUCCESS if valid else STITCH_TEXT_MUTED)
         # Chỉ xem trước; số dư thật lấy từ TopUpResult.balance_after
         new_balance = balance + amount if valid and amount is not None else balance
-        self._preview["new"].configure(text=format_money(new_balance), text_color=STITCH_DANGER if new_balance < 0 else STITCH_SUCCESS)
+        self._preview["new"].configure(text=format_money(new_balance, language=self._t.language), text_color=STITCH_DANGER if new_balance < 0 else STITCH_SUCCESS)
         for value, button in self._quick_buttons.items():
             active = valid and value == amount
             button.configure(

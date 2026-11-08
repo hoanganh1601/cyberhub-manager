@@ -18,7 +18,7 @@ except ZoneInfoNotFoundError:
     VN_TZ = timezone(timedelta(hours=7), name="Asia/Ho_Chi_Minh")
 
 
-def format_money(amount: int) -> str:
+def format_money(amount: int, language: str = "vi") -> str:
     """Format số tiền VND với dấu chấm phân cách hàng nghìn.
 
     Ví dụ:
@@ -26,6 +26,8 @@ def format_money(amount: int) -> str:
         format_money(-10000) -> "-10.000 VND"
         format_money(0) -> "0 VND"
     """
+    if language == "en":
+        return f"{amount:,} VND"
     if amount < 0:
         formatted = f"{abs(amount):,}".replace(",", ".")
         return f"-{formatted} VND"
@@ -50,7 +52,7 @@ def format_datetime(value: datetime, *, allow_naive: bool = True) -> str:
     return local_dt.strftime("%H:%M %d/%m/%Y")
 
 
-def format_duration(seconds: int) -> str:
+def format_duration(seconds: int, language: str = "vi") -> str:
     """Format thời lượng giây thành chuỗi thời gian thân thiện.
 
     Ví dụ:
@@ -59,6 +61,9 @@ def format_duration(seconds: int) -> str:
         format_duration(1800) -> "30 phút"
         format_duration(0)    -> "0 phút"
     """
+    if language == "en":
+        hours, minutes = divmod(max(0, seconds) // 60, 60)
+        return f"{hours} hr {minutes} min" if hours else f"{minutes} min"
     if seconds <= 0:
         return "0 phút"
 

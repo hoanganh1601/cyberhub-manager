@@ -20,6 +20,7 @@ import customtkinter as ctk
 from ...domain.dtos import EmployeeSession, MachineSummary
 from ...domain.enums import MachineStatus
 from ..formatters import format_duration, format_money
+from ..i18n import UIStrings
 from ..messages import MSG_PROCESSING
 from ..navigation import MANAGEMENT_ROLES
 from ..theme import (
@@ -97,6 +98,7 @@ class StitchMachineCard(ctk.CTkFrame):
         on_open: Callable[[int], None] | None = None,
         on_checkout: Callable[[int], None] | None = None,
         on_maintenance: Callable[[int], None] | None = None,
+        language: str = "vi",
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -109,6 +111,7 @@ class StitchMachineCard(ctk.CTkFrame):
             **kwargs,
         )
         self.pack_propagate(False)
+        self._t = UIStrings(language)
         self._machine: MachineSummary | None = None
         self._action: str | None = None
         self._busy = False
@@ -150,7 +153,7 @@ class StitchMachineCard(ctk.CTkFrame):
             command=self._on_click,
         )
         self._note_label = ctk.CTkLabel(
-            inner, text="▲  Đang bảo trì", font=FONT_ST_BODY_STRONG, text_color=STITCH_WARNING, height=30
+            inner, text=self._t('▲  Đang bảo trì'), font=FONT_ST_BODY_STRONG, text_color=STITCH_WARNING, height=30
         )
 
         if machine is not None and actor is not None:
@@ -191,7 +194,7 @@ class StitchMachineCard(ctk.CTkFrame):
             return
         label = _ACTIONS[self._action][0]
         self._button.configure(
-            text=MSG_PROCESSING if busy else label,
+            text=MSG_PROCESSING if busy else self._t(label),
             state="disabled" if busy else "normal",
         )
 
@@ -204,7 +207,7 @@ class StitchMachineCard(ctk.CTkFrame):
             machine.status, (str(machine.status), STITCH_TEXT_MUTED, STITCH_CARD_BG, STITCH_CARD_BORDER)
         )
         self._badge.configure(fg_color=bg, border_color=border)
-        self._badge_label.configure(text=label, text_color=color)
+        self._badge_label.configure(text=self._t(label), text_color=color)
 
         self._render_info(machine)
         self._render_action(card_action(machine, actor))
@@ -219,9 +222,9 @@ class StitchMachineCard(ctk.CTkFrame):
 
         if machine.status == MachineStatus.MAINTENANCE:
             box.configure(fg_color=STITCH_MAINT_BOX_BG, border_color=STITCH_BADGE_WARNING_BORDER)
-            self._caption(box, "TRẠNG THÁI", STITCH_WARNING).pack(fill="x", padx=8, pady=(8, 0))
+            self._caption(box, self._t('TRẠNG THÁI'), STITCH_WARNING).pack(fill="x", padx=8, pady=(8, 0))
             ctk.CTkLabel(
-                box, text="Máy tạm ngừng phục vụ", font=FONT_ST_BODY, text_color=STITCH_TEXT, anchor="w"
+                box, text=self._t('Máy tạm ngừng phục vụ'), font=FONT_ST_BODY, text_color=STITCH_TEXT, anchor="w"
             ).pack(fill="x", padx=8, pady=(0, 8))
             return
 
@@ -230,11 +233,11 @@ class StitchMachineCard(ctk.CTkFrame):
         if machine.status == MachineStatus.IN_USE and active is not None:
             balance = active.projected_balance
             rows = (
-                ("Khách:", active.session.customer_name, STITCH_TEXT_STRONG, FONT_ST_BODY_STRONG),
-                ("Thời gian:", format_duration(active.elapsed_seconds), STITCH_TEXT, FONT_ST_MONO_11),
+                (self._t('Khách:'), active.session.customer_name, STITCH_TEXT_STRONG, FONT_ST_BODY_STRONG),
+                (self._t('Thời gian:'), format_duration(active.elapsed_seconds, language=self._t.language), STITCH_TEXT, FONT_ST_MONO_11),
                 (
-                    "Số dư dự kiến:",
-                    format_money(balance),
+                    self._t('Số dư dự kiến:'),
+                    format_money(balance, language=self._t.language),
                     STITCH_DANGER if balance < 0 else STITCH_SUCCESS,
                     FONT_ST_MONO_XS_STRONG,
                 ),
@@ -246,10 +249,10 @@ class StitchMachineCard(ctk.CTkFrame):
                 ctk.CTkLabel(row, text=value, font=font, text_color=color, height=18).pack(side="right")
             return
 
-        self._caption(box, "ĐƠN GIÁ ÁP DỤNG", STITCH_TEXT_MUTED).pack(fill="x", padx=8, pady=(8, 0))
+        self._caption(box, self._t('ĐƠN GIÁ ÁP DỤNG'), STITCH_TEXT_MUTED).pack(fill="x", padx=8, pady=(8, 0))
         ctk.CTkLabel(
             box,
-            text=f"{format_money(machine.hourly_rate)}/giờ",
+            text=self._t('{v0}/giờ', v0=f'{format_money(machine.hourly_rate, language=self._t.language)}'),
             font=FONT_ST_MONO_VALUE,
             text_color=STITCH_TEXT_STRONG,
             anchor="w",

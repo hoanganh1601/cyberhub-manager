@@ -27,6 +27,7 @@ from ..theme import (
     TEXT_SECONDARY,
 )
 from .action_button import ActionButton
+from ..window_position import center_dialog
 
 
 class ConfirmDialog(ctk.CTkToplevel):
@@ -119,16 +120,7 @@ class ConfirmDialog(ctk.CTkToplevel):
 
     def _center_window(self, parent: Any) -> None:
         """Căn giữa dialog so với cửa sổ cha."""
-        width = 460
-        height = self.winfo_reqheight()
-        parent_x = parent.winfo_rootx()
-        parent_y = parent.winfo_rooty()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-
-        x = parent_x + (parent_width - width) // 2
-        y = parent_y + (parent_height - height) // 2
-        self.geometry(f"{width}x{height}+{max(0, x)}+{max(0, y)}")
+        center_dialog(self, parent, width=460)
 
     def _on_confirm(self) -> None:
         self._result = True

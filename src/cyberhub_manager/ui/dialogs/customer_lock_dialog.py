@@ -19,6 +19,7 @@ from ...domain.dtos import CustomerSummary
 from ...domain.enums import CustomerStatus
 from ...domain.models import Customer
 from ..app_shell import ViewContext
+from ..i18n import UIStrings
 from ..background import TaskRunner, default_runner
 from ..feedback import notify_error
 from ..formatters import format_money
@@ -72,8 +73,10 @@ class CustomerLockDialog(StitchDialog):
         on_done: Callable[[Customer], None] | None = None,
     ) -> None:
         self._locking = customer.customer_status == CustomerStatus.ACTIVE
+        self._t = UIStrings(context.language)
         super().__init__(
             parent,
+            language=context.language,
             title="Lock customer account" if self._locking else "Unlock customer account",
             subtitle="Restrict access and disable new sessions" if self._locking else "Restore operational access and permit transactions",
             icon="🔒" if self._locking else "🔓",
@@ -130,7 +133,7 @@ class CustomerLockDialog(StitchDialog):
             ("Customer code", customer.customer_code, STITCH_CYAN),
             ("Account code", account_code or "—", STITCH_CYAN),
             ("Username", customer.username, STITCH_TEXT),
-            ("Current balance", format_money(customer.balance), STITCH_DANGER if customer.balance < 0 else STITCH_SUCCESS),
+            ("Current balance", format_money(customer.balance, language=self._t.language), STITCH_DANGER if customer.balance < 0 else STITCH_SUCCESS),
         )
         for index, (label, value, color) in enumerate(cells):
             cell = ctk.CTkFrame(grid, fg_color="transparent")

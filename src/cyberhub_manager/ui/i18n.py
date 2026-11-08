@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Final, Literal
+from .ui_copy import ENGLISH, ENGLISH_SINGULAR
 
 Language = Literal["vi", "en"]
 
@@ -89,3 +90,18 @@ def translate(key: str, language: str | None = None) -> str:
     if values is None:
         return key
     return values[normalized]
+
+
+class UIStrings:
+    """Translate explicit display templates before interpolating DTO values."""
+
+    def __init__(self, language: str | None = None) -> None:
+        self.language = normalize_language(language)
+
+    def __call__(self, source: str, **values: object) -> str:
+        template = ENGLISH.get(source, source) if self.language == "en" else source
+        if self.language == "en" and source in ENGLISH_SINGULAR:
+            field, singular = ENGLISH_SINGULAR[source]
+            if str(values.get(field)) == "1":
+                template = singular
+        return template.format(**values) if values else template

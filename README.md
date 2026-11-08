@@ -70,6 +70,18 @@ python -m pip check
 
 ## Cấu hình môi trường
 
+### Xem Login và full UI không cần MySQL
+
+```powershell
+python -m cyberhub_manager.app --mock
+```
+
+Manager: `quanly01 / demo123`; Staff: `nhanvien01 / demo123`.
+Chạy `python -m cyberhub_manager.app` để dùng cấu hình MySQL thật bên dưới.
+Xem [hướng dẫn Login desktop](docs/LOGIN_DESKTOP.md) để thử VI/EN, validation và các trạng thái UI.
+Xem [hướng dẫn giao diện và biểu đồ](docs/WORKSPACE_UI.md) để kiểm tra các màn nghiệp vụ,
+chế độ EN và hộp thoại. Thêm `--lang en` vào lệnh trên để bắt đầu bằng tiếng Anh.
+
 Tạo `.env` từ file mẫu:
 
 ```powershell

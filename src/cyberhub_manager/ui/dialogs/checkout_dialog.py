@@ -29,6 +29,7 @@ from ...domain.enums import PaymentMethod
 from ...domain.exceptions import ConflictError, SettlementRequiredError
 from ...domain.models import Customer
 from ..app_shell import ViewContext
+from ..i18n import UIStrings
 from ..background import TaskRunner, default_runner
 from ..feedback import notify_error
 from ..formatters import format_datetime, format_duration, format_money
@@ -179,17 +180,19 @@ class CheckoutDialog(StitchDialog):
         on_completed: Callable[[CheckoutResult], None] | None = None,
         on_conflict: Callable[[], None] | None = None,
     ) -> None:
+        self._t = UIStrings(context.language)
         super().__init__(
             parent,
-            title="Xác nhận thanh toán",
-            subtitle="Kiểm tra chi phí trước khi kết thúc phiên sử dụng",
+            language=context.language,
+            title=self._t('Xác nhận thanh toán'),
+            subtitle=self._t('Kiểm tra chi phí trước khi kết thúc phiên sử dụng'),
             icon="🧾",
             icon_tone="cyan",
             width=640,
-            hint="Enter để xác nhận • Esc để hủy",
-            confirm_text="✓  Xác nhận thanh toán",
+            hint=self._t('Enter để xác nhận • Esc để hủy'),
+            confirm_text=self._t('✓  Xác nhận thanh toán'),
             confirm_kind="primary",
-            cancel_text="Hủy",
+            cancel_text=self._t('Hủy'),
         )
         self._context = context
         self._machine = machine
@@ -304,7 +307,7 @@ class CheckoutDialog(StitchDialog):
 
     def _render_loading(self) -> None:
         self._clear()
-        ctk.CTkLabel(self._content, text="⟳  Đang tính phí phiên sử dụng…", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=60).pack(fill="x")
+        ctk.CTkLabel(self._content, text=self._t('⟳  Đang tính phí phiên sử dụng…'), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=60).pack(fill="x")
         self._update_confirm()
 
     def _render_ready(self) -> None:
@@ -321,9 +324,9 @@ class CheckoutDialog(StitchDialog):
             banner.pack(fill="x", pady=(12, 0))
             row = ctk.CTkFrame(banner, fg_color="transparent")
             row.pack(fill="x", padx=14, pady=9)
-            ctk.CTkLabel(row, text="⚠  Khách hàng cần thanh toán thêm ", font=FONT_ST_BODY_STRONG, text_color=STITCH_DANGER, height=20).pack(side="left")
-            ctk.CTkLabel(row, text=format_money(breakdown.settlement), font=FONT_TOTAL, text_color=STITCH_TEXT_STRONG, height=20).pack(side="left")
-            ctk.CTkLabel(row, text=" trước khi kết thúc phiên.", font=FONT_ST_BODY_STRONG, text_color=STITCH_DANGER, height=20).pack(side="left")
+            ctk.CTkLabel(row, text=self._t('⚠  Khách hàng cần thanh toán thêm '), font=FONT_ST_BODY_STRONG, text_color=STITCH_DANGER, height=20).pack(side="left")
+            ctk.CTkLabel(row, text=format_money(breakdown.settlement, language=self._t.language), font=FONT_TOTAL, text_color=STITCH_TEXT_STRONG, height=20).pack(side="left")
+            ctk.CTkLabel(row, text=self._t(' trước khi kết thúc phiên.'), font=FONT_ST_BODY_STRONG, text_color=STITCH_DANGER, height=20).pack(side="left")
 
             columns = ctk.CTkFrame(self._content, fg_color="transparent")
             columns.pack(fill="both", expand=True, pady=(12, 0))
@@ -345,7 +348,7 @@ class CheckoutDialog(StitchDialog):
             note.pack(fill="x", pady=(12, 0))
             ctk.CTkLabel(
                 note,
-                text="✓  Số dư tài khoản đủ thanh toán. Phiên sẽ kết thúc, máy chuyển về Trống và hóa đơn được tạo sau khi xác nhận.",
+                text=self._t('✓  Số dư tài khoản đủ thanh toán. Phiên sẽ kết thúc, máy chuyển về Trống và hóa đơn được tạo sau khi xác nhận.'),
                 font=FONT_ST_BODY,
                 text_color=STITCH_SUCCESS,
                 wraplength=560,
@@ -362,18 +365,18 @@ class CheckoutDialog(StitchDialog):
         top.pack(fill="x")
         ctk.CTkLabel(top, text=session.machine_code, font=FONT_TOTAL, text_color=STITCH_TEXT_STRONG, height=22).pack(side="left")
         ctk.CTkLabel(top, text=f"  —  {session.machine_name}", font=FONT_ST_BODY, text_color=STITCH_TEXT, height=22).pack(side="left")
-        chip(top, "ĐANG DÙNG", STITCH_DANGER, STITCH_BADGE_DANGER_BG, STITCH_BADGE_DANGER_BORDER).pack(side="right")
+        chip(top, self._t('ĐANG DÙNG'), STITCH_DANGER, STITCH_BADGE_DANGER_BG, STITCH_BADGE_DANGER_BORDER).pack(side="right")
         divider(inner, pady=(8, 6))
         grid = ctk.CTkFrame(inner, fg_color="transparent")
         grid.pack(fill="x")
         grid.grid_columnconfigure((1, 3), weight=1)
         cells = (
-            ("Khách hàng:", f"{session.customer_name} — {session.customer_code}", STITCH_TEXT_STRONG),
-            ("Tài khoản:", self._username or "—", STITCH_TEXT),
-            ("Bắt đầu:", format_datetime(session.started_at), STITCH_TEXT),
-            ("Kết thúc:", format_datetime(preview.calculated_at), STITCH_TEXT),
-            ("Thời lượng:", format_duration(preview.billed_minutes * 60), STITCH_SUCCESS),
-            ("Đơn giá:", f"{format_money(session.hourly_rate)}/giờ", STITCH_TEXT),
+            (self._t('Khách hàng:'), f"{session.customer_name} — {session.customer_code}", STITCH_TEXT_STRONG),
+            (self._t('Tài khoản:'), self._username or "—", STITCH_TEXT),
+            (self._t('Bắt đầu:'), format_datetime(session.started_at), STITCH_TEXT),
+            (self._t('Kết thúc:'), format_datetime(preview.calculated_at), STITCH_TEXT),
+            (self._t('Thời lượng:'), format_duration(preview.billed_minutes * 60, language=self._t.language), STITCH_SUCCESS),
+            (self._t('Đơn giá:'), self._t('{v0}/giờ', v0=f'{format_money(session.hourly_rate, language=self._t.language)}'), STITCH_TEXT),
         )
         for index, (label, value, color) in enumerate(cells):
             row, column = divmod(index, 2)
@@ -384,25 +387,25 @@ class CheckoutDialog(StitchDialog):
 
     def _build_cost_rows(self, master: Any, breakdown: CostBreakdown, *, titled: bool) -> None:
         if titled:
-            _caps(master, "Chi tiết chi phí")
+            _caps(master, self._t('Chi tiết chi phí'))
             divider(master, pady=(6, 6))
-        _money_row(master, "Chi phí sử dụng:", format_money(breakdown.usage_cost))
-        _money_row(master, "Số dư hiện tại:", format_money(breakdown.balance_before), STITCH_DANGER if breakdown.balance_before < 0 else STITCH_TEXT)
-        _money_row(master, "Trừ tài khoản:", f"-{format_money(breakdown.from_account)}" if breakdown.from_account else "0 VND", STITCH_DANGER)
+        _money_row(master, self._t('Chi phí sử dụng:'), format_money(breakdown.usage_cost, language=self._t.language))
+        _money_row(master, self._t("Số dư hiện tại:"), format_money(breakdown.balance_before, language=self._t.language), STITCH_DANGER if breakdown.balance_before < 0 else STITCH_TEXT)
+        _money_row(master, self._t('Trừ tài khoản:'), f"-{format_money(breakdown.from_account, language=self._t.language)}" if breakdown.from_account else "0 VND", STITCH_DANGER)
         if breakdown.settlement > 0:
             box = ctk.CTkFrame(master, fg_color=STITCH_BADGE_DANGER_BG, border_width=1, border_color=STITCH_BADGE_DANGER_BORDER, corner_radius=STITCH_RADIUS)
             box.pack(fill="x", pady=(6, 2))
             row = ctk.CTkFrame(box, fg_color="transparent")
             row.pack(fill="x", padx=8, pady=6)
-            ctk.CTkLabel(row, text="Cần thanh toán thêm:", font=FONT_ST_BODY_STRONG, text_color=STITCH_DANGER, height=20).pack(side="left")
-            ctk.CTkLabel(row, text=format_money(breakdown.settlement), font=FONT_TOTAL, text_color=STITCH_DANGER, height=20).pack(side="right")
+            ctk.CTkLabel(row, text=self._t('Cần thanh toán thêm:'), font=FONT_ST_BODY_STRONG, text_color=STITCH_DANGER, height=20).pack(side="left")
+            ctk.CTkLabel(row, text=format_money(breakdown.settlement, language=self._t.language), font=FONT_TOTAL, text_color=STITCH_DANGER, height=20).pack(side="right")
         else:
-            _money_row(master, "Cần thanh toán thêm:", "0 VND")
+            _money_row(master, self._t('Cần thanh toán thêm:'), "0 VND")
         divider(master, pady=(8, 6))
         _money_row(
             master,
-            "Số dư sau khi kết thúc:",
-            format_money(breakdown.balance_after),
+            self._t('Số dư sau khi kết thúc:'),
+            format_money(breakdown.balance_after, language=self._t.language),
             STITCH_SUCCESS if breakdown.balance_after > 0 else STITCH_TEXT,
             strong=True,
         )
@@ -410,11 +413,11 @@ class CheckoutDialog(StitchDialog):
     def _build_method_panel(self, master: Any, required: int) -> None:
         head = ctk.CTkFrame(master, fg_color="transparent")
         head.pack(fill="x")
-        ctk.CTkLabel(head, text="PHƯƠNG THỨC THANH TOÁN", font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, height=18).pack(side="left")
+        ctk.CTkLabel(head, text=self._t('PHƯƠNG THỨC THANH TOÁN'), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, height=18).pack(side="left")
         for method in (PaymentMethod.TRANSFER, PaymentMethod.CASH):  # pack từ phải: Tiền mặt | Chuyển khoản QR
             button = ctk.CTkButton(
                 head,
-                text=METHOD_LABELS[method],
+                text=self._t(METHOD_LABELS[method]),
                 width=70 if method == PaymentMethod.CASH else 120,
                 height=28,
                 corner_radius=STITCH_RADIUS,
@@ -450,7 +453,7 @@ class CheckoutDialog(StitchDialog):
         body = self._method_body
         row = ctk.CTkFrame(body, fg_color="transparent")
         row.pack(fill="x")
-        ctk.CTkLabel(row, text="Khách đưa:", font=FONT_ST_BODY, text_color=STITCH_TEXT, height=34).pack(side="left")
+        ctk.CTkLabel(row, text=self._t('Khách đưa:'), font=FONT_ST_BODY, text_color=STITCH_TEXT, height=34).pack(side="left")
         box = ctk.CTkFrame(row, fg_color=INPUT_BG, border_width=1, border_color=STITCH_NAV_ACTIVE_BORDER, corner_radius=STITCH_RADIUS_LG)
         box.pack(side="right")
         ctk.CTkLabel(box, text="VND", font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED).pack(side="right", padx=(0, 10))
@@ -477,12 +480,12 @@ class CheckoutDialog(StitchDialog):
         summary.pack(fill="x", pady=(10, 0))
         inner = ctk.CTkFrame(summary, fg_color="transparent")
         inner.pack(fill="x", padx=10, pady=8)
-        _money_row(inner, "Cần thu:", format_money(required), STITCH_TEXT_STRONG)
-        self._given_label = _money_row(inner, "Tiền khách đưa:", "—")
+        _money_row(inner, self._t('Cần thu:'), format_money(required, language=self._t.language), STITCH_TEXT_STRONG)
+        self._given_label = _money_row(inner, self._t('Tiền khách đưa:'), "—")
         divider(inner, pady=(4, 2))
         change_row = ctk.CTkFrame(inner, fg_color="transparent")
         change_row.pack(fill="x", pady=2)
-        ctk.CTkLabel(change_row, text="Tiền thừa trả khách:", font=FONT_ST_BODY_STRONG, text_color=STITCH_SUCCESS, height=22).pack(side="left")
+        ctk.CTkLabel(change_row, text=self._t('Tiền thừa trả khách:'), font=FONT_ST_BODY_STRONG, text_color=STITCH_SUCCESS, height=22).pack(side="left")
         self._change_label = ctk.CTkLabel(change_row, text="—", font=FONT_BIG, text_color=STITCH_SUCCESS, height=22)
         self._change_label.pack(side="right")
 
@@ -490,10 +493,10 @@ class CheckoutDialog(StitchDialog):
         status.pack(fill="x", pady=(8, 0))
         self._cash_status = ctk.CTkLabel(status, text="", font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_MUTED, height=18)
         self._cash_status.pack(side="left")
-        ctk.CTkLabel(status, text="Xác nhận tiền mặt tại quầy", font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED, height=18).pack(side="right")
+        ctk.CTkLabel(status, text=self._t('Xác nhận tiền mặt tại quầy'), font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED, height=18).pack(side="right")
         ctk.CTkLabel(
             body,
-            text="* Nhân viên chịu trách nhiệm xác nhận số tiền mặt đã nhận và hoàn lại tiền thừa.",
+            text=self._t('* Nhân viên chịu trách nhiệm xác nhận số tiền mặt đã nhận và hoàn lại tiền thừa.'),
             font=(FONT_ST_MONO_11[0], 10, "italic"),
             text_color=STITCH_TEXT_DIM,
             wraplength=360,
@@ -519,21 +522,21 @@ class CheckoutDialog(StitchDialog):
                     canvas.create_rectangle(x, y, x + cell, y + cell, fill="#000000", outline="")
         info = ctk.CTkFrame(top, fg_color="transparent")
         info.pack(side="left", fill="x", expand=True, padx=(14, 0))
-        ctk.CTkLabel(info, text="Số tiền cần quét:", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, anchor="w", height=18).pack(fill="x")
-        ctk.CTkLabel(info, text=format_money(required), font=FONT_BIG, text_color=STITCH_CYAN, anchor="w", height=26).pack(fill="x")
+        ctk.CTkLabel(info, text=self._t('Số tiền cần quét:'), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, anchor="w", height=18).pack(fill="x")
+        ctk.CTkLabel(info, text=format_money(required, language=self._t.language), font=FONT_BIG, text_color=STITCH_CYAN, anchor="w", height=26).pack(fill="x")
         line = ctk.CTkFrame(info, fg_color="transparent")
         line.pack(fill="x", pady=(6, 0))
-        ctk.CTkLabel(line, text="Nội dung: ", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=18).pack(side="left")
+        ctk.CTkLabel(line, text=self._t('Nội dung: '), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=18).pack(side="left")
         ctk.CTkLabel(line, text=content, font=FONT_ST_MONO_SM, text_color=STITCH_TEXT_STRONG, height=18).pack(side="left")
         state_line = ctk.CTkFrame(info, fg_color="transparent")
         state_line.pack(fill="x", pady=(6, 0))
-        ctk.CTkLabel(state_line, text="Trạng thái: ", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=18).pack(side="left")
+        ctk.CTkLabel(state_line, text=self._t('Trạng thái: '), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=18).pack(side="left")
         self._transfer_chip_box = ctk.CTkFrame(state_line, fg_color="transparent")
         self._transfer_chip_box.pack(side="left")
         divider(body, pady=(10, 8))
         ctk.CTkCheckBox(
             body,
-            text="Đã xác nhận giao dịch thành công",
+            text=self._t('Đã xác nhận giao dịch thành công'),
             variable=self._transfer_confirmed,
             command=self._refresh_transfer,
             font=FONT_ST_BODY_STRONG,
@@ -546,7 +549,7 @@ class CheckoutDialog(StitchDialog):
         ).pack(anchor="w")
         ctk.CTkLabel(
             body,
-            text="* POC: xác nhận chuyển khoản thủ công; mã QR minh họa, không tích hợp cổng thanh toán thực.",
+            text=self._t('* POC: xác nhận chuyển khoản thủ công; mã QR minh họa, không tích hợp cổng thanh toán thực.'),
             font=(FONT_ST_MONO_11[0], 10, "italic"),
             text_color=STITCH_TEXT_DIM,
             wraplength=360,
@@ -586,14 +589,14 @@ class CheckoutDialog(StitchDialog):
         required = preview.settlement_required
         given = self.cash_given
         change = change_due(given, required)
-        self._given_label.configure(text=format_money(given) if given is not None else "—")
-        self._change_label.configure(text=format_money(change) if change is not None else "—")
+        self._given_label.configure(text=format_money(given, language=self._t.language) if given is not None else "—")
+        self._change_label.configure(text=format_money(change, language=self._t.language) if change is not None else "—")
         if given is None:
-            self._cash_status.configure(text="●  Chưa nhập tiền khách đưa", text_color=STITCH_TEXT_MUTED)
+            self._cash_status.configure(text=self._t('●  Chưa nhập tiền khách đưa'), text_color=STITCH_TEXT_MUTED)
         elif change is None:
-            self._cash_status.configure(text=f"●  Còn thiếu {format_money(required - given)}", text_color=STITCH_DANGER)
+            self._cash_status.configure(text=self._t('●  Còn thiếu {v0}', v0=f'{format_money(required - given, language=self._t.language)}'), text_color=STITCH_DANGER)
         else:
-            self._cash_status.configure(text="●  Đã nhận đủ tiền", text_color=STITCH_SUCCESS)
+            self._cash_status.configure(text=self._t('●  Đã nhận đủ tiền'), text_color=STITCH_SUCCESS)
         self._update_confirm()
 
     def _refresh_transfer(self) -> None:
@@ -602,9 +605,9 @@ class CheckoutDialog(StitchDialog):
             for child in box.winfo_children():
                 child.destroy()
             if self._transfer_confirmed.get():
-                chip(box, "Đã xác nhận", STITCH_SUCCESS, STITCH_BADGE_SUCCESS_BG, STITCH_BADGE_SUCCESS_BORDER).pack()
+                chip(box, self._t('Đã xác nhận'), STITCH_SUCCESS, STITCH_BADGE_SUCCESS_BG, STITCH_BADGE_SUCCESS_BORDER).pack()
             else:
-                chip(box, "Chưa xác nhận", STITCH_WARNING, STITCH_BADGE_WARNING_BG, STITCH_BADGE_WARNING_BORDER).pack()
+                chip(box, self._t('Chưa xác nhận'), STITCH_WARNING, STITCH_BADGE_WARNING_BG, STITCH_BADGE_WARNING_BORDER).pack()
         self._update_confirm()
 
     def _update_confirm(self) -> None:
@@ -644,7 +647,7 @@ class CheckoutDialog(StitchDialog):
         method = self._method if settlement > 0 else None
         parent, callback, username = self.master, self._on_completed, self._username
         self.close()
-        PaymentSuccessDialog(parent, result, username=username, method=method, cash_given=cash)
+        PaymentSuccessDialog(parent, result, username=username, method=method, cash_given=cash, language=self._t.language)
         if callback is not None:
             callback(result)
 

@@ -1,4 +1,4 @@
-"""NG-02 — Ngát: App Shell theo Stitch export (sidebar 220 px + topbar 52 px).
+"""NG-02 — Ngát: App Shell theo Stitch export (sidebar 240 px + header 64 px).
 
 Quy định:
 - Bố cục/màu: Stitch export (code.html, DESIGN.md) — token STITCH_* trong theme.py.
@@ -24,6 +24,8 @@ from PIL import Image
 from ..domain.dtos import EmployeeSession
 from ..services.contracts import ServiceBundle
 from .components import ConfirmDialog, ToastManager
+from .components.sidebar_button import SidebarButton
+from .sidebar_icons import sidebar_icon
 from .i18n import Language, normalize_language, translate
 from .messages import MSG_CANCEL, MSG_OPERATION_FAILED, get_user_friendly_error
 from .navigation import DEFAULT_NAV_KEY, NavKey, can_access, get_nav_item, visible_nav_items
@@ -51,12 +53,9 @@ from .theme import (
     STITCH_DANGER_HOVER_BG,
     STITCH_INPUT_BG,
     STITCH_INPUT_BORDER,
-    STITCH_NAV_ACTIVE_BG,
-    STITCH_NAV_ACTIVE_BORDER,
     STITCH_NAV_HOVER,
-    STITCH_NAV_ITEM_HEIGHT,
+    STITCH_NAV_ITEM_GAP,
     STITCH_RADIUS,
-    STITCH_RADIUS_LG,
     STITCH_SIDEBAR_WIDTH,
     STITCH_SUCCESS,
     STITCH_TEXT,
@@ -73,9 +72,10 @@ LOGOUT_TITLE = "Confirm Logout"
 LOGOUT_MESSAGE = "Are you sure you want to log out?"
 LOGOUT_CONFIRM_LABEL = "Log out"
 
-# Vùng đầu bò trong cyberhub_logo_dark.png (bỏ phần chữ bên phải).
-_LOGO_ICON_BOX = (50, 50, 930, 750)
-_LOGO_ICON_HEIGHT = 36
+# Use the complete transparent wordmark; cropping the bull also included a
+# fragment of the original text, which made the old lockup look clipped.
+_BRAND_LOGO_WIDTH = 168
+_BRAND_LOGO_HEIGHT = 52
 
 
 # ----------------------------------------------------------------------
@@ -156,14 +156,18 @@ def placeholder_factory(nav_key: NavKey) -> ViewFactory:
     return build
 
 
-def _load_logo_icon() -> ctk.CTkImage | None:
-    """Cắt phần biểu tượng từ logo; lỗi thì trả None (sidebar chỉ hiện chữ)."""
+def _load_brand_logo() -> ctk.CTkImage | None:
+    """Fit the original wordmark, with transparent margins trimmed, into the header."""
     try:
         resource = files("cyberhub_manager.ui.assets").joinpath("cyberhub_logo_dark.png")
         with resource.open("rb") as stream:
-            image = Image.open(stream).convert("RGBA").crop(_LOGO_ICON_BOX)
-        width = round(image.width * _LOGO_ICON_HEIGHT / image.height)
-        return ctk.CTkImage(light_image=image, dark_image=image, size=(width, _LOGO_ICON_HEIGHT))
+            image = Image.open(stream).convert("RGBA")
+        bounds = image.getchannel("A").getbbox()
+        if bounds:
+            image = image.crop(bounds)
+        ratio = min(_BRAND_LOGO_WIDTH / image.width, _BRAND_LOGO_HEIGHT / image.height)
+        size = (round(image.width * ratio), round(image.height * ratio))
+        return ctk.CTkImage(light_image=image, dark_image=image, size=size)
     except Exception:
         logger.exception("Không tải được logo")
         return None
@@ -201,12 +205,12 @@ class AppShell(ctk.CTkFrame):
         self._factories: dict[NavKey, ViewFactory] = dict(view_factories or {})
         self._language: Language = normalize_language(language)
 
-        self._nav_buttons: dict[NavKey, ctk.CTkButton] = {}
+        self._nav_buttons: dict[NavKey, SidebarButton] = {}
         self._lang_buttons: dict[Language, ctk.CTkButton] = {}
         self._current_key: NavKey | None = None
         self._current_view: ctk.CTkFrame | None = None
         self._is_closed = False
-        self._logo_icon = _load_logo_icon()
+        self._brand_logo = _load_brand_logo()
         self._shortcut_ids: list[tuple[str, str]] = []
 
         self.grid_columnconfigure(0, weight=0)  # sidebar
@@ -260,31 +264,17 @@ class AppShell(ctk.CTkFrame):
         sidebar.grid(row=0, column=0, sticky="ns")
         sidebar.pack_propagate(False)
 
-        # Logo + tên ứng dụng (cao 60 px, kẻ dưới).
+        # One intact wordmark on the sidebar surface, without a badge or extra text.
         brand = ctk.CTkFrame(
             sidebar, height=STITCH_BRAND_HEIGHT, fg_color="transparent", corner_radius=0
         )
         brand.pack(fill="x")
         brand.pack_propagate(False)
-        if self._logo_icon is not None:
-            ctk.CTkLabel(brand, text="", image=self._logo_icon).pack(side="left", padx=(16, 12))
-        brand_text = ctk.CTkFrame(brand, fg_color="transparent")
-        brand_text.pack(side="left", padx=(0 if self._logo_icon else 16, 0))
-        name_row = ctk.CTkFrame(brand_text, fg_color="transparent")
-        name_row.pack(anchor="w")
-        ctk.CTkLabel(
-            name_row, text="CyberHub", font=FONT_ST_BRAND, text_color=STITCH_TEXT_STRONG, height=18
-        ).pack(side="left")
-        ctk.CTkLabel(
-            name_row, text="●", font=FONT_ST_MONO_XS, text_color=STITCH_CYAN, height=18
-        ).pack(side="left", padx=(6, 0))
-        ctk.CTkLabel(
-            brand_text,
-            text="MANAGER",
-            font=FONT_ST_MONO_XS,
-            text_color=STITCH_TEXT_MUTED,
-            height=14,
-        ).pack(anchor="w")
+        if self._brand_logo is not None:
+            ctk.CTkLabel(brand, text="", image=self._brand_logo).pack(side="left", padx=24)
+        else:
+            ctk.CTkLabel(brand, text="CyberHub Manager", font=FONT_ST_BRAND,
+                         text_color=STITCH_TEXT_STRONG).pack(side="left", padx=24)
         _hline(sidebar).pack(fill="x")
 
         # Khối trạng thái ở đáy (pack trước với side=bottom để luôn nằm dưới cùng).
@@ -307,23 +297,10 @@ class AppShell(ctk.CTkFrame):
 
         # Menu điều hướng theo role.
         nav = ctk.CTkFrame(sidebar, fg_color="transparent")
-        nav.pack(fill="x", padx=12, pady=12)
+        nav.pack(fill="x", padx=12, pady=(8, 12))
         for item in visible_nav_items(self._session.role):
-            button = ctk.CTkButton(
-                nav,
-                text="",
-                height=STITCH_NAV_ITEM_HEIGHT,
-                anchor="w",
-                corner_radius=STITCH_RADIUS_LG,
-                border_width=1,
-                border_color=STITCH_BG_CHROME,
-                fg_color=STITCH_BG_CHROME,
-                hover_color=STITCH_NAV_HOVER,
-                text_color=STITCH_TEXT_MUTED,
-                font=FONT_ST_BODY,
-                command=lambda key=item.key: self.navigate(key),
-            )
-            button.pack(fill="x", pady=2)
+            button = SidebarButton(nav, item.key.value, command=lambda key=item.key: self.navigate(key))
+            button.pack(fill="x", pady=(0, STITCH_NAV_ITEM_GAP))
             self._nav_buttons[item.key] = button
 
     # ------------------------------------------------------------------
@@ -379,9 +356,10 @@ class AppShell(ctk.CTkFrame):
         # --- Phải (pack từ phải sang trái) ---
         self._logout_button = ctk.CTkButton(
             topbar,
-            text="⇥",
-            width=28,
-            height=28,
+            text="",
+            image=sidebar_icon("logout", STITCH_TEXT_MUTED),
+            width=32,
+            height=32,
             corner_radius=STITCH_RADIUS,
             fg_color="transparent",
             hover_color=STITCH_DANGER_HOVER_BG,
@@ -391,10 +369,10 @@ class AppShell(ctk.CTkFrame):
         )
         self._logout_button.pack(side="right", padx=(10, 20))
         self._logout_button.bind(
-            "<Enter>", lambda _e: self._logout_button.configure(text_color=STITCH_DANGER)
+            "<Enter>", lambda _e: self._logout_button.configure(image=sidebar_icon("logout", STITCH_DANGER))
         )
         self._logout_button.bind(
-            "<Leave>", lambda _e: self._logout_button.configure(text_color=STITCH_TEXT_MUTED)
+            "<Leave>", lambda _e: self._logout_button.configure(image=sidebar_icon("logout", STITCH_TEXT_MUTED))
         )
 
         ctk.CTkLabel(
@@ -520,14 +498,7 @@ class AppShell(ctk.CTkFrame):
 
     def _refresh_nav_styles(self) -> None:
         for key, button in self._nav_buttons.items():
-            active = key == self._current_key
-            button.configure(
-                fg_color=STITCH_NAV_ACTIVE_BG if active else STITCH_BG_CHROME,
-                hover_color=STITCH_NAV_ACTIVE_BG if active else STITCH_NAV_HOVER,
-                border_color=STITCH_NAV_ACTIVE_BORDER if active else STITCH_BG_CHROME,
-                text_color=STITCH_CYAN if active else STITCH_TEXT_MUTED,
-                font=FONT_ST_BODY_STRONG if active else FONT_ST_BODY,
-            )
+            button.set_active(key == self._current_key)
 
     # ------------------------------------------------------------------
     # Tìm kiếm trên topbar: chỉ bật khi view hiện tại có handle_search()
@@ -631,7 +602,7 @@ class AppShell(ctk.CTkFrame):
         lang = self._language
         for key, button in self._nav_buttons.items():
             item = get_nav_item(key)
-            button.configure(text=f"{item.icon}   {translate(item.i18n_key, lang)}")
+            button.configure(text=translate(item.i18n_key, lang))
         for code, button in self._lang_buttons.items():
             active = code == lang
             button.configure(

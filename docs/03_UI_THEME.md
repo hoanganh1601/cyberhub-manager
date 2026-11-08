@@ -53,6 +53,11 @@ Trạng thái không chỉ dùng màu: luôn có icon + label “Trống”, “
 
 Font mặc định: `Segoe UI`; fallback `Arial`.
 
+App Shell và các màn nghiệp vụ dùng thống nhất Segoe UI: menu 13 px Regular,
+mục đang chọn 13 px Segoe UI Semibold, tiêu đề trang 18 px Semibold.
+Header logo và topbar cùng cao 64 px; sidebar dùng logo gốc trong suốt đầy đủ,
+giữ tỷ lệ và không cắt biểu tượng rồi ghép chữ. Login có bộ font riêng theo Stitch.
+
 | Style | Size/weight | Dùng cho |
 |---|---|---|
 | `TITLE_XL` | 28 / Bold | Tên màn hình login |
@@ -197,9 +202,15 @@ Nếu số dư ước tính âm: nền cảnh báo đỏ nhạt, icon `!`, text 
 
 ### Hóa đơn và doanh thu
 
-- Hóa đơn: filter ngày/từ khóa, bảng và panel chi tiết.
-- Doanh thu: date range, tổng doanh thu, số hóa đơn, bảng breakdown theo ngày.
-- Chart chỉ làm P1; MVP không phụ thuộc chart.
+- Quản lý máy, Hóa đơn và Doanh thu dùng chung PageHeader, MetricTile, bo góc 12 px,
+  khoảng cách 12 px; bảng có hàng xen kẽ, vùng cuộn và icon thao tác có chú thích.
+- Hóa đơn: bộ lọc ngày/từ khóa/trạng thái; giá trị hóa đơn được nhấn mạnh trên đầu
+  panel chi tiết, panel cuộn để không mất nội dung khi cửa sổ thấp.
+- Doanh thu: biểu đồ đường/cột doanh thu và biểu đồ số hóa đơn, tổng hợp ngày/tuần/tháng;
+  chọn điểm/cột để lọc bảng chi tiết. Ngày không phát sinh được điền 0; chỉ cộng hóa đơn PAID.
+- Phân tích phân biệt trung bình theo ngày lịch và theo ngày có doanh thu; không suy diễn
+  chi phí, lợi nhuận hay cơ cấu phương thức thanh toán từ dữ liệu không có trong DTO.
+- Cách chạy và kiểm tra: [Workspace UI](WORKSPACE_UI.md).
 
 ## 3.7. Quy tắc nội dung
 

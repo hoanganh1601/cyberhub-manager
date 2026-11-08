@@ -22,10 +22,14 @@ from ..domain.dtos import MachineArchiveResult, MachineSummary
 from ..domain.enums import MachineArchiveAction, MachineStatus
 from ..domain.models import Machine
 from .app_shell import ViewContext, role_label
+from .i18n import UIStrings
 from .background import TaskRunner, default_runner
 from .components import ConfirmDialog
 from .components.action_button import ActionButton
 from .components.stitch_button import stitch_button
+from .components.workspace import PageHeader, MetricTile, icon_action, row_action, surface
+from .sidebar_icons import sidebar_icon
+from . import theme as workspace_theme
 from .dashboard_view import filter_machines, summarize
 from .dialogs.machine_dialog import MachineDialog
 from .feedback import notify_error, notify_success
@@ -129,7 +133,7 @@ def current_session_cells(machine: MachineSummary) -> tuple[str, str]:
     return active.session.customer_name, format_short_duration(active.elapsed_seconds)
 
 
-def format_updated_ago(updated_at: datetime, now: datetime) -> str:
+def format_updated_ago(updated_at: datetime, now: datetime, language: str = "vi") -> str:
     """Cột "Cập nhật cuối": Vừa xong / N phút trước / N giờ trước / dd/mm/yyyy (giờ VN)."""
     if updated_at.tzinfo is None:
         updated_at = updated_at.replace(tzinfo=timezone.utc)
@@ -137,11 +141,11 @@ def format_updated_ago(updated_at: datetime, now: datetime) -> str:
         now = now.replace(tzinfo=timezone.utc)
     seconds = (now - updated_at).total_seconds()
     if seconds < 60:  # gồm cả lệch đồng hồ (số âm)
-        return "Vừa xong"
+        return UIStrings(language)("Vừa xong")
     if seconds < 3600:
-        return f"{int(seconds // 60)} phút trước"
+        return UIStrings(language)("{v0} phút trước", v0=int(seconds // 60))
     if seconds < 24 * 3600:
-        return f"{int(seconds // 3600)} giờ trước"
+        return UIStrings(language)("{v0} giờ trước", v0=int(seconds // 3600))
     return format_datetime(updated_at).split(" ")[1]  # "HH:MM dd/mm/yyyy" -> "dd/mm/yyyy"
 
 
@@ -150,13 +154,13 @@ def paginate(items: Iterable[Any], page: int, page_size: int = PAGE_SIZE) -> Pag
     return _paginate(items, page, page_size)
 
 
-def page_caption(page: Page) -> str:
-    return f"Hiển thị {page.first}-{page.last} trên tổng số {page.total} máy"
+def page_caption(page: Page, language: str = "vi") -> str:
+    return UIStrings(language)("Hiển thị {v0}-{v1} trên tổng số {v2} máy", v0=page.first, v1=page.last, v2=page.total)
 
 
-def format_number(value: int) -> str:
+def format_number(value: int, language: str = "vi") -> str:
     """12000 -> "12.000" (Stitch tách "VND/h" thành chữ phụ bên cạnh)."""
-    return f"{value:,}".replace(",", ".")
+    return f"{value:,}" if language == "en" else f"{value:,}".replace(",", ".")
 
 
 def archive_message(result: MachineArchiveResult) -> str:
@@ -199,7 +203,7 @@ _COLUMNS = (
     ("rate", "GIÁ THEO GIỜ", 2, "w"),
     ("session", "PHIÊN HIỆN TẠI", 3, "w"),
     ("updated", "CẬP NHẬT CUỐI", 2, "w"),
-    ("actions", "THAO TÁC", 2, "e"),
+    ("actions", "THAO TÁC", 3, "e"),
 )
 ROW_HEIGHT = 50
 
@@ -228,6 +232,7 @@ class MachineManagementView(ctk.CTkFrame):
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self._context = context
+        self._t = UIStrings(context.language)
         self._runner = runner or default_runner()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._machines: list[MachineSummary] = []
@@ -238,6 +243,7 @@ class MachineManagementView(ctk.CTkFrame):
         self._busy = False
         self._closed = False
         self._kpi_labels: dict[str, ctk.CTkLabel] = {}
+        self._metric_tiles: dict[str, MetricTile] = {}
         self._tab_buttons: dict[MachineStatus | None, ctk.CTkButton] = {}
         self._row_buttons: dict[int, dict[str, ActionButton]] = {}
 
@@ -290,123 +296,61 @@ class MachineManagementView(ctk.CTkFrame):
     # Dựng giao diện
     # ------------------------------------------------------------------
     def _build_header(self) -> None:
-        header = ctk.CTkFrame(self, fg_color="transparent")
+        header = PageHeader(self, self._t('Quản lý máy'), self._t('Cấu hình thiết bị, theo dõi trạng thái và bảo trì tập trung.'),
+                            eyebrow=self._t('KHÔNG GIAN VẬN HÀNH'))
         header.grid(row=0, column=0, sticky="ew")
-        titles = ctk.CTkFrame(header, fg_color="transparent")
-        titles.pack(side="left")
-        ctk.CTkLabel(
-            titles, text="Quản lý máy", font=FONT_ST_PAGE_TITLE, text_color=STITCH_TEXT_STRONG, height=24, anchor="w"
-        ).pack(anchor="w")
-        ctk.CTkLabel(
-            titles,
-            text="Cấu hình, bảo trì và quản lý trạng thái máy",
-            font=FONT_ST_MONO_BODY,
-            text_color=STITCH_TEXT_MUTED,
-            height=16,
-            anchor="w",
-        ).pack(anchor="w")
-        self._add_button = stitch_button(header, "＋  Thêm máy", kind="primary", command=self._add, width=120)
+        self._add_button = icon_action(header.actions, self._t('Thêm máy'), "plus", kind="primary", command=self._add, width=120)
         self._add_button.pack(side="right")
-        self._refresh_button = stitch_button(header, "⟳  Làm mới", command=self.reload, width=96)
+        self._refresh_button = icon_action(header.actions, self._t('Làm mới'), "refresh", command=self.reload)
         self._refresh_button.pack(side="right", padx=(0, 8))
 
     def _build_kpis(self) -> None:
         row = ctk.CTkFrame(self, fg_color="transparent")
-        row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        for index, (title, attr, color, icon_bg, icon_border, icon) in enumerate(_KPI_SPECS):
+        row.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        icons = {"total": "machines", "available": "check", "in_use": "clock", "maintenance": "maintenance"}
+        for index, (title, attr, color, _bg, _border, _icon) in enumerate(_KPI_SPECS):
             row.grid_columnconfigure(index, weight=1, uniform="kpi")
-            card = ctk.CTkFrame(
-                row,
-                height=62,
-                fg_color=STITCH_CARD_BG,
-                border_width=1,
-                border_color=STITCH_CARD_BORDER,
-                corner_radius=STITCH_RADIUS_LG,
-            )
-            card.grid(row=0, column=index, sticky="ew", padx=_gap(index, len(_KPI_SPECS)))
-            card.pack_propagate(False)
-            text_box = ctk.CTkFrame(card, fg_color="transparent")
-            text_box.pack(side="left", padx=14)
-            ctk.CTkLabel(
-                text_box,
-                text=title,
-                font=FONT_ST_LABEL_CAPS,
-                text_color=STITCH_TEXT_MUTED if attr == "total" else color,
-                height=14,
-                anchor="w",
-            ).pack(anchor="w")
-            value = ctk.CTkLabel(text_box, text="–", font=FONT_ST_KPI_VALUE, text_color=color, height=26, anchor="w")
-            value.pack(anchor="w")
-            self._kpi_labels[attr] = value
-            icon_box = ctk.CTkFrame(
-                card,
-                width=32,
-                height=32,
-                fg_color=icon_bg,
-                border_width=1,
-                border_color=icon_border,
-                corner_radius=STITCH_RADIUS_LG,
-            )
-            icon_box.pack(side="right", padx=14)
-            icon_box.pack_propagate(False)
-            ctk.CTkLabel(
-                icon_box, text=icon, font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT if attr == "total" else color
-            ).pack(expand=True)
+            tile = MetricTile(row, self._t(title), icon=icons[attr], color=color, accent=attr == "available")
+            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 10, 0))
+            self._kpi_labels[attr], self._metric_tiles[attr] = tile.value, tile
 
     def _build_toolbar(self) -> None:
-        bar = ctk.CTkFrame(self, fg_color="transparent")
-        bar.grid(row=2, column=0, sticky="ew", pady=(10, 0))
-        self._search_entry = ctk.CTkEntry(
-            bar,
-            width=340,
-            height=32,
-            placeholder_text="⌕  Tìm theo mã hoặc tên máy…",
-            fg_color=STITCH_INPUT_BG,
-            border_color=STITCH_INPUT_BORDER,
-            border_width=1,
-            corner_radius=STITCH_RADIUS,
-            text_color=STITCH_TEXT,
-            font=FONT_ST_BODY,
-        )
-        self._search_entry.pack(side="left")
-        self._search_entry.bind("<KeyRelease>", lambda _e: self._apply_search(self._search_entry.get()))
+        bar = surface(self)
+        bar.grid(row=2, column=0, sticky="ew", pady=(12, 0))
         tabs = ctk.CTkFrame(bar, fg_color="transparent")
-        tabs.pack(side="right")
+        tabs.pack(side="right", padx=(8, 12), pady=12)
         for status, *_style in _TAB_SPECS:
-            button = ctk.CTkButton(
-                tabs,
-                text="",
-                width=96,
-                height=28,
-                corner_radius=STITCH_RADIUS,
-                border_width=1,
-                font=FONT_ST_BODY,
-                command=lambda s=status: self.set_status_filter(s),
-            )
-            button.pack(side="left", padx=(8, 0))
+            button = ctk.CTkButton(tabs, text="", width=84, height=32, corner_radius=6,
+                                   border_width=1, font=FONT_ST_BODY,
+                                   command=lambda s=status: self.set_status_filter(s))
+            button.pack(side="left", padx=(6, 0))
             self._tab_buttons[status] = button
+        self._search_entry = ctk.CTkEntry(
+            bar, width=260, height=34, placeholder_text=self._t('Tìm theo mã hoặc tên máy…'),
+            fg_color=STITCH_INPUT_BG, border_color=STITCH_INPUT_BORDER, border_width=1,
+            corner_radius=6, text_color=STITCH_TEXT, font=FONT_ST_BODY)
+        self._search_entry.pack(side="left", fill="x", expand=True, padx=(12, 0), pady=12)
+        self._search_entry.bind("<KeyRelease>", lambda _e: self._apply_search(self._search_entry.get()))
         self._update_tabs()
 
     def _build_table(self) -> None:
-        table = ctk.CTkFrame(
-            self,
-            fg_color=STITCH_CARD_BG,
-            border_width=1,
-            border_color=STITCH_CARD_BORDER,
-            corner_radius=STITCH_RADIUS_LG,
-        )
-        table.grid(row=3, column=0, sticky="nsew", pady=(10, 0))
-        header = ctk.CTkFrame(table, fg_color="transparent", height=34)
-        header.pack(fill="x", padx=14, pady=(6, 0))
+        table = surface(self)
+        table.grid(row=3, column=0, sticky="nsew", pady=(12, 0))
+        title = ctk.CTkFrame(table, fg_color="transparent")
+        title.pack(fill="x", padx=16, pady=(12, 8))
+        ctk.CTkLabel(title, text=self._t('Danh sách thiết bị'), font=workspace_theme.FONT_WORKSPACE_SECTION,
+                     text_color=STITCH_TEXT_STRONG).pack(side="left")
+        ctk.CTkLabel(title, text=self._t('Cập nhật theo trạng thái vận hành'), font=FONT_ST_MONO_11,
+                     text_color=STITCH_TEXT_DIM).pack(side="right")
+        header = ctk.CTkFrame(table, fg_color=workspace_theme.WORKSPACE_HEAD, corner_radius=6)
+        header.pack(fill="x", padx=(14, 28))
         _configure_columns(header)
         for index, (_key, title, _weight, anchor) in enumerate(_COLUMNS):
-            ctk.CTkLabel(
-                header, text=title, font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_DIM, anchor=anchor, height=28
-            ).grid(row=0, column=index, sticky="ew", padx=4)
-        ctk.CTkFrame(table, fg_color=STITCH_CARD_BORDER, height=1, corner_radius=0).pack(fill="x", padx=14)
-        self._rows_frame = ctk.CTkFrame(table, fg_color="transparent")
-        self._rows_frame.pack(fill="both", expand=True, padx=14)
-        # Khung LOADING / EMPTY / ERROR nằm trong vùng dòng.
+            ctk.CTkLabel(header, text=self._t(title), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED,
+                         anchor=anchor, height=36).grid(row=0, column=index, sticky="ew", padx=6)
+        self._rows_frame = ctk.CTkScrollableFrame(table, fg_color="transparent", corner_radius=0,
+                                                  scrollbar_button_color=STITCH_CHIP_BORDER)
+        self._rows_frame.pack(fill="both", expand=True, padx=14, pady=(0, 10))
         self._state_frame = ctk.CTkFrame(table, fg_color="transparent")
         self._state_label = ctk.CTkLabel(self._state_frame, text="", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED)
         self._state_label.pack(pady=(40, 10))
@@ -418,7 +362,7 @@ class MachineManagementView(ctk.CTkFrame):
         role = role_label(self._context.session, self._context.language)
         ctk.CTkLabel(
             footer,
-            text=f"⛨  Tài khoản {role} • Yêu cầu xác nhận khi chuyển bảo trì hoặc lưu trữ máy",
+            text=self._t('Quyền {v0} · Bảo trì / lưu trữ cần xác nhận', v0=f'{role}'),
             font=FONT_ST_MONO_11,
             text_color=STITCH_TEXT_MUTED,
         ).pack(side="left")
@@ -500,10 +444,13 @@ class MachineManagementView(ctk.CTkFrame):
         counts = summarize(self._machines)
         for attr, label in self._kpi_labels.items():
             label.configure(text=str(getattr(counts, attr)) if self._machines else "–")
+            note = self._t('Thiết bị đang quản lý') if attr == "total" else self._t('{v0}% tổng số máy', v0=f'{getattr(counts, attr) / counts.total * 100:.0f}') if counts.total else self._t('Chưa có thiết bị')
+            self._metric_tiles[attr].note.configure(text=note)
         self._update_tabs(counts if self._machines else None)
 
     def _update_tabs(self, counts: Any = None) -> None:
         for status, label, color, border in _TAB_SPECS:
+            label = self._t(label)
             active = status == self._status_filter
             self._tab_buttons[status].configure(
                 text=label if counts is None else f"{label} ({counts.for_status(status)})",
@@ -544,17 +491,18 @@ class MachineManagementView(ctk.CTkFrame):
         for index, machine in enumerate(page.items):
             if index:
                 ctk.CTkFrame(self._rows_frame, fg_color=STITCH_CARD_BORDER, height=1, corner_radius=0).pack(fill="x")
-            self._build_row(machine, now)
+            self._build_row(machine, now, index)
 
-    def _build_row(self, machine: MachineSummary, now: datetime) -> None:
-        row = ctk.CTkFrame(self._rows_frame, fg_color="transparent", height=ROW_HEIGHT)
+    def _build_row(self, machine: MachineSummary, now: datetime, index: int = 0) -> None:
+        base = workspace_theme.WORKSPACE_ROW_ALT if index % 2 else STITCH_CARD_BG
+        row = ctk.CTkFrame(self._rows_frame, fg_color=base, height=ROW_HEIGHT, corner_radius=0)
         row.pack(fill="x")
         row.grid_propagate(False)
         row.grid_rowconfigure(0, weight=1)
         _configure_columns(row)
 
         def cell(column: int, widget: Any) -> None:
-            widget.grid(row=0, column=column, sticky=_COLUMNS[column][3], padx=4)
+            widget.grid(row=0, column=column, sticky=_COLUMNS[column][3], padx=6)
 
         cell(0, ctk.CTkLabel(row, text=machine.machine_code, font=FONT_ST_MONO_SM, text_color=STITCH_CYAN))
         cell(1, ctk.CTkLabel(row, text=machine.name, font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG))
@@ -563,11 +511,11 @@ class MachineManagementView(ctk.CTkFrame):
             machine.status, (str(machine.status), STITCH_TEXT_MUTED, STITCH_CHIP_BG, STITCH_CHIP_BORDER)
         )
         badge = ctk.CTkFrame(row, fg_color=bg, border_width=1, border_color=border, corner_radius=STITCH_RADIUS)
-        ctk.CTkLabel(badge, text=f"● {label}", font=FONT_ST_MONO_XS_STRONG, text_color=color, height=18).pack(padx=8, pady=1)
+        ctk.CTkLabel(badge, text=f"● {self._t(label)}", font=FONT_ST_MONO_XS_STRONG, text_color=color, height=18).pack(padx=8, pady=1)
         cell(2, badge)
 
         rate = ctk.CTkFrame(row, fg_color="transparent")
-        ctk.CTkLabel(rate, text=format_number(machine.hourly_rate), font=FONT_ST_MONO_SM, text_color=STITCH_TEXT).pack(side="left")
+        ctk.CTkLabel(rate, text=format_number(machine.hourly_rate, language=self._t.language), font=FONT_ST_MONO_SM, text_color=STITCH_TEXT).pack(side="left")
         ctk.CTkLabel(rate, text=" VND/h", font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED).pack(side="left")
         cell(3, rate)
 
@@ -580,31 +528,38 @@ class MachineManagementView(ctk.CTkFrame):
             ctk.CTkLabel(session_box, text=duration, font=FONT_ST_MONO_11, text_color=STITCH_CYAN, height=14, anchor="w").pack(anchor="w")
         cell(4, session_box)
 
-        cell(5, ctk.CTkLabel(row, text=format_updated_ago(machine.updated_at, now), font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED))
+        cell(5, ctk.CTkLabel(row, text=format_updated_ago(machine.updated_at, now, language=self._t.language), font=FONT_ST_MONO_11, text_color=STITCH_TEXT_MUTED))
         cell(6, self._build_row_actions(row, machine))
-        bind_hover(row)
+        bind_hover(row, base_color=base, hover_color=STITCH_TAB_HOVER)
 
     def _build_row_actions(self, row: Any, machine: MachineSummary) -> ctk.CTkFrame:
         actions = machine_actions(machine)
         in_maintenance = machine.status == MachineStatus.MAINTENANCE
         box = ctk.CTkFrame(row, fg_color="transparent")
-        edit = stitch_button(box, "✎", command=lambda: self._edit(machine), width=28, height=26)
-        maintenance = stitch_button(
-            box, "↺" if in_maintenance else "⚒", command=lambda: self._toggle_maintenance(machine), width=28, height=26
-        )
-        if in_maintenance:  # Stitch tô nổi nút "Kết thúc bảo trì"
-            maintenance.configure(fg_color=STITCH_AMBER, hover_color=STITCH_AMBER_HOVER, text_color=STITCH_TEXT_ON_CYAN, border_color=STITCH_AMBER)
-        archive = stitch_button(box, "⊟", kind="danger", command=lambda: self._archive(machine), width=28, height=26)
+        edit = row_action(box, "edit", self._t('Chỉnh sửa máy'), command=lambda: self._edit(machine))
+        maintenance_icon = "restore" if in_maintenance else "maintenance"
+        maintenance = row_action(box, maintenance_icon, self._t(actions.maintenance_label),
+                                 command=lambda: self._toggle_maintenance(machine))
+        archive = row_action(box, "archive", self._t('Ngừng sử dụng / lưu trữ máy'),
+                             danger=True, command=lambda: self._archive(machine))
+        if in_maintenance:
+            maintenance.configure(fg_color=STITCH_AMBER, hover_color=STITCH_AMBER_HOVER,
+                                  image=sidebar_icon("restore", STITCH_TEXT_ON_CYAN, 16), border_color=STITCH_AMBER)
         for button in (edit, maintenance, archive):
-            button.pack(side="left", padx=(6, 0))
+            button.pack(side="left", padx=(4, 0))
         edit.set_enabled(not self._busy and actions.can_edit)
         maintenance.set_enabled(not self._busy and actions.can_toggle_maintenance)
         archive.set_enabled(not self._busy and actions.can_archive)
+        if not actions.can_toggle_maintenance:
+            maintenance.configure(image=sidebar_icon(maintenance_icon, STITCH_TEXT_DIM, 16))
+            archive.configure(image=sidebar_icon("archive", STITCH_TEXT_DIM, 16))
+            maintenance.tooltip.text = self._t(IN_USE_HINT)
+            archive.tooltip.text = self._t(IN_USE_HINT)
         self._row_buttons[machine.machine_id] = {"edit": edit, "maintenance": maintenance, "archive": archive}
         return box
 
     def _render_pager(self, page: Page) -> None:
-        self._caption_label.configure(text=page_caption(page))
+        self._caption_label.configure(text=page_caption(page, language=self._t.language))
         build_pager(self._pager, page, self.go_to_page)
 
     # ------------------------------------------------------------------

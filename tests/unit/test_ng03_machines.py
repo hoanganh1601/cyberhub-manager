@@ -296,7 +296,7 @@ def test_management_toggles_maintenance(tk_root) -> None:
     with patch.object(management_module.ConfirmDialog, "ask", return_value=True):
         view._toggle_maintenance(pc01)
     assert _machine(services, session, "PC01").status == MachineStatus.MAINTENANCE
-    assert view.row_buttons(pc01.machine_id)["maintenance"].cget("text") == "↺"
+    assert view.row_buttons(pc01.machine_id)["maintenance"].tooltip_text == "Kết thúc bảo trì"
     view.destroy()
 
 

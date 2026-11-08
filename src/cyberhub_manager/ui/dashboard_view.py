@@ -23,6 +23,7 @@ import customtkinter as ctk
 from ..domain.dtos import MachineSummary, SessionSummary
 from ..domain.enums import MachineStatus
 from .app_shell import ViewContext
+from .i18n import UIStrings
 from .background import TaskRunner, default_runner
 from .components import ConfirmDialog
 from .components.stitch_button import stitch_button
@@ -179,6 +180,7 @@ class DashboardView(ctk.CTkFrame):
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self._context = context
+        self._t = UIStrings(context.language)
         self._runner = runner or default_runner()
         self._refresh_ms = refresh_ms
         self._on_open_session = on_open_session
@@ -240,16 +242,16 @@ class DashboardView(ctk.CTkFrame):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew")
         ctk.CTkLabel(
-            header, text="Tổng quan phòng máy", font=FONT_ST_PAGE_TITLE, text_color=STITCH_TEXT_STRONG
+            header, text=self._t('Tổng quan phòng máy'), font=FONT_ST_PAGE_TITLE, text_color=STITCH_TEXT_STRONG
         ).pack(side="left")
         ctk.CTkLabel(
             header,
-            text="Giám sát máy trạm và phiên sử dụng theo thời gian thực",
+            text=self._t('Giám sát máy trạm và phiên sử dụng theo thời gian thực'),
             font=FONT_ST_MONO_BODY,
             text_color=STITCH_TEXT_MUTED,
         ).pack(side="left", padx=(10, 0), pady=(4, 0))
         self._refresh_button = stitch_button(
-            header, "⟳  Làm mới", command=lambda: self.refresh(manual=True), width=96, height=28
+            header, self._t('⟳  Làm mới'), command=lambda: self.refresh(manual=True), width=96, height=28
         )
         self._refresh_button.pack(side="right")
 
@@ -274,7 +276,7 @@ class DashboardView(ctk.CTkFrame):
             text_box.pack(side="left", padx=14)
             ctk.CTkLabel(
                 text_box,
-                text=title,
+                text=self._t(title),
                 font=FONT_ST_LABEL_CAPS,
                 text_color=STITCH_TEXT_MUTED if attr == "total" else color,
                 height=14,
@@ -383,7 +385,7 @@ class DashboardView(ctk.CTkFrame):
         self._machines = list(machines)
         self._loaded_once = True
         self._stale = False
-        self._updated_label.configure(text=f"Cập nhật lúc {datetime.now():%H:%M:%S}")
+        self._updated_label.configure(text=self._t('Cập nhật lúc {v0}', v0=f'{datetime.now():%H:%M:%S}'))
         self._render()
         self._after_load()
 
@@ -464,7 +466,7 @@ class DashboardView(ctk.CTkFrame):
         self._update_auto_label()
 
         visible = filter_machines(self._machines, self._status_filter, self._keyword)
-        self._count_label.configure(text=f"●  Đang hiển thị {len(visible)}/{counts.total} máy")
+        self._count_label.configure(text=self._t('●  Đang hiển thị {v0}/{v1} máy', v0=f'{len(visible)}', v1=f'{counts.total}'))
         if not visible:
             self._show_state(ViewState.EMPTY)
             return
@@ -487,7 +489,7 @@ class DashboardView(ctk.CTkFrame):
                     self._grid,
                     on_open=self._open_session,
                     on_checkout=self._checkout,
-                    on_maintenance=self._end_maintenance,
+                    on_maintenance=self._end_maintenance, language=self._t.language,
                 )
                 self._cards[machine.machine_id] = card
             card.render(machine, actor)
@@ -524,7 +526,7 @@ class DashboardView(ctk.CTkFrame):
         for status, label, color, border in _TAB_SPECS:
             active = status == self._status_filter
             self._tab_buttons[status].configure(
-                text=label if counts is None else f"{label} ({counts.for_status(status)})",
+                text=self._t(label) if counts is None else f"{self._t(label)} ({counts.for_status(status)})",
                 fg_color=STITCH_CYAN if active else STITCH_CHIP_BG,
                 hover_color=STITCH_CYAN if active else STITCH_TAB_HOVER,
                 border_color=STITCH_CYAN if active else border,
@@ -534,10 +536,10 @@ class DashboardView(ctk.CTkFrame):
 
     def _update_auto_label(self) -> None:
         if self._stale:
-            self._auto_label.configure(text="▲  Dữ liệu chưa cập nhật", text_color=STITCH_WARNING)
+            self._auto_label.configure(text=self._t('▲  Dữ liệu chưa cập nhật'), text_color=STITCH_WARNING)
         else:
             seconds = self._refresh_ms // 1000
-            self._auto_label.configure(text=f"●  Cập nhật tự động: {seconds}s", text_color=STITCH_TEXT_MUTED)
+            self._auto_label.configure(text=self._t('●  Cập nhật tự động: {v0}s', v0=f'{seconds}'), text_color=STITCH_TEXT_MUTED)
 
     # ------------------------------------------------------------------
     # Hành động trên card

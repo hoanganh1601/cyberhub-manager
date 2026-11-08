@@ -16,6 +16,8 @@ import customtkinter as ctk
 
 from ..components.action_button import ActionButton
 from ..components.stitch_button import stitch_button
+from ..window_position import center_dialog
+from ..i18n import UIStrings
 from ..theme import (
     FONT_ST_BODY,
     FONT_ST_BODY_STRONG,
@@ -113,10 +115,18 @@ class StitchDialog(ctk.CTkToplevel):
         confirm_kind: str = "primary",
         cancel_text: str = "Hủy",
         badge: str = "",
+        min_height: int = 0,
+        language: str = "vi",
     ) -> None:
         super().__init__(parent)
+        self._t = UIStrings(language)
         self._submitting = False
         self._width = width
+        self._min_height = min_height
+        self._owner = parent
+        self._fit_after: str | None = None
+        self._layout_closed = False
+        self._requested_size: tuple[int, int] | None = None
         self.title(title)
         self.configure(fg_color=STITCH_BG_CANVAS)
         self.resizable(False, False)
@@ -169,11 +179,11 @@ class StitchDialog(ctk.CTkToplevel):
         inner = ctk.CTkFrame(footer, fg_color="transparent")
         inner.pack(fill="x", padx=22, pady=(12, 0))
         self.footer_actions = inner  # lớp con thêm nút phụ (vd. "Nạp tiền" của NG-05)
-        self._hint_label = ctk.CTkLabel(inner, text=hint, font=FONT_ST_MONO_11, text_color=STITCH_TEXT_DIM)
+        self._hint_label = ctk.CTkLabel(inner, text=self._t(hint), font=FONT_ST_MONO_11, text_color=STITCH_TEXT_DIM)
         self._hint_label.pack(side="left")
         self.confirm_button: ActionButton = stitch_button(inner, confirm_text, kind=confirm_kind, command=self.submit, width=160, height=34)
         self.confirm_button.pack(side="right")
-        self.cancel_button: ActionButton = stitch_button(inner, cancel_text, kind="secondary", command=self.cancel, width=72, height=34)
+        self.cancel_button: ActionButton = stitch_button(inner, self._t(cancel_text), kind="secondary", command=self.cancel, width=72, height=34)
         self.cancel_button.pack(side="right", padx=(0, 10))
 
         self.bind("<Escape>", lambda _e: self.cancel())
@@ -184,8 +194,11 @@ class StitchDialog(ctk.CTkToplevel):
         """Gọi cuối __init__ của lớp con: chốt kích thước, grab và focus ô đầu tiên."""
         self.minsize(self._width, 1)
         self.bind("<Return>", lambda _e: self.submit())
+        self.bind("<Configure>", self._queue_fit, add="+")
 
         def grab() -> None:
+            center_dialog(self, self._owner, width=self._width, min_height=self._min_height)
+            self._requested_size = (self.winfo_reqwidth(), self.winfo_reqheight())
             try:
                 self.grab_set()
             except tk.TclError:
@@ -193,14 +206,37 @@ class StitchDialog(ctk.CTkToplevel):
             if focus is not None:
                 focus()
 
-        self.after(0, grab)
+        self.after_idle(grab)
+
+    def _queue_fit(self, event: Any) -> None:
+        # Child layout changes (validation, eligibility, payment method) can
+        # increase the natural height after a dialog has already been centered.
+        if self._layout_closed or event.widget is self or self._fit_after:
+            return
+        self._fit_after = self.after_idle(self._fit_content)
+
+    def _fit_content(self) -> None:
+        self._fit_after = None
+        if self._layout_closed:
+            return
+        requested = (self.winfo_reqwidth(), self.winfo_reqheight())
+        if requested != self._requested_size:
+            self._requested_size = requested
+            center_dialog(self, self._owner, width=self._width, min_height=self._min_height)
+
+    def destroy(self) -> None:
+        self._layout_closed = True
+        if self._fit_after:
+            self.after_cancel(self._fit_after)
+            self._fit_after = None
+        super().destroy()
 
     @property
     def hint(self) -> str:
         return self._hint_label.cget("text")
 
     def set_hint(self, text: str) -> None:
-        self._hint_label.configure(text=text)
+        self._hint_label.configure(text=self._t(text))
 
     @property
     def is_submitting(self) -> bool:

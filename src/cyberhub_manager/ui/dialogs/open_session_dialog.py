@@ -26,6 +26,7 @@ from ...domain.enums import AccountStatus, CustomerStatus, MachineStatus
 from ...domain.exceptions import ConflictError, InsufficientBalanceError
 from ...domain.models import Customer, minimum_balance
 from ..app_shell import ViewContext
+from ..i18n import UIStrings
 from ..background import TaskRunner, default_runner
 from ..components.stitch_button import stitch_button
 from ..feedback import notify_error, notify_success
@@ -93,10 +94,10 @@ def customer_option_text(customer: CustomerSummary) -> str:
     return f"{customer.phone} - {customer.full_name}"
 
 
-def estimate_text(preview: OpenSessionPreview | None) -> str:
+def estimate_text(preview: OpenSessionPreview | None, language: str = "vi") -> str:
     if preview is None or not preview.can_open:
-        return NOT_AVAILABLE
-    return format_duration(preview.estimated_minutes * 60)
+        return UIStrings(language)(NOT_AVAILABLE)
+    return format_duration(preview.estimated_minutes * 60, language)
 
 
 def required_top_up(preview: OpenSessionPreview) -> int:
@@ -126,13 +127,14 @@ def conflict_reason(error: Exception) -> str:
     return get_user_friendly_error(error)
 
 
-def status_text(customer: CustomerSummary) -> tuple[tuple[str, bool], tuple[str, bool]]:
+def status_text(customer: CustomerSummary, language: str = "vi") -> tuple[tuple[str, bool], tuple[str, bool]]:
     """((nhãn KH, ok?), (nhãn TK, ok?)) cho 2 chip trạng thái trong thẻ khách."""
     customer_ok = customer.customer_status == CustomerStatus.ACTIVE
     account_ok = customer.account_status == AccountStatus.ACTIVE
+    copy = UIStrings(language)
     return (
-        (f"Trạng thái KH: {'Hoạt động' if customer_ok else 'Ngừng hoạt động'}", customer_ok),
-        (f"Trạng thái TK: {'Hoạt động' if account_ok else 'Đã khóa'}", account_ok),
+        (copy("Trạng thái KH: {v0}", v0=copy("Hoạt động" if customer_ok else "Ngừng hoạt động")), customer_ok),
+        (copy("Trạng thái TK: {v0}", v0=copy("Hoạt động" if account_ok else "Đã khóa")), account_ok),
     )
 
 
@@ -175,16 +177,18 @@ class OpenSessionDialog(StitchDialog):
         runner: TaskRunner | None = None,
         on_opened: Callable[[SessionSummary], None] | None = None,
     ) -> None:
+        self._t = UIStrings(context.language)
         super().__init__(
             parent,
-            title="Mở phiên sử dụng",
-            subtitle="Kiểm tra khách hàng và xác nhận mở phiên",
+            language=context.language,
+            title=self._t('Mở phiên sử dụng'),
+            subtitle=self._t('Kiểm tra khách hàng và xác nhận mở phiên'),
             icon="",
             width=580,
             hint=HINT_CANCEL_ONLY,
-            confirm_text="▶  Xác nhận mở phiên",
+            confirm_text=self._t('▶  Xác nhận mở phiên'),
             confirm_kind="primary",
-            cancel_text="Hủy",
+            cancel_text=self._t('Hủy'),
         )
         self._context = context
         self._machine = machine
@@ -202,7 +206,7 @@ class OpenSessionDialog(StitchDialog):
         self._result_buttons: list[ctk.CTkButton] = []
 
         self.confirm_button.configure(width=190)
-        self._top_up_button = stitch_button(self.footer_actions, "⊕  Nạp tiền", kind="primary", command=self.open_top_up, width=120, height=34)
+        self._top_up_button = stitch_button(self.footer_actions, self._t('⊕  Nạp tiền'), kind="primary", command=self.open_top_up, width=120, height=34)
 
         self._build_machine_panel()
         self._build_customer_picker()
@@ -260,24 +264,24 @@ class OpenSessionDialog(StitchDialog):
         machine = self._machine
         inner = _panel(self.body)
         inner.master.pack_configure(pady=(0, 0))
-        ctk.CTkLabel(inner, text="THÔNG TIN MÁY", font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, anchor="w", height=16).pack(fill="x")
+        ctk.CTkLabel(inner, text=self._t('THÔNG TIN MÁY'), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, anchor="w", height=16).pack(fill="x")
         grid = ctk.CTkFrame(inner, fg_color="transparent")
         grid.pack(fill="x", pady=(8, 0))
         grid.grid_columnconfigure((0, 1, 2, 3), weight=1, uniform="machine")
-        _stat(grid, 0, "Mã máy", machine.machine_code, STITCH_TEXT_STRONG, FONT_MACHINE_CODE)
-        _stat(grid, 1, "Tên máy", machine.name, STITCH_TEXT, FONT_ST_BODY_STRONG)
+        _stat(grid, 0, self._t('Mã máy'), machine.machine_code, STITCH_TEXT_STRONG, FONT_MACHINE_CODE)
+        _stat(grid, 1, self._t('Tên máy'), machine.name, STITCH_TEXT, FONT_ST_BODY_STRONG)
         cell = ctk.CTkFrame(grid, fg_color="transparent")
         cell.grid(row=0, column=2, sticky="w")
-        ctk.CTkLabel(cell, text="Trạng thái", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=18, anchor="w").pack(anchor="w")
+        ctk.CTkLabel(cell, text=self._t('Trạng thái'), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=18, anchor="w").pack(anchor="w")
         available = machine.status == MachineStatus.AVAILABLE
-        _status_chip(cell, "Trống" if available else machine.status.value, available).pack(anchor="w", pady=(2, 0))
-        self._rate_label = _stat(grid, 3, "Giá hiện tại", f"{format_money(machine.hourly_rate)}/giờ", STITCH_CYAN, FONT_VALUE)
+        _status_chip(cell, self._t('Trống') if available else machine.status.value, available).pack(anchor="w", pady=(2, 0))
+        self._rate_label = _stat(grid, 3, self._t('Giá hiện tại'), self._t('{v0}/giờ', v0=f'{format_money(machine.hourly_rate, language=self._t.language)}'), STITCH_CYAN, FONT_VALUE)
 
     def _build_customer_picker(self) -> None:
         head = ctk.CTkFrame(self.body, fg_color="transparent")
         head.pack(fill="x", pady=(14, 6))
-        ctk.CTkLabel(head, text="Khách hàng", font=FONT_TITLE_SM, text_color=STITCH_TEXT_STRONG, height=20).pack(side="left")
-        self._identified_label = ctk.CTkLabel(head, text="● Đã định danh", font=FONT_ST_BODY, text_color=STITCH_SUCCESS, height=20)
+        ctk.CTkLabel(head, text=self._t('Khách hàng'), font=FONT_TITLE_SM, text_color=STITCH_TEXT_STRONG, height=20).pack(side="left")
+        self._identified_label = ctk.CTkLabel(head, text=self._t('● Đã định danh'), font=FONT_ST_BODY, text_color=STITCH_SUCCESS, height=20)
 
         self._search_box = ctk.CTkFrame(
             self.body, fg_color=INPUT_BG, border_width=1, border_color=STITCH_INPUT_BORDER, corner_radius=STITCH_RADIUS_LG
@@ -291,7 +295,7 @@ class OpenSessionDialog(StitchDialog):
             corner_radius=0,
             fg_color=INPUT_BG,
             text_color=STITCH_TEXT_STRONG,
-            placeholder_text="Tìm theo mã, tên, SĐT hoặc tên đăng nhập",
+            placeholder_text=self._t('Tìm theo mã, tên, SĐT hoặc tên đăng nhập'),
             placeholder_text_color=STITCH_TEXT_DIM,
             font=FONT_ST_BODY,
         )
@@ -311,10 +315,10 @@ class OpenSessionDialog(StitchDialog):
         note = ctk.CTkFrame(self.body, fg_color="transparent")
         note.pack(fill="x", pady=(12, 0))
         ctk.CTkLabel(note, text="ⓘ", font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_DIM, width=18, height=18).pack(side="left", anchor="n")
-        rate = format_money(self._machine.hourly_rate)
+        rate = format_money(self._machine.hourly_rate, language=self._t.language)
         ctk.CTkLabel(
             note,
-            text=f"Đơn giá {rate}/giờ sẽ được ghi nhận vào phiên. Phiên chưa trừ tiền cho đến khi kết thúc hoặc tính cước theo thời gian thực.",
+            text=self._t('Đơn giá {v0}/giờ sẽ được ghi nhận vào phiên. Phiên chưa trừ tiền cho đến khi kết thúc hoặc tính cước theo thời gian thực.', v0=f'{rate}'),
             font=FONT_ST_BODY,
             text_color=STITCH_TEXT_MUTED,
             wraplength=500,
@@ -386,14 +390,14 @@ class OpenSessionDialog(StitchDialog):
             self._results_box.pack(fill="x", pady=(6, 0), after=self._search_box)
         if not customers:
             ctk.CTkLabel(
-                self._results_box, text="Không tìm thấy khách hàng phù hợp", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=30
+                self._results_box, text=self._t('Không tìm thấy khách hàng phù hợp'), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=30
             ).pack(fill="x", padx=12, pady=4)
             return
         for index, customer in enumerate(customers):
             reason = customer_block_reason(customer)
             text = f"{customer.customer_code}   {customer.full_name}  •  {customer.phone}"
             if reason:
-                text += "   (Đã khóa)" if customer.customer_status == CustomerStatus.ACTIVE else "   (Ngừng hoạt động)"
+                text += self._t('   (Đã khóa)') if customer.customer_status == CustomerStatus.ACTIVE else self._t('   (Ngừng hoạt động)')
             button = ctk.CTkButton(
                 self._results_box,
                 text=text,
@@ -472,7 +476,7 @@ class OpenSessionDialog(StitchDialog):
 
     def _set_blocked(self, reason: str) -> None:
         self._preview = None
-        self._block_reason = reason
+        self._block_reason = self._t(reason)
         self._phase = BLOCKED
         self._render()
 
@@ -503,11 +507,11 @@ class OpenSessionDialog(StitchDialog):
         ctk.CTkLabel(top, text=f"•  {customer.phone}", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=22).pack(side="left", padx=(8, 0))
         username = ctk.CTkFrame(top, fg_color=STITCH_CHIP_BG, corner_radius=STITCH_RADIUS)
         username.pack(side="right")
-        ctk.CTkLabel(username, text=f"TK: {customer.username}", font=FONT_ST_MONO_BODY, text_color=STITCH_TEXT, height=22).pack(padx=8)
+        ctk.CTkLabel(username, text=self._t("TK: {v0}", v0=customer.username), font=FONT_ST_MONO_BODY, text_color=STITCH_TEXT, height=22).pack(padx=8)
         divider(inner, pady=(10, 8))
         chips = ctk.CTkFrame(inner, fg_color="transparent")
         chips.pack(fill="x")
-        for text, ok in status_text(customer):
+        for text, ok in status_text(customer, language=self._t.language):
             _status_chip(chips, text, ok).pack(side="left", padx=(0, 10))
 
     def _render(self) -> None:
@@ -537,22 +541,22 @@ class OpenSessionDialog(StitchDialog):
             balance_color = STITCH_TEXT
         else:
             balance_color = STITCH_SUCCESS if ready else STITCH_DANGER
-        self._balance_label = _stat(grid, 0, "Số dư hiện tại", format_money(balance), balance_color)
-        _stat(grid, 1, "Số dư tối thiểu", format_money(minimum), STITCH_TEXT)
+        self._balance_label = _stat(grid, 0, self._t('Số dư hiện tại'), format_money(balance, language=self._t.language), balance_color)
+        _stat(grid, 1, self._t('Số dư tối thiểu'), format_money(minimum, language=self._t.language), STITCH_TEXT)
         self._estimate_label = _stat(
-            grid, 2, "Thời gian ước tính", "…" if state == CHECKING else estimate_text(preview), STITCH_CYAN if ready else STITCH_TEXT_MUTED
+            grid, 2, self._t('Thời gian ước tính'), "…" if state == CHECKING else estimate_text(preview, language=self._t.language), STITCH_CYAN if ready else STITCH_TEXT_MUTED
         )
 
         if state == CHECKING:
-            self._banner(inner, "⟳", "Đang kiểm tra điều kiện mở phiên…", "", STITCH_TEXT_MUTED, PANEL_BG, STITCH_BORDER)
+            self._banner(inner, "⟳", self._t('Đang kiểm tra điều kiện mở phiên…'), "", STITCH_TEXT_MUTED, PANEL_BG, STITCH_BORDER)
         elif ready:
-            self._banner(inner, "✔", "Khách hàng đủ điều kiện mở phiên", "", STITCH_SUCCESS, STITCH_BADGE_SUCCESS_BG, STITCH_BADGE_SUCCESS_BORDER)
+            self._banner(inner, "✔", self._t('Khách hàng đủ điều kiện mở phiên'), "", STITCH_SUCCESS, STITCH_BADGE_SUCCESS_BG, STITCH_BADGE_SUCCESS_BORDER)
         elif state == INSUFFICIENT and preview is not None:
             self._banner(
                 inner,
                 "⚠",
-                "Số dư chưa đạt mức tối thiểu để mở phiên",
-                f"Vui lòng nạp thêm ít nhất {format_money(required_top_up(preview))}",
+                self._t('Số dư chưa đạt mức tối thiểu để mở phiên'),
+                self._t('Vui lòng nạp thêm ít nhất {v0}', v0=f'{format_money(required_top_up(preview), language=self._t.language)}'),
                 STITCH_DANGER,
                 STITCH_BADGE_DANGER_BG,
                 STITCH_BADGE_DANGER_BORDER,
@@ -561,8 +565,8 @@ class OpenSessionDialog(StitchDialog):
             self._banner(
                 inner,
                 "⚠",
-                self._block_reason or "Không thể mở phiên",
-                "Không thể mở phiên cho khách hàng này",
+                self._block_reason or self._t('Không thể mở phiên'),
+                self._t('Không thể mở phiên cho khách hàng này'),
                 STITCH_DANGER,
                 STITCH_BADGE_DANGER_BG,
                 STITCH_BADGE_DANGER_BORDER,
@@ -624,7 +628,7 @@ class OpenSessionDialog(StitchDialog):
         self._runner.submit(self, lambda: customers.get_customer(customer.customer_id), show, lambda _error: show(None))
 
     def _after_top_up(self, result: TopUpResult) -> None:
-        notify_success(self, TOP_UP_DONE.format(balance=format_money(result.balance_after)))
+        notify_success(self, TOP_UP_DONE.format(balance=format_money(result.balance_after, language=self._t.language)))
         if self._customer is not None and self._customer.customer_id == result.customer_id:
             self._customer = dataclasses.replace(self._customer, balance=result.balance_after)
             self.check_eligibility()

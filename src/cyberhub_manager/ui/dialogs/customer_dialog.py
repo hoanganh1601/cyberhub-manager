@@ -22,6 +22,7 @@ from ...domain.dtos import CustomerSummary
 from ...domain.enums import AccountStatus, CustomerStatus
 from ...domain.models import Customer
 from ..app_shell import ViewContext
+from ..i18n import UIStrings
 from ..background import TaskRunner, default_runner
 from ..components import ToastManager
 from ..components.stitch_field import StitchField
@@ -99,14 +100,17 @@ class CustomerDialog(StitchDialog):
         on_saved: Callable[[Customer], None] | None = None,
     ) -> None:
         self._creating = customer is None
+        self._t = UIStrings(context.language)
         super().__init__(
             parent,
-            title="Tạo khách hàng" if self._creating else "Chỉnh sửa khách hàng",
-            subtitle="Tạo hồ sơ khách hàng và tài khoản đăng nhập" if self._creating else "Cập nhật thông tin hồ sơ khách hàng",
+            language=context.language,
+            title=self._t('Tạo khách hàng') if self._creating else self._t('Chỉnh sửa khách hàng'),
+            subtitle=self._t('Tạo hồ sơ khách hàng và tài khoản đăng nhập') if self._creating else self._t('Cập nhật thông tin hồ sơ khách hàng'),
             icon="👤" if self._creating else "✎",
-            width=640 if self._creating else 560,
-            hint="Nhấn Enter để tạo • Esc để hủy" if self._creating else "Nhấn Enter để lưu • Esc để hủy",
-            confirm_text="＋  Tạo khách hàng" if self._creating else "✓  Lưu thay đổi",
+            width=660 if self._creating else 620,
+            min_height=480 if not self._creating else 0,
+            hint=self._t('Nhấn Enter để tạo • Esc để hủy') if self._creating else self._t('Nhấn Enter để lưu • Esc để hủy'),
+            confirm_text=self._t('＋  Tạo khách hàng') if self._creating else self._t('✓  Lưu thay đổi'),
         )
         self._context = context
         self._customer = customer
@@ -135,26 +139,26 @@ class CustomerDialog(StitchDialog):
         grid = ctk.CTkFrame(self.body, fg_color="transparent")
         grid.pack(fill="x")
         grid.grid_columnconfigure((0, 1), weight=1, uniform="form")
-        self._field(grid, "full_name", "Họ và tên", placeholder="Nhập họ và tên").grid(row=0, column=0, sticky="new", padx=(0, 8))
-        self._field(grid, "phone", "Số điện thoại", placeholder="0xxxxxxxxx", mono=True).grid(row=0, column=1, sticky="new", padx=(8, 0))
+        self._field(grid, "full_name", self._t('Họ và tên'), placeholder=self._t('Nhập họ và tên')).grid(row=0, column=0, sticky="new", padx=(0, 8))
+        self._field(grid, "phone", self._t('Số điện thoại'), placeholder="0xxxxxxxxx", mono=True).grid(row=0, column=1, sticky="new", padx=(8, 0))
         self._field(
             grid,
             "username",
-            "Tên đăng nhập",
-            placeholder="vd: an.nv",
+            self._t('Tên đăng nhập'),
+            placeholder=self._t('vd: an.nv'),
             suffix="@",
             mono=True,
-            hint="4–30 ký tự, gồm chữ, số, dấu gạch dưới và dấu chấm",
+            hint=self._t('4–30 ký tự, gồm chữ, số, dấu gạch dưới và dấu chấm'),
         ).grid(row=1, column=0, columnspan=2, sticky="new", pady=(14, 0))
-        self._field(grid, "password", "Mật khẩu", placeholder="Nhập mật khẩu", password=True).grid(
+        self._field(grid, "password", self._t('Mật khẩu'), placeholder=self._t('Nhập mật khẩu'), password=True).grid(
             row=2, column=0, sticky="new", padx=(0, 8), pady=(14, 0)
         )
-        self._field(grid, "confirm_password", "Xác nhận mật khẩu", placeholder="Nhập lại mật khẩu", password=True).grid(
+        self._field(grid, "confirm_password", self._t('Xác nhận mật khẩu'), placeholder=self._t('Nhập lại mật khẩu'), password=True).grid(
             row=2, column=1, sticky="new", padx=(8, 0), pady=(14, 0)
         )
 
         ctk.CTkFrame(self.body, fg_color="transparent", height=16).pack(fill="x")
-        info = info_panel(self.body, "Thông tin khởi tạo hệ thống", right_note="Hệ thống tự động gán")
+        info = info_panel(self.body, self._t('Thông tin khởi tạo hệ thống'), right_note=self._t('Hệ thống tự động gán'))
         cols = ctk.CTkFrame(info, fg_color="transparent")
         cols.pack(fill="x")
         cols.grid_columnconfigure((0, 1), weight=1, uniform="info")
@@ -162,20 +166,20 @@ class CustomerDialog(StitchDialog):
         left.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         right = ctk.CTkFrame(cols, fg_color="transparent")
         right.grid(row=0, column=1, sticky="ew", padx=(10, 0))
-        info_row(left, "Mã khách hàng:", "Tạo sau khi lưu", value_color=STITCH_TEXT_MUTED, italic=True)
-        info_row(left, "Trạng thái KH:", _status_chip(True, "Hoạt động", ""))
-        info_row(right, "Mã tài khoản:", "Tạo sau khi lưu", value_color=STITCH_TEXT_MUTED, italic=True)
-        info_row(right, "Trạng thái TK:", _status_chip(True, "Hoạt động", ""))
-        info_row(info, "Số dư ví ban đầu:", "0 VND", value_color=STITCH_TEXT_STRONG)
+        info_row(left, self._t('Mã khách hàng:'), self._t('Tạo sau khi lưu'), value_color=STITCH_TEXT_MUTED, italic=True)
+        info_row(left, self._t('Trạng thái KH:'), _status_chip(True, self._t('Hoạt động'), ""))
+        info_row(right, self._t('Mã tài khoản:'), self._t('Tạo sau khi lưu'), value_color=STITCH_TEXT_MUTED, italic=True)
+        info_row(right, self._t('Trạng thái TK:'), _status_chip(True, self._t('Hoạt động'), ""))
+        info_row(info, self._t('Số dư ví ban đầu:'), "0 VND", value_color=STITCH_TEXT_STRONG)
 
     def _build_edit_form(self, customer: CustomerSummary, account_code: str) -> None:
-        self._field(self.body, "full_name", "Họ và tên", uppercase_label=False).pack(fill="x")
-        self._field(self.body, "phone", "Số điện thoại", mono=True, uppercase_label=False).pack(fill="x", pady=(14, 0))
+        self._field(self.body, "full_name", self._t('Họ và tên'), uppercase_label=False).pack(fill="x")
+        self._field(self.body, "phone", self._t('Số điện thoại'), mono=True, uppercase_label=False).pack(fill="x", pady=(14, 0))
         self._fields["full_name"].set_value(customer.full_name)
         self._fields["phone"].set_value(customer.phone)
 
         ctk.CTkFrame(self.body, fg_color="transparent", height=16).pack(fill="x")
-        info = info_panel(self.body, "Thông tin hệ thống (không thể thay đổi)", locked=True)
+        info = info_panel(self.body, self._t('Thông tin hệ thống (không thể thay đổi)'), locked=True)
         cols = ctk.CTkFrame(info, fg_color="transparent")
         cols.pack(fill="x")
         cols.grid_columnconfigure((0, 1), weight=1, uniform="info")
@@ -183,11 +187,11 @@ class CustomerDialog(StitchDialog):
         left.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         right = ctk.CTkFrame(cols, fg_color="transparent")
         right.grid(row=0, column=1, sticky="ew", padx=(10, 0))
-        info_row(left, "Mã KH:", customer.customer_code, value_color=STITCH_CYAN)
-        info_row(left, "Trạng thái KH:", _status_chip(customer.customer_status == CustomerStatus.ACTIVE, "Hoạt động", "Ngừng hoạt động"))
-        info_row(right, "Mã tài khoản:", account_code or "—", value_color=STITCH_CYAN)
-        info_row(right, "Trạng thái TK:", _status_chip(customer.account_status == AccountStatus.ACTIVE, "Hoạt động", "Đã khóa"))
-        info_row(info, "Tên đăng nhập:", customer.username, value_color=STITCH_TEXT_STRONG)
+        info_row(left, self._t('Mã KH:'), customer.customer_code, value_color=STITCH_CYAN)
+        info_row(left, self._t('Trạng thái KH:'), _status_chip(customer.customer_status == CustomerStatus.ACTIVE, self._t('Hoạt động'), self._t('Ngừng hoạt động')))
+        info_row(right, self._t('Mã tài khoản:'), account_code or "—", value_color=STITCH_CYAN)
+        info_row(right, self._t('Trạng thái TK:'), _status_chip(customer.account_status == AccountStatus.ACTIVE, self._t('Hoạt động'), self._t('Đã khóa')))
+        info_row(info, self._t('Tên đăng nhập:'), customer.username, value_color=STITCH_TEXT_STRONG)
 
     # ------------------------------------------------------------------
     def values(self) -> dict[str, str]:

@@ -38,4 +38,4 @@ source = ["cyberhub_manager"]
 branch = true
 
 [tool.setuptools.package-data]
-"cyberhub_manager.ui.assets" = ["*.png"]
+"cyberhub_manager.ui.assets" = ["*.png", "fonts/*.ttf", "fonts/*-OFL.txt"]

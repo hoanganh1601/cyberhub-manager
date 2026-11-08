@@ -122,7 +122,7 @@ def test_no_settlement_checkout_debits_balance(tk_root, receipts) -> None:
     assert result.invoice.invoice.status == InvoiceStatus.PAID
     assert result.balance_after == 95_000
     assert _machine(services, session, "PC05").status == MachineStatus.AVAILABLE
-    assert receipts.call_args.kwargs == {"username": "hoangvanem", "method": None, "cash_given": None}
+    assert receipts.call_args.kwargs == {"username": "hoangvanem", "method": None, "cash_given": None, "language": "vi"}
 
 
 def test_cash_settlement_requires_enough_cash(tk_root, receipts) -> None:
@@ -143,7 +143,7 @@ def test_cash_settlement_requires_enough_cash(tk_root, receipts) -> None:
     invoice = completed[0].invoice.invoice
     assert invoice.settlement_amount == 10_000  # đúng settlement_required, không phải tiền khách đưa
     assert completed[0].balance_after == 0
-    assert receipts.call_args.kwargs == {"username": "lethibinh", "method": PaymentMethod.CASH, "cash_given": 20_000}
+    assert receipts.call_args.kwargs == {"username": "lethibinh", "method": PaymentMethod.CASH, "cash_given": 20_000, "language": "vi"}
     settlement = [t for t in services.wallet.get_history(2) if t.type == TransactionType.DEBT_SETTLEMENT][0]
     assert (settlement.amount, settlement.method, settlement.employee_id) == (10_000, PaymentMethod.CASH, session.employee_id)
 

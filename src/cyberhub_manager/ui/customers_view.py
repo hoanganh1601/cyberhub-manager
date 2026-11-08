@@ -23,6 +23,7 @@ from ..domain.dtos import CustomerSummary, TopUpResult, TransactionSummary
 from ..domain.enums import AccountStatus, CustomerStatus, PaymentMethod, TransactionType
 from ..domain.models import Customer
 from .app_shell import ViewContext, initials
+from .i18n import UIStrings
 from .background import TaskRunner, default_runner
 from .components.action_button import ActionButton
 from .components.stitch_button import stitch_button
@@ -170,19 +171,20 @@ class TransactionLine:
     time: str
 
 
-def transaction_line(transaction: TransactionSummary) -> TransactionLine:
+def transaction_line(transaction: TransactionSummary, language: str = "vi") -> TransactionLine:
     """Một dòng "Giao dịch gần đây": +50.000 VND / Nạp tiền • Tiền mặt / 14:30 24/02 (giờ VN)."""
     amount = transaction.amount
-    text = f"+{format_money(amount)}" if amount > 0 else format_money(amount)
+    text = f"+{format_money(amount, language)}" if amount > 0 else format_money(amount, language)
     color = STITCH_SUCCESS if amount > 0 else STITCH_DANGER
-    kind = TRANSACTION_LABELS.get(transaction.type, str(transaction.type))
-    method = METHOD_LABELS.get(transaction.method, str(transaction.method))
+    copy = UIStrings(language)
+    kind = copy(TRANSACTION_LABELS.get(transaction.type, str(transaction.type)))
+    method = copy(METHOD_LABELS.get(transaction.method, str(transaction.method)))
     stamp = format_datetime(transaction.created_at)  # "HH:MM dd/mm/yyyy"
     return TransactionLine(text, color, f"{kind} • {method}", stamp[:-5])
 
 
-def page_caption(page: Page) -> str:
-    return f"Hiển thị {page.first} - {page.last} trên {page.total} khách hàng"
+def page_caption(page: Page, language: str = "vi") -> str:
+    return UIStrings(language)("Hiển thị {v0} - {v1} trên {v2} khách hàng", v0=page.first, v1=page.last, v2=page.total)
 
 
 # ----------------------------------------------------------------------
@@ -210,11 +212,11 @@ def _configure_columns(frame: Any) -> None:
         frame.grid_columnconfigure(index, weight=weight, uniform="customer")
 
 
-def _badge(master: Any, badge: Badge, *, pill: bool = True) -> ctk.CTkFrame:
+def _badge(master: Any, badge: Badge, *, pill: bool = True, language: str = "vi") -> ctk.CTkFrame:
     box = ctk.CTkFrame(
         master, fg_color=badge.bg, border_width=1, border_color=badge.border, corner_radius=10 if pill else STITCH_RADIUS
     )
-    ctk.CTkLabel(box, text=f"● {badge.label}", font=FONT_ST_MONO_XS_STRONG, text_color=badge.text_color, height=18).pack(
+    ctk.CTkLabel(box, text=f"● {UIStrings(language)(badge.label)}", font=FONT_ST_MONO_XS_STRONG, text_color=badge.text_color, height=18).pack(
         padx=8
     )
     return box
@@ -226,6 +228,7 @@ class CustomersView(ctk.CTkFrame):
     def __init__(self, master: Any, context: ViewContext, *, runner: TaskRunner | None = None) -> None:
         super().__init__(master, fg_color="transparent")
         self._context = context
+        self._t = UIStrings(context.language)
         self._runner = runner or default_runner()
         self._customers: list[CustomerSummary] = []
         self._status_filter: CustomerStatus | None = None
@@ -292,18 +295,18 @@ class CustomersView(ctk.CTkFrame):
         titles = ctk.CTkFrame(header, fg_color="transparent")
         titles.pack(side="left")
         ctk.CTkLabel(
-            titles, text="Khách hàng", font=FONT_ST_PAGE_TITLE, text_color=STITCH_TEXT_STRONG, height=24, anchor="w"
+            titles, text=self._t('Khách hàng'), font=FONT_ST_PAGE_TITLE, text_color=STITCH_TEXT_STRONG, height=24, anchor="w"
         ).pack(anchor="w")
         ctk.CTkLabel(
             titles,
-            text="Quản lý hồ sơ, tài khoản và số dư khách hàng",
+            text=self._t('Quản lý hồ sơ, tài khoản và số dư khách hàng'),
             font=FONT_ST_BODY,
             text_color=STITCH_TEXT_MUTED,
             height=16,
             anchor="w",
         ).pack(anchor="w")
         self._create_button = stitch_button(
-            header, "＋  Tạo khách hàng", kind="primary", command=self._open_create, width=150, height=32
+            header, self._t('＋  Tạo khách hàng'), kind="primary", command=self._open_create, width=150, height=32
         )
         self._create_button.pack(side="right")
 
@@ -316,7 +319,7 @@ class CustomersView(ctk.CTkFrame):
             bar,
             width=420,
             height=32,
-            placeholder_text="⌕  Tìm theo mã, tên, SĐT hoặc tên đăng nhập",
+            placeholder_text=self._t('⌕  Tìm theo mã, tên, SĐT hoặc tên đăng nhập'),
             fg_color=STITCH_INPUT_BG,
             border_color=STITCH_INPUT_BORDER,
             border_width=1,
@@ -359,7 +362,7 @@ class CustomersView(ctk.CTkFrame):
         head.pack(fill="x", padx=12, pady=(8, 0))
         _configure_columns(head)
         for index, (title, _weight, anchor) in enumerate(_COLUMNS):
-            ctk.CTkLabel(head, text=title, font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, anchor=anchor, height=26).grid(
+            ctk.CTkLabel(head, text=self._t(title), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, anchor=anchor, height=26).grid(
                 row=0, column=index, sticky="ew", padx=4
             )
         ctk.CTkFrame(table, fg_color=STITCH_CARD_BORDER, height=1, corner_radius=0).pack(fill="x", padx=12)
@@ -500,7 +503,7 @@ class CustomersView(ctk.CTkFrame):
             if index:
                 ctk.CTkFrame(self._rows_frame, fg_color=STITCH_CARD_BORDER, height=1, corner_radius=0).pack(fill="x")
             self._build_row(customer)
-        self._caption_label.configure(text=page_caption(page))
+        self._caption_label.configure(text=page_caption(page, language=self._t.language))
         build_pager(self._pager, page, self.go_to_page)
 
     def _build_row(self, customer: CustomerSummary) -> None:
@@ -533,12 +536,12 @@ class CustomersView(ctk.CTkFrame):
             ctk.CTkLabel(row, text=customer.username, font=FONT_ST_MONO_BODY, text_color=text_color),
             ctk.CTkLabel(
                 row,
-                text=format_money(customer.balance),
+                text=format_money(customer.balance, language=self._t.language),
                 font=FONT_ST_MONO_SM,
                 # CUS-04: số dư âm luôn đỏ; khách ngừng hoạt động còn lại hiện xám như Stitch
                 text_color=STITCH_TEXT_MUTED if inactive and customer.balance >= 0 else balance_color(customer.balance),
             ),
-            _badge(row, row_badge(customer)),
+            _badge(row, row_badge(customer), language=self._t.language),
         ]
         for index, widget in enumerate(cells):
             widget.grid(row=0, column=index, sticky=_COLUMNS[index][2] if index != 5 else "", padx=4)
@@ -554,6 +557,7 @@ class CustomersView(ctk.CTkFrame):
     def _update_tabs(self) -> None:
         counts = count_by_status(self._customers)
         for status, label in _TAB_SPECS:
+            label = self._t(label)
             active = status == self._status_filter
             self._tab_buttons[status].configure(
                 text=f"{label} ({counts[status]})" if self._customers else label,
@@ -590,7 +594,7 @@ class CustomersView(ctk.CTkFrame):
         panel = ctk.CTkFrame(self._detail, fg_color="transparent")
         panel.pack(fill="both", expand=True, padx=14, pady=12)
         if customer is None:
-            ctk.CTkLabel(panel, text="Chọn một khách hàng để xem chi tiết.", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED).pack(
+            ctk.CTkLabel(panel, text=self._t('Chọn một khách hàng để xem chi tiết.'), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED).pack(
                 pady=40
             )
             return
@@ -607,7 +611,7 @@ class CustomersView(ctk.CTkFrame):
         ctk.CTkLabel(names, text=customer.full_name, font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG, height=18, anchor="w").pack(anchor="w")
         ctk.CTkLabel(
             names,
-            text=f"Mã TK: {self._account_code}" if self._account_code else "Mã TK: …",
+            text=self._t('Mã TK: {v0}', v0=f'{self._account_code}') if self._account_code else self._t('Mã TK: …'),
             font=FONT_ST_MONO_11,
             text_color=STITCH_TEXT_MUTED,
             height=14,
@@ -622,17 +626,17 @@ class CustomersView(ctk.CTkFrame):
         info = ctk.CTkFrame(panel, fg_color=STITCH_BG_CHROME, border_width=1, border_color=STITCH_CARD_BORDER, corner_radius=STITCH_RADIUS_LG)
         info.pack(fill="x")
         rows: list[tuple[str, Any]] = [
-            ("Số điện thoại:", customer.phone),
-            ("Tên đăng nhập:", customer.username),
-            ("Trạng thái khách hàng:", customer_badge(customer.customer_status)),
-            ("Trạng thái tài khoản:", account_badge(customer.account_status)),
+            (self._t('Số điện thoại:'), customer.phone),
+            (self._t('Tên đăng nhập:'), customer.username),
+            (self._t('Trạng thái khách hàng:'), customer_badge(customer.customer_status)),
+            (self._t('Trạng thái tài khoản:'), account_badge(customer.account_status)),
         ]
         for index, (label, value) in enumerate(rows):
             line = ctk.CTkFrame(info, fg_color="transparent")
             line.pack(fill="x", padx=10, pady=(8 if index == 0 else 3, 8 if index == len(rows) - 1 else 3))
             ctk.CTkLabel(line, text=label, font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
             if isinstance(value, Badge):
-                _badge(line, value, pill=False).pack(side="right")
+                _badge(line, value, pill=False, language=self._t.language).pack(side="right")
             else:
                 ctk.CTkLabel(line, text=value, font=FONT_ST_MONO_BODY, text_color=STITCH_TEXT, height=20).pack(side="right")
 
@@ -646,21 +650,21 @@ class CustomersView(ctk.CTkFrame):
             corner_radius=STITCH_RADIUS_LG,
         )
         card.pack(fill="x", pady=(10, 0))
-        ctk.CTkLabel(card, text="SỐ DƯ HIỆN TẠI", font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, height=14, anchor="w").pack(
+        ctk.CTkLabel(card, text=self._t('SỐ DƯ HIỆN TẠI'), font=FONT_ST_LABEL_CAPS, text_color=STITCH_TEXT_MUTED, height=14, anchor="w").pack(
             anchor="w", padx=12, pady=(8, 0)
         )
         self._balance_label = ctk.CTkLabel(
-            card, text=format_money(customer.balance), font=FONT_ST_KPI_VALUE, text_color=balance_color(customer.balance), height=28, anchor="w"
+            card, text=format_money(customer.balance, language=self._t.language), font=FONT_ST_KPI_VALUE, text_color=balance_color(customer.balance), height=28, anchor="w"
         )
         self._balance_label.pack(anchor="w", padx=12, pady=(0, 8))
 
         # Nút thao tác
         actions = ctk.CTkFrame(panel, fg_color="transparent")
         actions.pack(fill="x", pady=(10, 0))
-        specs = [("top_up", "＋ Nạp tiền", "primary", self._open_top_up), ("edit", "✎ Chỉnh sửa", "secondary", self._open_edit)]
+        specs = [("top_up", self._t('＋ Nạp tiền'), "primary", self._open_top_up), ("edit", self._t('✎ Chỉnh sửa'), "secondary", self._open_edit)]
         if self.can_manage:  # NG-04: STAFF không có action khóa
             locked = customer.customer_status == CustomerStatus.INACTIVE
-            specs.append(("lock", "Mở khóa" if locked else "Khóa", "secondary" if locked else "danger", self._open_lock))
+            specs.append(("lock", self._t('Mở khóa') if locked else self._t('Khóa'), "secondary" if locked else "danger", self._open_lock))
         for index, (key, text, kind, command) in enumerate(specs):
             actions.grid_columnconfigure(index, weight=1, uniform="action")
             button = stitch_button(actions, text, kind=kind, command=command, width=10, height=30)
@@ -671,8 +675,8 @@ class CustomersView(ctk.CTkFrame):
         ctk.CTkFrame(panel, fg_color=STITCH_CARD_BORDER, height=1, corner_radius=0).pack(fill="x", pady=(12, 8))
         title = ctk.CTkFrame(panel, fg_color="transparent")
         title.pack(fill="x")
-        ctk.CTkLabel(title, text="Giao dịch gần đây", font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT, height=18).pack(side="left")
-        count_text = "" if loading or error else f"{len(self._history)} giao dịch"
+        ctk.CTkLabel(title, text=self._t('Giao dịch gần đây'), font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT, height=18).pack(side="left")
+        count_text = "" if loading or error else self._t('{v0} giao dịch', v0=f'{len(self._history)}')
         ctk.CTkLabel(title, text=count_text, font=FONT_ST_MONO_11, text_color=STITCH_TEXT_DIM, height=18).pack(side="right")
         if loading:
             ctk.CTkLabel(panel, text=MSG_LOADING, font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED).pack(pady=12)
@@ -681,10 +685,10 @@ class CustomersView(ctk.CTkFrame):
             ctk.CTkLabel(panel, text=error, font=FONT_ST_BODY, text_color=STITCH_DANGER, wraplength=280).pack(pady=12)
             return
         if not self._history:
-            ctk.CTkLabel(panel, text="Chưa có giao dịch", font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED).pack(pady=12)
+            ctk.CTkLabel(panel, text=self._t('Chưa có giao dịch'), font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED).pack(pady=12)
             return
         for transaction in self._history[:RECENT_TRANSACTIONS]:
-            line = transaction_line(transaction)
+            line = transaction_line(transaction, language=self._t.language)
             item = ctk.CTkFrame(panel, fg_color=STITCH_BG_CHROME, border_width=1, border_color=STITCH_CARD_BORDER, corner_radius=STITCH_RADIUS)
             item.pack(fill="x", pady=(6, 0))
             left = ctk.CTkFrame(item, fg_color="transparent")
@@ -734,7 +738,7 @@ class CustomersView(ctk.CTkFrame):
         )
 
     def _after_top_up(self, result: TopUpResult) -> None:
-        notify_success(self, f"Top-up successful. New balance: {format_money(result.balance_after)}")
+        notify_success(self, f"Top-up successful. New balance: {format_money(result.balance_after, language=self._t.language)}")
         self.reload(select_id=result.customer_id)
 
     def _open_lock(self) -> None:
