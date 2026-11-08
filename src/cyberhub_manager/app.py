@@ -104,6 +104,7 @@ class CyberHubApp(ctk.CTk):
             language=self._language,
             runner=self._runner,
             demo=self._mock,
+            portal_service=self._services.portal,
         )
         self._content.pack(fill="both", expand=True)
 
@@ -112,6 +113,14 @@ class CyberHubApp(ctk.CTk):
         from .ui.views import default_view_factories
 
         self._dispose_view()
+        from .domain.p1 import CustomerSession
+        if isinstance(session, CustomerSession):
+            from .ui.p1_views import CustomerPortalView
+            self._session = None
+            self.title(f"CyberHub — {session.full_name}")
+            self._content = CustomerPortalView(self,self._services,session,language=self._language,on_logout=self._show_login,runner=self._runner)
+            self._content.pack(fill="both",expand=True)
+            return
         self._session = session
         self.title(f"CyberHub Manager — {session.store_name} · {session.full_name}")
         self._content = AppShell(
@@ -119,6 +128,7 @@ class CyberHubApp(ctk.CTk):
             self._services,
             session,
             on_logout=self._show_login,
+            on_store_change=self._on_login_success,
             language=self._language,
             view_factories=default_view_factories(),
         )

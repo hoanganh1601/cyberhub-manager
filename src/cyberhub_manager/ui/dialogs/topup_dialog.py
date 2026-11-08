@@ -113,6 +113,7 @@ class TopUpDialog(StitchDialog):
         self._method = PaymentMethod.CASH
         self._quick_buttons: dict[int, ctk.CTkButton] = {}
         self._method_buttons: dict[PaymentMethod, ctk.CTkButton] = {}
+        self._quote_seq = 0
 
         self._build_customer_card(account_code)
         self.amount_field = StitchField(
@@ -222,7 +223,7 @@ class TopUpDialog(StitchDialog):
         inner = ctk.CTkFrame(box, fg_color="transparent")
         inner.pack(fill="x", padx=14, pady=10)
         self._preview: dict[str, ctk.CTkLabel] = {}
-        for key, label in (("current", self._t('Số dư hiện tại')), ("amount", self._t('Số tiền nạp'))):
+        for key, label in (("current", self._t('Số dư hiện tại')), ("amount", self._t('Số tiền nạp')), ("bonus",self._t("Tiền khuyến mãi"))):
             line = ctk.CTkFrame(inner, fg_color="transparent")
             line.pack(fill="x", pady=1)
             ctk.CTkLabel(line, text=label, font=FONT_ST_BODY, text_color=STITCH_TEXT_MUTED, height=20).pack(side="left")
@@ -234,6 +235,7 @@ class TopUpDialog(StitchDialog):
         ctk.CTkLabel(line, text=self._t('Số dư mới'), font=FONT_ST_BODY_STRONG, text_color=STITCH_TEXT_STRONG, height=24).pack(side="left")
         self._preview["new"] = ctk.CTkLabel(line, text="", font=FONT_ST_MONO_VALUE, text_color=STITCH_SUCCESS, height=24)
         self._preview["new"].pack(side="right")
+        ctk.CTkLabel(inner,text=self._t("Khuyến mãi không quy đổi tiền mặt"),font=FONT_ST_MONO_11,text_color=STITCH_TEXT_MUTED).pack(anchor="w",pady=(6,0))
 
     # ------------------------------------------------------------------
     def set_amount(self, amount: int) -> None:
@@ -257,6 +259,8 @@ class TopUpDialog(StitchDialog):
         )
 
     def _refresh_preview(self) -> None:
+        self._quote_seq += 1
+        seq = self._quote_seq
         amount = parse_amount(self.amount_field.get_value())
         valid = amount is not None and 0 < amount <= MAX_TOP_UP
         balance = self._customer.balance
@@ -265,6 +269,14 @@ class TopUpDialog(StitchDialog):
         # Chỉ xem trước; số dư thật lấy từ TopUpResult.balance_after
         new_balance = balance + amount if valid and amount is not None else balance
         self._preview["new"].configure(text=format_money(new_balance, language=self._t.language), text_color=STITCH_DANGER if new_balance < 0 else STITCH_SUCCESS)
+        self._preview["bonus"].configure(text="—")
+        if valid and hasattr(self._context.services.wallet,"preview_top_up"):
+            def quoted(quote):
+                if seq != self._quote_seq:
+                    return
+                self._preview["bonus"].configure(text="+"+format_money(quote.bonus_amount,language=self._t.language))
+                self._preview["new"].configure(text=format_money(balance+amount+quote.bonus_amount,language=self._t.language))
+            self._runner.submit(self,lambda:self._context.services.wallet.preview_top_up(self._customer.customer_id,amount,self._context.session.employee_id),quoted,lambda _:None)
         for value, button in self._quick_buttons.items():
             active = valid and value == amount
             button.configure(

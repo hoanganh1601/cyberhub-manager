@@ -25,6 +25,7 @@ from ..domain.dtos import EmployeeSession
 from ..services.contracts import ServiceBundle
 from .components import ConfirmDialog, ToastManager
 from .components.sidebar_button import SidebarButton
+from ..domain.enums import Role
 from .sidebar_icons import sidebar_icon
 from .i18n import Language, normalize_language, translate
 from .messages import MSG_CANCEL, MSG_OPERATION_FAILED, get_user_friendly_error
@@ -197,11 +198,13 @@ class AppShell(ctk.CTkFrame):
         on_logout: Callable[[], None],
         view_factories: Mapping[NavKey, ViewFactory] | None = None,
         language: str | None = None,
+        on_store_change: Callable[[EmployeeSession], None] | None = None,
     ) -> None:
         super().__init__(master, fg_color=STITCH_BG_CANVAS, corner_radius=0)
         self._services = services
         self._session: EmployeeSession | None = session
         self._on_logout = on_logout
+        self._on_store_change = on_store_change
         self._factories: dict[NavKey, ViewFactory] = dict(view_factories or {})
         self._language: Language = normalize_language(language)
 
@@ -336,6 +339,8 @@ class AppShell(ctk.CTkFrame):
             corner_radius=STITCH_RADIUS,
         )
         chip.pack(side="left", padx=(20, 12))
+        if session.role == Role.ADMIN and self._on_store_change:
+            ctk.CTkButton(chip,text="⌄",width=26,height=24,command=self._choose_store).pack(side="right",padx=4)
         ctk.CTkLabel(
             chip, text="⌂", font=FONT_ST_BODY_STRONG, text_color=STITCH_CYAN, height=24
         ).pack(side="left", padx=(10, 6), pady=2)
@@ -617,6 +622,14 @@ class AppShell(ctk.CTkFrame):
     # ------------------------------------------------------------------
     # Đăng xuất
     # ------------------------------------------------------------------
+    def _choose_store(self) -> None:
+        from .background import default_runner
+        from .p1_views import StorePicker
+        from .feedback import notify_error
+        default_runner().submit(self, lambda: self._services.management.list_stores(self._session),
+            lambda stores: StorePicker(self.winfo_toplevel(),self._services,self._session,stores,self._on_store_change,self.language),
+            lambda error: notify_error(self,error))
+
     def _on_logout_clicked(self) -> None:
         if self._is_closed:
             return

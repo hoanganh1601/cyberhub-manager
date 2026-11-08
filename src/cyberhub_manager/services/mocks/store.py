@@ -60,6 +60,7 @@ def copy_account(account: Account) -> Account:
         username=account.username,
         balance=account.balance,
         status=account.status,
+        bonus_balance=account.bonus_balance,
     )
 
 
@@ -94,6 +95,13 @@ class MockDataStore:
         self.stores: dict[int, Store] = {}
         self.employees: dict[int, Employee] = {}
         self.employee_passwords: dict[str, str] = {}
+        self.employee_password_hashes = {}
+        self.customer_password_hashes = {}
+        self.promotions = {}
+        self.invoice_bonus = {}
+        self.management_audit = []
+        self.operating_stores = {}
+        self.transaction_stores = {}
         self.customers: dict[int, Customer] = {}
         self.machines: dict[int, Machine] = {}
         self.sessions: dict[int, UsageSession] = {}
@@ -263,6 +271,7 @@ class MockDataStore:
             balance=account.balance,
             customer_status=customer.status,
             account_status=account.status,
+            bonus_balance=account.bonus_balance,
         )
 
     def to_session_summary(self, session: UsageSession) -> SessionSummary:
@@ -353,6 +362,7 @@ class MockDataStore:
             total_amount=invoice.total_amount,
             status=invoice.status,
             created_at=invoice.created_at,
+            bonus_used=self.invoice_bonus.get(invoice.id,0),
         )
 
     def to_invoice_detail(self, invoice: Invoice) -> InvoiceDetail:

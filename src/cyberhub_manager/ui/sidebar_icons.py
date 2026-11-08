@@ -9,6 +9,7 @@ from .theme import STITCH_NAV_ICON_SIZE
 
 
 def sidebar_icon(name: str, color: str, size: int = STITCH_NAV_ICON_SIZE) -> ctk.CTkImage:
+    name = {"employees": "customers"}.get(name, name)
     image = Image.new("RGBA", (size * 4, size * 4))
     draw = ImageDraw.Draw(image)
     scale = size * 4 / 24
@@ -50,6 +51,18 @@ def sidebar_icon(name: str, color: str, size: int = STITCH_NAV_ICON_SIZE) -> ctk
         rect((6, 13, 9, 18), .5)
         rect((12, 9, 15, 18), .5)
         rect((18, 4, 21, 18), .5)
+    elif name == "stores":
+        rect((4, 11, 20, 22), 1)
+        line([(2, 11), (5, 3), (19, 3), (22, 11), (2, 11)])
+        line([(9, 3), (8, 11)])
+        line([(15, 3), (16, 11)])
+        rect((8, 15, 12, 22), .5)
+        rect((15, 15, 17, 18), .5)
+    elif name == "promotions":
+        rect((4, 10, 20, 22), 1)
+        rect((2, 7, 22, 11), 1)
+        line([(12, 7), (12, 22)])
+        line([(12, 7), (7, 7), (5, 4), (7, 2), (10, 3), (12, 7), (14, 3), (17, 2), (19, 4), (17, 7), (12, 7)])
     elif name == "logout":
         line([(11, 3), (4, 3), (4, 21), (11, 21)])
         line([(10, 12), (22, 12)])

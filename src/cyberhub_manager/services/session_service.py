@@ -13,6 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.services.access import operating_actor
 from cyberhub_manager.domain.dtos import (
     CheckoutPreview,
     CheckoutResult,
@@ -202,6 +203,7 @@ def _build_checkout_preview(
     machine: Machine,
     balance: int,
     at: datetime,
+    bonus_balance: int = 0,
 ) -> CheckoutPreview:
     """SES-07, SES-08: tính theo đơn giá snapshot của phiên.
 
@@ -220,6 +222,8 @@ def _build_checkout_preview(
         projected_balance=projected,
         # Số dư dự kiến âm chỉ báo số tiền cần bù; không tự kết thúc phiên.
         settlement_required=max(0, -projected),
+        bonus_balance=bonus_balance,
+        bonus_used=min(bonus_balance,cost),
     )
 
 
@@ -350,7 +354,7 @@ class SessionService:
             )
 
         return _build_checkout_preview(
-            session, customer, machine, customer.account.balance, at
+            session, customer, machine, customer.account.balance, at, customer.account.bonus_balance
         )
 
     @retry_on_transient
@@ -372,7 +376,7 @@ class SessionService:
             # Tính lại bằng giờ server và số dư đã khóa; không tin số liệu từ UI.
             ended_at = max(self._clock().replace(microsecond=0), session.started_at)
             preview = _build_checkout_preview(
-                session, customer, machine, account.balance, ended_at
+                session, customer, machine, account.balance, ended_at, account.bonus_balance
             )
             _check_settlement_amount(preview, settlement_amount)
             cost = session.complete(current.employee_id, ended_at)
@@ -380,7 +384,7 @@ class SessionService:
             # Cộng tiền bù trước để lệnh trừ phí không bao giờ làm số dư âm.
             if settlement_amount:
                 self._accounts.credit_balance(conn, account.id, settlement_amount)
-                self._accounts.insert_debt_settlement_transaction(
+                settlement_id = self._accounts.insert_debt_settlement_transaction(
                     conn,
                     code=new_transaction_code(),
                     account_id=account.id,
@@ -390,10 +394,11 @@ class SessionService:
                     method=method,
                 )
                 account.credit(settlement_amount)
+                self._accounts.tag_transaction_store(conn,settlement_id,current.store_id)
             if not self._accounts.debit_balance(conn, account.id, cost):
                 raise ConflictError(BALANCE_CHANGED)
             account.debit(cost)
-            self._accounts.insert_usage_payment_transaction(
+            usage_transaction_id = self._accounts.insert_usage_payment_transaction(
                 conn,
                 code=new_transaction_code(),
                 account_id=account.id,
@@ -401,6 +406,7 @@ class SessionService:
                 session_id=session.id,
                 usage_cost=cost,
             )
+            self._accounts.tag_transaction_store(conn,usage_transaction_id,current.store_id)
 
             if not self._sessions.complete(conn, session):
                 raise _conflict("machine_id", ALREADY_CHECKED_OUT)
@@ -416,6 +422,7 @@ class SessionService:
                 store_id=machine.store_id,
                 usage_cost=cost,
                 settlement_amount=settlement_amount,
+                **({"bonus_used":preview.bonus_used} if preview.bonus_used else {}),
             )
             # Đọc lại để created_at đúng giờ MySQL ghi.
             invoice = self._invoices.get_by_id(conn, invoice_id)
@@ -437,6 +444,7 @@ class SessionService:
             total_amount=invoice.total_amount,
             status=invoice.status,
             created_at=invoice.created_at,
+            bonus_used=preview.bonus_used,
         )
         return CheckoutResult(
             invoice=InvoiceDetail(
@@ -446,6 +454,8 @@ class SessionService:
                 billed_minutes=preview.billed_minutes,
             ),
             balance_after=account.balance,
+            bonus_used=preview.bonus_used,
+            bonus_balance_after=account.bonus_balance,
         )
 
     def _require_actor(
@@ -469,9 +479,7 @@ class SessionService:
         ):
             raise PermissionDeniedError()
 
-        current = self._auth.get_active_session_by_id(conn, actor.employee_id)
-        if current is None or current.store_id != actor.store_id:
-            raise PermissionDeniedError()
+        current = operating_actor(conn,self._auth,actor)
         # Role lấy từ DB; actor khai role khác DB (vd. STAFF tự nhận MANAGER) bị từ chối.
         if requested_actor.role != current.role or current.role not in SESSION_ROLES:
             raise PermissionDeniedError()

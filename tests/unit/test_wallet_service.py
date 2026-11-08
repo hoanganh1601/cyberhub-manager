@@ -89,6 +89,9 @@ class FakeCustomerRepository:
 
 
 class FakeAccountRepository:
+    def tag_transaction_store(self, conn, transaction_id, store_id):
+        pass
+
     def __init__(self, account):
         self.account = account
         self.locked_for_update = False
@@ -180,6 +183,7 @@ def build_wallet(customer=None, actor=STAFF, current=STAFF, with_provider=True):
         auth_repo=auth,
         actor_provider=(lambda: actor) if with_provider else None,
         transaction_factory=tx,
+        promotion_repo=SimpleNamespace(list_promotions=lambda conn, store_id: []),
     )
     return SimpleNamespace(
         service=service, customers=customers, accounts=accounts, auth=auth, tx=tx

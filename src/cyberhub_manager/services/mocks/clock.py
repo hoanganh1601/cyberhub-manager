@@ -18,7 +18,7 @@ class MockClock:
     """Mọi mock trong một bundle đọc giờ từ cùng một clock.
 
     Clock không tự chạy theo giờ thật; chỉ thay đổi khi gọi advance/set/reset.
-    """
+"""
 
     def __init__(self, start: datetime = DEFAULT_NOW) -> None:
         self._start = _to_utc(start)
@@ -43,3 +43,9 @@ class MockClock:
 
     def reset(self) -> None:
         self._now = self._start
+
+
+class RunningClock:
+    """Wall clock for interactive previews; deterministic tests keep MockClock."""
+    def now(self) -> datetime:
+        return datetime.now(timezone.utc)

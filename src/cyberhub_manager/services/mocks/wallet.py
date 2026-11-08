@@ -9,6 +9,7 @@ from cyberhub_manager.domain.enums import (
     TransactionType,
 )
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
+from cyberhub_manager.domain.p1 import quote_top_up
 
 from .base import (
     MockServiceBase,
@@ -21,6 +22,14 @@ MAX_TOP_UP_AMOUNT = 100_000_000
 
 
 class MockWalletService(MockServiceBase):
+    def preview_top_up(self, customer_id, amount, employee_id):
+        employee = self._data.get_employee(employee_id)
+        self._data.get_customer(customer_id)
+        store_id = getattr(self._data,"operating_stores",{}).get(employee_id,employee.store_id)
+        if employee.status!=EmployeeStatus.ACTIVE or str(self._data.get_store(store_id).status)!="ACTIVE":
+            raise PermissionDeniedError()
+        return quote_top_up(amount,list(self._data.promotions.values()),store_id,self._clock.now())
+
     def top_up(
         self,
         customer_id: int,
@@ -45,6 +54,7 @@ class MockWalletService(MockServiceBase):
         # Cho phép nạp cả khi tài khoản bị khóa để khách trả nợ (ví dụ KH004).
         account = customer.account
         balance_before = account.balance
+        quote = self.preview_top_up(customer_id,amount,employee_id)
         transaction = self._new_transaction(
             account_id=account.id,
             employee_id=employee.id,
@@ -54,14 +64,30 @@ class MockWalletService(MockServiceBase):
             method=method,
             at=self._clock.now(),
         )
+        bonus_transaction = None
+        bonus = None
+        if quote.bonus_amount:
+            bonus = self._new_transaction(account.id,employee.id,None,TransactionType.PROMOTION,
+                                          quote.bonus_amount,PaymentMethod.PROMOTION,self._clock.now())
+            bonus_transaction = self._data.to_transaction_summary(bonus)
+        # Prepare both records before mutating the wallet.
         account.credit(amount)
         self._data.transactions[transaction.id] = transaction
+        store_id = self._data.operating_stores.get(employee_id,employee.store_id)
+        self._data.transaction_stores[transaction.id] = store_id
+        if bonus:
+            account.credit_bonus(quote.bonus_amount)
+            self._data.transactions[bonus.id] = bonus
+            self._data.transaction_stores[bonus.id] = store_id
         return TopUpResult(
             customer_id=customer.id,
             account_id=account.id,
             balance_before=balance_before,
             balance_after=account.balance,
             transaction=self._data.to_transaction_summary(transaction),
+            bonus_amount=quote.bonus_amount,
+            bonus_balance_after=account.bonus_balance,
+            bonus_transaction=bonus_transaction,
         )
 
     def get_history(self, customer_id: int) -> list[TransactionSummary]:

@@ -24,8 +24,9 @@ class PageHeader(ctk.CTkFrame):
         copy.grid(row=0, column=0, sticky="ew")
         ctk.CTkLabel(copy, text=eyebrow, height=14, font=t.FONT_ST_LABEL_CAPS,
                      text_color=t.STITCH_TEXT_DIM).pack(anchor="w")
-        ctk.CTkLabel(copy, text=title, height=30, font=t.FONT_WORKSPACE_TITLE,
-                     text_color=t.STITCH_TEXT_STRONG).pack(anchor="w", pady=(2, 0))
+        self.title_label = ctk.CTkLabel(copy, text=title, height=30, font=t.FONT_WORKSPACE_TITLE,
+                     text_color=t.STITCH_TEXT_STRONG)
+        self.title_label.pack(anchor="w", pady=(2, 0))
         subtitle_label = ctk.CTkLabel(copy, text=subtitle, height=18, font=t.FONT_ST_BODY,
                                      text_color=t.STITCH_TEXT_MUTED, wraplength=600, justify="left", anchor="w")
         subtitle_label.pack(fill="x", pady=(2, 0))

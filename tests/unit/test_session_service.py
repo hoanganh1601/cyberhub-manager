@@ -337,6 +337,9 @@ class FakeCustomerRepository:
 
 
 class FakeAccountRepository:
+    def tag_transaction_store(self,conn,transaction_id,store_id):
+        self.db.transaction_store_id=store_id
+
     def __init__(self, db):
         self.db = db
 

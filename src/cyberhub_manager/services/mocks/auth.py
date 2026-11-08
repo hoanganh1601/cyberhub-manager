@@ -7,6 +7,7 @@ import hmac
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import EmployeeStatus
 from cyberhub_manager.domain.exceptions import AuthenticationError
+from cyberhub_manager.security import verify_password
 
 from .base import MockServiceBase, clean_text
 
@@ -28,10 +29,13 @@ class MockAuthService(MockServiceBase):
         # Password không trim; mọi trường hợp sai dùng chung một thông báo.
         if (
             employee is None
-            or expected is None
+            or expected is None and employee.id not in self._data.employee_password_hashes
             or not isinstance(password, str)
-            or not hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8"))
+            or not (verify_password(password,self._data.employee_password_hashes[employee.id])
+                    if employee.id in self._data.employee_password_hashes else
+                    hmac.compare_digest(password.encode("utf-8"), expected.encode("utf-8")))
             or employee.status != EmployeeStatus.ACTIVE
+            or str(self._data.get_store(employee.store_id).status) != "ACTIVE"
         ):
             raise AuthenticationError()
         return self._data.to_employee_session(employee)

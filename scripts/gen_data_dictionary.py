@@ -31,6 +31,8 @@ TABLES = (
     "usage_sessions",
     "account_transactions",
     "invoices",
+    "promotions",
+    "management_audit",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -152,6 +154,18 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
 }
 
 
+DESCRIPTIONS["accounts"][1].update({"bonus_balance":"Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt.","cash_balance":"Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính."})
+DESCRIPTIONS["invoices"][1]["bonus_used"] = "Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout."
+DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
+DESCRIPTIONS["promotions"] = ("Chính sách thưởng theo mốc nạp, phạm vi và thời gian.",{
+    "id":"Khóa chính.","code":"Mã chính sách duy nhất.","name":"Tên chính sách.","store_id":"Cơ sở áp dụng; NULL = toàn hệ thống.",
+    "minimum_amount":"Mốc tiền nạp tối thiểu (VND).","bonus_percent":"Phần trăm thưởng, số nguyên 0–100.",
+    "starts_at":"Bắt đầu hiệu lực (UTC, bao gồm).","ends_at":"Kết thúc hiệu lực (UTC, không bao gồm).",
+    "is_active":"Bật/tắt chính sách.","created_at":"Thời điểm tạo (UTC)."})
+DESCRIPTIONS["management_audit"] = ("Lịch sử thay đổi quản trị, không lưu mật khẩu.",{
+    "id":"Khóa chính.","employee_id":"Nhân viên thực hiện.","store_id":"Cơ sở đang vận hành.",
+    "action":"Loại thay đổi quản trị.","entity_id":"ID đối tượng được thay đổi.","created_at":"Thời điểm thay đổi (UTC)."})
+
 _KIND_ORDER = {"PRIMARY KEY": 0, "UNIQUE": 1, "FOREIGN KEY": 2, "CHECK": 3}
 
 
@@ -263,7 +277,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi khóa ngoại `RESTRICT` (không xóa dây chuyền).")
     w("")
     w("## 1. Danh sách bảng")

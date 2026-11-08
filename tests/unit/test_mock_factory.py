@@ -48,6 +48,7 @@ PC01, PC05, PC09 = 1, 5, 9
 
 # Một lời gọi hợp lệ cho mỗi operation trên dữ liệu SUCCESS.
 OPERATION_CALLS: dict[str, Callable[[ServiceBundle, MockClock], object]] = {
+    "preview_top_up": lambda b,c: b.wallet.preview_top_up(1,100000,manager(b).employee_id),
     "login": lambda b, c: b.auth.login("quanly01", DEMO_PASSWORD),
     "create_customer": lambda b, c: b.customers.create_customer(
         "Đỗ Thị Hoa", "0987654321", "dothihoa", "matkhau1"

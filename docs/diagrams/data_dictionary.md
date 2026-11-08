@@ -3,7 +3,7 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
 tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi khóa ngoại `RESTRICT` (không xóa dây chuyền).
 
 ## 1. Danh sách bảng
@@ -13,11 +13,13 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi k
 | [`stores`](#stores) | Cửa hàng net. Nhân viên, máy và hóa đơn đều thuộc một cửa hàng. | 7 |
 | [`employees`](#employees) | Nhân viên đăng nhập ứng dụng; vai trò quyết định quyền thao tác. | 10 |
 | [`customers`](#customers) | Thông tin cá nhân của khách chơi. | 7 |
-| [`accounts`](#accounts) | Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách đúng một tài khoản. | 9 |
+| [`accounts`](#accounts) | Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách đúng một tài khoản. | 11 |
 | [`machines`](#machines) | Máy trạm của cửa hàng và trạng thái hiện tại. | 9 |
 | [`usage_sessions`](#usage_sessions) | Một lần khách dùng một máy, từ lúc mở đến lúc checkout. | 13 |
-| [`account_transactions`](#account_transactions) | Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa. | 9 |
-| [`invoices`](#invoices) | Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử. | 11 |
+| [`account_transactions`](#account_transactions) | Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa. | 11 |
+| [`invoices`](#invoices) | Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử. | 12 |
+| [`promotions`](#promotions) | Chính sách thưởng theo mốc nạp, phạm vi và thời gian. | 10 |
+| [`management_audit`](#management_audit) | Lịch sử thay đổi quản trị, không lưu mật khẩu. | 6 |
 
 ## 2. Quan hệ và cardinality
 
@@ -28,11 +30,15 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 |---|:---:|---|---|---|
 | `stores` | 1 — 0..n | `employees` | `employees.store_id` → `stores.id` | Cửa hàng nhân viên làm việc. |
 | `stores` | 1 — 0..n | `machines` | `machines.store_id` → `stores.id` | Cửa hàng sở hữu máy. |
+| `stores` | 0..1 — 0..n | `account_transactions` | `account_transactions.store_id` → `stores.id` | Cơ sở ghi nhận giao dịch tại thời điểm phát sinh. |
 | `stores` | 1 — 0..n | `invoices` | `invoices.store_id` → `stores.id` | Cửa hàng; dùng cho báo cáo doanh thu. |
+| `stores` | 0..1 — 0..n | `promotions` | `promotions.store_id` → `stores.id` | Cơ sở áp dụng; NULL = toàn hệ thống. |
+| `stores` | 1 — 0..n | `management_audit` | `management_audit.store_id` → `stores.id` | Cơ sở đang vận hành. |
 | `employees` | 0..1 — 0..n | `usage_sessions` | `usage_sessions.closed_by` → `employees.id` | Nhân viên checkout; NULL khi phiên đang chạy. |
 | `employees` | 1 — 0..n | `usage_sessions` | `usage_sessions.opened_by` → `employees.id` | Nhân viên mở phiên. |
 | `employees` | 1 — 0..n | `account_transactions` | `account_transactions.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 1 — 0..n | `invoices` | `invoices.employee_id` → `employees.id` | Nhân viên checkout. |
+| `employees` | 1 — 0..n | `management_audit` | `management_audit.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `customers` | 1 — 0..1 | `accounts` | `accounts.customer_id` → `customers.id` | Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản. |
 | `customers` | 1 — 0..n | `usage_sessions` | `usage_sessions.customer_id` → `customers.id` | Khách dùng máy. |
 | `customers` | 1 — 0..n | `invoices` | `invoices.customer_id` → `customers.id` | Khách (lưu thẳng để báo cáo không phải đi qua phiên). |
@@ -40,6 +46,7 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `usage_sessions` | 0..1 — 0..n | `account_transactions` | `account_transactions.session_id` → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
 | `usage_sessions` | 1 — 0..1 | `invoices` | `invoices.session_id` → `usage_sessions.id` | Phiên được thanh toán; UNIQUE ⇒ mỗi phiên tối đa một hóa đơn. |
+| `promotions` | 0..1 — 0..n | `account_transactions` | `account_transactions.promotion_id` → `promotions.id` | Chính sách thưởng đã áp dụng, NULL với giao dịch thường. |
 
 ## 3. Chi tiết từng bảng
 
@@ -143,6 +150,8 @@ Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách
 | `status` | `varchar(20)` | Không | `ACTIVE` | — | `ACTIVE` / `LOCKED`. LOCKED không mở phiên được nhưng vẫn nạp tiền để trả nợ. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
+| `bonus_balance` | `bigint` | Không | `0` | — | Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt. |
+| `cash_balance` | `bigint` | Có | — | — | Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính. Biểu thức: `(balance - bonus_balance)` (STORED). |
 
 Ràng buộc:
 
@@ -151,6 +160,7 @@ Ràng buộc:
 - UNIQUE `uq_accounts_customer` (`customer_id`)
 - UNIQUE `uq_accounts_username` (`username`)
 - FOREIGN KEY `fk_accounts_customer` (`customer_id`) → `customers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_accounts_bonus_nonnegative`: `(bonus_balance >= 0)`
 - CHECK `chk_accounts_code_not_blank`: `(char_length(trim(code)) > 0)`
 - CHECK `chk_accounts_password_hash_not_blank`: `(char_length(trim(password_hash)) > 0)`
 - CHECK `chk_accounts_status`: `(status in ('ACTIVE','LOCKED'))`
@@ -246,6 +256,8 @@ Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` �
 | `amount` | `bigint` | Không | — | — | Số tiền có dấu (VND): dương khi cộng, âm khi `USAGE_PAYMENT`. |
 | `method` | `varchar(20)` | Không | — | — | `CASH` / `TRANSFER` / `ACCOUNT_BALANCE` / `PROMOTION`, phải hợp với `type`. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm ghi (UTC). |
+| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở ghi nhận giao dịch tại thời điểm phát sinh. |
+| `promotion_id` | `bigint unsigned` | Có | — | FK → `promotions.id` | Chính sách thưởng đã áp dụng, NULL với giao dịch thường. |
 
 Ràng buộc:
 
@@ -254,6 +266,8 @@ Ràng buộc:
 - FOREIGN KEY `fk_account_transactions_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_account_transactions_employee` (`employee_id`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_account_transactions_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_transactions_promotion` (`promotion_id`) → `promotions` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+- FOREIGN KEY `fk_transactions_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
 - CHECK `chk_account_transactions_amount`: `(((type in ('TOP_UP','PROMOTION','DEBT_SETTLEMENT')) and (amount > 0)) or ((type = 'USAGE_PAYMENT') and (amount < 0)))`
 - CHECK `chk_account_transactions_code_not_blank`: `(char_length(trim(code)) > 0)`
 - CHECK `chk_account_transactions_method`: `(method in ('CASH','TRANSFER','ACCOUNT_BALANCE','PROMOTION'))`
@@ -281,6 +295,7 @@ Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cử
 | `total_amount` | `bigint` | Không | — | — | Tổng hóa đơn; P0 luôn bằng `usage_cost` (tiền bù không cộng lần hai). |
 | `status` | `varchar(20)` | Không | `PAID` | — | `PAID` / `VOID`. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm checkout (UTC); báo cáo quy đổi sang giờ Việt Nam (UTC+7). |
+| `bonus_used` | `bigint` | Không | `0` | — | Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout. |
 
 Ràng buộc:
 
@@ -291,6 +306,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_invoices_employee` (`employee_id`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_invoices_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_invoices_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_invoices_bonus_used`: `((bonus_used >= 0) and (bonus_used <= usage_cost))`
 - CHECK `chk_invoices_code_not_blank`: `(char_length(trim(code)) > 0)`
 - CHECK `chk_invoices_money`: `((usage_cost >= 0) and (settlement_amount >= 0) and (total_amount >= 0))`
 - CHECK `chk_invoices_settlement`: `(settlement_amount <= usage_cost)`
@@ -301,3 +317,52 @@ Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_invoices_customer_created_at` (`customer_id, created_at`)
 - INDEX `idx_invoices_store_status_created_at` (`store_id, status, created_at`)
+
+### promotions
+
+Chính sách thưởng theo mốc nạp, phạm vi và thời gian.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(20)` | Không | — | UK | Mã chính sách duy nhất. |
+| `name` | `varchar(100)` | Không | — | — | Tên chính sách. |
+| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở áp dụng; NULL = toàn hệ thống. |
+| `minimum_amount` | `bigint` | Không | — | — | Mốc tiền nạp tối thiểu (VND). |
+| `bonus_percent` | `int` | Không | — | — | Phần trăm thưởng, số nguyên 0–100. |
+| `starts_at` | `datetime` | Không | — | — | Bắt đầu hiệu lực (UTC, bao gồm). |
+| `ends_at` | `datetime` | Không | — | — | Kết thúc hiệu lực (UTC, không bao gồm). |
+| `is_active` | `tinyint(1)` | Không | `1` | — | Bật/tắt chính sách. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `code` (`code`)
+- FOREIGN KEY `fk_promotions_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+- CHECK `chk_promotions_amount`: `((minimum_amount > 0) and (minimum_amount <= 100000000))`
+- CHECK `chk_promotions_percent`: `(bonus_percent between 0 and 100)`
+- CHECK `chk_promotions_period`: `(ends_at > starts_at)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `ix_promotions_eligible` (`store_id, is_active, minimum_amount`)
+
+### management_audit
+
+Lịch sử thay đổi quản trị, không lưu mật khẩu.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `employee_id` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên thực hiện. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở đang vận hành. |
+| `action` | `varchar(40)` | Không | — | — | Loại thay đổi quản trị. |
+| `entity_id` | `bigint unsigned` | Không | — | — | ID đối tượng được thay đổi. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm thay đổi (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- FOREIGN KEY `fk_management_audit_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+- FOREIGN KEY `fk_management_audit_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT

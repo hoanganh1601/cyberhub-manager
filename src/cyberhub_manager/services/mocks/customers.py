@@ -70,7 +70,10 @@ class MockCustomerService(MockServiceBase):
                 status=AccountStatus.ACTIVE,
             ),
         )
+        from cyberhub_manager.security import hash_password
+        password_hash = hash_password(password)
         self._data.customers[customer_id] = customer
+        self._data.customer_password_hashes[account_id] = password_hash
         return copy_customer(customer)
 
     def get_customer(self, customer_id: int) -> Customer:

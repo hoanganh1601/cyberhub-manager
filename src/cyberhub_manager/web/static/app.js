@@ -456,16 +456,19 @@ function setLanguage(lang) {
   } catch {
     /* Storage is optional. */
   }
+  if(state.customer) { renderPortal(); return; }
   if (state.actor) {
     renderShell();
     loadPage();
   } else renderLogin();
 }
 function renderLogin() {
+  state.customer = null;
   clearInterval(refreshTimer);
   document.title = `CyberHub Manager — ${t("login")}`;
   $("#app").innerHTML =
     `<main class="login"><section class="brand-panel"><img class="logo" src="/assets/cyberhub_logo_dark.png" alt="CyberHub Manager"><div class="eyebrow">${esc(t("intro"))}</div><h1>CyberHub <span class="cyan">Manager</span></h1><p>${esc(t("intro"))}</p><div class="features">${["f1", "f2", "f3", "f4"].map((key, i) => `<div class="row">${icon(["monitor", "wallet", "grid", "chart"][i])}${t(key)}</div>`).join("")}</div><div class="brand-foot">© ${new Date().getFullYear()} CyberHub Manager</div></section><section class="login-panel"><div class="login-top"><span class="eyebrow">${t("portal")}</span>${langControl()}</div><form id="login-form" class="login-form"><div><h1>${t("login")}</h1><p class="subtitle">${t("loginSub")}</p></div><label><span>${t("username").toUpperCase()}</span><input class="input" name="username" placeholder="${t("username")}" autocomplete="username" required maxlength="100"></label><label><span>${t("password").toUpperCase()}</span><div class="password-wrap"><input class="input" id="login-password" name="password" type="password" placeholder="${t("password")}" autocomplete="current-password" required maxlength="200"><button type="button" data-action="show-password" aria-label="${t("showPassword")}">${icon("eye")}</button></div></label><div id="login-error" class="error-box" role="alert"></div><button class="btn primary full" type="submit">${t("login")}${icon("arrow")}</button><p class="login-hint">${t("enterHint")}</p>${state.mode === "demo" ? `<div class="demo-note"><strong>${t("demo")}</strong><br>${t("demoAccounts")}<br>${t("demoPassword")}<br><small>${t("demoHint")}</small></div>` : ""}</form><footer class="login-footer"><span class="green">● ${t("ready")}</span><span>${state.mode === "demo" ? t("demo") : "MySQL · HTTPS"}</span></footer></section></main>`;
+  installP1Login();
   $("#login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -500,10 +503,13 @@ function renderShell() {
     ...(isManager() ? [["machines", "monitor"]] : []),
     ["invoices", "invoice"],
     ["revenue", "chart"],
+    ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
+    ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
   ];
   $("#app").innerHTML =
     `<div class="shell"><aside class="sidebar"><div class="brand-link"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub"><div class="brand-word">CyberHub <span class="cyan">•</span><small>MANAGER · WEB</small></div></div><nav class="nav" aria-label="CyberHub">${links.map(([key, symbol]) => `<button data-action="navigate" data-page="${key}" class="${state.page === key ? "active" : ""}" title="${t(key)}" ${state.page === key ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${t(key)}</span></button>`).join("")}</nav><div class="sidebar-foot"><span class="mode"><i class="dot"></i>${t("ready")}</span><div class="row between"><span>${state.mode === "demo" ? t("demo") : "MySQL"}</span><span>WEB · 1.0</span></div></div></aside><header class="topbar"><div class="store-chip">${icon("store")}${esc(state.actor.store_name)}</div><span class="top-time">${dt(new Date().toISOString())}</span><span class="spacer"></span>${langControl()}<div class="profile"><div class="name">${esc(state.actor.full_name)}<small>${t(state.actor.role === "STAFF" ? "staff" : state.actor.role === "ADMIN" ? "admin" : "manager")}</small></div><div class="avatar">${esc(initials(state.actor.full_name))}</div></div><button class="btn ghost small" data-action="logout" title="${t("logout")}" aria-label="${t("logout")}">${icon("logout")}</button></header><main id="workspace" class="main"></main></div>`;
   clearInterval(refreshTimer);
+  installP1Shell();
   refreshTimer = setInterval(() => {
     if (
       state.page === "dashboard" &&
@@ -536,6 +542,11 @@ async function loadPage(silent = false) {
   if (!silent) $("#workspace").innerHTML = pageHead() + loading();
   try {
     let data;
+    if (["employees","promotions","stores"].includes(page)) {
+      const [items,stores] = await Promise.all([api(`/${page}`),api('/stores')]);
+      if(seq!==state.seq) return;
+      state.items=items; state.stores=stores; renderPage(); return;
+    }
     if (page === "dashboard" || page === "machines")
       data = await api("/machines");
     else if (page === "customers") data = await api("/customers");
@@ -585,8 +596,10 @@ function renderPage() {
   else if (state.page === "customers") html = customersPage();
   else if (state.page === "machines") html = machinesPage();
   else if (state.page === "invoices") html = invoicesPage();
+  else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
   else html = revenuePage();
   $("#workspace").innerHTML = html + pageFooter();
+  decorateP1Details();
   if (focus) {
     const node = document.getElementById(focus);
     if (node) {
@@ -761,6 +774,7 @@ function modal(
   if (dialog.open) dialog.close();
   dialog.innerHTML = `<form id="modal-form" novalidate><header class="modal-header"><div><h2 id="modal-title">${t(title)}</h2>${subtitle ? `<small>${t(subtitle)}</small>` : ""}</div><button class="close" type="button" data-action="close-modal" aria-label="${t("close")}">×</button></header><div class="modal-body">${content}<div id="form-error" class="error-box" role="alert"></div></div><footer class="modal-footer"><small>CyberHub Manager</small><button class="btn small" type="button" data-action="close-modal">${t("cancel")}</button><button class="btn primary" id="modal-submit" type="submit">${t(button)}</button></footer></form>`;
   dialog.showModal();
+  if(action==="receipt") $(".modal-body",dialog).insertAdjacentHTML("beforeend",`<div class="actions"><button class="btn primary" type="button" data-p1="print" data-id="${context.invoiceId}">${t("print")}</button><button class="btn" type="button" data-p1="export" data-id="${context.invoiceId}">${t("export")}</button></div>`);
   const input = $("input:not([type=checkbox]),select", dialog);
   if (input) setTimeout(() => input.focus(), 60);
 }
@@ -828,6 +842,7 @@ async function showTopup(id, returnOpen = null) {
     "topup",
   );
   $("#modal-submit").disabled = true;
+  installTopupQuote();
 }
 function showMachineForm(id) {
   const m = state.machines.find((m) => m.machine_id === id);
@@ -887,7 +902,7 @@ async function showCheckout(id, notice = "") {
   modal(
     "checkoutTitle",
     "checkoutSub",
-    `${notice ? `<div class="notice">${esc(notice)}</div>` : ""}<div class="form-card"><div class="row between"><strong>${esc(p.session.machine_code)} · ${esc(p.session.machine_name)}</strong>${badge("IN_USE")}</div><div class="key-values" style="margin-top:14px">${kv("customer", esc(p.session.customer_name))}${kv("startAt", dt(p.session.started_at))}${kv("duration", `${p.billed_minutes} ${t("minute")}`)}${kv("hourly", money(p.session.hourly_rate))}</div></div><div class="key-values">${kv("usageCost", `<strong>${money(p.usage_cost)}</strong>`)}${kv("balance", money(p.balance_before))}${kv("settlement", `<strong class="${required ? "red" : "green"}">${money(required)}</strong>`)}${kv("balanceAfter", `<strong class="green">${money(p.projected_balance + required)}</strong>`)}</div>${required ? `<label><span>${t("paymentMethod")}</span><select name="method" id="checkout-method"><option value="CASH">${t("CASH")}</option><option value="TRANSFER">${t("TRANSFER")}</option></select></label><div id="cash-fields">${field("cash_received", "cashReceived", required, "number")}<div class="row between" style="margin-top:12px"><span>${t("change")}</span><strong class="money green" id="cash-change">${money(0)}</strong></div></div><div class="notice info">${t("transferNote")}<br>${t("settlementNote")}</div><label class="check-label"><input type="checkbox" name="received"><span>${t("receivedConfirm")}</span></label>` : `<div class="notice success">${t("noSettlement")}</div>`}`,
+    `${notice ? `<div class="notice">${esc(notice)}</div>` : ""}<div class="form-card"><div class="row between"><strong>${esc(p.session.machine_code)} · ${esc(p.session.machine_name)}</strong>${badge("IN_USE")}</div><div class="key-values" style="margin-top:14px">${kv("customer", esc(p.session.customer_name))}${kv("startAt", dt(p.session.started_at))}${kv("duration", `${p.billed_minutes} ${t("minute")}`)}${kv("hourly", money(p.session.hourly_rate))}</div></div><div class="key-values">${kv("usageCost", `<strong>${money(p.usage_cost)}</strong>`)}${kv("bonusUsed",money(p.bonus_used))}${kv("balance", money(p.balance_before))}${kv("settlement", `<strong class="${required ? "red" : "green"}">${money(required)}</strong>`)}${kv("balanceAfter", `<strong class="green">${money(p.projected_balance + required)}</strong>`)}</div>${required ? `<label><span>${t("paymentMethod")}</span><select name="method" id="checkout-method"><option value="CASH">${t("CASH")}</option><option value="TRANSFER">${t("TRANSFER")}</option></select></label><div id="cash-fields">${field("cash_received", "cashReceived", required, "number")}<div class="row between" style="margin-top:12px"><span>${t("change")}</span><strong class="money green" id="cash-change">${money(0)}</strong></div></div><div class="notice info">${t("transferNote")}<br>${t("settlementNote")}</div><label class="check-label"><input type="checkbox" name="received"><span>${t("receivedConfirm")}</span></label>` : `<div class="notice success">${t("noSettlement")}</div>`}`,
     "checkout",
     { id, preview: p },
     "checkout",
@@ -900,9 +915,9 @@ function receipt(result) {
   modal(
     "receipt",
     "receiptSub",
-    `<div class="receipt-success">${icon("check")}<strong>${t("PAID")}</strong></div><div class="form-card"><div class="key-values">${kv("invoiceCode", `<strong class="cyan">${esc(inv.invoice_code)}</strong>`)}${kv("sessionCode", esc(d.session.session_code))}${kv("machines", esc(d.session.machine_code))}${kv("customer", esc(inv.customer_name))}${kv("employee", esc(inv.employee_name))}${kv("endAt", dt(d.ended_at))}</div></div><div class="key-values">${kv("usageCost", money(inv.usage_cost))}${kv("settlement", money(inv.settlement_amount))}${kv("balanceAfter", `<strong class="green">${money(result.balance_after)}</strong>`)}</div><button class="btn" type="button" data-action="copy-invoice" data-code="${esc(inv.invoice_code)}">${icon("copy")}${t("copyCode")}</button>`,
+    `<div class="receipt-success">${icon("check")}<strong>${t("PAID")}</strong></div><div class="form-card"><div class="key-values">${kv("invoiceCode", `<strong class="cyan">${esc(inv.invoice_code)}</strong>`)}${kv("sessionCode", esc(d.session.session_code))}${kv("machines", esc(d.session.machine_code))}${kv("customer", esc(inv.customer_name))}${kv("employee", esc(inv.employee_name))}${kv("endAt", dt(d.ended_at))}</div></div><div class="key-values">${kv("usageCost", money(inv.usage_cost))}${kv("bonusUsed",money(inv.bonus_used))}${kv("settlement", money(inv.settlement_amount))}${kv("balanceAfter", `<strong class="green">${money(result.balance_after)}</strong>`)}</div><button class="btn" type="button" data-action="copy-invoice" data-code="${esc(inv.invoice_code)}">${icon("copy")}${t("copyCode")}</button>`,
     "receipt",
-    {},
+    {invoiceId:inv.invoice_id},
     "close",
   );
 }
@@ -954,6 +969,7 @@ async function submitModal(event) {
     return;
   }
   if (context.action === "topup" && !form.elements.received.checked) return;
+  if(context.action === "management" || context.action === "switch-store") { await submitManagement(context,values); return; }
   if (
     context.action === "checkout" &&
     context.preview.settlement_required > 0 &&
@@ -1181,9 +1197,11 @@ async function boot() {
   try {
     const data = await api("/session");
     state.actor = data.actor;
+    state.customer = data.customer;
     state.today = data.today;
     state.mode = data.mode;
     document.documentElement.lang = state.lang;
+    if(state.customer) { await renderPortal(); return; }
     if (state.actor) {
       renderShell();
       await loadPage();
@@ -1194,4 +1212,5 @@ async function boot() {
     $("#boot-retry").onclick = boot;
   }
 }
-boot();
+// All deferred extensions must finish loading before the first API response renders UI.
+document.addEventListener("DOMContentLoaded",boot,{once:true});

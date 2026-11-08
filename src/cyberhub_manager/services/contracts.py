@@ -32,6 +32,13 @@ from cyberhub_manager.domain.dtos import (
 )
 from cyberhub_manager.domain.enums import CustomerStatus, PaymentMethod
 from cyberhub_manager.domain.models import Customer, Machine
+from cyberhub_manager.domain.p1 import (
+    CustomerSession,
+    StoreSummary,
+    EmployeeSummary,
+    Promotion,
+    TopUpQuote,
+)
 
 
 @runtime_checkable
@@ -64,7 +71,7 @@ class CustomerServiceProtocol(Protocol):
 
     def get_customer(self, customer_id: int) -> Customer:
         """Raises:
-            NotFoundError: không tồn tại khách hàng.
+        NotFoundError: không tồn tại khách hàng.
         """
         ...
 
@@ -82,9 +89,9 @@ class CustomerServiceProtocol(Protocol):
         phone: str,
     ) -> Customer:
         """Raises:
-            NotFoundError: không tồn tại khách hàng.
-            ValidationError: full_name hoặc phone không hợp lệ.
-            ConflictError: phone đã thuộc khách hàng khác.
+        NotFoundError: không tồn tại khách hàng.
+        ValidationError: full_name hoặc phone không hợp lệ.
+        ConflictError: phone đã thuộc khách hàng khác.
         """
         ...
 
@@ -107,6 +114,12 @@ class CustomerServiceProtocol(Protocol):
 
 @runtime_checkable
 class WalletServiceProtocol(Protocol):
+    def preview_top_up(
+        self, customer_id: int, amount: int, employee_id: int
+    ) -> TopUpQuote:
+        """Quote the highest eligible promotion without changing balances."""
+        ...
+
     def top_up(
         self,
         customer_id: int,
@@ -147,9 +160,9 @@ class MachineServiceProtocol(Protocol):
         actor: EmployeeSession,
     ) -> Machine:
         """Raises:
-            PermissionDeniedError: actor không phải MANAGER/ADMIN hoặc khác cửa hàng.
-            ValidationError: code, name hoặc hourly_rate không hợp lệ.
-            ConflictError: code đã tồn tại.
+        PermissionDeniedError: actor không phải MANAGER/ADMIN hoặc khác cửa hàng.
+        ValidationError: code, name hoặc hourly_rate không hợp lệ.
+        ConflictError: code đã tồn tại.
         """
         ...
 
@@ -176,9 +189,9 @@ class MachineServiceProtocol(Protocol):
         actor: EmployeeSession,
     ) -> Machine:
         """Raises:
-            PermissionDeniedError: actor không phải MANAGER/ADMIN hoặc khác cửa hàng.
-            NotFoundError: không tồn tại máy.
-            ConflictError: máy đang IN_USE hoặc đã ngừng sử dụng.
+        PermissionDeniedError: actor không phải MANAGER/ADMIN hoặc khác cửa hàng.
+        NotFoundError: không tồn tại máy.
+        ConflictError: máy đang IN_USE hoặc đã ngừng sử dụng.
         """
         ...
 
@@ -287,8 +300,8 @@ class ReportServiceProtocol(Protocol):
 
     def get_invoice(self, invoice_id: int) -> InvoiceDetail:
         """Raises:
-            NotFoundError: không tồn tại hóa đơn.
-            PermissionDeniedError: chưa đăng nhập hợp lệ hoặc hóa đơn khác cửa hàng.
+        NotFoundError: không tồn tại hóa đơn.
+        PermissionDeniedError: chưa đăng nhập hợp lệ hoặc hóa đơn khác cửa hàng.
         """
         ...
 
@@ -307,6 +320,46 @@ class ReportServiceProtocol(Protocol):
         ...
 
 
+class ManagementServiceProtocol(Protocol):
+    def validate_actor(self, actor: EmployeeSession) -> EmployeeSession: ...
+    def list_stores(self, actor: EmployeeSession) -> list[StoreSummary]: ...
+    def switch_store(
+        self, actor: EmployeeSession, store_id: int
+    ) -> EmployeeSession: ...
+    def save_store(
+        self,
+        actor: EmployeeSession,
+        store_id: int | None,
+        code: str,
+        name: str,
+        address: str,
+        status: str = "ACTIVE",
+    ) -> StoreSummary: ...
+    def list_employees(self, actor: EmployeeSession) -> list[EmployeeSummary]: ...
+    def save_employee(
+        self,
+        actor: EmployeeSession,
+        employee_id: int | None,
+        store_id: int,
+        full_name: str,
+        username: str,
+        role: str = "STAFF",
+        status: str = "ACTIVE",
+        password: str = "",
+    ) -> EmployeeSummary: ...
+    def list_promotions(self, actor: EmployeeSession) -> list[Promotion]: ...
+    def save_promotion(
+        self, actor: EmployeeSession, policy: Promotion
+    ) -> Promotion: ...
+
+
+class PortalServiceProtocol(Protocol):
+    def login(self, username: str, password: str) -> CustomerSession: ...
+    def validate(self, principal: CustomerSession) -> CustomerSession: ...
+    def snapshot(self, principal: CustomerSession) -> dict: ...
+    def invoice(self, principal: CustomerSession, invoice_id: int) -> InvoiceDetail: ...
+
+
 @dataclass(frozen=True)
 class ServiceBundle:
     """Sáu service được tiêm vào UI; view không tự khởi tạo service."""
@@ -317,3 +370,5 @@ class ServiceBundle:
     machines: MachineServiceProtocol
     sessions: SessionServiceProtocol
     reports: ReportServiceProtocol
+    management: ManagementServiceProtocol | None = None
+    portal: PortalServiceProtocol | None = None

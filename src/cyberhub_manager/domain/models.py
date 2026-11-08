@@ -313,7 +313,7 @@ class Employee(Person):
 
 
 class Account(Entity):
-    __slots__ = ("__customer_id", "__username", "__balance", "__status")
+    __slots__ = ("__customer_id", "__username", "__balance", "__status", "__bonus_balance")
 
     def __init__(
         self,
@@ -323,12 +323,14 @@ class Account(Entity):
         username: str,
         balance: int,
         status: AccountStatus,
+        bonus_balance: int = 0,
     ) -> None:
         super().__init__(id, code)
         self.__customer_id = customer_id
         self.__username = username
         self.__balance = balance
         self.__status = status
+        self.__bonus_balance = bonus_balance
         self.validate()
 
     @property
@@ -350,6 +352,20 @@ class Account(Entity):
     def get_customer_id(self) -> int:
         return self.__customer_id
 
+    @property
+    def bonus_balance(self) -> int:
+        return self.__bonus_balance
+
+    @property
+    def cash_balance(self) -> int:
+        return self.__balance - self.__bonus_balance
+
+    def credit_bonus(self, amount: int) -> int:
+        _require_positive_amount(amount, "amount", "Tiền khuyến mãi")
+        self.__bonus_balance += amount
+        self.__balance += amount
+        return self.__balance
+
     def get_username(self) -> str:
         return self.__username
 
@@ -368,6 +384,7 @@ class Account(Entity):
         """Trừ tiền và cho phép số dư âm khi phiên đang chạy."""
 
         _require_positive_amount(amount, "amount", "Số tiền trừ")
+        self.__bonus_balance = max(0, self.__bonus_balance - amount)
         self.__balance -= amount
         return self.__balance
 
@@ -388,6 +405,8 @@ class Account(Entity):
 
     def validate(self) -> None:
         _require_positive_id(self.__customer_id, "customer_id")
+        if type(self.__bonus_balance) is not int or self.__bonus_balance < 0:
+            raise ValidationError(field_errors={"bonus_balance": "Tiền khuyến mãi không được âm"})
         username = _require_non_blank(
             self.__username, "username", "Tên đăng nhập"
         )

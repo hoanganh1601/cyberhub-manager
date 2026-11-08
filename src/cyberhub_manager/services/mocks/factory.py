@@ -20,6 +20,7 @@ def build_mock_services(
     scenario: MockScenario = MockScenario.SUCCESS,
     *,
     clock: MockClock | None = None,
+    p1: bool = False,
 ) -> ServiceBundle:
     """Tạo một bộ dữ liệu demo mới và sáu mock service dùng chung bộ dữ liệu đó.
 
@@ -33,6 +34,22 @@ def build_mock_services(
     data = MockDataStore()
     seed = seed_empty if scenario == MockScenario.EMPTY else seed_success
     seed(data, clock.now())
+    from .p1 import MemoryP1Repository
+    from cyberhub_manager.services.management_service import ManagementService
+    from cyberhub_manager.services.portal_service import PortalService
+    if p1:
+        from cyberhub_manager.domain.models import Employee, Store
+        from cyberhub_manager.domain.enums import EmployeeStatus, Role, StoreStatus
+        from cyberhub_manager.security import hash_password
+        from .fixtures import DEMO_PASSWORD
+        admin_id = data.next_id("employee")
+        data.employees[admin_id] = Employee(admin_id,data.make_code("employee",admin_id),"Quản trị CyberHub",1,"admin01",Role.ADMIN,EmployeeStatus.ACTIVE)
+        data.employee_passwords["admin01"] = DEMO_PASSWORD
+        store_id = data.next_id("store")
+        data.stores[store_id] = Store(store_id,data.make_code("store",store_id),"CyberHub Hà Đông","Hà Đông, Hà Nội",StoreStatus.ACTIVE,clock.now(),clock.now())
+        password_hash = hash_password(DEMO_PASSWORD)
+        data.customer_password_hashes.update({c.account.id:password_hash for c in data.customers.values()})
+    repo = MemoryP1Repository(data)
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
         customers=MockCustomerService(data, clock, scenario),
@@ -40,4 +57,6 @@ def build_mock_services(
         machines=MockMachineService(data, clock, scenario),
         sessions=MockSessionService(data, clock, scenario),
         reports=MockReportService(data, clock, scenario),
+        management=ManagementService(repo=repo,transaction_factory=repo.transaction),
+        portal=PortalService(repo=repo,transaction_factory=repo.transaction),
     )

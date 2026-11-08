@@ -390,6 +390,7 @@ class CheckoutDialog(StitchDialog):
             _caps(master, self._t('Chi tiết chi phí'))
             divider(master, pady=(6, 6))
         _money_row(master, self._t('Chi phí sử dụng:'), format_money(breakdown.usage_cost, language=self._t.language))
+        _money_row(master,self._t("Khuyến mãi đã sử dụng:"),format_money(self._preview.bonus_used,language=self._t.language),STITCH_CYAN)
         _money_row(master, self._t("Số dư hiện tại:"), format_money(breakdown.balance_before, language=self._t.language), STITCH_DANGER if breakdown.balance_before < 0 else STITCH_TEXT)
         _money_row(master, self._t('Trừ tài khoản:'), f"-{format_money(breakdown.from_account, language=self._t.language)}" if breakdown.from_account else "0 VND", STITCH_DANGER)
         if breakdown.settlement > 0:

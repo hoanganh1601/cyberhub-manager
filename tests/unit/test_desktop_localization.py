@@ -92,6 +92,8 @@ def assert_english(widget, context):
     preserved.update(m.name for m in machines)
     invoices = context.services.reports.list_invoices(context.session.store_id, InvoiceFilters())
     preserved.update(i.employee_name for i in invoices)
+    if context.services.management and str(context.session.role) in ("MANAGER","ADMIN"):
+        preserved.update(e.full_name for e in context.services.management.list_employees(context.session))
     leftovers = []
     for value in widget_copy(widget):
         rest = value
@@ -164,7 +166,7 @@ def test_switching_languages_rebuilds_content_and_preserves_business_names(tk_ro
                      view_factories={key: (lambda parent, context, cls=cls: cls(parent, context, runner=RUNNER))
                                      for key, cls in default_view_factories().items()}, language="vi")
     shell.pack(fill="both", expand=True)
-    for key in NavKey:
+    for key in shell.nav_keys:
         assert shell.navigate(key)
         assert shell.current_key == key
         shell.set_language("en")
@@ -193,9 +195,20 @@ def test_customer_edit_is_larger_and_centered_on_root(tk_root, en_context):
     inner.place(x=0, y=0)
     customer = en_context.services.customers.search_customers("")[0]
     dialog = CustomerDialog(inner, en_context, customer=customer, runner=RUNNER)
-    # CTk briefly withdraws native windows while applying the Windows title bar.
+    # Windows/CTk can remap the native window more than 80ms after creation.
+    # Wait for mapping and stable dimensions before measuring physical pixels.
     settled = tk.BooleanVar(tk_root, False)
-    tk_root.after(80, lambda: settled.set(True))
+    previous = [None,0,0]
+    def wait_for_layout():
+        size = dialog.winfo_width(),dialog.winfo_height()
+        previous[2] += 1
+        previous[1] = previous[1]+1 if dialog.winfo_ismapped() and size==previous[0] and size[1]>300 else 0
+        previous[0] = size
+        if previous[1]>=4 or previous[2]>=60:
+            settled.set(True)
+        else:
+            tk_root.after(25,wait_for_layout)
+    tk_root.after(25,wait_for_layout)
     tk_root.wait_variable(settled)
     tk_root.update()
     scale = dialog._get_window_scaling()

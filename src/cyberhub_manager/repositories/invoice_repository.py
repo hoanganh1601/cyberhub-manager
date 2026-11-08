@@ -22,7 +22,7 @@ _SUMMARY_SELECT = """
            i.employee_id, e.full_name AS employee_name,
            i.store_id, st.name AS store_name,
            i.usage_cost, i.settlement_amount, i.total_amount,
-           i.status, i.created_at
+           i.status, i.created_at, i.bonus_used
     FROM invoices AS i
     JOIN customers AS c ON c.id = i.customer_id
     JOIN employees AS e ON e.id = i.employee_id
@@ -46,6 +46,7 @@ def _to_summary(row: dict) -> InvoiceSummary:
         total_amount = row["total_amount"],
         status = InvoiceStatus(row["status"]),
         created_at = row["created_at"].replace(tzinfo=timezone.utc),
+        bonus_used = row.get("bonus_used",0),
     )
 
 class InvoiceRepository:
@@ -60,6 +61,7 @@ class InvoiceRepository:
         store_id: int,
         usage_cost: int,
         settlement_amount: int,
+        bonus_used: int = 0,
     ) -> int:
         """Insert a paid invoice without committing."""
         for name, value in (
@@ -70,6 +72,8 @@ class InvoiceRepository:
                 raise ValueError(f"{name} must be a non-negative integer")
         if settlement_amount > usage_cost:
             raise ValueError("Settlement cannot exceed usage cost")
+        if type(bonus_used) is not int or not 0 <= bonus_used <= usage_cost:
+            raise ValueError("Invalid bonus debit")
 
         cursor = conn.cursor()
         try:
@@ -95,6 +99,8 @@ class InvoiceRepository:
             invoice_id = cursor.lastrowid
             if not invoice_id:
                 raise RuntimeError("Failed to retrieve the new invoice ID")
+            if bonus_used:
+                cursor.execute("UPDATE invoices SET bonus_used=%s WHERE id=%s",(bonus_used,invoice_id))
             return int(invoice_id)
         finally:
             cursor.close()
