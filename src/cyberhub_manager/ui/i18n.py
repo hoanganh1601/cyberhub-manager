@@ -66,6 +66,71 @@ _TRANSLATIONS: Final[dict[str, dict[Language, str]]] = {
         "vi": "Màn hình này sẽ được kết nối ở task UI tương ứng.",
         "en": "This screen will be connected by its corresponding UI task.",
     },
+    # HA-11 — màn đăng nhập
+    "login.portal": {
+        "vi": "CỔNG VẬN HÀNH NHÂN VIÊN",
+        "en": "STAFF OPERATIONS PORTAL",
+    },
+    "login.title": {
+        "vi": "Đăng nhập",
+        "en": "Sign in",
+    },
+    "login.subtitle": {
+        "vi": "Đăng nhập để tiếp tục quản lý cửa hàng",
+        "en": "Sign in to continue managing your store",
+    },
+    "login.username": {
+        "vi": "Tên đăng nhập",
+        "en": "Username",
+    },
+    "login.username_placeholder": {
+        "vi": "Nhập tên đăng nhập",
+        "en": "Enter your username",
+    },
+    "login.password": {
+        "vi": "Mật khẩu",
+        "en": "Password",
+    },
+    "login.password_placeholder": {
+        "vi": "Nhập mật khẩu",
+        "en": "Enter your password",
+    },
+    "login.submit": {
+        "vi": "Đăng nhập  →",
+        "en": "Sign in  →",
+    },
+    "login.enter_hint": {
+        "vi": "Nhấn Enter ↵ để đăng nhập",
+        "en": "Press Enter ↵ to sign in",
+    },
+    "login.brand_tag": {
+        "vi": "PHẦN MỀM QUẢN LÝ PHÒNG MÁY",
+        "en": "INTERNET CAFE MANAGEMENT",
+    },
+    "login.brand_tagline": {
+        "vi": "Hệ thống quản lý phòng máy chuyên nghiệp",
+        "en": "Professional internet cafe management system",
+    },
+    "login.feature_sessions": {
+        "vi": "Kiểm soát phiên thời gian thực",
+        "en": "Real-time session control",
+    },
+    "login.feature_billing": {
+        "vi": "Biểu phí & nạp tiền chuẩn xác",
+        "en": "Accurate billing & top-ups",
+    },
+    "login.feature_roles": {
+        "vi": "Phân quyền theo vai trò",
+        "en": "Role-based access",
+    },
+    "login.feature_reports": {
+        "vi": "Hóa đơn & doanh thu theo ngày",
+        "en": "Daily invoices & revenue",
+    },
+    "login.copyright": {
+        "vi": "© 2026 CyberHub Manager",
+        "en": "© 2026 CyberHub Manager",
+    },    
 }
 
 
