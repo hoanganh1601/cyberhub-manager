@@ -32,6 +32,34 @@ def choice(value, key, options):
 
 
 class ManagementService:
+    def list_machine_rooms(self, actor):
+        with self._errors(), self._transaction() as conn:
+            actor = self._actor(conn, actor, Permission.OPERATE)
+            return self._repo.list_machine_rooms(conn, actor.store_id)
+
+    @retry_on_transient
+    def set_machine_room(self, actor, machine_id, room_type):
+        if (
+            type(machine_id) is not int
+            or machine_id <= 0
+            or room_type not in ("STANDARD", "VIP")
+        ):
+            raise ValidationError(
+                field_errors={"room_type": "Chọn phòng thường hoặc VIP"}
+            )
+        with self._errors(), self._transaction() as conn:
+            actor = self._actor(conn, actor, Permission.MANAGE_MACHINES)
+            machine = self._repo.room_machine(conn, machine_id)
+            if not machine or not machine["is_active"]:
+                raise NotFoundError()
+            if machine["store_id"] != actor.store_id:
+                raise PermissionDeniedError()
+            if machine["status"] == "IN_USE" or machine["active_session"]:
+                raise ConflictError("Chỉ phân phòng khi máy không có phiên đang chạy")
+            self._repo.set_machine_room(conn, machine_id, room_type)
+            self._repo.audit(conn, actor, "MACHINE_ROOM_SET", machine_id)
+            return dict(machine_id=machine_id, room_type=room_type)
+
     def validate_actor(self, actor):
         with self._errors(), self._transaction() as conn:
             return self._actor(conn, actor)

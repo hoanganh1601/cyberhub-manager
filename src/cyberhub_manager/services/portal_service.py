@@ -1,4 +1,4 @@
-"""Read-only customer access; every request revalidates account ownership and status."""
+"""Customer self-service; every request revalidates ownership, status and credentials."""
 
 from cyberhub_manager.domain.exceptions import (
     AuthenticationError,
@@ -9,10 +9,11 @@ from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.security import verify_password
 from .p1_runtime import errors
 from .portal_experience import PortalExperienceMixin
+from .portal_phase2 import PortalPhase2Mixin
 from datetime import datetime, timezone
 
 
-class PortalService(PortalExperienceMixin):
+class PortalService(PortalExperienceMixin, PortalPhase2Mixin):
     def __init__(self, repo=None, transaction_factory=None, clock=None):
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._memory = hasattr(repo, "resolve_actor")
@@ -46,26 +47,12 @@ class PortalService(PortalExperienceMixin):
             return record[0]
 
     def validate(self, principal):
-        if not isinstance(principal, CustomerSession):
-            raise PermissionDeniedError()
         with self._errors(), self._transaction() as conn:
-            record = self._repo.customer_credentials(
-                conn, account_id=principal.account_id
-            )
-            if not record or record[0].customer_id != principal.customer_id:
-                raise PermissionDeniedError()
-            return record[0]
+            return self._principal(conn, principal)
 
     def snapshot(self, principal):
-        if not isinstance(principal, CustomerSession):
-            raise PermissionDeniedError()
         with self._errors(), self._transaction() as conn:
-            record = self._repo.customer_credentials(
-                conn, account_id=principal.account_id
-            )
-            if not record or record[0].customer_id != principal.customer_id:
-                raise PermissionDeniedError()
-            return self._repo.customer_snapshot(conn, record[0])
+            return self._repo.customer_snapshot(conn, self._principal(conn, principal))
 
     def invoice(self, principal, invoice_id):
         if (
@@ -75,9 +62,6 @@ class PortalService(PortalExperienceMixin):
         ):
             raise PermissionDeniedError()
         with self._errors(), self._transaction() as conn:
-            record = self._repo.customer_credentials(
-                conn, account_id=principal.account_id
+            return self._repo.customer_invoice(
+                conn, self._principal(conn, principal), invoice_id
             )
-            if not record or record[0].customer_id != principal.customer_id:
-                raise PermissionDeniedError()
-            return self._repo.customer_invoice(conn, record[0], invoice_id)

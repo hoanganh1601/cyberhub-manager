@@ -37,7 +37,11 @@ class PortalExperienceMixin:
         if not isinstance(principal, CustomerSession):
             raise PermissionDeniedError()
         record = self._repo.customer_credentials(conn, account_id=principal.account_id)
-        if not record or record[0].customer_id != principal.customer_id:
+        if (
+            not record
+            or record[0].customer_id != principal.customer_id
+            or record[0].auth_version != principal.auth_version
+        ):
             raise PermissionDeniedError()
         return record[0]
 

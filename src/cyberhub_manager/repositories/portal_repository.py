@@ -20,6 +20,101 @@ def _db_time(value):
 
 
 class PortalRepositoryMixin:
+    def list_machine_rooms(self, conn, store_id):
+        return _rows(
+            conn,
+            "SELECT m.id AS machine_id,m.code AS machine_code,m.name,m.status,"
+            "COALESCE(r.room_type,'STANDARD') AS room_type FROM machines m "
+            "LEFT JOIN machine_room_types r ON r.machine_id=m.id "
+            "WHERE m.store_id=%s AND m.is_active=1 ORDER BY m.code",
+            (store_id,),
+        )
+
+    def room_machine(self, conn, machine_id):
+        result = _rows(
+            conn,
+            "SELECT m.id,m.store_id,m.status,m.is_active,EXISTS(SELECT 1 FROM usage_sessions u "
+            "WHERE u.machine_id=m.id AND u.status='ACTIVE') AS active_session FROM machines m WHERE m.id=%s FOR UPDATE",
+            (machine_id,),
+        )
+        return result[0] if result else None
+
+    def set_machine_room(self, conn, machine_id, room_type):
+        from .p1_repository import execute
+
+        execute(
+            conn,
+            "INSERT INTO machine_room_types(machine_id,room_type) VALUES(%s,%s) "
+            "ON DUPLICATE KEY UPDATE room_type=%s",
+            (machine_id, room_type, room_type),
+        )
+
+    def portal_room_counts(self, conn, store_id):
+        result = _rows(
+            conn,
+            "SELECT COALESCE(r.room_type,'STANDARD') AS room_type,COUNT(*) AS total,"
+            "SUM(CASE WHEN m.status='AVAILABLE' AND NOT EXISTS(SELECT 1 FROM usage_sessions u "
+            "WHERE u.machine_id=m.id AND u.status='ACTIVE') THEN 1 ELSE 0 END) AS available "
+            "FROM machines m LEFT JOIN machine_room_types r ON r.machine_id=m.id "
+            "WHERE m.store_id=%s AND m.is_active=1 GROUP BY COALESCE(r.room_type,'STANDARD')",
+            (store_id,),
+        )
+        values = {r["room_type"]: r for r in result}
+        return [
+            dict(
+                room_type=kind,
+                total=int(values.get(kind, {}).get("total", 0)),
+                available=int(values.get(kind, {}).get("available", 0)),
+            )
+            for kind in ("STANDARD", "VIP")
+        ]
+
+    def portal_usage_sessions(self, conn, principal, start, end):
+        return _rows(
+            conn,
+            "SELECT u.machine_id,m.store_id,s.name AS store_name,u.started_at,u.ended_at,u.status "
+            "FROM usage_sessions u JOIN machines m ON m.id=u.machine_id JOIN stores s ON s.id=m.store_id "
+            "WHERE u.customer_id=%s AND u.status IN ('ACTIVE','COMPLETED') "
+            "AND u.started_at < %s AND (u.ended_at IS NULL OR u.ended_at>%s) ORDER BY u.started_at,u.id",
+            (principal.customer_id, _db_time(end), _db_time(start)),
+        )
+
+    def portal_profile(self, conn, principal):
+        return _rows(
+            conn,
+            "SELECT c.code AS customer_code,c.full_name,c.phone,c.created_at AS member_since,"
+            "a.code AS account_code,a.username,a.status AS account_status "
+            "FROM customers c JOIN accounts a ON a.customer_id=c.id WHERE a.id=%s AND c.id=%s",
+            (principal.account_id, principal.customer_id),
+        )[0]
+
+    def portal_phone_taken(self, conn, principal, phone):
+        return bool(
+            _rows(
+                conn,
+                "SELECT id FROM customers WHERE phone=%s AND id<>%s LIMIT 1",
+                (phone, principal.customer_id),
+            )
+        )
+
+    def portal_update_profile(self, conn, principal, name, phone):
+        from .p1_repository import execute
+
+        execute(
+            conn,
+            "UPDATE customers SET full_name=%s,phone=%s WHERE id=%s",
+            (name, phone, principal.customer_id),
+        )
+
+    def portal_change_password(self, conn, principal, password_hash):
+        from .p1_repository import execute
+
+        execute(
+            conn,
+            "UPDATE accounts SET password_hash=%s,auth_version=auth_version+1 WHERE id=%s",
+            (password_hash, principal.account_id),
+        )
+
     def portal_totals(self, conn, principal, start, end, now):
         start, end, now = map(_db_time, (start, end, now))
         paid = _rows(

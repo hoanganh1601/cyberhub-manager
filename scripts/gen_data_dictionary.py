@@ -34,6 +34,7 @@ TABLES = (
     "promotions",
     "management_audit",
     "customer_notification_reads",
+    "machine_room_types",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -156,6 +157,7 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
 
 
 DESCRIPTIONS["accounts"][1].update({"bonus_balance":"Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt.","cash_balance":"Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính."})
+DESCRIPTIONS["accounts"][1]["auth_version"]="Phiên bản xác thực khách hàng; tăng khi đổi mật khẩu để thu hồi các phiên cũ."
 DESCRIPTIONS["invoices"][1]["bonus_used"] = "Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout."
 DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
 DESCRIPTIONS["promotions"] = ("Chính sách thưởng theo mốc nạp, phạm vi và thời gian.",{
@@ -175,6 +177,11 @@ DESCRIPTIONS["customer_notification_reads"] = (
         "read_at": "Thời điểm đánh dấu đã đọc (UTC).",
     },
 )
+
+DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.",{
+    "machine_id":"Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa.",
+    "room_type":"STANDARD = phòng thường, VIP = phòng VIP; không suy đoán từ giá giờ hoặc tên máy."
+})
 
 _KIND_ORDER = {"PRIMARY KEY": 0, "UNIQUE": 1, "FOREIGN KEY": 2, "CHECK": 3}
 
@@ -287,8 +294,8 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
-    w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi khóa ngoại `RESTRICT` (không xóa dây chuyền).")
+    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng dùng `CASCADE` khi xóa máy chưa có lịch sử.")
     w("")
     w("## 1. Danh sách bảng")
     w("")

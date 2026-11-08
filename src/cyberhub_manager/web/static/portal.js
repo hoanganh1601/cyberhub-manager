@@ -94,7 +94,8 @@ let portalQuoteSequence = 0;
 function newPortalUI(account) {
   return {account, tab:"home", days:30, store:null, amount:100000, quote:null,
     chart:"spent", chartDay:null, kind:"transactions", status:"all", from:"", to:"", page:1,
-    data:null, notices:null, history:null, unreadOnly:false};
+    data:null, notices:null, history:null, unreadOnly:false,
+    phase2:null, availabilityStore:null, availabilityCache:{}, p2Busy:false, usageDay:null};
 }
 const pcDate = value => new Intl.DateTimeFormat(state.lang === "en" ? "en-GB" : "vi-VN",
   {timeZone:"Asia/Ho_Chi_Minh",day:"2-digit",month:"2-digit"}).format(new Date(value+"T00:00:00+07:00"));
@@ -113,13 +114,18 @@ async function renderCustomerPortal(silent=false) {
     const query=new URLSearchParams({days:ui.days});if(ui.store!==null)query.set("store_id",ui.store);
     const historyQuery=new URLSearchParams({kind:ui.kind,status:ui.status,page:ui.page});
     if(ui.from)historyQuery.set("date_from",ui.from);if(ui.to)historyQuery.set("date_to",ui.to);
-    const [data,notices,history]=await Promise.all([
-      api("/portal/dashboard?"+query),api("/portal/notifications"),
+    const dashboardRequest=api("/portal/dashboard?"+query).catch(error=>{
+      if(error.field_errors?.store_id){ui.store=null;return api("/portal/dashboard?days="+ui.days);}
+      throw error;
+    });
+    const [data,notices,history,phase2]=await Promise.all([
+      dashboardRequest,api("/portal/notifications"),
       ui.tab==="history"?api("/portal/history?"+historyQuery):Promise.resolve(null),
+      dashboardRequest.then(data=>loadCustomerPhase2(ui,data.stores)),
     ]);
     if(seq!==portalSequence || state.customer!==customer)return;
-    if(silent && $(".customer-workspace input:focus,.customer-workspace select:focus"))return;
-    ui.data=data;ui.notices=notices;ui.history=history;ui.store=data.store_id;
+    if(silent && (ui.p2Busy || ui.tab==="profile"&&ui.profileDirty || ui.tab!=="availability" && $(".customer-workspace input:focus,.customer-workspace select:focus")))return;
+    ui.data=data;ui.notices=notices;ui.history=history;ui.store=data.store_id;ui.phase2=phase2;
     if(ui.quote?.promotion && !data.promotions.some(p=>JSON.stringify(p)===JSON.stringify(ui.quote.promotion)))ui.quote=null;
     drawCustomerPortal();
   } catch(error) {
@@ -132,15 +138,16 @@ async function renderCustomerPortal(silent=false) {
       const details=Object.values(error.field_errors||{});
       toast(details.length?details.join(" · "):error.message,true);
     }
+    if(ui.tab==="availability"&&ui.data&&state.customer){ui.availabilityError=true;drawCustomerPortal();}
   } finally {
     if(seq===portalSequence && state.customer)refreshTimer=setInterval(()=>{
-      if(!document.hidden && !$(".customer-workspace input:focus,.customer-workspace select:focus"))renderCustomerPortal(true);
-    },30000);
+      if(!document.hidden && !ui.p2Busy && !(ui.tab==="profile"&&ui.profileDirty) && (ui.tab==="availability" || !$(".customer-workspace input:focus,.customer-workspace select:focus")))renderCustomerPortal(true);
+    },customerPortalRefreshDelay(ui));
   }
 }
 
 function drawCustomerPortal() {
-  const d=portalUI.data, n=portalUI.notices, tabs={home:"pcHome",offers:"pcOffers",history:"pcHistory",notifications:"pcNotifications"};
+  const d=portalUI.data, n=portalUI.notices, tabs={home:"pcHome",offers:"pcOffers",history:"pcHistory",notifications:"pcNotifications",availability:"p2Availability",usage:"p2Usage",profile:"p2Profile"};
   document.title="CyberHub — "+t(tabs[portalUI.tab]);
   $("#app").innerHTML=`<div class="customer-workspace pc-workspace">
     <header class="portal-header pc-header"><a href="/customer" aria-label="CyberHub"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub Manager"></a>
@@ -148,13 +155,14 @@ function drawCustomerPortal() {
       <button class="btn pc-icon-button" data-portal="refresh" aria-label="${t("refresh")}">${icon("refresh")}</button>
       <button class="btn pc-icon-button" data-p1="portal-logout" aria-label="${t("logout")}">${icon("logout")}</button>
     </header>
-    <nav class="pc-nav" aria-label="${t("customerPortal")}">${pcButton("home","pcHome","grid")}${pcButton("offers","pcOffers","gift")}${pcButton("history","pcHistory","clock")}${pcButton("notifications","pcNotifications","bell")}</nav>
+    <nav class="pc-nav" aria-label="${t("customerPortal")}">${pcButton("home","pcHome","grid")}${pcButton("availability","p2Availability","monitor")}${pcButton("offers","pcOffers","gift")}${pcButton("usage","p2Usage","chart")}${pcButton("history","pcHistory","clock")}${pcButton("notifications","pcNotifications","bell")}${pcButton("profile","p2Profile","users")}</nav>
     <main id="pc-main">${state.mode==="demo"?`<p class="pc-demo">${icon("shield")}${t("pcDemo")}</p>`:""}
-      <header class="pc-page-head"><div>${portalUI.tab==="home"?`<p class="pc-eyebrow">CYBERHUB · ${esc(d.wallet.account_code)}</p><h1>${t("pcHello")} <span>${esc(d.profile.full_name)}</span></h1><p>${t("pcWelcome")}</p>`:`<p class="pc-eyebrow">${esc(d.profile.full_name)} · CYBERHUB</p><h1>${t(tabs[portalUI.tab])}</h1><p>${t({offers:"pcOfferSub",history:"pcHistorySub",notifications:"pcNotifySub"}[portalUI.tab])}</p>`}</div>
-        ${portalUI.tab==="home"?`<div class="segment pc-period" role="group" aria-label="${t("period")}">${[7,30,90].map(days=>`<button data-portal="days" data-days="${days}" class="${portalUI.days===days?"active":""}" aria-pressed="${portalUI.days===days}">${days} ${t("pcDays")}</button>`).join("")}</div>`:`<span class="pc-avatar">${esc(initials(d.profile.full_name))}</span>`}
+      <header class="pc-page-head"><div>${portalUI.tab==="home"?`<p class="pc-eyebrow">CYBERHUB · ${esc(d.wallet.account_code)}</p><h1>${t("pcHello")} <span>${esc(d.profile.full_name)}</span></h1><p>${t("pcWelcome")}</p>`:`<p class="pc-eyebrow">${esc(d.profile.full_name)} · CYBERHUB</p><h1>${t(tabs[portalUI.tab])}</h1><p>${t({offers:"pcOfferSub",history:"pcHistorySub",notifications:"pcNotifySub",availability:"p2AvailabilitySub",usage:"p2UsageSub",profile:"p2ProfileSub"}[portalUI.tab])}</p>`}</div>
+        ${["home","usage"].includes(portalUI.tab)?`<div class="segment pc-period" role="group" aria-label="${t("period")}">${[7,30,90].map(days=>`<button data-portal="days" data-days="${days}" class="${portalUI.days===days?"active":""}" aria-pressed="${portalUI.days===days}">${days} ${t("pcDays")}</button>`).join("")}</div>`:`<span class="pc-avatar">${esc(initials(d.profile.full_name))}</span>`}
       </header>
-      ${portalUI.tab==="home"?pcHome():portalUI.tab==="offers"?pcOffers():portalUI.tab==="history"?pcHistory():pcNotifications()}
-    </main><footer class="pc-footer"><span><i class="dot"></i>${t("pcUpdated")} ${dt(d.as_of)}</span><span>${t("pcAutomatic")} · Asia/Ho_Chi_Minh</span></footer></div>`;
+      ${portalUI.tab==="home"?pcHome():portalUI.tab==="offers"?pcOffers():portalUI.tab==="history"?pcHistory():portalUI.tab==="notifications"?pcNotifications():customerPhase2Page()}
+    </main><footer class="pc-footer"><span><i class="dot"></i>${t("pcUpdated")} ${dt(portalUI.tab==="availability"?portalUI.phase2?.as_of:d.as_of)}</span><span>${t(portalUI.tab==="availability"?"p2EveryFive":"pcAutomatic")} · Asia/Ho_Chi_Minh</span></footer></div>`;
+  const nav=$(".pc-nav"),selected=$(".pc-nav-button.selected");if(nav&&selected)nav.scrollLeft=selected.offsetLeft-nav.offsetLeft-nav.clientWidth/2+selected.clientWidth/2;
   for(const table of document.querySelectorAll('.pc-workspace table')) {
     const headers=[...table.querySelectorAll('th')].map(h=>h.textContent);
     for(const row of table.querySelectorAll('tbody tr')) [...row.children].forEach((cell,index)=>cell.dataset.label=headers[index]);
@@ -238,7 +246,7 @@ async function pcCalculateQuote() {
 document.addEventListener("click",async event=>{
   const button=event.target.closest("[data-portal]");if(!button||button.disabled)return;
   const action=button.dataset.portal;
-  if(action==="refresh"){await renderCustomerPortal();return;}
+  if(action==="refresh"){if(portalUI?.tab==="availability")portalUI.availabilityCache={};await renderCustomerPortal();return;}
   if(!portalUI||!state.customer)return;
   try {
     if(action==="tab"){portalUI.tab=button.dataset.tab;await renderCustomerPortal();}

@@ -216,16 +216,17 @@ class P1Repository(PortalRepositoryMixin):
             (actor.employee_id, actor.store_id, action, entity_id),
         )
 
-    def customer_credentials(self, conn, *, username=None, account_id=None):
+    def customer_credentials(self, conn, *, username=None, account_id=None, lock=False):
         column, value = (
             ("a.username", username) if username is not None else ("a.id", account_id)
         )
         result = rows(
             conn,
-            "SELECT c.id AS customer_id,a.id AS account_id,c.full_name,a.username,a.password_hash "
+            "SELECT c.id AS customer_id,a.id AS account_id,c.full_name,a.username,a.password_hash,a.auth_version "
             "FROM accounts a JOIN customers c ON c.id=a.customer_id WHERE "
             + column
-            + "=%s AND a.status='ACTIVE' AND c.status='ACTIVE'",
+            + "=%s AND a.status='ACTIVE' AND c.status='ACTIVE'"
+            + (" FOR UPDATE" if lock else ""),
             (value,),
         )
         if not result:
@@ -233,7 +234,11 @@ class P1Repository(PortalRepositoryMixin):
         r = result[0]
         return (
             CustomerSession(
-                r["customer_id"], r["account_id"], r["full_name"], r["username"]
+                r["customer_id"],
+                r["account_id"],
+                r["full_name"],
+                r["username"],
+                r["auth_version"],
             ),
             r["password_hash"],
         )

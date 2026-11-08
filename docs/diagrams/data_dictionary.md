@@ -3,8 +3,8 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
-tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi khóa ngoại `RESTRICT` (không xóa dây chuyền).
+Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng dùng `CASCADE` khi xóa máy chưa có lịch sử.
 
 ## 1. Danh sách bảng
 
@@ -13,7 +13,7 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi k
 | [`stores`](#stores) | Cửa hàng net. Nhân viên, máy và hóa đơn đều thuộc một cửa hàng. | 7 |
 | [`employees`](#employees) | Nhân viên đăng nhập ứng dụng; vai trò quyết định quyền thao tác. | 10 |
 | [`customers`](#customers) | Thông tin cá nhân của khách chơi. | 7 |
-| [`accounts`](#accounts) | Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách đúng một tài khoản. | 11 |
+| [`accounts`](#accounts) | Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách đúng một tài khoản. | 12 |
 | [`machines`](#machines) | Máy trạm của cửa hàng và trạng thái hiện tại. | 9 |
 | [`usage_sessions`](#usage_sessions) | Một lần khách dùng một máy, từ lúc mở đến lúc checkout. | 13 |
 | [`account_transactions`](#account_transactions) | Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa. | 11 |
@@ -21,6 +21,7 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC, mọi k
 | [`promotions`](#promotions) | Chính sách thưởng theo mốc nạp, phạm vi và thời gian. | 10 |
 | [`management_audit`](#management_audit) | Lịch sử thay đổi quản trị, không lưu mật khẩu. | 6 |
 | [`customer_notification_reads`](#customer_notification_reads) | Trạng thái đã đọc thông báo riêng của từng tài khoản khách; không thay đổi sổ tiền. | 3 |
+| [`machine_room_types`](#machine_room_types) | Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường. | 2 |
 
 ## 2. Quan hệ và cardinality
 
@@ -46,6 +47,7 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `accounts` | 1 — 0..n | `account_transactions` | `account_transactions.account_id` → `accounts.id` | Tài khoản bị thay đổi số dư. |
 | `accounts` | 1 — 0..n | `customer_notification_reads` | `customer_notification_reads.account_id` → `accounts.id` | Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
+| `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `usage_sessions` | 0..1 — 0..n | `account_transactions` | `account_transactions.session_id` → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
 | `usage_sessions` | 1 — 0..1 | `invoices` | `invoices.session_id` → `usage_sessions.id` | Phiên được thanh toán; UNIQUE ⇒ mỗi phiên tối đa một hóa đơn. |
 | `promotions` | 0..1 — 0..n | `account_transactions` | `account_transactions.promotion_id` → `promotions.id` | Chính sách thưởng đã áp dụng, NULL với giao dịch thường. |
@@ -154,6 +156,7 @@ Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
 | `bonus_balance` | `bigint` | Không | `0` | — | Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt. |
 | `cash_balance` | `bigint` | Có | — | — | Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính. Biểu thức: `(balance - bonus_balance)` (STORED). |
+| `auth_version` | `bigint unsigned` | Không | `0` | — | Phiên bản xác thực khách hàng; tăng khi đổi mật khẩu để thu hồi các phiên cũ. |
 
 Ràng buộc:
 
@@ -383,3 +386,18 @@ Ràng buộc:
 
 - PRIMARY KEY (`account_id,notification_key`)
 - FOREIGN KEY `fk_customer_notification_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+
+### machine_room_types
+
+Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `machine_id` | `bigint unsigned` | Không | — | PK, FK → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
+| `room_type` | `varchar(10)` | Không | — | — | STANDARD = phòng thường, VIP = phòng VIP; không suy đoán từ giá giờ hoặc tên máy. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`machine_id`)
+- FOREIGN KEY `fk_machine_room_machine` (`machine_id`) → `machines` (`id`) ON UPDATE RESTRICT ON DELETE CASCADE
+- CHECK `chk_machine_room_type`: `(room_type in ('STANDARD','VIP'))`

@@ -9,6 +9,9 @@ cổng khách hàng và xuất/in hóa đơn. Xem [hướng dẫn chạy và ngh
 Web khách hàng đợt 1 có dashboard, biểu đồ chi tiêu, ưu đãi theo cơ sở, lịch sử phân trang
 và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/CUSTOMER_PORTAL_PHASE1.md).
 
+Đợt 2 bổ sung số máy trống phòng thường/VIP theo cơ sở (5 phút/lần), biểu đồ sử dụng và hồ sơ/đổi mật khẩu.
+Xem [hướng dẫn đợt 2](docs/CUSTOMER_PORTAL_PHASE2.md).
+
 ## Công nghệ
 
 - Python 3.11 trở lên

@@ -600,6 +600,7 @@ function renderPage() {
   else html = revenuePage();
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
+  installRoomManagement();
   if (focus) {
     const node = document.getElementById(focus);
     if (node) {

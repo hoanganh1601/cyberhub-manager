@@ -33,6 +33,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
         self.data = data
         self.lock = RLock()
         self.notification_reads = set()
+        self.auth_versions = {}
+        self.room_types = {}
 
     @contextmanager
     def transaction(self):
@@ -48,6 +50,10 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
                     self.data.employee_passwords,
                     self.data.operating_stores,
                     self.notification_reads,
+                    self.auth_versions,
+                    self.room_types,
+                    self.data.customers,
+                    self.data.customer_password_hashes,
                 )
             )
             try:
@@ -63,6 +69,10 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
                     self.data.employee_passwords,
                     self.data.operating_stores,
                     self.notification_reads,
+                    self.auth_versions,
+                    self.room_types,
+                    self.data.customers,
+                    self.data.customer_password_hashes,
                 ) = snapshot
                 raise
 
@@ -180,7 +190,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
             (actor.employee_id, actor.store_id, action, entity_id)
         )
 
-    def customer_credentials(self, conn, *, username=None, account_id=None):
+    def customer_credentials(self, conn, *, username=None, account_id=None, lock=False):
         customer = next(
             (
                 c
@@ -208,6 +218,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
                 customer.account.id,
                 customer.full_name,
                 customer.account.username,
+                self.auth_versions.get(customer.account.id, 0),
             ),
             password_hash,
         )

@@ -7,6 +7,105 @@ VIETNAM = timezone(timedelta(hours=7))
 
 
 class MemoryPortalRepositoryMixin:
+    def list_machine_rooms(self, conn, store_id):
+        return [
+            dict(
+                machine_id=m.id,
+                machine_code=m.code,
+                name=m.name,
+                status=str(m.status),
+                room_type=self.room_types.get(m.id, "STANDARD"),
+            )
+            for m in sorted(self.data.machines.values(), key=lambda m: m.code)
+            if m.store_id == store_id and m.is_active
+        ]
+
+    def room_machine(self, conn, machine_id):
+        m = self.data.machines.get(machine_id)
+        return (
+            dict(
+                id=m.id,
+                store_id=m.store_id,
+                status=str(m.status),
+                is_active=m.is_active,
+                active_session=self.data.active_session_for_machine(m.id) is not None,
+            )
+            if m
+            else None
+        )
+
+    def set_machine_room(self, conn, machine_id, room_type):
+        self.room_types[machine_id] = room_type
+
+    def portal_room_counts(self, conn, store_id):
+        machines = [
+            m
+            for m in self.data.machines.values()
+            if m.store_id == store_id and m.is_active
+        ]
+        result = []
+        for kind in ("STANDARD", "VIP"):
+            group = [
+                m for m in machines if self.room_types.get(m.id, "STANDARD") == kind
+            ]
+            result.append(
+                dict(
+                    room_type=kind,
+                    total=len(group),
+                    available=sum(
+                        str(m.status) == "AVAILABLE"
+                        and self.data.active_session_for_machine(m.id) is None
+                        for m in group
+                    ),
+                )
+            )
+        return result
+
+    def portal_usage_sessions(self, conn, principal, start, end):
+        return [
+            dict(
+                machine_id=u.machine_id,
+                store_id=self.data.machines[u.machine_id].store_id,
+                store_name=self.data.get_store(
+                    self.data.machines[u.machine_id].store_id
+                ).name,
+                started_at=u.started_at,
+                ended_at=u.ended_at,
+                status=str(u.status),
+            )
+            for u in self.data.sessions.values()
+            if u.customer_id == principal.customer_id
+            and u.started_at < end
+            and (u.ended_at is None or u.ended_at > start)
+        ]
+
+    def portal_profile(self, conn, principal):
+        customer = self.data.get_customer(principal.customer_id)
+        return dict(
+            customer_code=customer.code,
+            full_name=customer.full_name,
+            phone=customer.phone,
+            account_code=customer.account.code,
+            username=customer.account.username,
+            account_status=str(customer.account.status),
+            member_since=None,
+        )
+
+    def portal_phone_taken(self, conn, principal, phone):
+        return any(
+            c.id != principal.customer_id and c.phone == phone
+            for c in self.data.customers.values()
+        )
+
+    def portal_update_profile(self, conn, principal, name, phone):
+        self.data.get_customer(principal.customer_id).update_profile(name, phone)
+
+    def portal_change_password(self, conn, principal, password_hash):
+        self.data.customer_password_hashes[principal.account_id] = password_hash
+        self.auth_versions[principal.account_id] = (
+            self.auth_versions.get(principal.account_id, 0) + 1
+        )
+
     def _portal_rows(self, principal, kind):
         if kind == "transactions":
             return [

@@ -60,6 +60,8 @@ def build_mock_services(
                     entity_id, code, "CyberHub " + str(percent) + "%", None,
                     threshold, percent, clock.now()-timedelta(days=1), clock.now()+timedelta(days=7))
     repo = MemoryP1Repository(data)
+    if customer_offers:
+        repo.room_types.update({machine.id:'VIP' for machine in data.machines.values() if machine.id>15})
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
         customers=MockCustomerService(data, clock, scenario),

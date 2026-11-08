@@ -218,7 +218,7 @@ def create_app(config: dict | None = None) -> Flask:
                 g.services = workspace.services
             else:
                 g.services = real_services
-            principal = CustomerSession(session["customer_id"],session["account_id"],"","")
+            principal = CustomerSession(session["customer_id"],session["account_id"],"","",session.get("customer_auth_version",0))
             g.customer = g.services.portal.validate(principal)
             return None
         if demo:
@@ -333,6 +333,10 @@ def create_app(config: dict | None = None) -> Flask:
             "date_to": "Enter a valid end date on or after the start date.",
             "page": "Select a valid page.",
             "keys": "These notifications are no longer available. Please refresh.",
+            "current_password": "Enter the correct current password.",
+            "new_password": "Use a different password with at least 6 characters and at most 72 UTF-8 bytes.",
+            "confirmation": "Enter the new password again, exactly as above.",
+            "room_type": "Choose Standard or VIP.",
         }
         return reply(
             dict(
@@ -490,7 +494,7 @@ def create_app(config: dict | None = None) -> Flask:
         session.permanent = True
         session["csrf"] = secrets.token_urlsafe(32)
         if customer_login:
-            session.update(customer_id=actor.customer_id,account_id=actor.account_id)
+            session.update(customer_id=actor.customer_id,account_id=actor.account_id,customer_auth_version=actor.auth_version)
         else:
             session.update(employee_id=actor.employee_id,store_id=actor.store_id)
         if demo:
@@ -622,6 +626,39 @@ def create_app(config: dict | None = None) -> Flask:
     @app.post("/api/portal/notifications/read")
     def portal_notifications_read():
         return reply(g.services.portal.mark_notifications_read(g.customer, body().get("keys")))
+
+    @app.get("/api/portal/availability")
+    def portal_availability():
+        return reply(g.services.portal.availability(g.customer,portal_integer("store_id")))
+
+    @app.get("/api/portal/usage")
+    def portal_usage():
+        return reply(g.services.portal.usage_analysis(g.customer,portal_integer("days",30)))
+
+    @app.get("/api/portal/profile")
+    def portal_profile():
+        return reply(g.services.portal.profile(g.customer))
+
+    @app.patch("/api/portal/profile")
+    def portal_profile_update():
+        data=body()
+        return reply(g.services.portal.update_profile(g.customer,text(data,"full_name"),text(data,"phone"),data.get("current_password")))
+
+    @app.post("/api/portal/password")
+    def portal_password():
+        data=body()
+        customer=g.services.portal.change_password(g.customer,data.get("current_password"),data.get("new_password"),data.get("confirmation"))
+        session["customer_auth_version"]=customer.auth_version
+        session["csrf"]=secrets.token_urlsafe(32)
+        return reply(dict(customer=customer,csrf_token=session["csrf"]))
+
+    @app.get("/api/machine-rooms")
+    def machine_rooms():
+        return reply(g.services.management.list_machine_rooms(g.actor))
+
+    @app.patch("/api/machines/<int:machine_id>/room-type")
+    def machine_room_update(machine_id):
+        return reply(g.services.management.set_machine_room(g.actor,machine_id,body().get("room_type")))
 
     @app.get("/api/portal/invoices/<int:invoice_id>/export")
     def portal_export(invoice_id):

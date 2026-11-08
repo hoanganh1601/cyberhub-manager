@@ -71,6 +71,7 @@ class CustomerSession:
     account_id: int
     full_name: str
     username: str
+    auth_version: int = 0
 
 
 @dataclass(frozen=True)

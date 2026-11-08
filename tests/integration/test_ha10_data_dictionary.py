@@ -29,7 +29,7 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
     content = _load_script().build_markdown(db_conn)
 
     for table in ("stores", "employees", "customers", "accounts", "machines",
-                  "usage_sessions", "account_transactions", "invoices", "promotions", "management_audit", "customer_notification_reads"):
+                  "usage_sessions", "account_transactions", "invoices", "promotions", "management_audit", "customer_notification_reads", "machine_room_types"):
         assert f"### {table}" in content
-    assert content.count(" — 0..") == 20  # P1 plus the account-owned notification read receipts
+    assert content.count(" — 0..") == 21  # includes customer read receipts and explicit machine room categories
     assert "password_hash" in content and "bcrypt" in content
