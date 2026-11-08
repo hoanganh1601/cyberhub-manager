@@ -7,8 +7,12 @@ Tài liệu cho cả nhóm khi chuẩn bị buổi nghiệm thu: chạy demo th�
 
 | Cách | Lệnh | Dùng khi |
 |---|---|---|
-| Mock (không cần MySQL, không có màn đăng nhập) | `python -m cyberhub_manager.ui.app_shell` (quản lý) · `python -m cyberhub_manager.ui.app_shell nhanvien01` (nhân viên) | Tập dượt UI, chụp evidence, demo dự phòng khi máy không có Docker |
-| App thật (MySQL + đăng nhập) | `docker compose up -d mysql` → migrate + seed theo `tests/manual/CHECKLIST.md` → `cyberhub-manager` | Buổi nghiệm thu chính thức. **Cần HA-11 xong** (xem mục 5) |
+| Desktop mock (có đăng nhập, không cần MySQL) | `python -m cyberhub_manager.app --mock` | `quanly01 / demo123` hoặc `nhanvien01 / demo123`; thêm `--lang en` để mở tiếng Anh |
+| Desktop thật (MySQL + đăng nhập) | `docker compose up -d mysql` → migrate + seed theo `tests/manual/CHECKLIST.md` → `cyberhub-manager` | Đăng nhập `demo.manager` hoặc `demo.staff01` bằng mật khẩu đã chọn khi seed |
+| Web demo | `python -m pip install -e ".[web]"` → `python -m cyberhub_manager.web --port 8000` | Mở `http://localhost:8000`; tài khoản mock giống desktop, dữ liệu tách theo phiên đăng nhập |
+
+HA-11 đã nối Login ↔ AppShell và nguồn actor đáng tin cậy cho sáu service. Web MySQL dùng chung bootstrap/nghiệp vụ;
+cấu hình triển khai trong [WEB_DEPLOYMENT.md](../WEB_DEPLOYMENT.md). Không nhầm mật khẩu seed với mật khẩu MySQL.
 
 Dữ liệu mock (đồng hồ cố định 16:00 ngày 18/10/2026 giờ Việt Nam, đơn giá 10.000 VND/giờ, số dư tối thiểu 5.000 VND):
 
@@ -36,7 +40,7 @@ Dữ liệu mock (đồng hồ cố định 16:00 ngày 18/10/2026 giờ Việt 
 9. **Doanh thu** (AC-19): 4 KPI, bảng theo ngày có "HÔM NAY" và tỷ trọng %, chỉ tính hóa đơn ĐÃ THANH TOÁN; nhập "Đến ngày" nhỏ hơn "Từ ngày" → báo lỗi ngay trên ô.
 10. **Quản lý máy** (AC-09, AC-10): thêm/sửa máy, bật/tắt bảo trì, ngừng sử dụng; máy đang dùng không bảo trì / ngừng sử dụng được.
 11. **Khóa khách** (AC-07): khóa rồi mở khóa KH001; đăng nhập bằng nhân viên → không có nút Khóa, không có menu Quản lý máy (AC-03).
-12. **Lỗi dịch vụ** (AC-20 → AC-22): trên app thật tắt MySQL (trên mock xem ảnh 18) → câu tiếng Anh an toàn + nút Retry, không traceback; bật lại và bấm Retry.
+12. **Lỗi dịch vụ** (AC-20 → AC-22): trên môi trường demo riêng, ngắt MySQL (trên mock xem ảnh 18) → thông báo an toàn theo ngôn ngữ VI/EN đang chọn + nút Thử lại, không traceback; bật lại và thử lại.
 
 Phím tắt nên giới thiệu: **Ctrl+F** tới ô tìm kiếm · **Esc** xóa ô tìm kiếm · **F5** làm mới màn hiện tại · **Ctrl+1..5** chuyển menu · trong dialog **Enter** xác nhận, **Esc** hủy.
 
@@ -71,24 +75,24 @@ tạo khách → nạp tiền → mở phiên → thanh toán → hóa đơn →
 
 ## 4. Bàn giao cho LI-09 (chạy checklist thủ công)
 
-- Chạy trên **app thật** sau khi HA-11 nối Login + service thật; ghi evidence vào `docs/screenshots/li09/AC-XX…`.
-- AC-01, AC-02 (đăng nhập) chưa có evidence UI: màn Login thuộc HA-11.
+- Chạy trên **app thật** qua entry point hiện tại; ghi người chạy/ngày/kết quả/evidence vào checklist. Automated test không thay cho ký nghiệm thu thủ công.
+- AC-01, AC-02: kiểm tra đăng nhập sai/đúng và đăng xuất; ảnh Login hiện tại ở `docs/screenshots/login-stitch/`. Chụp lại bằng bản release khi ký nghiệm thu.
 - AC-13 (trùng phiên do hai quầy) cần 2 cửa sổ app hoặc 2 máy cùng database; trên mock chỉ chụp được trường hợp chặn trước.
 - AC-21 (Retry): dừng MySQL (`docker compose stop mysql`) khi đang ở màn, rồi bật lại và bấm Retry.
 - AC-23 (double click): bấm liên tục nút xác nhận; nút chuyển "Processing…" và bị khóa tới khi xong.
-- AC-24 (ngôn ngữ): nhãn/tiêu đề tiếng Việt; Toast, hộp xác nhận và câu lỗi tiếng Anh theo quy định `ui/messages.py`.
+- AC-24 (ngôn ngữ): ở VI, nhãn, Toast, hộp xác nhận và lỗi vận hành đều tiếng Việt; ở EN đều tiếng Anh. Mã lỗi ổn định, chi tiết kỹ thuật chỉ ghi log. Kiểm tra các luồng chính sau khi đổi ngôn ngữ.
 
 ## 5. Ghi chú đóng gói cho HA-09 / HA-11
 
-- `app.py` vẫn là cửa sổ trống: HA-11 cần tạo ServiceBundle thật (truyền tham số **theo keyword** và có `actor_provider` trả session đang đăng nhập), mở LoginView, sau khi đăng nhập dựng `AppShell(root, services, session, on_logout=..., view_factories=default_view_factories())`.
-- Asset cần đóng gói: `cyberhub_manager/ui/assets/*.png` (đã khai báo trong `pyproject.toml`). Nếu thêm font, đặt `.ttf` vào `ui/assets/fonts/` và bổ sung `"fonts/*.ttf"` vào package-data — `load_stitch_fonts()` tự nạp.
+- `app.py` cung cấp entry point hoàn chỉnh. `services/bootstrap.py` tạo ServiceBundle dùng chung desktop/web, không import Tk; actor bị xóa khi đăng xuất và được đối chiếu DB ở service thật.
+- Package-data đã gồm logo PNG, font TTF và giấy phép OFL trong `ui/assets/fonts/`. Giữ các mục này khi build wheel; `load_stitch_fonts()` nạp font desktop.
 - App cần màn hình ≥ 1280×720; không chạy headless.
 - Phụ thuộc chạy: customtkinter, Pillow, mysql-connector-python, python-dotenv, bcrypt (đã có trong `pyproject.toml`).
 
 ## 6. Giới hạn đã biết (nói trước khi demo)
 
 - **Mã QR chuyển khoản là hình minh họa**, không quét được; nhân viên xác nhận thủ công (POC, không tích hợp cổng thanh toán).
-- **Font**: chưa đóng gói Space Grotesk / JetBrains Mono, app dùng font hệ thống nên chữ hơi khác ảnh Stitch.
+- **Font**: Inter / Space Grotesk đã đóng gói; việc hiển thị ở Windows với DPI 100%, 125%, 150% vẫn cần người nghiệm thu kiểm tra.
 - **Màn Hóa đơn** không có thiết kế Stitch riêng; dựng theo cùng ngôn ngữ thiết kế với màn Khách hàng.
 - Stitch có "Đã lưu trữ", "Hội viên VIP", ngày đăng ký: **không làm** vì ngoài phạm vi P0 / DTO không có dữ liệu.
 - Tài khoản bị khóa **vẫn nạp tiền được** để trả nợ (quyết định LI-04), khác câu chữ gốc trong Stitch.

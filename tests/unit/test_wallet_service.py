@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from mysql.connector import errorcode
-from mysql.connector.errors import IntegrityError, InterfaceError
+from mysql.connector.errors import DatabaseError, IntegrityError, InterfaceError
 
 from cyberhub_manager.domain.dtos import EmployeeSession, TransactionSummary
 from cyberhub_manager.domain.enums import (
@@ -23,6 +23,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Account, Customer
+from cyberhub_manager.services import db_errors
 from cyberhub_manager.services.contracts import WalletServiceProtocol
 from cyberhub_manager.services.wallet_service import (
     MAX_TOP_UP_AMOUNT,
@@ -430,3 +431,27 @@ def test_get_history_returns_newest_first(wallet):
 def test_get_history_raises_not_found_for_unknown_customer(wallet, customer_id):
     with pytest.raises(NotFoundError):
         wallet.service.get_history(customer_id)
+
+
+# ----- LI-10: chạy lại khi deadlock -----------------------------------------
+
+
+def test_top_up_retries_after_deadlock(wallet, monkeypatch):
+    monkeypatch.setattr(db_errors, "_sleep", lambda _seconds: None)
+    original = wallet.accounts.insert_top_up_transaction
+    attempts = []
+
+    def flaky(*args, **kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise DatabaseError(msg="Deadlock found", errno=errorcode.ER_LOCK_DEADLOCK)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(wallet.accounts, "insert_top_up_transaction", flaky)
+
+    result = wallet.service.top_up(CUSTOMER_ID, 10_000, PaymentMethod.CASH, EMPLOYEE_ID)
+
+    assert wallet.tx.calls == 2  # lần đầu rollback, lần hai là transaction mới
+    assert wallet.tx.rolled_back is True
+    assert len(wallet.accounts.inserted) == 1
+    assert result.balance_after == 15_000

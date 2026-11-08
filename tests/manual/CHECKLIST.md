@@ -3,6 +3,10 @@
 <!-- LI-09: Linh điều phối và xác nhận kết quả; Ngát cung cấp screenshot/evidence UI;
 Hoàng Anh hỗ trợ database/repository và kiểm tra release. -->
 
+Kết quả automated và phần còn cần ký nghiệm thu của bản tích hợp được ghi riêng tại
+[HA_LI_NG_RELEASE_AUDIT.md](../../docs/testing/HA_LI_NG_RELEASE_AUDIT.md).
+Giữ trống kết quả thủ công cho đến khi người thực hiện chạy thật và đính kèm evidence.
+
 - Người thực hiện:
 - Ngày thực hiện:
 - Commit/SHA:
@@ -131,7 +135,7 @@ Quy ước ghi kết quả:
   3. Username dưới 4 ký tự hoặc có dấu cách.
   4. Mật khẩu dưới 6 ký tự.
   5. SĐT đã có người dùng; username đã có người dùng.
-- Kết quả mong đợi: Lỗi hiện đúng tại từng trường bằng tiếng Anh; giá trị đã nhập được giữ nguyên; form không đóng; không tạo khách mới.
+- Kết quả mong đợi: Lỗi hiện đúng tại từng trường theo ngôn ngữ VI/EN đang chọn; giá trị đã nhập được giữ nguyên; form không đóng; không tạo khách mới.
 - Kết quả thực tế:
 - Trạng thái: PASS / FAIL
 - Evidence:
@@ -411,7 +415,7 @@ Quy ước ghi kết quả:
 - Các bước thực hiện:
   1. Kiểm tra tiêu đề màn hình, nhãn trường, placeholder, tiêu đề cột, sidebar.
   2. Kiểm tra Toast, nút `Confirm`/`Cancel`, các trạng thái ViewState, lỗi nghiệp vụ và lỗi từng trường.
-- Kết quả mong đợi: Bước 1 hiển thị tiếng Việt. Bước 2 hiển thị tiếng Anh, đúng `docs/03_UI_THEME.md`. Không có chuỗi lỗi tiếng Việt từ service lọt lên Toast.
+- Kết quả mong đợi: Khi chọn VI, cả bước 1 và 2 hiển thị tiếng Việt. Chuyển EN và lặp lại: cả hai bước bằng tiếng Anh, đúng `docs/03_UI_THEME.md`; giữ nguyên tên khách/cửa hàng. Không hiển thị lỗi kỹ thuật hoặc trộn ngôn ngữ.
 - Kết quả thực tế:
 - Trạng thái: PASS / FAIL
 - Evidence:

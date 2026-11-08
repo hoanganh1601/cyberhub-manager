@@ -140,23 +140,23 @@ Chốt thêm để không phải tự đoán:
 
 ## 6. Exception và cách UI hiển thị
 
-Linh tạo `ApplicationError` gốc với `code: str`, `message: str`, `field_errors: dict[str, str]` và `details: dict[str, object]`; hai dictionary mặc định rỗng. `details` chỉ chứa dữ liệu nghiệp vụ được cho phép, không chứa câu SQL, credential hay traceback.
+Linh tạo `ApplicationError` gốc với `code: str`, `message: str`, `field_errors: dict[str, str]` và `details: dict[str, object]`; hai dictionary mặc định rỗng. Dữ liệu truyền ra UI chỉ chứa thông tin nghiệp vụ được cho phép, không chứa câu SQL, credential hay traceback. Metadata chẩn đoán của LI-10 (`errno`, `db_error`) không được hiển thị hoặc serialize ra HTTP; web chỉ cho phép các chi tiết checkout `settlement_required`, `usage_cost`, `balance_before`.
 
 | Exception | Code | Ngát xử lý |
 |---|---|---|
-| `ValidationError` | `VALIDATION_ERROR` | Gắn `field_errors` bằng tiếng Anh vào đúng field (`get_field_errors_safe()`); giữ giá trị nhập, kèm Toast lỗi tổng quát |
-| `AuthenticationError` | `AUTH_INVALID_CREDENTIALS` | Toast/thông báo "Invalid username or password."; giữ username, xóa password |
+| `ValidationError` | `VALIDATION_ERROR` | Ánh xạ `field_errors` sang VI/EN đang chọn vào đúng field; giữ giá trị nhập, kèm Toast lỗi tổng quát |
+| `AuthenticationError` | `AUTH_INVALID_CREDENTIALS` | Thông báo sai thông tin đăng nhập bằng VI/EN đang chọn; giữ username, xóa password |
 | `NotFoundError` | `NOT_FOUND` | Toast thông báo tài nguyên không tồn tại, refresh danh sách |
-| `ConflictError` | `CONFLICT` | Trùng dữ liệu form: đánh dấu trường theo `field_errors` và hiện một Toast tiếng Anh. Tranh chấp máy/phiên: hiện `ConfirmDialog.alert()`, đóng dialog rồi refresh dữ liệu. Conflict khác chặn luồng: hiện dialog cảnh báo. Không hiện thêm Toast trùng nội dung dialog. |
-| `PermissionDeniedError` | `PERMISSION_DENIED` | Toast báo "You do not have permission to perform this action.", không thực hiện thay đổi |
+| `ConflictError` | `CONFLICT` | Trùng dữ liệu form: đánh dấu trường theo `field_errors`, giữ form để sửa. Tranh chấp máy/phiên: cảnh báo rồi refresh dữ liệu. Conflict khác chặn luồng: hiện dialog cảnh báo. Thông báo theo VI/EN đang chọn; không hiện Toast trùng nội dung dialog. |
+| `PermissionDeniedError` | `PERMISSION_DENIED` | Thông báo không đủ quyền bằng VI/EN đang chọn, không thực hiện thay đổi |
 | `InsufficientBalanceError` | `INSUFFICIENT_BALANCE` | Giữ dialog mở phiên, tải preview mới, hiện CTA nạp tiền |
 | `SettlementRequiredError` | `SETTLEMENT_REQUIRED` | Giữ checkout, tải preview mới, focus field tiền bù |
-| `ServiceUnavailableError` | `SERVICE_UNAVAILABLE` | ViewState.ERROR hoặc Toast "Service is temporarily unavailable.", có nút Retry |
+| `ServiceUnavailableError` | `SERVICE_UNAVAILABLE` | ViewState.ERROR hoặc Toast dịch vụ chưa khả dụng theo VI/EN, có nút Thử lại / Retry |
 
-Tên field lỗi: `full_name`, `phone`, `username`, `password`, `amount`, `method`, `code`, `name`, `hourly_rate`, `customer_id`, `machine_id`, `settlement_amount`, `date_from`, `date_to`. Ví dụ lỗi trùng SĐT: `ConflictError`, code CONFLICT, `field_errors={"phone": "Số điện thoại đã được sử dụng"}`; UI dùng `get_field_errors_safe()` ánh xạ sang "Phone number is already in use." để vừa đánh dấu field vừa hiển thị Toast lỗi tiếng Anh an toàn.
+Tên field lỗi: `full_name`, `phone`, `username`, `password`, `amount`, `method`, `code`, `name`, `hourly_rate`, `customer_id`, `machine_id`, `settlement_amount`, `date_from`, `date_to`. Ví dụ lỗi trùng SĐT: `ConflictError`, code CONFLICT, `field_errors={"phone": "Số điện thoại đã được sử dụng"}`; UI ánh xạ thành câu an toàn bằng VI hoặc EN, không hiển thị exception kỹ thuật. Desktop sản phẩm dùng `UIStrings`; helper tiếng Anh của gallery foundation không quyết định ngôn ngữ sản phẩm.
 
 **Quy chuẩn ngôn ngữ phản hồi & thông báo lỗi:**
-- Toàn bộ Toast, validation errors, dialog xác nhận (`Confirm`, `Cancel`), trạng thái ViewState (`Loading data…`, `No matching data found`, `Unable to load data`, `Retry`) đều hiển thị bằng **tiếng Anh nhất quán** thông qua module `cyberhub_manager.ui.messages`.
+- Mặc định **VI**: toàn bộ nhãn, Toast, validation, dialog xác nhận và trạng thái vận hành bằng tiếng Việt. Khi chọn **EN**, toàn bộ các phần này chuyển sang tiếng Anh; không thay đổi tên khách/cửa hàng hoặc dữ liệu nghiệp vụ.
 - Backend/service có thể trả mã lỗi hoặc chuỗi mô tả nội bộ tiếng Việt. UI không để lộ raw traceback, exception message nội bộ hay câu SQL ra màn hình người dùng.
 - `ConfirmDialog.ask(parent, ...)` phục vụ **xác nhận hành động trước khi thực thi** (thao tác nguy hiểm / tốn phí). NG-01 không tạo thêm `AlertDialog` riêng; các màn nghiệp vụ tự quyết định khi nào cần popup chặn luồng.
 
@@ -164,7 +164,7 @@ Tên field lỗi: `full_name`, `phone`, `username`, `password`, `amount`, `metho
 
 Ngát tạo `ui/state.py` chứa `ViewState`: `LOADING`, `READY`, `EMPTY`, `ERROR`. Trạng thái submit là cờ `is_submitting: bool` riêng của form, không phải trạng thái máy/tài khoản.
 
-| Trạng thái | Hiển thị (Tiếng Anh) | Hành vi |
+| Trạng thái | Hiển thị (ví dụ EN, dịch theo ngôn ngữ đang chọn) | Hành vi |
 |---|---|---|
 | LOADING | "Loading data…" | Disable action phụ thuộc dữ liệu |
 | READY | Dữ liệu thật hoặc mock hợp lệ | Enable action theo dữ liệu và quyền |

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from mysql.connector import errorcode
-from mysql.connector.errors import IntegrityError, InterfaceError
+from mysql.connector.errors import DatabaseError, IntegrityError, InterfaceError
 
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import (
@@ -37,6 +37,7 @@ from cyberhub_manager.domain.models import (
     Machine,
     UsageSession,
 )
+from cyberhub_manager.services import db_errors
 from cyberhub_manager.services.contracts import SessionServiceProtocol
 from cyberhub_manager.services.session_service import (
     ACCOUNT_LOCKED,
@@ -1331,4 +1332,69 @@ def test_guarded_update_not_applied_rolls_back(monkeypatch, repo, method, messag
         service.complete_checkout(1, actor, 0, None)
 
     assert exc_info.value.message == message
+    assert_unchanged(db, 50_000)
+
+
+# ----- LI-10: chạy lại khi deadlock -----------------------------------------
+DEADLOCK = DatabaseError(
+    msg="Deadlock found when trying to get lock; try restarting transaction",
+    errno=errorcode.ER_LOCK_DEADLOCK,
+)
+
+
+@pytest.fixture
+def no_retry_wait(monkeypatch):
+    monkeypatch.setattr(db_errors, "_sleep", lambda _seconds: None)
+
+
+def fail_once(monkeypatch, repo, name, error):
+    """Lần gọi đầu ném error, các lần sau chạy như thật."""
+
+    original = getattr(repo, name)
+    calls = []
+
+    def flaky(*args, **kwargs):
+        calls.append(name)
+        if len(calls) == 1:
+            raise error
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(repo, name, flaky)
+    return calls
+
+
+def test_open_session_retries_after_deadlock(monkeypatch, no_retry_wait):
+    service, db = build_service()
+    calls = fail_once(monkeypatch, service._sessions, "create", DEADLOCK)
+
+    service.open_session(5, 1, make_actor())
+
+    assert len(calls) == 2
+    assert (db.commits, db.rollbacks) == (1, 1)
+    assert len(db.sessions) == 1
+    assert db.machines[1].status == MachineStatus.IN_USE
+
+
+def test_checkout_retries_after_deadlock_without_double_charge(monkeypatch, no_retry_wait):
+    service, db, actor = build_complete()
+    calls = fail_once(monkeypatch, service._invoices, "create", DEADLOCK)
+
+    service.complete_checkout(1, actor, 0, None)
+
+    assert len(calls) == 2
+    assert (db.commits, db.rollbacks) == (1, 1)
+    assert len(db.invoices) == 1
+    assert len(db.transactions) == 1  # chỉ trừ tiền một lần
+    assert db.customers[5].account.balance == 49_800
+
+
+def test_persistent_deadlock_gives_up_as_service_unavailable(no_retry_wait):
+    service, db, actor = build_complete()
+    db.fail_at = ("create_invoice", DEADLOCK)
+
+    with pytest.raises(ServiceUnavailableError) as exc_info:
+        service.complete_checkout(1, actor, 0, None)
+
+    assert exc_info.value.details["db_error"] == "deadlock"
+    assert (db.commits, db.rollbacks) == (0, 3)  # 3 lần chạy, lần nào cũng rollback sạch
     assert_unchanged(db, 50_000)

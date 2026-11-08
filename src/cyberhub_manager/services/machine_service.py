@@ -11,10 +11,6 @@ from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from mysql.connector import Error as MySQLError
-from mysql.connector import errorcode
-from mysql.connector.errors import IntegrityError
-
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.domain.dtos import (
     ActiveSessionSummary,
@@ -28,7 +24,6 @@ from cyberhub_manager.domain.exceptions import (
     ConflictError,
     NotFoundError,
     PermissionDeniedError,
-    ServiceUnavailableError,
     ValidationError,
 )
 from cyberhub_manager.domain.models import Machine, UsageSession, estimate_live_usage
@@ -36,11 +31,13 @@ from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
+from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 
 MANAGER_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
 ActorProvider = Callable[[], EmployeeSession | None]
 
 CODE_TAKEN = "Mã máy đã tồn tại"
+_DUPLICATES = {"uq_machines_code": ("code", CODE_TAKEN)}
 WRONG_STORE = "Bạn chỉ được thao tác dữ liệu của cửa hàng hiện tại"
 MACHINE_NOT_FOUND = "Không tìm thấy máy"
 UPDATE_ARCHIVED = "Không thể sửa máy đã ngừng sử dụng"
@@ -142,6 +139,7 @@ class MachineService:
                 for machine in machines
             ]
 
+    @retry_on_transient
     def create_machine(
         self,
         code: str,
@@ -180,6 +178,7 @@ class MachineService:
 
             return self._get_machine(conn, machine_id)
 
+    @retry_on_transient
     def update_machine(
         self,
         machine_id: int,
@@ -226,6 +225,7 @@ class MachineService:
 
             return self._get_machine(conn, machine.id)
 
+    @retry_on_transient
     def set_maintenance(
         self,
         machine_id: int,
@@ -270,6 +270,7 @@ class MachineService:
 
             return self._get_machine(conn, machine.id)
 
+    @retry_on_transient
     def archive_machine(
         self,
         machine_id: int,
@@ -364,15 +365,9 @@ class MachineService:
     def _database(self) -> Iterator[Any]:
         """Mở transaction và đổi lỗi MySQL thành lỗi nghiệp vụ theo contract."""
 
-        try:
+        with translate_db_errors(duplicates=_DUPLICATES):
             with self._transaction() as conn:
                 yield conn
-        except IntegrityError as exc:
-            if exc.errno == errorcode.ER_DUP_ENTRY and "uq_machines_code" in str(exc):
-                raise ConflictError(CODE_TAKEN, field_errors={"code": CODE_TAKEN}) from exc
-            raise ServiceUnavailableError() from exc
-        except MySQLError as exc:
-            raise ServiceUnavailableError() from exc
 
     def _get_machine(
         self, conn: Any, machine_id: int, *, for_update: bool = False

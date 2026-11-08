@@ -212,9 +212,11 @@ def create_app(config: dict | None = None) -> Flask:
             return None
         from cyberhub_manager.database.transaction import transaction
         from cyberhub_manager.repositories.auth_repository import AuthRepository
+        from cyberhub_manager.services.db_errors import translate_db_errors
 
-        with transaction() as conn:
-            actor = AuthRepository().get_active_session_by_id(conn, employee_id)
+        with translate_db_errors():
+            with transaction() as conn:
+                actor = AuthRepository().get_active_session_by_id(conn, employee_id)
         if actor is None or actor.store_id != session.get("store_id"):
             return None
         g.services = real_services
@@ -311,7 +313,8 @@ def create_app(config: dict | None = None) -> Flask:
                         else value
                         for key, value in exc.field_errors.items()
                     },
-                    details=exc.details,
+                    details={key: value for key, value in exc.details.items()
+                             if key in {"settlement_required", "usage_cost", "balance_before"}},
                 )
             ),
             status,
@@ -319,7 +322,9 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.errorhandler(MySQLError)
     def database_error(_exc):
-        return business_error(ServiceUnavailableError())
+        from cyberhub_manager.services.db_errors import to_application_error
+
+        return business_error(to_application_error(_exc))
 
     @app.errorhandler(HTTPException)
     def http_error(exc):
