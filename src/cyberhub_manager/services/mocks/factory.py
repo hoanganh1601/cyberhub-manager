@@ -35,6 +35,8 @@ def build_mock_services(
     data = MockDataStore()
     seed = seed_empty if scenario == MockScenario.EMPTY else seed_success
     seed(data, clock.now())
+    from cyberhub_manager.domain.loyalty import invoice_award
+    data.invoice_loyalty.update({i.id:invoice_award(i.usage_cost,data.invoice_bonus.get(i.id,0),data.loyalty_settings) for i in data.invoices.values()})
     from .p1 import MemoryP1Repository
     from cyberhub_manager.services.management_service import ManagementService
     from cyberhub_manager.services.portal_service import PortalService
@@ -60,6 +62,12 @@ def build_mock_services(
                     entity_id, code, "CyberHub " + str(percent) + "%", None,
                     threshold, percent, clock.now()-timedelta(days=1), clock.now()+timedelta(days=7))
     repo = MemoryP1Repository(data)
+    if customer_offers and data.customers:
+        from cyberhub_manager.domain.p1 import Promotion
+        from datetime import timedelta
+        entity_id=data.next_id('promotion')
+        data.promotions[entity_id]=Promotion(entity_id,'DEMO-PERSONAL','Ưu đãi thành viên CyberHub',None,300000,25,
+            clock.now()-timedelta(days=1),clock.now()+timedelta(days=7),True,'BRONZE',5,1)
     if customer_offers:
         repo.room_types.update({machine.id:'VIP' for machine in data.machines.values() if machine.id>15})
     return ServiceBundle(

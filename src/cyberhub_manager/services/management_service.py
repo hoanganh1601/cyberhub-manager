@@ -15,6 +15,7 @@ from cyberhub_manager.domain.p1 import Permission, Promotion, can
 from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.security import hash_password
 from .p1_runtime import errors, retry_on_transient
+from cyberhub_manager.domain.loyalty import TIERS, LoyaltySettings
 
 
 def text(value, key, minimum=1, maximum=100):
@@ -32,6 +33,55 @@ def choice(value, key, options):
 
 
 class ManagementService:
+    def loyalty_settings(self, actor):
+        with self._errors(), self._transaction() as conn:
+            self._actor(conn, actor)
+            return self._repo.loyalty_settings(conn)
+
+    @retry_on_transient
+    def update_loyalty_settings(self, actor, settings):
+        if (
+            not isinstance(settings, LoyaltySettings)
+            or type(settings.enabled) is not bool
+        ):
+            raise ValidationError(field_errors={"enabled": "Trạng thái không hợp lệ"})
+        if (
+            type(settings.unit_amount) is not int
+            or not 1 <= settings.unit_amount <= 100_000_000
+        ):
+            raise ValidationError(
+                field_errors={"unit_amount": "Nhập số tiền từ 1 đến 100.000.000 VND"}
+            )
+        if (
+            any(
+                type(x) is not int
+                for x in (
+                    settings.silver_spend,
+                    settings.gold_spend,
+                    settings.platinum_spend,
+                )
+            )
+            or not 0
+            < settings.silver_spend
+            < settings.gold_spend
+            < settings.platinum_spend
+            <= 1_000_000_000_000
+        ):
+            raise ValidationError(
+                field_errors={"platinum_spend": "Các mốc hạng phải tăng dần, lớn hơn 0"}
+            )
+        with self._errors(), self._transaction() as conn:
+            actor = self._actor(conn, actor)
+            if actor.role != Role.ADMIN:
+                raise PermissionDeniedError()
+            current = self._repo.loyalty_settings(conn, lock=True)
+            if type(settings.version) is not int or settings.version != current.version:
+                raise ConflictError("Cấu hình đã thay đổi. Vui lòng tải lại")
+            result = replace(settings, version=current.version + 1)
+            self._repo.save_loyalty_settings(conn, result)
+            self._repo.audit(conn, actor, "LOYALTY_SETTINGS_SAVE", 1)
+            return result
+
     def list_machine_rooms(self, actor):
         with self._errors(), self._transaction() as conn:
             actor = self._actor(conn, actor, Permission.OPERATE)
@@ -302,8 +352,31 @@ class ManagementService:
             )
         if type(policy.is_active) is not bool:
             raise ValidationError(field_errors={"is_active": "Trạng thái không hợp lệ"})
+        if (
+            policy.minimum_tier not in TIERS
+            or type(policy.minimum_points) is not int
+            or not 0 <= policy.minimum_points <= 1_000_000_000
+        ):
+            raise ValidationError(
+                field_errors={"minimum_points": "Hạng hoặc mốc điểm không hợp lệ"}
+            )
+        if policy.target_customer_id is not None and (
+            type(policy.target_customer_id) is not int or policy.target_customer_id <= 0
+        ):
+            raise ValidationError(
+                field_errors={"target_customer_id": "Khách hàng không hợp lệ"}
+            )
         with self._errors(), self._transaction() as conn:
             actor = self._actor(conn, actor, Permission.MANAGE_PROMOTIONS)
+            if (
+                policy.target_customer_id is not None
+                and not self._repo.target_customer_exists(
+                    conn, policy.target_customer_id
+                )
+            ):
+                raise ValidationError(
+                    field_errors={"target_customer_id": "Không tìm thấy khách hàng"}
+                )
             policies = self._repo.list_promotions(conn, lock=True)
             old = next((p for p in policies if p.id == policy.id), None)
             if policy.id and old is None:
@@ -332,6 +405,12 @@ class ManagementService:
                     and policy.is_active
                     and p.store_id == policy.store_id
                     and p.minimum_amount == policy.minimum_amount
+                    and (p.minimum_tier, p.minimum_points, p.target_customer_id)
+                    == (
+                        policy.minimum_tier,
+                        policy.minimum_points,
+                        policy.target_customer_id,
+                    )
                     and p.starts_at < policy.ends_at
                     and policy.starts_at < p.ends_at
                 ):

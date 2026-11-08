@@ -3,8 +3,8 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
-tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng dùng `CASCADE` khi xóa máy chưa có lịch sử.
+Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` + `sql/006_customer_membership_avatar.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.
 
 ## 1. Danh sách bảng
 
@@ -17,11 +17,13 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`machines`](#machines) | Máy trạm của cửa hàng và trạng thái hiện tại. | 9 |
 | [`usage_sessions`](#usage_sessions) | Một lần khách dùng một máy, từ lúc mở đến lúc checkout. | 13 |
 | [`account_transactions`](#account_transactions) | Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa. | 11 |
-| [`invoices`](#invoices) | Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử. | 12 |
-| [`promotions`](#promotions) | Chính sách thưởng theo mốc nạp, phạm vi và thời gian. | 10 |
+| [`invoices`](#invoices) | Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử. | 16 |
+| [`promotions`](#promotions) | Chính sách thưởng theo mốc nạp, phạm vi và thời gian. | 13 |
 | [`management_audit`](#management_audit) | Lịch sử thay đổi quản trị, không lưu mật khẩu. | 6 |
 | [`customer_notification_reads`](#customer_notification_reads) | Trạng thái đã đọc thông báo riêng của từng tài khoản khách; không thay đổi sổ tiền. | 3 |
 | [`machine_room_types`](#machine_room_types) | Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường. | 2 |
+| [`loyalty_settings`](#loyalty_settings) | Cấu hình toàn hệ thống, một dòng id=1; chỉ Admin được sửa, có version chống ghi đè. | 8 |
+| [`customer_avatars`](#customer_avatars) | Ảnh đại diện riêng theo tài khoản; WebP 512×512 đã chuẩn hóa, không giữ tên file hay metadata gốc. | 4 |
 
 ## 2. Quan hệ và cardinality
 
@@ -44,8 +46,10 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `customers` | 1 — 0..1 | `accounts` | `accounts.customer_id` → `customers.id` | Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản. |
 | `customers` | 1 — 0..n | `usage_sessions` | `usage_sessions.customer_id` → `customers.id` | Khách dùng máy. |
 | `customers` | 1 — 0..n | `invoices` | `invoices.customer_id` → `customers.id` | Khách (lưu thẳng để báo cáo không phải đi qua phiên). |
+| `customers` | 0..1 — 0..n | `promotions` | `promotions.target_customer_id` → `customers.id` | Khách nhận riêng; NULL áp dụng cho mọi khách đủ các điều kiện còn lại. |
 | `accounts` | 1 — 0..n | `account_transactions` | `account_transactions.account_id` → `accounts.id` | Tài khoản bị thay đổi số dư. |
 | `accounts` | 1 — 0..n | `customer_notification_reads` | `customer_notification_reads.account_id` → `accounts.id` | Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính. |
+| `accounts` | 1 — 0..1 | `customer_avatars` | `customer_avatars.account_id` → `accounts.id` | Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `usage_sessions` | 0..1 — 0..n | `account_transactions` | `account_transactions.session_id` → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
@@ -301,6 +305,10 @@ Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cử
 | `status` | `varchar(20)` | Không | `PAID` | — | `PAID` / `VOID`. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm checkout (UTC); báo cáo quy đổi sang giờ Việt Nam (UTC+7). |
 | `bonus_used` | `bigint` | Không | `0` | — | Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout. |
+| `loyalty_eligible_amount` | `bigint` | Không | `0` | — | Phí trả bằng tiền chính/tiền bù (không gồm bonus_used), chụp khi lập hóa đơn; chỉ cộng PAID vào xét hạng. |
+| `loyalty_points` | `bigint` | Không | `0` | — | Điểm chụp lúc lập hóa đơn; chỉ cộng PAID, VOID có hiệu lực 0 điểm. Không đổi ra tiền. |
+| `loyalty_unit` | `bigint` | Không | `10000` | — | Số VND hợp lệ cho một điểm tại thời điểm hóa đơn, không đổi khi cập nhật cấu hình. |
+| `loyalty_rule_version` | `int unsigned` | Không | `1` | — | Phiên bản cấu hình tại lúc lập hóa đơn. |
 
 Ràng buộc:
 
@@ -311,6 +319,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_invoices_employee` (`employee_id`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_invoices_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_invoices_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_invoice_loyalty`: `((loyalty_eligible_amount >= 0) and (loyalty_points >= 0) and (loyalty_unit > 0))`
 - CHECK `chk_invoices_bonus_used`: `((bonus_used >= 0) and (bonus_used <= usage_cost))`
 - CHECK `chk_invoices_code_not_blank`: `(char_length(trim(code)) > 0)`
 - CHECK `chk_invoices_money`: `((usage_cost >= 0) and (settlement_amount >= 0) and (total_amount >= 0))`
@@ -339,12 +348,18 @@ Chính sách thưởng theo mốc nạp, phạm vi và thời gian.
 | `ends_at` | `datetime` | Không | — | — | Kết thúc hiệu lực (UTC, không bao gồm). |
 | `is_active` | `tinyint(1)` | Không | `1` | — | Bật/tắt chính sách. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+| `minimum_tier` | `varchar(10)` | Không | `BRONZE` | — | Hạng tối thiểu (BRONZE/SILVER/GOLD/PLATINUM); mặc định BRONZE. |
+| `minimum_points` | `bigint` | Không | `0` | — | Điểm được tính tối thiểu để đủ đối tượng ưu đãi; không tiêu điểm. |
+| `target_customer_id` | `bigint unsigned` | Có | — | FK → `customers.id` | Khách nhận riêng; NULL áp dụng cho mọi khách đủ các điều kiện còn lại. |
 
 Ràng buộc:
 
 - PRIMARY KEY (`id`)
 - UNIQUE `code` (`code`)
+- FOREIGN KEY `fk_promotion_target_customer` (`target_customer_id`) → `customers` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
 - FOREIGN KEY `fk_promotions_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+- CHECK `chk_promotion_points`: `((minimum_points >= 0) and (minimum_points <= 1000000000))`
+- CHECK `chk_promotion_tier`: `(minimum_tier in ('BRONZE','SILVER','GOLD','PLATINUM'))`
 - CHECK `chk_promotions_amount`: `((minimum_amount > 0) and (minimum_amount <= 100000000))`
 - CHECK `chk_promotions_percent`: `(bonus_percent between 0 and 100)`
 - CHECK `chk_promotions_period`: `(ends_at > starts_at)`
@@ -401,3 +416,41 @@ Ràng buộc:
 - PRIMARY KEY (`machine_id`)
 - FOREIGN KEY `fk_machine_room_machine` (`machine_id`) → `machines` (`id`) ON UPDATE RESTRICT ON DELETE CASCADE
 - CHECK `chk_machine_room_type`: `(room_type in ('STANDARD','VIP'))`
+
+### loyalty_settings
+
+Cấu hình toàn hệ thống, một dòng id=1; chỉ Admin được sửa, có version chống ghi đè.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `tinyint unsigned` | Không | — | PK | Singleton id=1. |
+| `enabled` | `tinyint(1)` | Không | `1` | — | Bật/tắt tích điểm cho hóa đơn mới, không xóa điểm cũ hoặc ngừng xét chi tiêu hạng. |
+| `unit_amount` | `bigint` | Không | `10000` | — | VND hợp lệ / 1 điểm, làm tròn xuống theo từng hóa đơn. |
+| `silver_spend` | `bigint` | Không | `1000000` | — | Mốc chi tiêu hợp lệ hạng Bạc. |
+| `gold_spend` | `bigint` | Không | `3000000` | — | Mốc chi tiêu hợp lệ hạng Vàng. |
+| `platinum_spend` | `bigint` | Không | `5000000` | — | Mốc chi tiêu hợp lệ hạng Kim cương (mã PLATINUM). |
+| `version` | `int unsigned` | Không | `1` | — | Tăng sau mỗi lần cập nhật, được chụp vào hóa đơn mới. |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật UTC. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- CHECK `chk_loyalty_singleton`: `(id = 1)`
+- CHECK `chk_loyalty_tiers`: `((silver_spend > 0) and (gold_spend > silver_spend) and (platinum_spend > gold_spend))`
+- CHECK `chk_loyalty_unit`: `((unit_amount > 0) and (unit_amount <= 100000000))`
+
+### customer_avatars
+
+Ảnh đại diện riêng theo tài khoản; WebP 512×512 đã chuẩn hóa, không giữ tên file hay metadata gốc.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `account_id` | `bigint unsigned` | Không | — | PK, FK → `accounts.id` | Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa. |
+| `image_data` | `mediumblob` | Không | — | — | Nội dung WebP tối đa 300.000 byte sau chuẩn hóa. |
+| `digest` | `char(64)` | Không | — | — | SHA-256 của nội dung ảnh chuẩn hóa. |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật UTC. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`account_id`)
+- FOREIGN KEY `fk_customer_avatar_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE

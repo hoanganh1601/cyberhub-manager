@@ -5,6 +5,7 @@ from hashlib import sha256
 
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
 from cyberhub_manager.domain.p1 import CustomerSession, quote_top_up
+from cyberhub_manager.domain.loyalty import audience_matches
 
 VIETNAM = timezone(timedelta(hours=7))
 HISTORY_STATUSES = {
@@ -18,16 +19,19 @@ def local_midnight(value):
     return datetime.combine(value, time.min, VIETNAM).astimezone(timezone.utc)
 
 
-def effective_policies(policies, store_id, now):
+def effective_policies(policies, store_id, now, customer_id=None, member=None):
     active = [
         p
         for p in policies
         if p.is_active
         and p.store_id in (None, store_id)
         and p.starts_at <= now < p.ends_at
+        and audience_matches(p, customer_id, member)
     ]
     return [
-        quote_top_up(amount, active, store_id, now).promotion
+        quote_top_up(
+            amount, active, store_id, now, customer_id=customer_id, member=member
+        ).promotion
         for amount in sorted({p.minimum_amount for p in active})
     ]
 
@@ -45,7 +49,7 @@ class PortalExperienceMixin:
             raise PermissionDeniedError()
         return record[0]
 
-    def _offers(self, conn, now, store_id=None):
+    def _offers(self, conn, now, store_id=None, principal=None):
         stores = [s for s in self._repo.list_stores(conn) if s.status == "ACTIVE"]
         if store_id is not None and (
             type(store_id) is not int or store_id not in {s.id for s in stores}
@@ -58,7 +62,22 @@ class PortalExperienceMixin:
             self._repo.list_promotions(conn, selected) if selected is not None else []
         )
         # Show the exact policy that the wallet would apply at each threshold.
-        return stores, selected, effective_policies(policies, selected, now)
+        member = (
+            self._repo.loyalty_summary(conn, principal.customer_id)
+            if principal
+            else None
+        )
+        return (
+            stores,
+            selected,
+            effective_policies(
+                policies,
+                selected,
+                now,
+                principal.customer_id if principal else None,
+                member,
+            ),
+        )
 
     def dashboard(self, principal, days=30, store_id=None):
         if type(days) is not int or days not in (7, 30, 90):
@@ -106,7 +125,7 @@ class PortalExperienceMixin:
                         "remaining_minutes": max(0, projected * 60 // u["hourly_rate"]),
                     }
                 )
-            stores, selected, policies = self._offers(conn, now, store_id)
+            stores, selected, policies = self._offers(conn, now, store_id, principal)
             return dict(
                 profile=principal,
                 wallet=snapshot["wallet"],
@@ -122,6 +141,8 @@ class PortalExperienceMixin:
                 stores=stores,
                 store_id=selected,
                 promotions=policies,
+                member=self._repo.loyalty_summary(conn, principal.customer_id),
+                avatar_version=self._repo.avatar_metadata(conn, principal.account_id),
             )
 
     def history(
@@ -164,10 +185,17 @@ class PortalExperienceMixin:
         with self._errors(), self._transaction() as conn:
             self._principal(conn, principal)
             now = self._clock()
-            _, selected, policies = self._offers(conn, now, store_id)
+            _, selected, policies = self._offers(conn, now, store_id, principal)
             if selected is None or store_id is None:
                 raise ValidationError(field_errors={"store_id": "Vui lòng chọn cơ sở"})
-            quote = quote_top_up(amount, policies, selected, now)
+            quote = quote_top_up(
+                amount,
+                policies,
+                selected,
+                now,
+                customer_id=principal.customer_id,
+                member=self._repo.loyalty_summary(conn, principal.customer_id),
+            )
             higher = next((p for p in policies if p.minimum_amount > amount), None)
             return dict(
                 amount=quote.amount,
@@ -199,12 +227,15 @@ class PortalExperienceMixin:
         # All active, effective offers across locations; one notification per policy revision.
         offers = {}
         policies = self._repo.list_promotions(conn)
+        member = self._repo.loyalty_summary(conn, principal.customer_id)
         for store in stores:
-            for p in effective_policies(policies, store.id, now):
+            for p in effective_policies(
+                policies, store.id, now, principal.customer_id, member
+            ):
                 offers[p.id] = p
         for p in offers.values():
             revision = sha256(
-                f"{p.code}|{p.name}|{p.store_id}|{p.minimum_amount}|{p.bonus_percent}|{p.starts_at}|{p.ends_at}".encode()
+                f"{p.code}|{p.name}|{p.store_id}|{p.minimum_amount}|{p.bonus_percent}|{p.starts_at}|{p.ends_at}|{p.minimum_tier}|{p.minimum_points}|{p.target_customer_id}".encode()
             ).hexdigest()[:16]
             items.append(
                 dict(

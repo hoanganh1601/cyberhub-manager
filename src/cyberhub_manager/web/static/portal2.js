@@ -34,6 +34,7 @@ Object.assign(copy,{
 });
 
 async function loadCustomerPhase2(ui,stores){
+  if(ui.tab==='member')return api('/portal/member?page='+ui.memberPage);
   if(ui.tab==="usage")return api("/portal/usage?days="+ui.days);
   if(ui.tab==="profile")return api("/portal/profile");
   if(ui.tab!=="availability")return null;
@@ -53,6 +54,7 @@ function customerPortalRefreshDelay(ui){
   return cached&&cached.fetchedAt+300000>Date.now()?Math.max(1000,cached.fetchedAt+300000-Date.now()):300000;
 }
 function customerPhase2Page(){
+  if(portalUI.tab==='member')return customerMemberPage();
   return portalUI.tab==="availability"?(portalUI.availabilityError?`<p class="pc-card amber" role="status">${t("p2Stale")}</p>`:"")+p2Availability():portalUI.tab==="usage"?p2Usage():p2Profile();
 }
 function p2Availability(){

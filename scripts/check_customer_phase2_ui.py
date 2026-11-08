@@ -53,6 +53,11 @@ def main():
             expect(page.locator(".pc-stats")).to_be_visible()
 
             def tab(name):
+                if name=='profile':
+                    page.locator('#p3-account-toggle').click()
+                    page.locator('#p3-account-menu [data-tab="profile"]').click()
+                    expect(page.locator('.p2-profile-identity')).to_be_visible()
+                    return
                 page.locator(f'.pc-nav [data-tab="{name}"]').click()
                 expect(page.locator(f'.pc-nav [data-tab="{name}"]')).to_have_attribute(
                     "aria-current", "page"

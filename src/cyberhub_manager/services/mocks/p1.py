@@ -18,9 +18,10 @@ from cyberhub_manager.domain.models import Employee, Store
 from cyberhub_manager.domain.p1 import CustomerSession, EmployeeSummary, StoreSummary
 from cyberhub_manager.security import hash_password
 from .portal import MemoryPortalRepositoryMixin
+from .loyalty import MemoryLoyaltyRepositoryMixin
 
 
-class MemoryP1Repository(MemoryPortalRepositoryMixin):
+class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixin):
     def customer_invoice(self, conn, principal, invoice_id):
         from cyberhub_manager.domain.exceptions import NotFoundError
 
@@ -35,6 +36,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
         self.notification_reads = set()
         self.auth_versions = {}
         self.room_types = {}
+        self.avatars={}
 
     @contextmanager
     def transaction(self):
@@ -54,6 +56,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
                     self.room_types,
                     self.data.customers,
                     self.data.customer_password_hashes,
+                    self.avatars,
+                    self.data.loyalty_settings,
                 )
             )
             try:
@@ -73,6 +77,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin):
                     self.room_types,
                     self.data.customers,
                     self.data.customer_password_hashes,
+                    self.avatars,
+                    self.data.loyalty_settings,
                 ) = snapshot
                 raise
 

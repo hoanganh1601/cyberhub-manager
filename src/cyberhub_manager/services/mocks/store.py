@@ -99,6 +99,9 @@ class MockDataStore:
         self.customer_password_hashes = {}
         self.promotions = {}
         self.invoice_bonus = {}
+        from cyberhub_manager.domain.loyalty import LoyaltySettings
+        self.loyalty_settings=LoyaltySettings()
+        self.invoice_loyalty={}
         self.management_audit = []
         self.operating_stores = {}
         self.transaction_stores = {}

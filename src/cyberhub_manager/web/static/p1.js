@@ -77,6 +77,7 @@ function showManagement(item=null){
   modal(kind,`${kind}Sub`,`<div class="form-grid">${content}</div><div class="notice info">${t(kind==="promotions"?"bonusNote":"manageNote")}</div>`,"management",{kind,id:item?.id},"save");
   if(item&&kind==="employees") $("[name=password]",$("#modal")).required=false;
   if(kind==="promotions")$("[name=bonus_percent]",$("#modal")).min="0";
+  if(kind==='promotions')installPromotionAudience(item);
 }
 async function showStoreSwitch(){
   try{const stores=(await api("/stores")).filter(s=>s.status==="ACTIVE");
@@ -93,6 +94,9 @@ async function submitManagement(context,values){
     }
     if(context.kind==="employees") values.store_id=Number(values.store_id);
     if(context.kind==="promotions"){
+      values.minimum_tier=values.minimum_tier||'BRONZE';
+      values.minimum_points=Number(values.minimum_points||0);
+      values.target_customer_id=values.target_customer_id?Number(values.target_customer_id):null;
       values.store_id=values.store_id?Number(values.store_id):null;
       for(const key of ["minimum_amount","bonus_percent"])values[key]=Number(values[key]);
       values.is_active=values.is_active==="true";

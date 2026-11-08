@@ -324,6 +324,8 @@ class ManagementForm(StitchDialog):
                 return service.save_store(actor, entity_id, **values)
             if self.kind == "employees":
                 return service.save_employee(actor, entity_id, **values)
+            if self.item:
+                values.update(minimum_tier=self.item.minimum_tier,minimum_points=self.item.minimum_points,target_customer_id=self.item.target_customer_id)
             return service.save_promotion(actor, Promotion(id=entity_id or 0, **values))
 
         self.runner.submit(self, call, self._saved, self._error)

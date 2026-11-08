@@ -218,6 +218,8 @@ class MockSessionService(MockServiceBase):
             self._data.transaction_stores[transaction.id] = machine.store_id
         self._data.invoices[invoice_id] = invoice
         self._data.invoice_bonus[invoice_id] = bonus_used
+        from cyberhub_manager.domain.loyalty import invoice_award
+        self._data.invoice_loyalty[invoice_id]=invoice_award(cost,bonus_used,self._data.loyalty_settings)
         return CheckoutResult(
             invoice=self._data.to_invoice_detail(invoice),
             balance_after=account.balance,

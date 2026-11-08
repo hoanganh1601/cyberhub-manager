@@ -12,6 +12,9 @@ và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/CUS
 Đợt 2 bổ sung số máy trống phòng thường/VIP theo cơ sở (5 phút/lần), biểu đồ sử dụng và hồ sơ/đổi mật khẩu.
 Xem [hướng dẫn đợt 2](docs/CUSTOMER_PORTAL_PHASE2.md).
 
+Đợt 3 có menu avatar góc phải, tải ảnh đại diện, điểm/hạng thành viên và ưu đãi theo từng khách.
+Xem [quy tắc nghiệp vụ và hướng dẫn đợt 3](docs/CUSTOMER_PORTAL_PHASE3.md).
+
 ## Công nghệ
 
 - Python 3.11 trở lên

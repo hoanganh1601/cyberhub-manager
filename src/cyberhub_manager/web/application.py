@@ -45,6 +45,7 @@ from cyberhub_manager.domain.exceptions import (
 from cyberhub_manager.services.bootstrap import create_service_bundle
 from cyberhub_manager.services.contracts import ServiceBundle
 from cyberhub_manager.domain.p1 import CustomerSession, Promotion, ROLE_PERMISSIONS
+from cyberhub_manager.domain.loyalty import LoyaltySettings
 from cyberhub_manager.services.invoice_export import invoice_html, invoice_csv
 
 UTC = timezone.utc
@@ -250,6 +251,8 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.before_request
     def prepare_request():
+        if request.path=="/api/portal/avatar":
+            request.max_content_length=2*1024*1024+32768
         if not request.path.startswith("/api/"):
             return None
         session.setdefault("csrf", secrets.token_urlsafe(32))
@@ -337,6 +340,12 @@ def create_app(config: dict | None = None) -> Flask:
             "new_password": "Use a different password with at least 6 characters and at most 72 UTF-8 bytes.",
             "confirmation": "Enter the new password again, exactly as above.",
             "room_type": "Choose Standard or VIP.",
+            "avatar": "Choose a static JPEG, PNG or WebP image up to 2 MB and 16 megapixels.",
+            "minimum_tier": "Choose a valid membership tier.",
+            "minimum_points": "Enter a whole point threshold from 0 to 1,000,000,000.",
+            "target_customer_id": "Select an existing customer or all eligible customers.",
+            "unit_amount": "Enter a positive whole VND amount per point.",
+            "platinum_spend": "Tier thresholds must be positive and strictly increasing.",
         }
         return reply(
             dict(
@@ -564,8 +573,14 @@ def create_app(config: dict | None = None) -> Flask:
         except ValueError:
             raise ValidationError(field_errors={"ends_at":"Ngày giờ không hợp lệ"}) from None
         store_id = None if d.get("store_id") is None else integer(d,"store_id",minimum=1)
+        old=next((p for p in g.services.management.list_promotions(g.actor) if p.id==promotion_id),None) if promotion_id else None
+        target=d.get('target_customer_id',old.target_customer_id if old else None)
+        if target is not None:
+            target=integer({'target_customer_id':target},'target_customer_id',minimum=1)
         policy = Promotion(promotion_id or 0,text(d,"code"),text(d,"name"),store_id,
-                           integer(d,"minimum_amount",minimum=1),integer(d,"bonus_percent"),start,end,d.get("is_active",True))
+                           integer(d,"minimum_amount",minimum=1),integer(d,"bonus_percent"),start,end,d.get("is_active",True),
+                           d.get('minimum_tier',old.minimum_tier if old else 'BRONZE'),
+                           d.get('minimum_points',old.minimum_points if old else 0),target)
         return reply(g.services.management.save_promotion(g.actor,policy))
 
     @app.post("/api/customers/<int:customer_id>/topup-preview")
@@ -651,6 +666,36 @@ def create_app(config: dict | None = None) -> Flask:
         session["customer_auth_version"]=customer.auth_version
         session["csrf"]=secrets.token_urlsafe(32)
         return reply(dict(customer=customer,csrf_token=session["csrf"]))
+
+    @app.get('/api/portal/member')
+    def portal_member():
+        return reply(g.services.portal.member(g.customer,portal_integer('page',1)))
+
+    @app.get('/api/portal/avatar')
+    def portal_avatar():
+        image=g.services.portal.avatar(g.customer)
+        return Response(image['image_data'],content_type='image/webp')
+
+    @app.post('/api/portal/avatar')
+    def portal_avatar_upload():
+        upload=request.files.get('avatar')
+        if upload is None:
+            raise ValidationError(field_errors={'avatar':'Vui lòng chọn ảnh đại diện'})
+        return reply(g.services.portal.update_avatar(g.customer,upload.read(2*1024*1024+1)))
+
+    @app.delete('/api/portal/avatar')
+    def portal_avatar_remove():
+        return reply(g.services.portal.remove_avatar(g.customer))
+
+    @app.get('/api/loyalty/settings')
+    def loyalty_settings():
+        return reply(g.services.management.loyalty_settings(g.actor))
+
+    @app.put('/api/loyalty/settings')
+    def loyalty_settings_update():
+        data=body()
+        values={k:integer(data,k,minimum=1) for k in ('unit_amount','silver_spend','gold_spend','platinum_spend','version')}
+        return reply(g.services.management.update_loyalty_settings(g.actor,LoyaltySettings(enabled=data.get('enabled'),**values)))
 
     @app.get("/api/machine-rooms")
     def machine_rooms():

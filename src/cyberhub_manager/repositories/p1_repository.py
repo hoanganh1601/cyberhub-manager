@@ -2,6 +2,7 @@
 
 from datetime import timezone
 from .portal_repository import PortalRepositoryMixin
+from .loyalty_repository import LoyaltyRepositoryMixin
 
 from cyberhub_manager.domain.p1 import (
     CustomerSession,
@@ -33,7 +34,7 @@ def utc(value):
     return value.replace(tzinfo=timezone.utc)
 
 
-class P1Repository(PortalRepositoryMixin):
+class P1Repository(PortalRepositoryMixin, LoyaltyRepositoryMixin):
     def customer_invoice(self, conn, principal, invoice_id):
         from cyberhub_manager.domain.exceptions import NotFoundError
         from cyberhub_manager.domain.dtos import InvoiceDetail, SessionSummary
@@ -165,10 +166,10 @@ class P1Repository(PortalRepositoryMixin):
     def list_promotions(self, conn, store_id=None, lock=False):
         result = rows(
             conn,
-            "SELECT id,code,name,store_id,minimum_amount,bonus_percent,starts_at,ends_at,is_active FROM promotions"
+            "SELECT id,code,name,store_id,minimum_amount,bonus_percent,starts_at,ends_at,is_active,minimum_tier,minimum_points,target_customer_id FROM promotions"
             + (" WHERE store_id=%s OR store_id IS NULL" if store_id else "")
             + " ORDER BY minimum_amount DESC,id DESC"
-            + (" FOR UPDATE" if lock else ""),
+            + (" FOR SHARE" if lock=='share' else " FOR UPDATE" if lock else ""),
             (store_id,) if store_id else (),
         )
         return [
@@ -193,18 +194,21 @@ class P1Repository(PortalRepositoryMixin):
             policy.starts_at.astimezone(timezone.utc).replace(tzinfo=None),
             policy.ends_at.astimezone(timezone.utc).replace(tzinfo=None),
             policy.is_active,
+            policy.minimum_tier,
+            policy.minimum_points,
+            policy.target_customer_id,
         )
         if policy.id:
             execute(
                 conn,
-                "UPDATE promotions SET code=%s,name=%s,store_id=%s,minimum_amount=%s,bonus_percent=%s,starts_at=%s,ends_at=%s,is_active=%s WHERE id=%s",
+                "UPDATE promotions SET code=%s,name=%s,store_id=%s,minimum_amount=%s,bonus_percent=%s,starts_at=%s,ends_at=%s,is_active=%s,minimum_tier=%s,minimum_points=%s,target_customer_id=%s WHERE id=%s",
                 (*fields, policy.id),
             )
             entity_id = policy.id
         else:
             entity_id = execute(
                 conn,
-                "INSERT INTO promotions(code,name,store_id,minimum_amount,bonus_percent,starts_at,ends_at,is_active) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO promotions(code,name,store_id,minimum_amount,bonus_percent,starts_at,ends_at,is_active,minimum_tier,minimum_points,target_customer_id) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 fields,
             )
         return next(p for p in self.list_promotions(conn) if p.id == entity_id)

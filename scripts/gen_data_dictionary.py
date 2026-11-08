@@ -35,6 +35,8 @@ TABLES = (
     "management_audit",
     "customer_notification_reads",
     "machine_room_types",
+    "loyalty_settings",
+    "customer_avatars",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -158,6 +160,11 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
 
 DESCRIPTIONS["accounts"][1].update({"bonus_balance":"Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt.","cash_balance":"Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính."})
 DESCRIPTIONS["accounts"][1]["auth_version"]="Phiên bản xác thực khách hàng; tăng khi đổi mật khẩu để thu hồi các phiên cũ."
+DESCRIPTIONS["invoices"][1].update({
+    "loyalty_eligible_amount":"Phí trả bằng tiền chính/tiền bù (không gồm bonus_used), chụp khi lập hóa đơn; chỉ cộng PAID vào xét hạng.",
+    "loyalty_points":"Điểm chụp lúc lập hóa đơn; chỉ cộng PAID, VOID có hiệu lực 0 điểm. Không đổi ra tiền.",
+    "loyalty_unit":"Số VND hợp lệ cho một điểm tại thời điểm hóa đơn, không đổi khi cập nhật cấu hình.",
+    "loyalty_rule_version":"Phiên bản cấu hình tại lúc lập hóa đơn."})
 DESCRIPTIONS["invoices"][1]["bonus_used"] = "Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout."
 DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
 DESCRIPTIONS["promotions"] = ("Chính sách thưởng theo mốc nạp, phạm vi và thời gian.",{
@@ -177,6 +184,19 @@ DESCRIPTIONS["customer_notification_reads"] = (
         "read_at": "Thời điểm đánh dấu đã đọc (UTC).",
     },
 )
+DESCRIPTIONS["promotions"][1].update({
+    "minimum_tier":"Hạng tối thiểu (BRONZE/SILVER/GOLD/PLATINUM); mặc định BRONZE.",
+    "minimum_points":"Điểm được tính tối thiểu để đủ đối tượng ưu đãi; không tiêu điểm.",
+    "target_customer_id":"Khách nhận riêng; NULL áp dụng cho mọi khách đủ các điều kiện còn lại."})
+DESCRIPTIONS["loyalty_settings"]=("Cấu hình toàn hệ thống, một dòng id=1; chỉ Admin được sửa, có version chống ghi đè.",{
+    "id":"Singleton id=1.","enabled":"Bật/tắt tích điểm cho hóa đơn mới, không xóa điểm cũ hoặc ngừng xét chi tiêu hạng.",
+    "unit_amount":"VND hợp lệ / 1 điểm, làm tròn xuống theo từng hóa đơn.","silver_spend":"Mốc chi tiêu hợp lệ hạng Bạc.",
+    "gold_spend":"Mốc chi tiêu hợp lệ hạng Vàng.","platinum_spend":"Mốc chi tiêu hợp lệ hạng Kim cương (mã PLATINUM).",
+    "version":"Tăng sau mỗi lần cập nhật, được chụp vào hóa đơn mới.","updated_at":"Thời điểm cập nhật UTC."})
+DESCRIPTIONS["customer_avatars"]=("Ảnh đại diện riêng theo tài khoản; WebP 512×512 đã chuẩn hóa, không giữ tên file hay metadata gốc.",{
+    "account_id":"Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa.",
+    "image_data":"Nội dung WebP tối đa 300.000 byte sau chuẩn hóa.","digest":"SHA-256 của nội dung ảnh chuẩn hóa.",
+    "updated_at":"Thời điểm cập nhật UTC."})
 
 DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.",{
     "machine_id":"Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa.",
@@ -294,8 +314,8 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
-    w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng dùng `CASCADE` khi xóa máy chưa có lịch sử.")
+    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` + `sql/006_customer_membership_avatar.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")
     w("")

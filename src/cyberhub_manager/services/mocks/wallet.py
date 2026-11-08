@@ -10,6 +10,7 @@ from cyberhub_manager.domain.enums import (
 )
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.domain.p1 import quote_top_up
+from cyberhub_manager.domain.loyalty import personalized
 
 from .base import (
     MockServiceBase,
@@ -24,11 +25,16 @@ MAX_TOP_UP_AMOUNT = 100_000_000
 class MockWalletService(MockServiceBase):
     def preview_top_up(self, customer_id, amount, employee_id):
         employee = self._data.get_employee(employee_id)
-        self._data.get_customer(customer_id)
+        customer=self._data.get_customer(customer_id)
         store_id = getattr(self._data,"operating_stores",{}).get(employee_id,employee.store_id)
         if employee.status!=EmployeeStatus.ACTIVE or str(self._data.get_store(store_id).status)!="ACTIVE":
             raise PermissionDeniedError()
-        return quote_top_up(amount,list(self._data.promotions.values()),store_id,self._clock.now())
+        policies=list(self._data.promotions.values())
+        if str(customer.status)!='ACTIVE' or str(customer.account.status)!='ACTIVE':
+            policies=[p for p in policies if not personalized(p)]
+        from .p1 import MemoryP1Repository
+        member=MemoryP1Repository(self._data).loyalty_summary(None,customer.id) if any(personalized(p) for p in policies) else None
+        return quote_top_up(amount,policies,store_id,self._clock.now(),customer_id=customer.id,member=member)
 
     def top_up(
         self,

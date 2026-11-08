@@ -601,6 +601,7 @@ function renderPage() {
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
   installRoomManagement();
+  installLoyaltyManagement();
   if (focus) {
     const node = document.getElementById(focus);
     if (node) {

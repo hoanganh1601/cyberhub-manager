@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 from datetime import datetime, timezone
 from cyberhub_manager.domain.p1 import quote_top_up
+from cyberhub_manager.domain.loyalty import personalized
 from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.services.access import operating_actor
 
@@ -108,8 +109,15 @@ class WalletService:
     def preview_top_up(self, customer_id, amount, employee_id):
         with translate_db_errors(), self._transaction() as conn:
             actor = self._require_actor(conn,employee_id)
-            self._get_customer(conn,customer_id)
-            return quote_top_up(amount,self._promotions.list_promotions(conn,actor.store_id),actor.store_id,self._clock())
+            customer=self._get_customer(conn,customer_id)
+            return self._customer_quote(conn,customer,amount,actor.store_id)
+
+    def _customer_quote(self,conn,customer,amount,store_id):
+        policies=self._promotions.list_promotions(conn,store_id,lock='share')
+        if str(customer.status)!='ACTIVE' or str(customer.account.status)!='ACTIVE':
+            policies=[p for p in policies if not personalized(p)]
+        member=self._promotions.loyalty_summary(conn,customer.id,current=True) if any(personalized(p) for p in policies) else None
+        return quote_top_up(amount,policies,store_id,self._clock(),customer_id=customer.id,member=member)
 
     @retry_on_transient
     def top_up(
@@ -139,7 +147,7 @@ class WalletService:
                 if account is None:
                     raise NotFoundError("Không tìm thấy tài khoản của khách hàng")
                 balance_before = account.balance
-                quote = quote_top_up(amount,self._promotions.list_promotions(conn,actor.store_id),actor.store_id,self._clock())
+                quote = self._customer_quote(conn,customer,amount,actor.store_id)
                 bonus_transaction = None
 
                 if not self._accounts.credit_balance(conn, account.id, amount):

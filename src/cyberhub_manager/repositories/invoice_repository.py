@@ -75,14 +75,19 @@ class InvoiceRepository:
         if type(bonus_used) is not int or not 0 <= bonus_used <= usage_cost:
             raise ValueError("Invalid bonus debit")
 
+        from .loyalty_repository import LoyaltyRepositoryMixin
+        from cyberhub_manager.domain.loyalty import invoice_award
+        award=invoice_award(usage_cost,bonus_used,LoyaltyRepositoryMixin().loyalty_settings(conn))
+
         cursor = conn.cursor()
         try:
             cursor.execute(
                 """
                 INSERT INTO invoices
                     (code, session_id, customer_id, employee_id, store_id,
-                     usage_cost, settlement_amount, total_amount, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     usage_cost, settlement_amount, total_amount, status,bonus_used,
+                     loyalty_eligible_amount,loyalty_points,loyalty_unit,loyalty_rule_version)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s,%s,%s,%s)
                 """,
                 (
                     code,
@@ -94,13 +99,13 @@ class InvoiceRepository:
                     settlement_amount,
                     usage_cost,
                     InvoiceStatus.PAID.value,
+                    bonus_used,
+                    award['eligible_amount'],award['points'],award['unit_amount'],award['rule_version'],
                 ),
             )
             invoice_id = cursor.lastrowid
             if not invoice_id:
                 raise RuntimeError("Failed to retrieve the new invoice ID")
-            if bonus_used:
-                cursor.execute("UPDATE invoices SET bonus_used=%s WHERE id=%s",(bonus_used,invoice_id))
             return int(invoice_id)
         finally:
             cursor.close()
