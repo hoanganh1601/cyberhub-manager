@@ -40,7 +40,8 @@ def test_menu_order_is_fixed() -> None:
 def test_staff_does_not_see_machine_management() -> None:
     keys = [item.key for item in visible_nav_items(Role.STAFF)]
     assert NavKey.MACHINES not in keys
-    assert keys == [NavKey.DASHBOARD, NavKey.CUSTOMERS, NavKey.INVOICES, NavKey.REPORTS]
+    assert keys == [NavKey.DASHBOARD, NavKey.CUSTOMERS, NavKey.INVOICES]
+    assert not can_access(Role.STAFF, NavKey.REPORTS)  # Đợt 0: doanh thu chỉ cho MANAGER/ADMIN
 
 
 @pytest.mark.parametrize("role", [Role.MANAGER, Role.ADMIN])
