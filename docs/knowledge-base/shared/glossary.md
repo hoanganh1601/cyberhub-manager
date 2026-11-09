@@ -7,7 +7,7 @@ audience:
   - MANAGER
   - ADMIN
 status: APPROVED
-version: 1
+version: 2
 language: vi
 updated_at: 2026-11-09
 tags:
@@ -34,6 +34,9 @@ tags:
 - Tiền khuyến mãi được dùng trước khi thanh toán phí chơi và không đổi tiền mặt.
 - Tiền bù là khoản thanh toán thêm khi số dư chưa đủ kết thúc phiên, không phải
   nạp tiền được hưởng thưởng khuyến mãi.
+- Tiền khách đưa là tiền mặt thực tế khách đưa cho thu ngân, không phải số dư ví.
+  Khoản bù được ghi bằng đúng khoản thiếu; tiền mặt đưa dư thì thu ngân trả lại
+  tiền thừa. Muốn nạp phần dư vào ví phải thực hiện luồng nạp tiền riêng.
 - Số dư trên tài khoản chưa tự trừ phí ước tính của phiên đang chơi; số dư dự kiến
   sau thanh toán có thể khác số dư hiện tại.
 
@@ -55,5 +58,6 @@ Trợ lý không được tự ghi giao dịch, sửa trạng thái tài khoản
 
 - `src/cyberhub_manager/domain/enums.py`
 - `src/cyberhub_manager/domain/p1.py`
+- `docs/07_DTO_UI_HANDOFF.md` — Tiền bù, tiền khách đưa và tiền thừa
 - `docs/CUSTOMER_PORTAL_PHASE2.md`
 - `docs/CUSTOMER_PORTAL_PHASE3.md`

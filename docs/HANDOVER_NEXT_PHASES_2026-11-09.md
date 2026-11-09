@@ -15,7 +15,7 @@ bước 1–2 tại commit `1e15f9a`. Người nhận cần đọc tài liệu n
 | Đợt 2 — Voucher | Chưa triển khai | Làm sau khi chốt nghiệp vụ sử dụng voucher |
 | Đợt 3 — Game/xu | Chưa triển khai | Dùng nền voucher và sổ giao dịch xu |
 | Đợt 4 — Quảng cáo | Chưa triển khai | Làm khi game/voucher và xác minh thưởng ổn định |
-| Đợt 5A — RAG tài liệu | Đã làm bước 1–2 | Hoàng Anh tiếp tục loader, chunking và các bước sau |
+| Đợt 5A — RAG tài liệu | Đã nối API, model local và UI đăng nhập | Xem runbook và báo cáo nghiệm thu local; deployment public cần chuẩn bị riêng |
 | Đợt 5B — AI phân tích số liệu | Chưa triển khai | Cần API dữ liệu đúng quyền và phạm vi cơ sở |
 | Đợt 5C — AI tư vấn dịch vụ mở rộng | Chưa triển khai | Kết nối menu/voucher/game sau khi có dữ liệu |
 
@@ -171,7 +171,8 @@ xác minh đủ tin cậy, chưa bật đổi thưởng có giá trị thật.
   `AIAccessContext`, `KnowledgeDocument`, `KnowledgeChunk`, `Citation`, `AssistantAnswer`.
 - Model bất biến, metadata/đường dẫn tương đối/định danh/trích dẫn được kiểm tra.
 - 48 tests model và cấu trúc kho tài liệu pass tại commit `1e15f9a`.
-- Chưa có loader, embedding, chỉ mục vector, LLM, API chat hoặc UI chat.
+- Tại mốc bước 1–2 chưa có loader/chunking. Checkout hiện đã bổ sung bước 3–11
+  bên dưới; adapter/model local và chat có session được bổ sung ở bước 12C–12D.
 
 Sau khi đồng bộ `develop` vào branch bàn giao, đã chạy lại nhóm RAG và
 ReportService: **122 tests pass** (09/11/2026):
@@ -181,6 +182,12 @@ ReportService: **122 tests pass** (09/11/2026):
 ```
 
 ### Bước 3 — Loader và kiểm tra tài liệu
+
+**Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+`ai/documents.py`, `ai/errors.py` và `test_ai_documents.py`; nhóm model/corpus/loader
+đạt **98 tests**. Chi tiết giới hạn, lỗi và lệnh chạy tại
+[README kho tri thức](knowledge-base/README.md#document-loader--bước-3).
+Chưa triển khai chunking/index và chưa tự duyệt hai tài liệu DRAFT.
 
 - Chỉ đọc Markdown nghiệp vụ trong knowledge root; bỏ README và bản chưa duyệt.
 - Parse metadata an toàn; chặn ID trùng, audience không hợp lệ, version sai.
@@ -194,6 +201,14 @@ test đường dẫn thoát thư mục, duplicate ID, DRAFT/ARCHIVED không đư
 
 ### Bước 4 — Chunking có giữ ngữ nghĩa
 
+**Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+`ai/chunking.py` cung cấp `MarkdownChunker.split(document)`; **40 tests chunking
+pass**, tổng nhóm bước 1–4 đạt **138 tests**. Chạy loader và chunker trên kho thật:
+12 tài liệu APPROVED tạo 61 chunk, ID duy nhất, giữ nguồn/quyền/phiên bản.
+Chi tiết cấu hình, giới hạn và lệnh kiểm tra tại
+[README kho tri thức](knowledge-base/README.md#markdown-chunker--bước-4).
+Chưa nối embedding/retrieval/LLM/API/UI; không tự duyệt tài liệu DRAFT.
+
 - Chia theo tiêu đề/mục, giữ ngữ cảnh; giới hạn độ dài có thể cấu hình.
 - ID ổn định từ tài liệu, version, section và content.
 - Giữ document ID, source, section, audience, language, version.
@@ -202,14 +217,118 @@ test đường dẫn thoát thư mục, duplicate ID, DRAFT/ARCHIVED không đư
 Nghiệm thu: cùng đầu vào cho cùng chunk ID; sửa nội dung/version đổi ID tương
 ứng; giữ nguồn truy vết; không làm mất điều kiện hoặc ngoại lệ quan trọng.
 
-### Các bước tiếp theo sau 3–4
+### Bước 5 — Interface embedding/LLM và fake provider
 
-1. Provider embedding và LLM độc lập, fake provider cho unit test.
-2. Retrieval lọc quyền trước khi đưa nội dung vào prompt, kiểm tra lại khi tạo context.
-3. RAG service trả lời có nguồn, fallback khi thiếu căn cứ, timeout và giới hạn chi phí.
-4. Bộ câu hỏi đánh giá retrieval, grounded answer và từ chối ngoài quyền.
-5. UI chat mock, sau đó nối Flask/session theo quyền Đợt 0.
-6. Integration/security tests; danh tính, role và cơ sở phải do backend cấp.
+**Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+`ai/providers.py` định nghĩa hai Protocol và kiểm tra output; `ai/fakes.py` cung
+cấp fake xác định/mô phỏng lỗi, không gọi mạng hoặc yêu cầu API key. Lỗi provider
+được tách trong `ai/errors.py`; chưa gắn SDK hoặc mô hình AI cụ thể.
+**65 tests provider pass**, tổng nhóm bước 1–5 **203 tests**. Chi tiết hợp đồng,
+giới hạn của fake, lỗi và lệnh kiểm tra tại
+[README kho tri thức](knowledge-base/README.md#provider-độc-lập--bước-5).
+
+### Bước 6 — Vector index và Retriever lọc quyền
+
+**Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+`ai/retrieval.py` có chỉ mục cosine trong bộ nhớ, `KnowledgeRetriever.search` và
+`search_scored`. Lọc audience trước scoring/top-k, xác thực vector đầu ra, rebuild
+toàn bộ snapshot và từ chối phục vụ chỉ mục cũ khi reload lỗi/đang chạy.
+Không mở quyền kế thừa ADMIN và không truy vấn số dư/doanh thu thật.
+
+### Bước 7 — Tạo prompt từ context được phép
+
+**Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+`ai/prompts.py` tạo system prompt VI/EN và user prompt XML có escape. Trước/sau
+định dạng kiểm tra lại quyền và toàn bộ chunk so với chỉ mục hiện tại; context
+giả mạo/thu hồi bị chặn. Có nguồn ứng viên và giới hạn context, chưa gọi LLM.
+
+Bước 6–7 đạt **83 tests**, toàn nhóm bước 1–7 **286 tests pass**, không gọi mạng
+hoặc MySQL. Bao gồm kiểm thử phân quyền, reload đồng thời/lỗi, stale/forged chunk,
+ngôn ngữ và delimiter injection; không khẳng định LLM thật đã chống injection.
+Chi tiết/lệnh chạy tại [README kho tri thức](knowledge-base/README.md#vector-index-và-retriever--bước-6).
+
+### Bước 8 — RAG service điều phối
+
+**Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+`ai/service.py` kiểm tra câu hỏi, ngưỡng cosine, quyền/context, prompt, gọi LLM tối
+đa một lần và kiểm tra ref trong response. Thiếu căn cứ/provider lỗi trả fallback
+không citation. Context được kiểm tra lại sau LLM để chặn nguồn vừa bị thu hồi.
+`ai/runner.py` có deadline và số worker hữu hạn; `ai/audit.py` chỉ ghi metadata.
+Adapter thật vẫn phải có timeout native và giới hạn output; chưa tích hợp AI cloud.
+
+### Bước 9 — Kiểm thử fake và các đường lỗi
+
+**Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+Tái sử dụng fake bước 5, thêm audit in-memory và **101 tests service/runner**.
+Toàn nhóm bước 1–9 **387 tests pass**, không gọi API/MySQL. Có test bốn vai trò,
+score thấp, citation giả/thiếu, timeout thực, worker bận, audit lỗi, context bị thu
+hồi trong khi LLM chạy và pipeline từ kho Markdown thật đến answer envelope.
+`grounded=True` chưa chứng minh kết luận đúng ngữ nghĩa; đánh giá mô hình thật và
+ngưỡng thuộc bước 10. Audit logging cần cấu hình handler; chưa tạo schema AI.
+Chi tiết/lệnh chạy: [báo cáo bước 8–9](testing/RAG_STEPS_8_9_2026-11-09.md).
+
+### Bước 10 — Bộ câu hỏi và đánh giá offline
+
+**Đã có công cụ/bộ đánh giá trên checkout ngày 09/11/2026, chất lượng chưa đạt để bật AI thật.**
+27 câu hỏi tại `tests/fixtures/ai/evaluation_questions.json`, CLI
+`python -m scripts.evaluate_rag`. TF-IDF chỉ học từ nội dung tài liệu, không từ
+expected_source/keywords. Trả lời trích đoạn chỉ để đo luồng nguồn, không giả là LLM.
+Raw Hit@3 100%, nguồn kỳ vọng đủ ngưỡng 70%, citation của câu trả lời 100%, từ chối
+đúng 6/7, nguồn sai quyền bị trả về 0. Còn ca STAFF hỏi đổi cấu hình nhận đoạn
+glossary không đủ căn cứ; EN và một số ca hợp lệ bị từ chối vì baseline lexical.
+
+### Bước 11 — Chat UI mock riêng
+
+**Đã triển khai trên checkout ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
+`python -m cyberhub_manager.ai.preview --port 8058` mở app preview riêng dùng
+theme/font/logo hiện tại. Chat có nguồn, loading, fallback, lỗi/thử lại, VI/EN,
+feedback và hội thoại mới; chỉ lưu trong RAM trình duyệt, không gửi câu hỏi,
+role/store đến backend. Chưa sửa auth hoặc API của app vận hành.
+
+Bước 10–11 có 32 tests mới; 419 tests RAG + 40 web regression = **459 pass**.
+Browser kiểm tra 1280×720 và 390×844, không lỗi JS hoặc request API. Bằng chứng và
+ca chưa đạt: [báo cáo bước 10–11](testing/RAG_STEPS_10_11_2026-11-09.md).
+
+### Bước 12A–12B — API/session và hạn mức/audit
+
+**Đã triển khai local, chưa bật AI thật.** `web/assistant.py` cung cấp
+`POST /api/assistant/messages` dựa trên auth/CSRF hiện có; identity/scope từ
+backend và kiểm tra lại sau generation. `ai/policy_store.py` admission quota và
+audit metadata bền vững trên SQLite riêng cho một host; không lưu nội dung chat.
+Mặc định feature tắt, chỉ bật với service factory và audit path do backend cấu
+hình. Không tự đưa baseline lexical lên phục vụ người dùng.
+
+Nhóm tập trung service/policy/HTTP đạt **138 tests**. Chi tiết cách kiểm tra,
+giới hạn triển khai và việc chưa làm:
+[báo cáo 12A–12B](testing/RAG_STEP_12AB_2026-11-09.md).
+
+### Bước 12C–12D — Model local và UI có đăng nhập
+
+Đã bổ sung adapter Ollama loopback: `qwen3-embedding:0.6b` và `qwen3:8b`, ngưỡng
+cosine 0,53 trên tập development. Context mở rộng theo tài liệu cha đã được phép
+để giữ điều kiện/ngoại lệ; không mở rộng sang nguồn sai audience. Tài liệu thay
+đổi hoặc bị thu hồi thì answer đang chờ bị chặn, request sau mới rebuild index.
+
+Model trả JSON chọn ID đoạn nguồn do backend cấp; không tin quote tự tạo.
+Backend phân giải đoạn nguồn nguyên văn, kiểm tra số liệu và một lượt kiểm
+tra nghĩa/phạm vi trước khi trả nội dung. Đây vẫn là mô hình xác suất, không phải
+chứng minh mọi câu trả lời đúng. Giữ fallback cho ca chưa đủ căn cứ.
+
+Chat tích hợp dùng Inter/Space Grotesk như `develop`, hỗ trợ VI/EN, ẩn path/ref mặc định, dùng cookie/CSRF hiện có;
+429/503 không tự retry, đổi danh tính/đăng xuất xóa lịch sử trên trang. 8058 vẫn là
+mock; 8059 là bản AI local thật với dữ liệu nghiệp vụ demo mặc định.
+
+Đã làm rõ tiền khách đưa/tiền thừa theo SES-08 và DTO handoff trong
+`staff/payment-process.md` và `shared/glossary.md`, tăng version lên 2. Không
+chuyển hai tài liệu DRAFT sang APPROVED hoặc thay đổi quy tắc tiền của backend.
+
+- [Lệnh chạy và cách kiểm tra](RAG_5A_RUNBOOK.md).
+- [Kết quả nghiệm thu và các giới hạn còn lại](testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md).
+
+Lịch sử/feedback server, quota/audit nhiều host và triển khai public là phần mở
+rộng; chưa áp schema AI/history vào DB nghiệp vụ. Deployment cần ổ bền vững,
+HTTPS và mô hình provider/GPU phù hợp, không dùng nguyên SQLite local cho nhiều
+replica. Hai tài liệu DRAFT vẫn chờ người phụ trách duyệt nghiệp vụ.
 
 5A giải thích tài liệu tĩnh, không đọc doanh thu thật hoặc thao tác tài chính.
 5B mới tích hợp dữ liệu báo cáo theo quyền; 5C chờ các module menu/voucher/game

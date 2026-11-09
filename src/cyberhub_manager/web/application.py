@@ -273,7 +273,7 @@ def create_app(config: dict | None = None) -> Flask:
             customer_route = request.path.startswith("/api/portal/")
             if customer_route and g.customer is None:
                 raise PermissionDeniedError()
-            allowed_customer = g.customer is not None and (customer_route or request.path in ("/api/session","/api/logout"))
+            allowed_customer = g.customer is not None and (customer_route or request.path in ("/api/session","/api/logout", "/api/assistant/messages"))
             if g.actor is None and request.path != "/api/session" and not allowed_customer:
                 return error(
                     "AUTH_REQUIRED",
@@ -282,6 +282,12 @@ def create_app(config: dict | None = None) -> Flask:
                     401,
                 )
         return None
+
+    from .assistant import register_assistant
+    if "ASSISTANT_ENABLED" not in (config or {}):
+        from cyberhub_manager.ai.runtime import configure_local_assistant
+        configure_local_assistant(app)
+    register_assistant(app)
 
     @app.teardown_request
     def release_workspace(_exc):
@@ -448,11 +454,11 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        return render_template("index.html", assistant_enabled="cyberhub_assistant" in app.extensions)
 
     @app.get("/customer")
     def customer_portal_page():
-        return render_template("index.html",customer_portal=True)
+        return render_template("index.html",customer_portal=True, assistant_enabled="cyberhub_assistant" in app.extensions)
 
     @app.get("/healthz")
     def health():

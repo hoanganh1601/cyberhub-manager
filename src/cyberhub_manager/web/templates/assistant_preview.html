@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b101b">
+  <title>CyberHub — Assistant UI Mock</title>
+  <link rel="icon" href="/assets/cyberhub_logo_dark.png">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='assistant_preview.css') }}">
+  <script defer src="{{ url_for('static', filename='assistant_preview.js') }}"></script>
+</head>
+<body class="assistant-preview">
+  <header class="preview-topbar">
+    <a href="/" class="preview-brand" aria-label="CyberHub"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub Manager"></a>
+    <span class="preview-badge" data-i18n="preview">BẢN XEM TRƯỚC</span>
+    <div class="preview-languages" role="group" aria-label="Language">
+      <button type="button" data-language="vi" aria-pressed="true">VI</button>
+      <button type="button" data-language="en" aria-pressed="false">EN</button>
+    </div>
+  </header>
+  <main class="preview-main">
+    <p class="preview-eyebrow">CYBERHUB KNOWLEDGE ASSISTANT · 5A</p>
+    <h1 data-i18n="pageTitle">Trợ lý tri thức, ngay trong không gian làm việc.</h1>
+    <p class="preview-lead" data-i18n="pageLead">Thử giao diện hỏi đáp có nguồn theo phong cách CyberHub. Đây là bản mô phỏng, chưa kết nối AI, phiên đăng nhập hoặc dữ liệu cửa hàng.</p>
+    <div class="preview-actions">
+      <button type="button" class="preview-primary" data-open-chat data-i18n="open">Mở trợ lý</button>
+      <span class="preview-local" data-i18n="local">Câu hỏi và phản hồi chỉ nằm trong bộ nhớ trình duyệt.</span>
+    </div>
+    <label class="preview-review-control"><input type="checkbox" id="review-sources"><span data-i18n="reviewSources">Kiểm tra nguồn (dành cho người review)</span></label>
+    <section class="preview-scenarios" aria-labelledby="scenario-title">
+      <h2 id="scenario-title" data-i18n="scenarios">Ba trạng thái để kiểm tra giao diện</h2>
+      <div class="preview-scenario-grid">
+        <button type="button" class="preview-scenario" data-scenario="auto"><span>01 · <b data-i18n="withSource">Có nguồn tham khảo</b></span><p data-i18n="withSourceDesc">Hỏi về mở phiên, nạp tiền hoặc tiền bù; xem nguồn và gửi phản hồi.</p><span class="preview-card-link" data-i18n="try">Thử trạng thái →</span></button>
+        <button type="button" class="preview-scenario" data-scenario="refusal"><span>02 · <b data-i18n="noSource">Chưa đủ căn cứ</b></span><p data-i18n="noSourceDesc">Giữ cuộc hội thoại khi không có tài liệu phù hợp để trả lời.</p><span class="preview-card-link" data-i18n="try">Thử trạng thái →</span></button>
+        <button type="button" class="preview-scenario" data-scenario="error"><span>03 · <b data-i18n="serviceError">Dịch vụ gián đoạn</b></span><p data-i18n="serviceErrorDesc">Hiển thị lỗi dễ hiểu và nút thử lại, không mất câu hỏi đã nhập.</p><span class="preview-card-link" data-i18n="try">Thử trạng thái →</span></button>
+      </div>
+    </section>
+    <section class="preview-boundaries"><span class="preview-status-dot"></span><p data-i18n="boundaries">Chỉ giải thích tài liệu. Trợ lý không nạp/trừ tiền, không mở/đóng phiên và không xác nhận giao dịch.</p></section>
+  </main>
+  <button type="button" class="preview-launcher" data-open-chat><span aria-hidden="true">✦</span><span data-i18n="askCyberhub">Hỏi CyberHub</span></button>
+
+  {% include '_assistant_chat.html' %}
+</body>
+</html>

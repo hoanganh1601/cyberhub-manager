@@ -29,6 +29,10 @@
     <script defer src="{{ url_for('static', filename='game_admin.js') }}"></script>
     <script defer src="{{ url_for('static', filename='portal_ad.js') }}"></script>
     <script defer src="{{ url_for('static', filename='ad_admin.js') }}"></script>
+    {% if assistant_enabled %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='assistant_preview.css') }}" />
+    <script defer src="{{ url_for('static', filename='assistant_live.js') }}"></script>
+    {% endif %}
   </head>
   <body data-customer-portal="{{ 'true' if customer_portal else 'false' }}">
     <div id="app">
@@ -41,6 +45,13 @@
     </div>
     <div id="notifications" aria-live="polite" aria-atomic="true"></div>
     <dialog id="modal" aria-labelledby="modal-title"></dialog>
+    {% if assistant_enabled %}
+    <div id="assistant-widget" class="assistant-preview assistant-live" hidden>
+      <button type="button" class="preview-launcher" data-open-chat><span aria-hidden="true">✦</span><span data-i18n="askCyberhub">Hỏi CyberHub</span></button>
+      {% set assistant_live = true %}
+      {% include '_assistant_chat.html' %}
+    </div>
+    {% endif %}
     <noscript>Vui lòng bật JavaScript để sử dụng CyberHub Manager.</noscript>
   </body>
 </html>

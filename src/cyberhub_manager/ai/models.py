@@ -94,7 +94,7 @@ class AIAccessContext:
 class KnowledgeDocument:
     """One document; DRAFT and ARCHIVED exist for editorial use only.
 
-    A future loader maps frontmatter id to document_id and sets source from
+    The document loader maps frontmatter id to document_id and sets source from
     the actual file path. Only APPROVED documents may enter the serving index.
     """
 
@@ -133,7 +133,7 @@ class KnowledgeChunk:
     """Text segment carrying the original document's audience and version.
 
     Only approved documents may produce retrievable chunks. Enforcing that
-    precondition belongs to the future loader/indexing pipeline.
+    precondition belongs to the loader/chunker and the future indexing pipeline.
     """
 
     chunk_id: str

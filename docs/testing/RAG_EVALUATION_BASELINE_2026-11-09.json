@@ -1,0 +1,817 @@
+{
+  "mode": "offline-tfidf-extractive-baseline",
+  "semantic_llm_evaluated": false,
+  "min_similarity": 0.2,
+  "document_count": 12,
+  "chunk_count": 61,
+  "case_count": 27,
+  "retrieval_hit_at_3": 1.0,
+  "evidence_hit_at_3": 0.7,
+  "answer_rate_on_retrievable": 0.75,
+  "expected_source_in_answer_rate": 0.7,
+  "citation_coverage_of_answered": 1.0,
+  "correct_refusal_rate": 0.8571,
+  "permission_leaks": 0,
+  "mean_latency_ms": 4.036,
+  "limitations": [
+    "Lexical ranking is not multilingual semantic retrieval.",
+    "Extractive responses measure citation plumbing, not LLM answer accuracy or translation.",
+    "No live model, network, financial data or authenticated web session was evaluated."
+  ],
+  "cases": [
+    {
+      "case_id": "staff-settlement",
+      "question": "Tiền bù phải bằng đúng khoản thiếu hay tiền khách đưa?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/payment-process.md",
+      "expected_keywords": [
+        "khoản thiếu"
+      ],
+      "top3_sources": [
+        "staff/payment-process.md",
+        "staff/top-up-process.md",
+        "staff/payment-process.md"
+      ],
+      "top3_scores": [
+        0.261979,
+        0.135552,
+        0.085985
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "staff/payment-process.md"
+      ],
+      "keyword_hits": [
+        "khoản thiếu"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.216
+    },
+    {
+      "case_id": "staff-rounding",
+      "question": "Thời gian tính phí được làm tròn lên đến phút như thế nào?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/payment-process.md",
+      "expected_keywords": [
+        "phút"
+      ],
+      "top3_sources": [
+        "staff/payment-process.md",
+        "staff/machine-operation.md",
+        "shared/faq.md"
+      ],
+      "top3_scores": [
+        0.375206,
+        0.173462,
+        0.108989
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "staff/payment-process.md"
+      ],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.945
+    },
+    {
+      "case_id": "staff-minimum",
+      "question": "Số dư tối thiểu để mở phiên chơi là bao nhiêu phút?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/machine-operation.md",
+      "expected_keywords": [
+        "30 phút"
+      ],
+      "top3_sources": [
+        "staff/machine-operation.md",
+        "staff/payment-process.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.229355,
+        0.172801,
+        0.152554
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "staff/machine-operation.md"
+      ],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.148
+    },
+    {
+      "case_id": "staff-active-session",
+      "question": "Một máy hoặc khách có được có hai phiên ACTIVE đồng thời không?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/machine-operation.md",
+      "expected_keywords": [
+        "ACTIVE"
+      ],
+      "top3_sources": [
+        "staff/machine-operation.md",
+        "staff/machine-operation.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.287741,
+        0.127536,
+        0.095082
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "staff/machine-operation.md"
+      ],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.092
+    },
+    {
+      "case_id": "staff-topup",
+      "question": "Nạp tiền nhận bằng CASH hoặc TRANSFER và số tiền tối đa là bao nhiêu?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/top-up-process.md",
+      "expected_keywords": [
+        "100.000.000"
+      ],
+      "top3_sources": [
+        "staff/top-up-process.md",
+        "staff/payment-process.md",
+        "staff/top-up-process.md"
+      ],
+      "top3_scores": [
+        0.190185,
+        0.174389,
+        0.08543
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.865
+    },
+    {
+      "case_id": "staff-customer",
+      "question": "Tạo khách hàng cần kiểm tra họ tên số điện thoại và username như thế nào?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/customer-management.md",
+      "expected_keywords": [
+        "điện thoại"
+      ],
+      "top3_sources": [
+        "staff/customer-management.md",
+        "staff/customer-management.md",
+        "staff/customer-management.md"
+      ],
+      "top3_scores": [
+        0.222112,
+        0.217786,
+        0.130113
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "staff/customer-management.md"
+      ],
+      "keyword_hits": [
+        "điện thoại"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.128
+    },
+    {
+      "case_id": "staff-void",
+      "question": "Hóa đơn VOID có được tính doanh thu và điểm thành viên không?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/payment-process.md",
+      "expected_keywords": [
+        "VOID"
+      ],
+      "top3_sources": [
+        "staff/payment-process.md",
+        "shared/faq.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.263011,
+        0.165921,
+        0.160097
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "staff/payment-process.md"
+      ],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.049
+    },
+    {
+      "case_id": "customer-points",
+      "question": "Mỗi 10.000 VND phí chơi hợp lệ được bao nhiêu điểm thành viên?",
+      "role": "CUSTOMER",
+      "language": "vi",
+      "expected_source": "customer/membership-policy.md",
+      "expected_keywords": [
+        "1 điểm"
+      ],
+      "top3_sources": [
+        "customer/membership-policy.md",
+        "shared/faq.md",
+        "customer/membership-policy.md"
+      ],
+      "top3_scores": [
+        0.359656,
+        0.19582,
+        0.189143
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "customer/membership-policy.md"
+      ],
+      "keyword_hits": [
+        "1 điểm"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.525
+    },
+    {
+      "case_id": "customer-no-topup-points",
+      "question": "Nạp tiền có tự tạo điểm thành viên không?",
+      "role": "CUSTOMER",
+      "language": "vi",
+      "expected_source": "customer/membership-policy.md",
+      "expected_keywords": [
+        "không"
+      ],
+      "top3_sources": [
+        "shared/faq.md",
+        "customer/membership-policy.md",
+        "customer/membership-policy.md"
+      ],
+      "top3_scores": [
+        0.297322,
+        0.147751,
+        0.121058
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": false,
+      "grounded": true,
+      "citation_sources": [
+        "shared/faq.md"
+      ],
+      "keyword_hits": [
+        "không"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.505
+    },
+    {
+      "case_id": "customer-bonus-policy",
+      "question": "Nạp tiền chọn mốc thưởng cao nhất hay cộng chồng các mốc?",
+      "role": "CUSTOMER",
+      "language": "vi",
+      "expected_source": "customer/promotion-policy.md",
+      "expected_keywords": [
+        "không cộng chồng"
+      ],
+      "top3_sources": [
+        "customer/promotion-policy.md",
+        "customer/promotion-policy.md",
+        "customer/membership-policy.md"
+      ],
+      "top3_scores": [
+        0.21738,
+        0.069958,
+        0.065312
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "customer/promotion-policy.md"
+      ],
+      "keyword_hits": [
+        "không cộng chồng"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.562
+    },
+    {
+      "case_id": "customer-password",
+      "question": "Tôi đổi mật khẩu tài khoản như thế nào?",
+      "role": "CUSTOMER",
+      "language": "vi",
+      "expected_source": "customer/account-guide.md",
+      "expected_keywords": [
+        "mật khẩu"
+      ],
+      "top3_sources": [
+        "customer/account-guide.md",
+        "customer/account-guide.md",
+        "customer/account-guide.md"
+      ],
+      "top3_scores": [
+        0.243753,
+        0.1519,
+        0.127231
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "customer/account-guide.md"
+      ],
+      "keyword_hits": [
+        "mật khẩu"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.473
+    },
+    {
+      "case_id": "customer-avatar",
+      "question": "Ảnh đại diện được tải lên có giới hạn dung lượng và định dạng gì?",
+      "role": "CUSTOMER",
+      "language": "vi",
+      "expected_source": "customer/account-guide.md",
+      "expected_keywords": [
+        "ảnh"
+      ],
+      "top3_sources": [
+        "customer/account-guide.md",
+        "customer/account-guide.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.113652,
+        0.112178,
+        0.096167
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.228
+    },
+    {
+      "case_id": "manager-promotion",
+      "question": "Quản lý chương trình khuyến mãi nạp tiền trong cơ sở như thế nào?",
+      "role": "MANAGER",
+      "language": "vi",
+      "expected_source": "manager/promotion-management.md",
+      "expected_keywords": [
+        "cơ sở"
+      ],
+      "top3_sources": [
+        "manager/promotion-management.md",
+        "manager/promotion-management.md",
+        "manager/promotion-management.md"
+      ],
+      "top3_scores": [
+        0.38664,
+        0.293622,
+        0.291046
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "manager/promotion-management.md"
+      ],
+      "keyword_hits": [
+        "cơ sở"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.729
+    },
+    {
+      "case_id": "manager-promotion-conditions",
+      "question": "Điều kiện mốc nạp hạng và khách hàng mục tiêu của chương trình khuyến mãi?",
+      "role": "MANAGER",
+      "language": "vi",
+      "expected_source": "manager/promotion-management.md",
+      "expected_keywords": [
+        "mốc"
+      ],
+      "top3_sources": [
+        "manager/promotion-management.md",
+        "staff/top-up-process.md",
+        "manager/promotion-management.md"
+      ],
+      "top3_scores": [
+        0.258904,
+        0.23096,
+        0.209307
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "manager/promotion-management.md"
+      ],
+      "keyword_hits": [
+        "mốc"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.727
+    },
+    {
+      "case_id": "admin-employee",
+      "question": "Admin tạo nhân viên mới với username và mật khẩu như thế nào?",
+      "role": "ADMIN",
+      "language": "vi",
+      "expected_source": "admin/employee-management.md",
+      "expected_keywords": [
+        "mật khẩu"
+      ],
+      "top3_sources": [
+        "admin/employee-management.md",
+        "staff/customer-management.md",
+        "admin/employee-management.md"
+      ],
+      "top3_scores": [
+        0.172407,
+        0.091003,
+        0.086158
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 5.06
+    },
+    {
+      "case_id": "admin-last-admin",
+      "question": "Có được tự khóa tài khoản hoặc khóa Admin cuối cùng không?",
+      "role": "ADMIN",
+      "language": "vi",
+      "expected_source": "admin/employee-management.md",
+      "expected_keywords": [
+        "Admin"
+      ],
+      "top3_sources": [
+        "staff/customer-management.md",
+        "shared/glossary.md",
+        "admin/employee-management.md"
+      ],
+      "top3_scores": [
+        0.172333,
+        0.159322,
+        0.155725
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.921
+    },
+    {
+      "case_id": "admin-config",
+      "question": "Cấu hình điểm và mốc Bạc Vàng Kim cương toàn hệ thống ở đâu?",
+      "role": "ADMIN",
+      "language": "vi",
+      "expected_source": "admin/system-configuration.md",
+      "expected_keywords": [
+        "cấu hình"
+      ],
+      "top3_sources": [
+        "admin/system-configuration.md",
+        "admin/system-configuration.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.36695,
+        0.254361,
+        0.197532
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "admin/system-configuration.md"
+      ],
+      "keyword_hits": [
+        "cấu hình"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 5.303
+    },
+    {
+      "case_id": "shared-balance",
+      "question": "Số dư dự kiến khác số dư hiện tại như thế nào?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "shared/glossary.md",
+      "expected_keywords": [
+        "số dư"
+      ],
+      "top3_sources": [
+        "shared/glossary.md",
+        "shared/faq.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.267608,
+        0.264821,
+        0.088802
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "shared/glossary.md"
+      ],
+      "keyword_hits": [
+        "số dư"
+      ],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.998
+    },
+    {
+      "case_id": "english-password",
+      "question": "How do I change my password?",
+      "role": "CUSTOMER",
+      "language": "en",
+      "expected_source": "customer/account-guide.md",
+      "expected_keywords": [
+        "mật khẩu"
+      ],
+      "top3_sources": [
+        "shared/faq.md",
+        "customer/account-guide.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.022937,
+        0.022063,
+        0.020747
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 3.122
+    },
+    {
+      "case_id": "unaccented-open-session",
+      "question": "So du toi thieu de mo phien la bao nhieu?",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": "staff/machine-operation.md",
+      "expected_keywords": [
+        "30 phút"
+      ],
+      "top3_sources": [
+        "staff/machine-operation.md",
+        "shared/glossary.md",
+        "staff/payment-process.md"
+      ],
+      "top3_scores": [
+        0.212446,
+        0.146145,
+        0.121415
+      ],
+      "retrieval_hit_at_3": true,
+      "evidence_hit_at_3": true,
+      "grounded": true,
+      "citation_sources": [
+        "staff/machine-operation.md"
+      ],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.047
+    },
+    {
+      "case_id": "outside-calculus",
+      "question": "Tính tích phân của hàm lượng giác sin x bình phương.",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": null,
+      "expected_keywords": [],
+      "top3_sources": [
+        "staff/payment-process.md",
+        "shared/faq.md",
+        "staff/payment-process.md"
+      ],
+      "top3_scores": [
+        0.036238,
+        0.026959,
+        0.025052
+      ],
+      "retrieval_hit_at_3": false,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": true,
+      "permission_leaks": 0,
+      "latency_ms": 3.653
+    },
+    {
+      "case_id": "outside-weather",
+      "question": "Dự báo bão nhiệt đới trên Thái Bình Dương tuần sau.",
+      "role": "CUSTOMER",
+      "language": "vi",
+      "expected_source": null,
+      "expected_keywords": [],
+      "top3_sources": [
+        "shared/glossary.md",
+        "shared/glossary.md",
+        "customer/account-guide.md"
+      ],
+      "top3_scores": [
+        0.042843,
+        0.042406,
+        0.03679
+      ],
+      "retrieval_hit_at_3": false,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": true,
+      "permission_leaks": 0,
+      "latency_ms": 3.167
+    },
+    {
+      "case_id": "outside-football",
+      "question": "Who won the football world championship yesterday?",
+      "role": "MANAGER",
+      "language": "en",
+      "expected_source": null,
+      "expected_keywords": [],
+      "top3_sources": [
+        "manager/promotion-management.md",
+        "staff/customer-management.md",
+        "shared/faq.md"
+      ],
+      "top3_scores": [
+        0.017071,
+        0.01329,
+        0.013264
+      ],
+      "retrieval_hit_at_3": false,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": true,
+      "permission_leaks": 0,
+      "latency_ms": 4.139
+    },
+    {
+      "case_id": "outside-quantum",
+      "question": "Mô tả phương trình trường lượng tử hấp dẫn.",
+      "role": "ADMIN",
+      "language": "vi",
+      "expected_source": null,
+      "expected_keywords": [],
+      "top3_sources": [
+        "staff/customer-management.md",
+        "admin/system-configuration.md",
+        "shared/faq.md"
+      ],
+      "top3_scores": [
+        0.082972,
+        0.075783,
+        0.068377
+      ],
+      "retrieval_hit_at_3": false,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": true,
+      "permission_leaks": 0,
+      "latency_ms": 4.901
+    },
+    {
+      "case_id": "staff-admin-config",
+      "question": "Thay đổi mốc Bạc Vàng Kim cương cấu hình thành viên toàn hệ thống.",
+      "role": "STAFF",
+      "language": "vi",
+      "expected_source": null,
+      "expected_keywords": [],
+      "top3_sources": [
+        "shared/glossary.md",
+        "staff/payment-process.md",
+        "staff/top-up-process.md"
+      ],
+      "top3_scores": [
+        0.213312,
+        0.063742,
+        0.058638
+      ],
+      "retrieval_hit_at_3": false,
+      "evidence_hit_at_3": false,
+      "grounded": true,
+      "citation_sources": [
+        "shared/glossary.md"
+      ],
+      "keyword_hits": [],
+      "correct_refusal": false,
+      "permission_leaks": 0,
+      "latency_ms": 4.077
+    },
+    {
+      "case_id": "customer-employee-admin",
+      "question": "Cách gán nhân viên vai trò STAFF MANAGER ADMIN và thay đổi cơ sở.",
+      "role": "CUSTOMER",
+      "language": "vi",
+      "expected_source": null,
+      "expected_keywords": [],
+      "top3_sources": [
+        "customer/membership-policy.md",
+        "customer/membership-policy.md",
+        "shared/glossary.md"
+      ],
+      "top3_scores": [
+        0.096838,
+        0.051267,
+        0.049448
+      ],
+      "retrieval_hit_at_3": false,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": true,
+      "permission_leaks": 0,
+      "latency_ms": 3.203
+    },
+    {
+      "case_id": "draft-revenue-policy",
+      "question": "Công thức đối soát doanh thu báo cáo cơ sở và quyền xem doanh thu MANAGER.",
+      "role": "MANAGER",
+      "language": "vi",
+      "expected_source": null,
+      "expected_keywords": [],
+      "top3_sources": [
+        "staff/payment-process.md",
+        "staff/machine-operation.md",
+        "shared/faq.md"
+      ],
+      "top3_scores": [
+        0.086489,
+        0.066324,
+        0.062028
+      ],
+      "retrieval_hit_at_3": false,
+      "evidence_hit_at_3": false,
+      "grounded": false,
+      "citation_sources": [],
+      "keyword_hits": [],
+      "correct_refusal": true,
+      "permission_leaks": 0,
+      "latency_ms": 4.2
+    }
+  ]
+}

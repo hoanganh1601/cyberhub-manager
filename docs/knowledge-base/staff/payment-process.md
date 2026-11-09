@@ -6,7 +6,7 @@ audience:
   - MANAGER
   - ADMIN
 status: APPROVED
-version: 1
+version: 2
 language: vi
 updated_at: 2026-11-09
 tags:
@@ -36,6 +36,16 @@ Nếu không thiếu, không nhập phương thức bù hoặc khoản bù dươ
 Ví dụ minh họa: phí 20.000 VND, ví tổng 12.000 VND gồm 2.000 thưởng và 10.000
 tiền chính; cần bù 8.000 VND. Không ghi 8.000 này thành tiền nạp hưởng khuyến mãi.
 Phí hóa đơn vẫn 20.000 VND, không cộng tiền bù thành 28.000 VND.
+
+## Tiền khách đưa và tiền thừa
+
+Tiền khách đưa (`cash_received`) là số tiền mặt thực tế khách đưa cho thu ngân,
+không phải số dư ví và không phải `settlement_amount`. Tiền bù ghi vào checkout
+phải bằng đúng `settlement_required` do backend tính lại. Khi thu tiền mặt, khách
+có thể đưa dư; tiền thừa trả khách bằng tiền khách đưa trừ khoản bù cần thu.
+Không tự cộng tiền thừa vào ví hoặc tính thưởng khuyến mãi; muốn giữ phần dư
+trong ví phải thực hiện một luồng nạp tiền riêng. Tiền khách đưa và tiền thừa chỉ
+do UI xử lý, không truyền thay cho khoản bù vào service checkout.
 
 ## Luồng xác nhận
 
@@ -68,4 +78,6 @@ hoặc hoàn tiền thay nhân viên. Không cần cung cấp dữ liệu khách
 
 - `src/cyberhub_manager/services/session_service.py`
 - `docs/P1_DESKTOP_WEB.md` — Checkout và tiền bù
+- `docs/01_REQUIREMENTS.md` — SES-08
+- `docs/07_DTO_UI_HANDOFF.md` — settlement_amount và cash_received
 - `docs/CUSTOMER_PORTAL_PHASE3.md` — Chính sách thành viên
