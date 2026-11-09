@@ -256,3 +256,78 @@ class InvoiceRepository:
             )
             for row in rows
         ]
+
+    def assistant_analytics_by_store(
+        self,
+        conn: PooledMySQLConnection,
+        store_id: int,
+        *,
+        created_from_utc: datetime,
+        created_before_utc: datetime,
+    ) -> dict:
+        """Read-only aggregates for the backend-controlled 5B snapshot.
+
+        This repository never receives an AI prompt and never exposes row-level
+        customer data.  Role/store authorization is performed by ReportService
+        before this parameterized query is called.
+        """
+        start = _to_mysql_utc(created_from_utc, "created_from_utc")
+        end = _to_mysql_utc(created_before_utc, "created_before_utc")
+        if start >= end:
+            raise ValueError("created_from_utc must be earlier than created_before_utc")
+
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                """
+                SELECT m.code AS machine_code, m.name AS machine_name,
+                       COUNT(*) AS session_count,
+                       SUM(GREATEST(1, CEIL(TIMESTAMPDIFF(SECOND, u.started_at, u.ended_at) / 60))) AS billed_minutes,
+                       SUM(i.usage_cost) AS revenue
+                FROM invoices i
+                JOIN usage_sessions u ON u.id = i.session_id
+                JOIN machines m ON m.id = u.machine_id
+                WHERE i.store_id = %s AND i.status = %s
+                  AND i.created_at >= %s AND i.created_at < %s
+                GROUP BY m.id, m.code, m.name
+                ORDER BY billed_minutes DESC, session_count DESC, m.code
+                LIMIT 10
+                """,
+                (store_id, InvoiceStatus.PAID.value, start, end),
+            )
+            machines = cursor.fetchall()
+            cursor.execute(
+                """
+                SELECT HOUR(DATE_ADD(i.created_at, INTERVAL 7 HOUR)) AS local_hour,
+                       COUNT(*) AS invoice_count, SUM(i.usage_cost) AS revenue
+                FROM invoices i
+                WHERE i.store_id = %s AND i.status = %s
+                  AND i.created_at >= %s AND i.created_at < %s
+                GROUP BY local_hour
+                ORDER BY revenue DESC, invoice_count DESC, local_hour
+                """,
+                (store_id, InvoiceStatus.PAID.value, start, end),
+            )
+            hours = cursor.fetchall()
+        finally:
+            cursor.close()
+        return {
+            "top_machines": [
+                {
+                    "machine_code": row["machine_code"],
+                    "machine_name": row["machine_name"],
+                    "session_count": int(row["session_count"]),
+                    "billed_minutes": int(row["billed_minutes"] or 0),
+                    "revenue": int(row["revenue"] or 0),
+                }
+                for row in machines
+            ],
+            "peak_hours": [
+                {
+                    "hour": int(row["local_hour"]),
+                    "invoice_count": int(row["invoice_count"]),
+                    "revenue": int(row["revenue"] or 0),
+                }
+                for row in hours
+            ],
+        }

@@ -399,11 +399,14 @@ python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration
 
 Để xác nhận, nhập chính xác `RESET cyberhub_manager_migration_test`. Reset giữ nguyên cấu trúc bảng và lịch sử migration, nhưng xóa dữ liệu nghiệp vụ trong database này. Có thể chạy seed lại để lấy lại dữ liệu demo ban đầu; dữ liệu phát sinh sau đó không được khôi phục bằng seed. **Không chạy reset trên database chứa dữ liệu cần giữ.**
 
-## Trợ lý tài liệu RAG 5A (local)
+## Trợ lý AI Đợt 5A–5C (local)
 
 Web có đăng nhập và AI local: `python -m scripts.run_rag_local --port 8059`.
 Cần Ollama/model đã tải; helper không tự tải hoặc gọi cloud. Xem
 [hướng dẫn chạy, tài khoản demo và giới hạn](docs/RAG_5A_RUNBOOK.md),
 [báo cáo nghiệm thu](docs/testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md).
-Bản UI mock độc lập dùng cổng 8058. 5A giải thích nguồn đúng quyền, không đọc số
-liệu khách thật hoặc thao tác nạp tiền/checkout. Mặc định app thường chưa bật RAG.
+Bản UI mock độc lập dùng cổng 8058. 5A giải thích tài liệu đúng quyền; 5B phân tích
+snapshot doanh thu/máy đã lọc cho MANAGER/ADMIN; 5C gợi ý menu, ưu đãi, voucher và
+game cho chính khách hàng đang đăng nhập. Xem [thiết kế và cách kiểm tra 5B–5C](docs/AI_PHASES_5B_5C.md).
+AI không được thao tác nạp tiền, checkout, đặt món hay dùng voucher. Mặc định app
+thường chưa bật trợ lý nếu chưa cấu hình Ollama và audit path.

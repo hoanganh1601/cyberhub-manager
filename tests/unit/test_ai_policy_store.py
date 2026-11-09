@@ -110,7 +110,10 @@ def test_store_rejects_relative_or_symlink_paths_and_naive_time(tmp_path):
     target = tmp_path / "audit.sqlite3"
     store = SQLiteAssistantPolicyStore(target)
     link = tmp_path / "link.sqlite3"
-    link.symlink_to(target)
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are unavailable for this OS/user")
     with pytest.raises(ValueError):
         SQLiteAssistantPolicyStore(link)
     with pytest.raises(ValueError):

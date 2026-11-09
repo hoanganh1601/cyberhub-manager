@@ -22,8 +22,8 @@ from .errors import (
     KnowledgeIndexUnavailableError, ProviderBusyError, ProviderError,
     ProviderTimeoutError, ProviderUnavailableError,
 )
-from .models import AIAccessContext, AssistantAnswer, Citation
-from .prompts import RAGPromptBuilder
+from .models import AIAccessContext, AssistantAnswer, Citation, DynamicAssistantSource
+from .prompts import DynamicPromptBuilder, RAGPromptBuilder
 from .providers import FormattedLLMProvider, LLMProvider, validate_generation
 from .retrieval import KnowledgeRetriever, normalize_question
 from .runner import BoundedProviderRunner
@@ -151,6 +151,11 @@ class RAGAssistantService:
             retriever, max_question_chars=max_question_chars,
             max_context_chars=max_context_chars, max_chunks=limit if context_limit is None else context_limit,
         )
+        self._dynamic_prompts = DynamicPromptBuilder(
+            max_question_chars=max_question_chars,
+            max_context_chars=max_context_chars,
+            max_sources=8,
+        )
 
     def ask(
         self, *, question: str, access: AIAccessContext, request_id: str | None = None,
@@ -183,6 +188,47 @@ class RAGAssistantService:
             audited = self._record(request_id, access, attempt, started)
         return answer if audited else _fallback(access, unavailable=True)
 
+    def ask_dynamic(
+        self, *, question: str, access: AIAccessContext,
+        sources: tuple[DynamicAssistantSource, ...], mode: str,
+        request_id: str | None = None,
+    ) -> AssistantAnswer:
+        """Analyze only a backend-built 5B/5C snapshot; never retrieve or query data."""
+        if not isinstance(access, AIAccessContext):
+            raise TypeError("access must be a backend-validated AIAccessContext")
+        if type(sources) is not tuple:
+            raise TypeError("sources must be a tuple")
+        if request_id is not None and (
+            not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None
+        ):
+            raise ValueError("request_id must be a backend-generated UUID hex string")
+        started = time.monotonic()
+        deadline = started + self._timeout
+        request_id = uuid4().hex if request_id is None else request_id
+        attempt = _Attempt()
+        try:
+            question = normalize_question(question, max_chars=self._question_chars)
+            prompt = self._dynamic_prompts.build(
+                question=question, access=access, sources=sources, mode=mode,
+            )
+            attempt.chunk_ids = tuple(source.source_id for source in sources)
+            answer = self._generate(prompt, access, deadline)
+            # Immutable snapshots are authorized both before and after model inference.
+            self._dynamic_prompts.authorize(sources, access)
+            attempt.result = "ANSWERED"
+        except InvalidQuestionError:
+            attempt.result = "INVALID_QUESTION"
+            raise
+        except tuple(kind for kind, _ in _FAILURES) as exc:
+            attempt.result = next(result for kind, result in _FAILURES if isinstance(exc, kind))
+            answer = _fallback(access, unavailable=attempt.result != "NO_CONTEXT")
+        except Exception:
+            _LOG.error("dynamic assistant request failed; request_id=%s", request_id)
+            answer = _fallback(access, unavailable=True)
+        finally:
+            audited = self._record(request_id, access, attempt, started)
+        return answer if audited else _fallback(access, unavailable=True)
+
     def _answer(
         self, question: str, access: AIAccessContext, deadline: float, attempt: _Attempt,
     ) -> AssistantAnswer:
@@ -202,6 +248,14 @@ class RAGAssistantService:
         chunks = list(self._retriever.expand_context(chunks, access))
         attempt.chunk_ids = tuple(chunk.chunk_id for chunk in chunks)
         prompt = self._prompts.build(question=question, access=access, chunks=chunks)
+        self._retriever.authorize_context(chunks, access)
+        answer = self._generate(prompt, access, deadline)
+        # Never return an answer based on documents revoked while LLM was running.
+        self._retriever.authorize_context(chunks, access)
+        attempt.result = "ANSWERED"
+        return answer
+
+    def _generate(self, prompt, access, deadline):
         format_instructions = (self._llm.format_instructions(access.language)
                                if isinstance(self._llm, FormattedLLMProvider) else _FORMAT[access.language])
         if not isinstance(format_instructions, str):
@@ -209,7 +263,6 @@ class RAGAssistantService:
         system_prompt = prompt.system_prompt + format_instructions
         if len(system_prompt) + len(prompt.user_prompt) > self._prompt_chars:
             raise ContextBudgetError("complete prompt exceeds the request budget")
-        self._retriever.authorize_context(chunks, access)
         response = self._runner.run(
             lambda: self._llm.generate(system_prompt=system_prompt, user_prompt=prompt.user_prompt),
             timeout_seconds=self._remaining(deadline),
@@ -218,11 +271,7 @@ class RAGAssistantService:
         text = validate_generation(response).strip()
         if len(text) > self._answer_chars:
             raise InvalidProviderResponseError("answer exceeds the output budget")
-        # Never return an answer based on documents revoked while LLM was running.
-        self._retriever.authorize_context(chunks, access)
-        answer = _cited_answer(text, prompt.citations)
-        attempt.result = "ANSWERED"
-        return answer
+        return _cited_answer(text, prompt.citations)
 
     @staticmethod
     def _remaining(deadline: float) -> float:

@@ -89,6 +89,9 @@ OPERATION_CALLS: dict[str, Callable[[ServiceBundle, MockClock], object]] = {
     "daily_revenue": lambda b, c: b.reports.daily_revenue(
         manager(b).store_id, date(2026, 10, 16), date(2026, 10, 18)
     ),
+    "assistant_analytics": lambda b, c: b.reports.assistant_analytics(
+        manager(b), (manager(b).store_id,), date(2026, 10, 12), date(2026, 10, 18)
+    ),
 }
 
 SCENARIO_ERRORS: dict[MockScenario, type[ApplicationError]] = {
