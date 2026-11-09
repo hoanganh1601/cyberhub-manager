@@ -37,6 +37,28 @@ TABLES = (
     "machine_room_types",
     "loyalty_settings",
     "customer_avatars",
+    # Đợt 1 — menu đồ ăn/đồ uống
+    "menu_categories",
+    "menu_items",
+    "menu_item_images",
+    "menu_item_changes",
+    "menu_orders",
+    "menu_order_items",
+    # Đợt 2 — voucher và phần thưởng
+    "reward_catalog",
+    "customer_vouchers",
+    "voucher_events",
+    "loyalty_point_grants",
+    # Đợt 3 — game và xu game
+    "games",
+    "game_prizes",
+    "game_wallets",
+    "game_sessions",
+    "game_coin_ledger",
+    # Đợt 4 — quảng cáo nhận thưởng
+    "ad_settings",
+    "ad_creatives",
+    "ad_reward_events",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -197,6 +219,118 @@ DESCRIPTIONS["customer_avatars"]=("Ảnh đại diện riêng theo tài khoản;
     "account_id":"Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa.",
     "image_data":"Nội dung WebP tối đa 300.000 byte sau chuẩn hóa.","digest":"SHA-256 của nội dung ảnh chuẩn hóa.",
     "updated_at":"Thời điểm cập nhật UTC."})
+
+# ----- Đợt 1: menu đồ ăn/đồ uống ----------------------------------------------------
+DESCRIPTIONS["menu_categories"] = ("Nhóm món theo cơ sở, xếp vào trang Đồ ăn (FOOD) hoặc Đồ uống (DRINK).", {
+    "id": "Khóa chính.", "store_id": "Cơ sở sở hữu nhóm món.",
+    "page": "`FOOD` (trang 1) / `DRINK` (trang 2) của menu sách lật.",
+    "name": "Tên nhóm, duy nhất trong một cơ sở.", "sort_order": "Thứ tự hiển thị 0–9999, nhỏ đứng trước.",
+    "is_active": "FALSE thì toàn bộ món trong nhóm bị ẩn với khách.", "created_at": "Thời điểm tạo (UTC)."})
+DESCRIPTIONS["menu_items"] = ("Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món.", {
+    "id": "Khóa chính.", "store_id": "Cơ sở bán món; menu khác nhau giữa các cơ sở.",
+    "category_id": "Nhóm món; service bảo đảm cùng cơ sở với món.",
+    "name": "Tên món, duy nhất trong một cơ sở.", "description": "Mô tả ngắn hiển thị cho khách.",
+    "price": "Giá bán (VND, 1.000–10.000.000); backend đọc lại khi khách đặt.",
+    "sort_order": "Thứ tự trong nhóm.", "is_visible": "FALSE = ẩn khỏi menu khách.",
+    "is_available": "FALSE = hết món; khách không chọn/đặt được.",
+    "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm sửa gần nhất (UTC)."})
+DESCRIPTIONS["menu_item_images"] = ("Ảnh món đã chuẩn hóa (WebP 512×512, không metadata).", {
+    "item_id": "Món sở hữu ảnh; PK/FK.", "image_data": "Nội dung WebP sau chuẩn hóa.",
+    "digest": "SHA-256 nội dung ảnh; 12 ký tự đầu dùng làm phiên bản cache.", "updated_at": "Thời điểm cập nhật (UTC)."})
+DESCRIPTIONS["menu_item_changes"] = ("Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa.", {
+    "id": "Khóa chính.", "item_id": "Món bị thay đổi.", "employee_id": "Nhân viên thực hiện.",
+    "field": "`CREATE` / `NAME` / `CATEGORY` / `PRICE` / `AVAILABLE` / `VISIBLE` / `IMAGE`.",
+    "old_value": "Giá trị cũ (dạng chữ), NULL khi tạo mới.", "new_value": "Giá trị mới (dạng chữ).",
+    "created_at": "Thời điểm thay đổi (UTC)."})
+DESCRIPTIONS["menu_orders"] = ("Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy.", {
+    "id": "Khóa chính.", "code": "Mã yêu cầu, duy nhất (`ORD-` + hex).",
+    "store_id": "Cơ sở của máy đang dùng.", "account_id": "Tài khoản khách đặt món.",
+    "session_id": "Phiên ACTIVE lúc đặt.", "machine_id": "Máy giao món tới.",
+    "note": "Ghi chú của khách (≤ 200 ký tự).", "total_amount": "Tổng tiền theo giá chụp lúc đặt (VND).",
+    "status": "`NEW` / `SERVED` / `CANCELLED`.", "handled_by": "Nhân viên phục vụ/hủy; NULL khi còn NEW.",
+    "created_at": "Thời điểm đặt (UTC).", "updated_at": "Thời điểm cập nhật trạng thái (UTC)."})
+DESCRIPTIONS["menu_order_items"] = ("Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.", {
+    "order_id": "Yêu cầu gọi món.", "item_id": "Món được gọi.",
+    "item_name": "Tên món tại thời điểm đặt.", "unit_price": "Đơn giá tại thời điểm đặt (VND).",
+    "quantity": "Số lượng 1–20."})
+
+# ----- Đợt 2: voucher và phần thưởng ---------------------------------------------
+DESCRIPTIONS["reward_catalog"] = ("Danh mục phần thưởng; không có loại nào quy đổi tiền mặt.", {
+    "id": "Khóa chính.", "code": "Mã phần thưởng, duy nhất.", "name": "Tên hiển thị.",
+    "store_id": "Cơ sở áp dụng; NULL = mọi cơ sở (chỉ ADMIN tạo).",
+    "reward_type": "`FOOD_DISCOUNT` / `FREE_DRINK` / `PLAYTIME_CREDIT` (số dư khuyến mãi) / `MEMBER_POINTS`.",
+    "value": "VND giảm/tặng/cộng giờ, hoặc số điểm với MEMBER_POINTS.",
+    "min_order_amount": "Đơn gọi món tối thiểu (chỉ voucher đồ ăn/đồ uống).",
+    "valid_days": "Số ngày hiệu lực kể từ lúc phát.", "coin_cost": "Giá đổi bằng xu game (Đợt 3); NULL = không bán.",
+    "is_active": "FALSE = tạm ngưng phát.", "created_at": "Thời điểm tạo (UTC)."})
+DESCRIPTIONS["customer_vouchers"] = ("Voucher của khách; điều kiện được chụp lúc phát, dùng một lần.", {
+    "id": "Khóa chính.", "code": "Mã ngẫu nhiên (secrets) khách đưa cho nhân viên, duy nhất.",
+    "catalog_id": "Phần thưởng gốc.", "account_id": "Tài khoản sở hữu voucher.",
+    "store_id": "Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở.",
+    "reward_type": "Loại phần thưởng (chụp).", "value": "Giá trị (chụp).",
+    "min_order_amount": "Đơn tối thiểu (chụp).",
+    "status": "`ISSUED` / `USED` / `REVOKED`; hết hạn suy ra từ `expires_at`.",
+    "source": "`MANUAL` / `GAME` / `AD`.", "source_ref": "Mã nguồn; UNIQUE cùng `source` chống phát trùng.",
+    "issued_by": "Nhân viên phát (NULL khi do hệ thống).", "issued_at": "Thời điểm phát (UTC).",
+    "expires_at": "Hết hạn (UTC).", "used_at": "Thời điểm dùng (UTC).", "used_by": "Nhân viên xác nhận.",
+    "used_store_id": "Cơ sở nơi dùng.", "used_order_id": "Yêu cầu gọi món được áp (voucher đồ ăn); UNIQUE.",
+    "revoked_reason": "Lý do khóa."})
+DESCRIPTIONS["voucher_events"] = ("Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm.", {
+    "id": "Khóa chính.", "voucher_id": "Voucher liên quan; NULL khi mã nhập không tồn tại.",
+    "action": "`ISSUE` / `REDEEM` / `REVOKE` / `REJECT`.", "employee_id": "Nhân viên thực hiện.",
+    "store_id": "Cơ sở phát sinh.", "reason": "Lý do/chi tiết (vd. EXPIRED, USED, WRONG_OWNER).",
+    "created_at": "Thời điểm (UTC)."})
+DESCRIPTIONS["loyalty_point_grants"] = ("Điểm thành viên tặng qua voucher; cộng vào điểm, không đổi hạng.", {
+    "id": "Khóa chính.", "customer_id": "Khách nhận điểm.", "voucher_id": "Voucher MEMBER_POINTS; UNIQUE.",
+    "points": "Số điểm tặng.", "employee_id": "Nhân viên xác nhận.", "created_at": "Thời điểm (UTC)."})
+
+# ----- Đợt 3: game và xu game ----------------------------------------------------
+DESCRIPTIONS["games"] = ("Cấu hình trò chơi (giai đoạn đầu: vòng quay may mắn), dùng chung mọi cơ sở.", {
+    "id": "Khóa chính.", "code": "Mã game, duy nhất (`LUCKY_WHEEL`).", "name": "Tên hiển thị.",
+    "is_active": "FALSE = tạm dừng, không quay được.", "daily_limit": "Số lượt mỗi tài khoản mỗi ngày (giờ Việt Nam).",
+    "min_interval_seconds": "Khoảng cách tối thiểu giữa hai lượt; nhanh hơn bị tính là bất thường.",
+    "updated_at": "Thời điểm sửa gần nhất (UTC)."})
+DESCRIPTIONS["game_prizes"] = ("Các ô thưởng trên vòng quay và tỉ lệ trúng tương đối.", {
+    "id": "Khóa chính.", "game_id": "Game sở hữu ô thưởng.", "sort_order": "Vị trí ô trên vòng quay (0, 1, ...).",
+    "label": "Nhãn hiển thị.", "coins": "Số xu nhận được (0 = chúc may mắn).",
+    "weight": "Trọng số; xác suất = weight / tổng weight."})
+DESCRIPTIONS["game_wallets"] = ("Ví xu game của tài khoản; xu không phải tiền và không phải điểm thành viên.", {
+    "account_id": "Tài khoản khách; PK/FK.", "balance": "Số xu hiện có (≥ 0).",
+    "is_locked": "TRUE = tạm khóa quay/đổi thưởng.", "locked_reason": "Lý do khóa (tự động hoặc quản lý).",
+    "locked_at": "Thời điểm khóa (UTC).", "suspicious_count": "Số lần bị chặn (hết lượt/quá nhanh) trong ngày.",
+    "suspicious_on": "Ngày (giờ Việt Nam) của bộ đếm bất thường.", "updated_at": "Thời điểm cập nhật (UTC)."})
+DESCRIPTIONS["game_sessions"] = ("Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại.", {
+    "id": "Khóa chính.", "account_id": "Tài khoản chơi.", "game_id": "Game.",
+    "prize_index": "Ô trúng (chụp).", "prize_label": "Nhãn ô trúng (chụp).", "coins": "Xu nhận được (chụp).",
+    "played_on": "Ngày chơi theo giờ Việt Nam, dùng đếm lượt.", "created_at": "Thời điểm quay (UTC)."})
+DESCRIPTIONS["game_coin_ledger"] = ("Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm.", {
+    "id": "Khóa chính.", "account_id": "Tài khoản.", "delta": "Số xu cộng (+) hoặc trừ (−), khác 0.",
+    "reason": "`PLAY` / `REDEEM` / `AD` / `ADJUST`.",
+    "ref": "Tham chiếu duy nhất theo `reason` (vd. `session:12`, khóa yêu cầu đổi thưởng).",
+    "balance_after": "Số dư xu sau thay đổi (≥ 0).", "voucher_id": "Voucher nhận được khi đổi xu.",
+    "created_at": "Thời điểm (UTC)."})
+
+# ----- Đợt 4: quảng cáo nhận thưởng -------------------------------------------------
+DESCRIPTIONS["ad_settings"] = ("Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất).", {
+    "id": "Luôn bằng 1.", "enabled": "Bật/tắt chương trình.",
+    "mode": "`HOUSE` (quảng cáo nội bộ, máy chủ đo thời lượng) / `NETWORK` (callback có chữ ký HMAC).",
+    "daily_cap": "Số lần nhận thưởng tối đa mỗi tài khoản mỗi ngày.",
+    "reward_type": "`EXTRA_SPIN` (thêm lượt quay) / `COINS` (xu game).",
+    "reward_amount": "Số lượt (1–3) hoặc số xu (1–100) mỗi lần.", "updated_at": "Thời điểm cập nhật (UTC)."})
+DESCRIPTIONS["ad_creatives"] = ("Nội dung quảng cáo nội bộ do CyberHub tự soạn.", {
+    "id": "Khóa chính.", "code": "Mã nội dung, duy nhất.", "title": "Tiêu đề.", "body": "Nội dung hiển thị.",
+    "cta": "Lời kêu gọi hành động.", "duration_seconds": "Thời lượng phải xem (5–60 giây).",
+    "is_active": "FALSE = không phát.", "created_at": "Thời điểm tạo (UTC)."})
+DESCRIPTIONS["ad_reward_events"] = ("Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game.", {
+    "id": "Khóa chính.", "token": "Token ngẫu nhiên do máy chủ cấp; UNIQUE, chỉ dùng một lần.",
+    "account_id": "Tài khoản xem.", "creative_id": "Nội dung đã phát.", "provider": "`HOUSE` / `NETWORK`.",
+    "reward_type": "Loại thưởng (chụp từ cấu hình).", "reward_amount": "Số lượng thưởng (chụp).",
+    "status": "`ISSUED` / `COMPLETED` / `REJECTED`; hết hạn suy ra từ `expires_at`.",
+    "played_on": "Ngày theo giờ Việt Nam, dùng giới hạn mỗi ngày.", "issued_at": "Thời điểm cấp token (UTC).",
+    "min_complete_at": "Sớm nhất được nhận thưởng = bắt đầu + thời lượng (UTC).",
+    "expires_at": "Hạn token (UTC).", "completed_at": "Thời điểm hoàn thành hợp lệ (UTC).",
+    "provider_txn_id": "Mã giao dịch của mạng quảng cáo; UNIQUE chống gửi lại.",
+    "reject_reason": "`TOO_EARLY` / `EXPIRED` / `CAP` / `LOCKED` / `SUPERSEDED`."})
 
 DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.",{
     "machine_id":"Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa.",

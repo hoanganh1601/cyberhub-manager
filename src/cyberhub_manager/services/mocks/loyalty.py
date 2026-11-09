@@ -22,8 +22,11 @@ class MemoryLoyaltyRepositoryMixin:
             for i in self.data.invoices.values()
             if i.customer_id == customer_id and str(i.status) == "PAID"
         ]
+        granted = sum(  # Đợt 2: điểm tặng qua voucher, không đổi hạng
+            g["points"] for g in getattr(self.data, "loyalty_point_grants", []) if g["customer_id"] == customer_id
+        )
         return membership(
-            sum(a["points"] for a in awards),
+            sum(a["points"] for a in awards) + granted,
             sum(a["eligible_amount"] for a in awards),
             self.data.loyalty_settings,
         )

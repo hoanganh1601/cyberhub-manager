@@ -502,6 +502,10 @@ function renderShell() {
     ["customers", "users"],
     ...(isManager() ? [["machines", "monitor"]] : []),
     ["invoices", "invoice"],
+    ["menu", "utensils"],
+    ["vouchers", "ticket"],
+    ["games", "wheel"],
+    ["ads", "monitor"],
     ...(isManager() ? [["revenue", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
@@ -543,6 +547,26 @@ async function loadPage(silent = false) {
   if (!silent) $("#workspace").innerHTML = pageHead() + loading();
   try {
     let data;
+    if (page === "menu") {
+      // Đợt 1: menu + hàng đợi gọi món của cơ sở đang thao tác.
+      if (await loadMenuAdmin(seq)) renderPage();
+      return;
+    }
+    if (page === "vouchers") {
+      // Đợt 2: tra cứu/xác nhận voucher, danh mục phần thưởng, nhật ký.
+      if (await loadVoucherAdmin(seq)) renderPage();
+      return;
+    }
+    if (page === "games") {
+      // Đợt 3: thống kê vòng quay, cấu hình, ví game bị khóa.
+      if (await loadGameAdmin(seq)) renderPage();
+      return;
+    }
+    if (page === "ads") {
+      // Đợt 4: thống kê và cấu hình quảng cáo nhận thưởng.
+      if (await loadAdAdmin(seq)) renderPage();
+      return;
+    }
     if (["employees","promotions","stores"].includes(page)) {
       const [items,stores] = await Promise.all([api(`/${page}`),api('/stores')]);
       if(seq!==state.seq) return;
@@ -598,12 +622,17 @@ function renderPage() {
   else if (state.page === "machines") html = machinesPage();
   else if (state.page === "invoices") html = invoicesPage();
   else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
+  else if (state.page === "menu") html = menuAdminPage();
+  else if (state.page === "vouchers") html = voucherAdminPage();
+  else if (state.page === "games") html = gameAdminPage();
+  else if (state.page === "ads") html = adAdminPage();
   else if (state.page === "revenue" && isManager()) html = revenuePage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
   installRoomManagement();
   installLoyaltyManagement();
+  if (state.page === "menu") wireMenuAdmin();
   if (focus) {
     const node = document.getElementById(focus);
     if (node) {

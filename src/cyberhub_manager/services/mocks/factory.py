@@ -70,6 +70,26 @@ def build_mock_services(
             clock.now()-timedelta(days=1),clock.now()+timedelta(days=7),True,'BRONZE',5,1)
     if customer_offers:
         repo.room_types.update({machine.id:'VIP' for machine in data.machines.values() if machine.id>15})
+    # Đợt 1: menu demo cho mọi cơ sở, dùng chung khóa/transaction với repo P1.
+    from .menu import MemoryMenuRepository
+    from cyberhub_manager.services.menu_service import MenuService
+    menu_repo = MemoryMenuRepository(data, repo, clock=clock.now)
+    menu_repo.seed_demo()
+    # Đợt 2: danh mục phần thưởng + voucher mẫu.
+    from .voucher import MemoryVoucherRepository
+    from cyberhub_manager.services.voucher_service import VoucherService
+    voucher_repo = MemoryVoucherRepository(data, repo, clock=clock.now)
+    voucher_repo.seed_demo()
+    vouchers = VoucherService(repo=voucher_repo,p1_repo=repo,menu_repo=menu_repo,
+                              transaction_factory=voucher_repo.transaction,clock=clock.now)
+    # Đợt 3: vòng quay + ví xu, transaction bọc voucher để đổi xu và phát voucher cùng rollback.
+    from .game import MemoryGameRepository
+    from cyberhub_manager.services.game_service import GameService
+    game_repo = MemoryGameRepository(data, voucher_repo)
+    # Đợt 4: quảng cáo nội bộ; sự kiện lưu trong game_repo để vòng quay đếm lượt thêm.
+    from .ad import MemoryAdRepository
+    from cyberhub_manager.services.ad_service import AdService
+    ad_repo = MemoryAdRepository(data, game_repo)
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
         customers=MockCustomerService(data, clock, scenario),
@@ -79,4 +99,10 @@ def build_mock_services(
         reports=MockReportService(data, clock, scenario),
         management=ManagementService(repo=repo,transaction_factory=repo.transaction),
         portal=PortalService(repo=repo,transaction_factory=repo.transaction,clock=clock.now),
+        menu=MenuService(repo=menu_repo,p1_repo=repo,transaction_factory=menu_repo.transaction,clock=clock.now),
+        vouchers=vouchers,
+        games=GameService(repo=game_repo,p1_repo=repo,vouchers=vouchers,
+                          transaction_factory=game_repo.transaction,clock=clock.now),
+        ads=AdService(repo=ad_repo,game_repo=game_repo,vouchers=vouchers,p1_repo=repo,
+                      transaction_factory=ad_repo.transaction,clock=clock.now),
     )

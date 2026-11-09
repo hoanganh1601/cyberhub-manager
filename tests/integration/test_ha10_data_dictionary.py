@@ -29,7 +29,13 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
     content = _load_script().build_markdown(db_conn)
 
     for table in ("stores", "employees", "customers", "accounts", "machines",
-                  "usage_sessions", "account_transactions", "invoices", "promotions", "management_audit", "customer_notification_reads", "machine_room_types", "loyalty_settings", "customer_avatars"):
+                  "usage_sessions", "account_transactions", "invoices", "promotions", "management_audit", "customer_notification_reads", "machine_room_types", "loyalty_settings", "customer_avatars",
+                  "menu_categories", "menu_items", "menu_item_images", "menu_item_changes",
+                  "menu_orders", "menu_order_items",
+                  "reward_catalog", "customer_vouchers", "voucher_events", "loyalty_point_grants",
+                  "games", "game_prizes", "game_wallets", "game_sessions", "game_coin_ledger",
+                  "ad_settings", "ad_creatives", "ad_reward_events"):
         assert f"### {table}" in content
-    assert content.count(" — 0..") == 23  # includes targeted promotion ownership and private avatars
+    # 23 khóa ngoại trước Đợt 1 + 13 (menu) + 14 (voucher) + 6 (game) + 2 (quảng cáo, Đợt 4).
+    assert content.count(" — 0..") == 58
     assert "password_hash" in content and "bcrypt" in content
