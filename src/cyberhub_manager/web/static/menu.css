@@ -31,7 +31,7 @@
 @media (prefers-reduced-motion: reduce) {
   .dot1-sheet.turn-forward,.dot1-sheet.turn-back {animation:none}
 }
-.dot1-book-nav {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;color:var(--muted);font-size:12px}
+.dot1-book-nav {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;color:var(--muted);font-size:13.5px}
 
 /* ----- Bảng menu ---------------------------------------------------------------- */
 .dot1-board {padding:28px 32px 18px;border-radius:18px;color:var(--menu-ink);
@@ -46,7 +46,7 @@
 .dot1-brand img {height:58px;width:auto;object-fit:contain}
 .dot1-board-title {text-align:right}
 .dot1-board-title h2 {font-size:24px;color:#fff}
-.dot1-board-title small {color:var(--menu-soft);font-size:11px;letter-spacing:.5px}
+.dot1-board-title small {color:var(--menu-soft);font-size:12.5px;letter-spacing:.5px}
 
 .dot1-columns {display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px 34px;align-items:start}
 .dot1-col {min-width:0}
@@ -54,9 +54,9 @@
   text-align:center;font-size:20px;font-weight:800;letter-spacing:.2px;box-shadow:0 6px 18px -10px rgba(255,255,255,.6)}
 .dot1-rows {list-style:none;margin:0;padding:0}
 .dot1-rows + .dot1-rows {border-top:1px solid rgba(255,255,255,.22);margin-top:8px;padding-top:8px}
-.dot1-row {display:grid;grid-template-columns:auto minmax(12px,1fr) auto 64px;align-items:center;gap:8px;padding:4px 0;font-size:15px}
+.dot1-row {display:grid;grid-template-columns:auto minmax(12px,1fr) auto 64px;align-items:center;gap:8px;padding:4px 0;font-size:16px}
 .dot1-name {color:var(--menu-ink);min-width:0}
-.dot1-name small {display:block;color:var(--menu-soft);font-size:11px;margin-top:2px}
+.dot1-name small {display:block;color:var(--menu-soft);font-size:12.5px;margin-top:2px}
 .dot1-leader {border-bottom:1px dotted rgba(255,255,255,.28);height:1px;align-self:end;margin-bottom:6px}
 .dot1-price {font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
 .dot1-control {display:flex;justify-content:flex-end}
@@ -66,37 +66,37 @@
   font-size:17px;line-height:1;cursor:pointer}
 .dot1-add:hover:not(:disabled) {background:rgba(5,196,239,.15)}
 .dot1-add:disabled {opacity:.3;cursor:not-allowed}
-.dot1-sold {font-size:10px;font-weight:700;color:var(--red);border:1px solid rgba(244,63,94,.5);border-radius:999px;padding:2px 8px;text-transform:uppercase}
+.dot1-sold {font-size:11px;font-weight:700;color:var(--red);border:1px solid rgba(244,63,94,.5);border-radius:999px;padding:2px 8px;text-transform:uppercase}
 .dot1-stepper {display:inline-flex;align-items:center;gap:2px;border:1px solid rgba(5,196,239,.5);border-radius:999px;padding:1px}
 .dot1-stepper button {width:22px;height:22px;border-radius:999px;border:0;background:#0d3040;color:var(--text);cursor:pointer;font-size:14px;line-height:1}
 .dot1-stepper button:disabled {opacity:.4;cursor:not-allowed}
-.dot1-stepper span {min-width:16px;text-align:center;font-weight:700;font-size:13px}
+.dot1-stepper span {min-width:16px;text-align:center;font-weight:700;font-size:14px}
 
 /* Dải ảnh món ở chân bảng (ảnh do quản lý tải lên; không có ảnh thì ẩn). */
 .dot1-photos {display:flex;gap:12px;margin-top:24px;overflow-x:auto;padding-bottom:4px}
 .dot1-photos figure {position:relative;margin:0;flex:1 0 150px;max-width:230px;height:140px;border-radius:16px;overflow:hidden;
   border:1px solid rgba(255,255,255,.08)}
 .dot1-photos img {width:100%;height:100%;object-fit:cover;display:block}
-.dot1-photos figcaption {position:absolute;left:0;right:0;bottom:0;padding:16px 10px 6px;font-size:11px;font-weight:600;
+.dot1-photos figcaption {position:absolute;left:0;right:0;bottom:0;padding:16px 10px 6px;font-size:12.5px;font-weight:600;
   background:linear-gradient(transparent,rgba(0,0,0,.75))}
-.dot1-sheet-foot {text-align:center;color:var(--menu-soft);font-size:11px;margin-top:14px;letter-spacing:2px}
+.dot1-sheet-foot {text-align:center;color:var(--menu-soft);font-size:12.5px;margin-top:14px;letter-spacing:2px}
 
 /* ----- Món đã chọn ------------------------------------------------------------ */
-.dot1-cart>header h2 {display:flex;align-items:center;gap:8px;font-size:16px}
+.dot1-cart>header h2 {display:flex;align-items:center;gap:8px;font-size:18px}
 .dot1-cart-grid {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
-.dot1-seat {font-size:12px;color:var(--muted)}
+.dot1-seat {font-size:13.5px;color:var(--muted)}
 .dot1-seat b {color:var(--cyan)}
 .dot1-lines {list-style:none;margin:0 0 10px;padding:0;display:grid;gap:8px}
-.dot1-lines li {display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.dot1-lines li {display:flex;justify-content:space-between;gap:10px;font-size:14.5px}
 .dot1-total {display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:10px}
-.dot1-total strong {color:var(--menu-gold);font-size:18px}
-.dot1-hint {font-size:12px;color:var(--muted);margin:10px 0}
+.dot1-total strong {color:var(--menu-gold);font-size:20px}
+.dot1-hint {font-size:13.5px;color:var(--muted);margin:10px 0}
 .dot1-hint.warn {color:var(--amber)}
 .dot1-recent {margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
-.dot1-recent h3 {font-size:13px;margin-bottom:10px}
+.dot1-recent h3 {font-size:15px;margin-bottom:10px}
 .dot1-recent ul {list-style:none;margin:0;padding:0}
-.dot1-recent li {display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:6px 0;border-bottom:1px solid rgba(34,44,62,.6)}
-.dot1-status {font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px}
+.dot1-recent li {display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:6px 0;border-bottom:1px solid rgba(34,44,62,.6)}
+.dot1-status {font-size:12.5px;font-weight:700;border-radius:999px;padding:2px 9px}
 .dot1-status.NEW {color:var(--amber);background:rgba(245,164,0,.12)}
 .dot1-status.SERVED {color:var(--green);background:rgba(16,185,129,.12)}
 .dot1-status.CANCELLED {color:var(--red);background:rgba(244,63,94,.12)}
@@ -109,8 +109,8 @@
   .dot1-word {font-size:44px}
   .dot1-brand img {height:40px}
   .dot1-columns {grid-template-columns:1fr}
-  .dot1-pill {font-size:17px}
-  .dot1-row {font-size:14px;grid-template-columns:auto minmax(8px,1fr) auto 58px}
+  .dot1-pill {font-size:18px}
+  .dot1-row {font-size:15px;grid-template-columns:auto minmax(8px,1fr) auto 58px}
   .dot1-cart-grid {grid-template-columns:1fr;gap:8px}
   .dot1-toolbar .pc-field {min-width:0;flex:1}
 }
@@ -120,16 +120,16 @@
 .dot1-order {border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 14px}
 .dot1-order header {display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
 .dot1-order header strong {color:var(--cyan)}
-.dot1-order ul {list-style:none;margin:0 0 8px;padding:0;font-size:12px;display:grid;gap:4px}
-.dot1-order .note {font-size:12px;color:var(--amber);margin-bottom:8px}
+.dot1-order ul {list-style:none;margin:0 0 8px;padding:0;font-size:14.5px;display:grid;gap:4px}
+.dot1-order .note {font-size:14px;color:var(--amber);margin-bottom:8px}
 .dot1-order .actions {display:flex;gap:8px;justify-content:flex-end}
-.dot1-category-row td {background:#0d1422;color:var(--menu-gold);font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:11px}
+.dot1-category-row td {background:#0d1422;color:var(--menu-gold);font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:13.5px}
 .dot1-thumb {width:40px;height:40px;border-radius:8px;object-fit:cover;background:#0d3040;display:inline-flex;align-items:center;justify-content:center;color:var(--menu-gold);font-weight:700}
-.dot1-history {list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:360px;overflow:auto;font-size:12px}
+.dot1-history {list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:360px;overflow:auto;font-size:14.5px}
 .dot1-history li {border-bottom:1px solid var(--line);padding-bottom:6px}
 .dot1-check {display:flex;align-items:center;gap:8px}
 .dot1-check input {width:16px;height:16px}
-.dot1-tip {font-size:12px;color:var(--muted);grid-column:1 / -1}
+.dot1-tip {font-size:14px;color:var(--muted);grid-column:1 / -1}
 @media (max-width: 1100px) {
   .dot1-admin {grid-template-columns:1fr}
 }

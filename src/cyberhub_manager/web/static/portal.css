@@ -1,5 +1,5 @@
 .pc-workspace {max-width:1440px;padding:0 40px 24px;font-size:14px;line-height:1.6}
-.pc-workspace h1,.pc-workspace h2,.pc-workspace h3 {font-family:Inter,system-ui,sans-serif;letter-spacing:-.4px}
+.pc-workspace h1,.pc-workspace h2,.pc-workspace h3 {font-family:var(--font-sans, "Roboto", system-ui, sans-serif);letter-spacing:-.4px}
 .pc-workspace h1 {font-size:30px;line-height:1.4;font-weight:400}
 .pc-workspace h1 span {font-weight:700}
 .pc-workspace h2 {font-size:18px;line-height:1.4}
@@ -60,7 +60,7 @@
 .pc-chart-detail strong {color:var(--cyan);font-size:18px}
 .pc-chart {display:block;width:100%;max-height:260px;overflow:visible}
 .pc-chart line {stroke:var(--line);stroke-dasharray:4 4}
-.pc-chart text {fill:var(--muted);font-family:Inter,sans-serif;font-size:11px}
+.pc-chart text {fill:var(--muted);font-family:var(--font-sans, "Roboto", sans-serif);font-size:11px}
 .pc-chart rect {fill:#145166;cursor:pointer;transition:fill .15s}
 .pc-chart rect:hover,.pc-chart rect:focus,.pc-chart rect.selected {fill:var(--cyan);outline:none;stroke:#b2f2ff;stroke-width:1}
 .pc-chart-summary {display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:20px 0;border-top:1px solid var(--line)}

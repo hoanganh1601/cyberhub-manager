@@ -1,17 +1,3 @@
-@font-face {
-  font-family: Inter;
-  src: url("/assets/fonts/Inter-400.ttf");
-}
-@font-face {
-  font-family: Inter;
-  src: url("/assets/fonts/Inter-700.ttf");
-  font-weight: 700;
-}
-@font-face {
-  font-family: Space;
-  src: url("/assets/fonts/SpaceGrotesk-700.ttf");
-  font-weight: 700;
-}
 :root {
   color-scheme: dark;
   --bg: #0b101b;
@@ -26,8 +12,10 @@
   --red: #f43f5e;
   --amber: #f5a400;
   --radius: 12px;
-  font-family: Inter, system-ui, sans-serif;
-  font-size: 13px;
+  --font-sans: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-heading: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 16px;
   background: var(--bg);
   color: var(--text);
 }
@@ -36,6 +24,8 @@
 }
 body {
   margin: 0;
+  font-family: var(--font-sans);
+  font-size: 16px;
 }
 button,
 input,
@@ -80,24 +70,24 @@ h1,
 h2,
 h3,
 .brand-word {
-  font-family: Space, Inter, sans-serif;
+  font-family: var(--font-heading);
 }
 h1 {
-  font-size: 25px;
+  font-size: 28px;
   letter-spacing: -0.8px;
 }
 h2 {
-  font-size: 18px;
+  font-size: 22px;
 }
 h3 {
-  font-size: 14px;
+  font-size: 18px;
 }
 small,
 .muted {
   color: var(--muted);
 }
 small {
-  font-size: 11px;
+  font-size: 14px;
 }
 strong {
   font-weight: 700;
@@ -196,9 +186,9 @@ strong {
   font-weight: 400;
 }
 .btn.small {
-  min-height: 30px;
-  padding: 6px 10px;
-  font-size: 11px;
+  min-height: 34px;
+  padding: 7px 13px;
+  font-size: 14px;
 }
 .btn.full {
   width: 100%;
@@ -207,8 +197,8 @@ strong {
   transform: translateY(1px);
 }
 .btn .icon {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
 }
 .segment {
   display: inline-flex;
@@ -222,9 +212,9 @@ strong {
   background: transparent;
   border: 0;
   color: var(--muted);
-  padding: 5px 8px;
+  padding: 6px 10px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 14px;
 }
 .segment button.active {
   background: var(--cyan);
@@ -237,9 +227,10 @@ select {
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--input);
-  padding: 11px 12px;
+  padding: 12px 14px;
   color: var(--text);
   min-width: 0;
+  font-size: 15px;
 }
 .input::placeholder {
   color: #64748b;
@@ -252,17 +243,18 @@ label {
   display: grid;
   gap: 8px;
   color: #c2d0e5;
-  font-size: 12px;
+  font-size: 15px;
 }
 label > span:first-child {
   font-weight: 700;
+  font-size: 14px;
 }
 input[aria-invalid="true"] {
   border-color: var(--red);
 }
 .field-error {
   color: #ff8398;
-  font-size: 11px;
+  font-size: 13.5px;
   min-height: 0;
 }
 .field-error:empty {
@@ -271,13 +263,13 @@ input[aria-invalid="true"] {
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   border: 1px solid #24374b;
   background: #142235;
   color: #b9cee9;
   border-radius: 20px;
-  padding: 4px 8px;
-  font-size: 10px;
+  padding: 5px 12px;
+  font-size: 13.5px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -379,7 +371,7 @@ input[aria-invalid="true"] {
   margin-bottom: 40px;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: 13px;
   letter-spacing: 1.4px;
   text-transform: uppercase;
   color: var(--cyan);
@@ -398,7 +390,7 @@ input[aria-invalid="true"] {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-top: 45px;
-  font-size: 11px;
+  font-size: 13.5px;
   color: #a4b7ce;
 }
 .features .icon {
@@ -408,7 +400,7 @@ input[aria-invalid="true"] {
 .brand-foot {
   position: absolute;
   bottom: 35px;
-  font-size: 10px;
+  font-size: 12.5px;
   color: #61718a;
 }
 .login-panel {
@@ -425,7 +417,7 @@ input[aria-invalid="true"] {
   gap: 16px;
 }
 .login-top .eyebrow {
-  font-size: 9px;
+  font-size: 12.5px;
   color: var(--muted);
 }
 .login-form {
@@ -460,7 +452,7 @@ input[aria-invalid="true"] {
   padding: 7px;
 }
 .login-form label {
-  font-size: 10px;
+  font-size: 13.5px;
   letter-spacing: 0.6px;
 }
 .login-form .input {
@@ -472,7 +464,7 @@ input[aria-invalid="true"] {
 .login-hint {
   text-align: center;
   color: #687991;
-  font-size: 10px;
+  font-size: 13px;
 }
 .login-footer {
   border-top: 1px solid var(--line);
@@ -480,7 +472,7 @@ input[aria-invalid="true"] {
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
 }
 .demo-note {
   border: 1px solid #154153;
@@ -489,7 +481,7 @@ input[aria-invalid="true"] {
   padding: 14px;
   color: #a9d2df;
   line-height: 1.9;
-  font-size: 11px;
+  font-size: 13.5px;
 }
 .error-box {
   border: 1px solid #652538;
@@ -531,13 +523,13 @@ input[aria-invalid="true"] {
   object-fit: contain;
 }
 .brand-word {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.4;
 }
 .brand-word small {
   display: block;
-  font-family: Inter, sans-serif;
-  font-size: 8px;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
   letter-spacing: 1.3px;
   color: var(--muted);
 }
@@ -549,15 +541,15 @@ input[aria-invalid="true"] {
 .nav button {
   display: flex;
   align-items: center;
-  gap: 11px;
-  min-height: 42px;
-  padding: 10px 13px;
+  gap: 12px;
+  min-height: 44px;
+  padding: 11px 14px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
   text-align: left;
-  font-size: 12px;
+  font-size: 15px;
 }
 .nav button:hover {
   color: white;
@@ -569,13 +561,14 @@ input[aria-invalid="true"] {
   color: var(--cyan);
 }
 .nav .icon {
-  width: 16px;
+  width: 19px;
+  height: 19px;
 }
 .sidebar-foot {
   margin-top: auto;
   padding: 18px 16px;
   border-top: 1px solid var(--line);
-  font-size: 9px;
+  font-size: 13.5px;
   color: var(--muted);
   display: grid;
   gap: 12px;
@@ -584,7 +577,7 @@ input[aria-invalid="true"] {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
+  font-size: 14px;
   color: #32d7aa;
 }
 .topbar {
@@ -602,18 +595,18 @@ input[aria-invalid="true"] {
   gap: 8px;
   background: #172236;
   border: 1px solid var(--line);
-  padding: 6px 9px;
+  padding: 7px 11px;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 13.5px;
   font-weight: 700;
   white-space: nowrap;
 }
 .store-chip .icon {
   color: var(--cyan);
-  width: 13px;
+  width: 14px;
 }
 .top-time {
-  font-size: 10px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 .profile {
@@ -624,25 +617,25 @@ input[aria-invalid="true"] {
   padding-left: 16px;
 }
 .profile .name {
-  font-size: 10px;
+  font-size: 14.5px;
   font-weight: 700;
 }
 .profile small {
   display: block;
   margin-top: 3px;
-  font-size: 8px;
+  font-size: 12px;
   color: var(--cyan);
   letter-spacing: 1px;
 }
 .avatar {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #243247;
   color: #d5edff;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 .main {
@@ -661,11 +654,11 @@ input[aria-invalid="true"] {
 }
 .page-head p {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14.5px;
   margin-top: 7px;
 }
 .page-head h1 {
-  font-size: 22px;
+  font-size: 26px;
 }
 .page-footer {
   margin-top: auto;
@@ -674,7 +667,7 @@ input[aria-invalid="true"] {
   justify-content: space-between;
   gap: 12px;
   color: #69809d;
-  font-size: 9px;
+  font-size: 13.5px;
 }
 .toolbar {
   display: flex;
@@ -690,9 +683,9 @@ input[aria-invalid="true"] {
 }
 .toolbar .input,
 .toolbar select {
-  padding: 8px 10px;
-  min-height: 35px;
-  font-size: 11px;
+  padding: 8px 12px;
+  min-height: 38px;
+  font-size: 14.5px;
 }
 .toolbar input[type="date"] {
   width: 150px;
@@ -704,15 +697,15 @@ input[aria-invalid="true"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 10px;
+  font-size: 14px;
 }
 .filter-btn {
   border: 1px solid var(--line);
   background: var(--input);
   color: var(--muted);
-  padding: 8px 12px;
+  padding: 8px 14px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 14px;
 }
 .filter-btn.active {
   background: #083247;
@@ -734,13 +727,14 @@ input[aria-invalid="true"] {
 }
 .metric-label {
   color: var(--muted);
-  font-size: 9px;
-  letter-spacing: 0.4px;
+  font-size: 13.5px;
+  letter-spacing: 0.5px;
+  font-weight: 600;
   text-transform: uppercase;
 }
 .metric-value {
-  font-family: Space, sans-serif;
-  font-size: 25px;
+  font-family: var(--font-heading);
+  font-size: 30px;
   font-weight: 700;
   margin: 9px 0 5px;
 }
@@ -749,10 +743,11 @@ input[aria-invalid="true"] {
   right: 14px;
   top: 17px;
   color: var(--muted);
-  width: 17px;
+  width: 22px;
+  height: 22px;
 }
 .metric small {
-  font-size: 9px;
+  font-size: 13.5px;
 }
 .machine-grid {
   display: grid;
@@ -776,34 +771,34 @@ input[aria-invalid="true"] {
   border-color: #494020;
 }
 .machine-name {
-  font-size: 11px;
+  font-size: 14.5px;
   color: var(--muted);
 }
 .machine-body {
   display: grid;
   gap: 10px;
   margin: 5px 0 auto;
-  font-size: 11px;
+  font-size: 14.5px;
 }
 .machine-body .row {
   gap: 8px;
 }
 .machine-body .muted {
-  font-size: 10px;
+  font-size: 13.5px;
 }
 .machine-card .btn {
   margin-top: 10px;
-  font-size: 11px;
-  min-height: 35px;
+  font-size: 14px;
+  min-height: 38px;
 }
 .notice {
   border: 1px solid #544014;
   background: #30261055;
   color: #e4b753;
-  padding: 12px;
+  padding: 14px 16px;
   border-radius: 6px;
-  font-size: 11px;
-  line-height: 1.8;
+  font-size: 14.5px;
+  line-height: 1.7;
 }
 .notice.info {
   background: #082c3833;
@@ -823,16 +818,26 @@ input[aria-invalid="true"] {
   overflow: hidden;
 }
 .panel-heading {
-  padding: 17px 18px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
+.panel-heading h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
 .panel-heading .icon {
   color: var(--cyan);
-  width: 16px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 .panel-body {
   padding: 18px;
@@ -850,12 +855,12 @@ table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: 11px;
+  font-size: 15px;
 }
 th {
-  font-size: 9px;
+  font-size: 13.5px;
   letter-spacing: 0.5px;
-  font-weight: 400;
+  font-weight: 600;
   color: var(--muted);
   padding: 14px 12px;
   border-bottom: 1px solid var(--line);
@@ -863,9 +868,9 @@ th {
   text-transform: uppercase;
 }
 td {
-  padding: 15px 12px;
+  padding: 14px 12px;
   border-bottom: 1px solid #24304777;
-  line-height: 1.7;
+  line-height: 1.6;
 }
 tbody tr {
   transition: background 0.15s;
@@ -883,11 +888,11 @@ tbody tr.selected td:first-child {
   box-shadow: inset 3px 0 0 var(--cyan);
 }
 td small {
-  font-size: 9px;
+  font-size: 13.5px;
 }
 .table-code {
   color: var(--cyan);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -901,7 +906,7 @@ td small {
   gap: 10px;
   padding: 15px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
 }
 .pages {
   display: flex;
@@ -919,7 +924,7 @@ td small {
   height: 38px;
 }
 .detail-identity strong {
-  font-size: 13px;
+  font-size: 17px;
 }
 .detail-identity small {
   display: block;
@@ -927,8 +932,11 @@ td small {
 }
 .key-values {
   display: grid;
-  gap: 12px;
-  font-size: 11px;
+  gap: 14px;
+  font-size: 16px;
+}
+.panel > .key-values {
+  padding: 18px 20px;
 }
 .key-values > div {
   display: flex;
@@ -942,6 +950,7 @@ td small {
 .key-values > div > span:last-child {
   text-align: right;
   overflow-wrap: anywhere;
+  font-weight: 600;
 }
 .balance-box {
   background: var(--input);
@@ -951,13 +960,13 @@ td small {
   padding: 15px;
 }
 .balance-box p {
-  font-size: 9px;
+  font-size: 13px;
   color: var(--muted);
   margin-bottom: 8px;
   text-transform: uppercase;
 }
 .balance-box .money {
-  font-size: 23px;
+  font-size: 26px;
 }
 .actions {
   display: flex;
@@ -971,15 +980,15 @@ td small {
 .transaction {
   border: 1px solid var(--line);
   border-radius: 7px;
-  padding: 11px;
+  padding: 12px;
   margin-top: 9px;
-  font-size: 10px;
+  font-size: 14.5px;
 }
 .transaction .row {
   align-items: start;
 }
 .transaction small {
-  font-size: 9px;
+  font-size: 13.5px;
 }
 .empty {
   min-height: 250px;
@@ -1044,7 +1053,7 @@ td small {
   background: #76e5ff;
 }
 .bar-column small {
-  font-size: 9px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .bar-column .bar span {
@@ -1052,7 +1061,7 @@ td small {
   left: 50%;
   bottom: 100%;
   transform: translateX(-50%);
-  font-size: 9px;
+  font-size: 13px;
   color: #c5e8f4;
   padding-bottom: 6px;
 }
@@ -1105,12 +1114,12 @@ dialog::backdrop {
   z-index: 1;
 }
 .modal-header h2 {
-  font-size: 17px;
+  font-size: 18px;
 }
 .modal-header small {
   display: block;
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 13px;
 }
 .modal-header .close {
   background: transparent;
@@ -1137,7 +1146,7 @@ dialog::backdrop {
 }
 .modal-footer small {
   margin-right: auto;
-  font-size: 9px;
+  font-size: 13.5px;
 }
 .form-grid {
   display: grid;
@@ -1152,7 +1161,7 @@ dialog::backdrop {
   background: var(--input);
   border: 1px solid var(--line);
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 14.5px;
   line-height: 1.8;
 }
 .form-card .key-values {
@@ -1176,7 +1185,7 @@ dialog::backdrop {
   align-items: start;
   gap: 10px;
   line-height: 1.8;
-  font-size: 11px;
+  font-size: 13.5px;
 }
 .check-label input {
   accent-color: var(--cyan);
@@ -1210,7 +1219,7 @@ dialog::backdrop {
   gap: 10px;
   max-width: 410px;
   line-height: 1.7;
-  font-size: 12px;
+  font-size: 14.5px;
 }
 .toast.error {
   background: #321924;
@@ -1234,7 +1243,7 @@ dialog::backdrop {
   max-width: calc(100vw - 32px);
 }
 .receipt-note {
-  font-size: 11px;
+  font-size: 14.5px;
   color: var(--muted);
   line-height: 1.9;
 }
@@ -1266,7 +1275,7 @@ dialog::backdrop {
     width: 60px;
   }
   .brand-word {
-    font-size: 12px;
+    font-size: 13.5px;
   }
   .topbar {
     padding: 0 16px;
@@ -1361,7 +1370,7 @@ dialog::backdrop {
     padding: 0 12px;
   }
   .store-chip {
-    font-size: 9px;
+    font-size: 11.5px;
     padding: 6px;
   }
   .store-chip .icon {
@@ -1389,7 +1398,7 @@ dialog::backdrop {
   .page-head .btn {
     padding: 8px;
     min-height: 32px;
-    font-size: 10px;
+    font-size: 12px;
   }
   .page-head .btn .icon {
     width: 13px;
@@ -1405,7 +1414,7 @@ dialog::backdrop {
     font-size: 21px;
   }
   .metric-label {
-    font-size: 8px;
+    font-size: 11px;
   }
   .metric .icon {
     display: none;
@@ -1433,7 +1442,7 @@ dialog::backdrop {
   }
   .toolbar .filter-btn {
     padding: 7px 8px;
-    font-size: 10px;
+    font-size: 12px;
   }
   .form-grid {
     grid-template-columns: 1fr;
@@ -1454,20 +1463,20 @@ dialog::backdrop {
     display: none;
   }
   .page-footer {
-    font-size: 8px;
+    font-size: 11px;
     line-height: 1.8;
   }
   .page-footer > span:last-child {
     display: none;
   }
   .table-foot {
-    font-size: 9px;
+    font-size: 11.5px;
   }
   .bar-column .bar span {
     display: none;
   }
   .bar-column small {
-    font-size: 8px;
+    font-size: 11px;
   }
   th,
   td {
@@ -1510,6 +1519,6 @@ dialog::backdrop {
   .customer-workspace thead {display:none}
   .customer-workspace tr {padding:12px 14px;border-bottom:1px solid #253248}
   .customer-workspace td {display:flex;justify-content:space-between;gap:12px;white-space:normal;text-align:right;padding:7px 0;border:0}
-  .customer-workspace td::before {content:attr(data-label);font-size:10px;text-align:left;color:#8295af;flex:0 0 110px}
+  .customer-workspace td::before {content:attr(data-label);font-size:12.5px;text-align:left;color:#8295af;flex:0 0 110px}
   .customer-workspace .panel {min-height:0}
 }

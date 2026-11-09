@@ -12,7 +12,7 @@ Object.assign(copy, {
   dot3VoucherCount: ["Voucher từ xu", "Vouchers from coins"],
   dot3Config: ["Cấu hình vòng quay", "Wheel settings"],
   dot3EditConfig: ["Sửa cấu hình", "Edit settings"],
-  dot3DailyLimit: ["Lượt mỗi ngày", "Spins per day"],
+  dot3DailyLimit: ["Lượt chơi mỗi ngày", "Spins per day"],
   dot3Interval: ["Cách nhau tối thiểu (giây)", "Minimum gap (seconds)"],
   dot3Expected: ["Xu kỳ vọng mỗi lượt", "Expected coins per spin"],
   dot3Prize: ["Ô thưởng", "Prize"],
@@ -52,9 +52,13 @@ function gameAdminPage() {
     <div class="metrics">${metric("dot3Sessions", s.sessions, "cyan", "wheel")}${metric("dot3Players", s.players, "", "users")}${metric("dot3Awarded", s.coins_awarded, "green", "coin")}${metric("dot3Spent", s.coins_redeemed, "", "coin")}${metric("dot3VoucherCount", s.vouchers, "", "ticket")}</div>
     <div class="dot3-admin">
       <section class="panel"><header class="panel-heading"><h3>${icon("wheel")} ${t("dot3Config")} · ${esc(game.name)}</h3>${badge(game.is_active ? "ACTIVE" : "INACTIVE")}</header>
-        <div class="key-values">${kv("dot3DailyLimit", game.daily_limit)}${kv("dot3Interval", game.min_interval_seconds)}${kv("dot3Expected", game.expected_coins)}</div>
+        <div class="panel-body dot3-config-meta">
+          <div class="key-values">${kv("dot3DailyLimit", game.daily_limit)}${kv("dot3Interval", game.min_interval_seconds)}${kv("dot3Expected", game.expected_coins)}</div>
+        </div>
         ${table(["dot3Prize", "dot3Coins", "dot3Weight", "dot3Chance"], prizes)}
-        <p class="notice info">${t("dot3AutoLockNote").replace("{n}", d.suspicious_limit)}</p></section>
+        <div class="panel-body dot3-config-note">
+          <p class="notice info">${t("dot3AutoLockNote").replace("{n}", d.suspicious_limit)}</p>
+        </div></section>
       <section class="panel"><header class="panel-heading"><h3>${icon("shield")} ${t("dot3LockedWallets")}</h3><span class="badge red">${d.locked.length}</span></header>${locked}</section>
     </div>
     <section class="panel"><header class="panel-heading"><h3>${icon("clock")} ${t("dot3Recent")}</h3></header>${recent}</section>`;

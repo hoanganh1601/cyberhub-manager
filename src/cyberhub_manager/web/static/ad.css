@@ -1,11 +1,11 @@
 /* Đợt 4 — Quảng cáo nhận thưởng: thẻ trong tab Vòng quay, cửa sổ quảng cáo, trang nhân viên. */
 .dot4-card>header {display:flex;justify-content:space-between;align-items:start;gap:12px}
-.dot4-card h2 {font-size:16px;margin-top:6px}
-.dot4-reward {color:#f5a400;font-size:18px;white-space:nowrap}
+.dot4-card h2 {font-size:19px;margin-top:6px}
+.dot4-reward {color:#f5a400;font-size:22px;white-space:nowrap}
 .dot4-row {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
-.dot4-row small {color:var(--muted)}
-.dot4-tag {display:inline-block;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-  color:#0b0d12;background:#f5a400;border-radius:4px;padding:2px 7px}
+.dot4-row small {color:var(--muted);font-size:14px}
+.dot4-tag {display:inline-block;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:#0b0d12;background:#f5a400;border-radius:4px;padding:3px 8px}
 
 .dot4-dialog {width:min(520px,calc(100vw - 32px));padding:0;border-radius:18px}
 .dot4-ad {display:flex;flex-direction:column;gap:14px;padding:18px}
@@ -15,13 +15,15 @@
   background:radial-gradient(500px 220px at 50% 0,rgba(5,196,239,.18),transparent 70%),linear-gradient(180deg,#141a28,#0d121d);
   border:1px solid var(--line)}
 .dot4-creative img {height:44px}
-.dot4-creative h2 {font-size:20px}
-.dot4-creative p {color:var(--muted);font-size:13px;line-height:1.5}
-.dot4-cta {color:var(--cyan);font-weight:700;font-size:13px}
+.dot4-creative h2 {font-size:26px}
+.dot4-creative p {color:var(--muted);font-size:16px;line-height:1.6}
+.dot4-cta {color:var(--cyan);font-weight:700;font-size:16px}
 .dot4-progress {height:6px;border-radius:999px;background:#16213a;overflow:hidden}
 .dot4-progress i {display:block;height:100%;background:linear-gradient(90deg,#05c4ef,#f5a400);transition:width 1s linear}
-.dot4-status {font-size:12px;color:var(--muted);text-align:center}
+.dot4-status {font-size:15px;color:var(--muted);text-align:center}
 .dot4-ad footer {display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 
 .dot4-admin {display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:18px}
+.dot4-admin .key-values {gap:14px;font-size:16px}
+.dot4-admin .key-values > div > span:last-child {font-weight:600;color:var(--text)}
 @media (max-width: 1000px) {.dot4-admin {grid-template-columns:1fr}}
