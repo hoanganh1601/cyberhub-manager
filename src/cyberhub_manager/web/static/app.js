@@ -502,6 +502,7 @@ function renderShell() {
     ["customers", "users"],
     ...(isManager() ? [["machines", "monitor"]] : []),
     ["invoices", "invoice"],
+    ["menu", "utensils"],
     ...(isManager() ? [["revenue", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
@@ -543,6 +544,11 @@ async function loadPage(silent = false) {
   if (!silent) $("#workspace").innerHTML = pageHead() + loading();
   try {
     let data;
+    if (page === "menu") {
+      // Đợt 1: menu + hàng đợi gọi món của cơ sở đang thao tác.
+      if (await loadMenuAdmin(seq)) renderPage();
+      return;
+    }
     if (["employees","promotions","stores"].includes(page)) {
       const [items,stores] = await Promise.all([api(`/${page}`),api('/stores')]);
       if(seq!==state.seq) return;
@@ -598,12 +604,14 @@ function renderPage() {
   else if (state.page === "machines") html = machinesPage();
   else if (state.page === "invoices") html = invoicesPage();
   else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
+  else if (state.page === "menu") html = menuAdminPage();
   else if (state.page === "revenue" && isManager()) html = revenuePage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
   installRoomManagement();
   installLoyaltyManagement();
+  if (state.page === "menu") wireMenuAdmin();
   if (focus) {
     const node = document.getElementById(focus);
     if (node) {

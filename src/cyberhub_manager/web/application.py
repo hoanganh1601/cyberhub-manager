@@ -253,6 +253,9 @@ def create_app(config: dict | None = None) -> Flask:
     def prepare_request():
         if request.path=="/api/portal/avatar":
             request.max_content_length=2*1024*1024+32768
+        # Đợt 1: ảnh món ăn cùng giới hạn 2 MB như ảnh đại diện.
+        if request.method=="POST" and request.path.startswith("/api/menu/items/") and request.path.endswith("/image"):
+            request.max_content_length=2*1024*1024+32768
         if not request.path.startswith("/api/"):
             return None
         session.setdefault("csrf", secrets.token_urlsafe(32))
@@ -914,5 +917,86 @@ def create_app(config: dict | None = None) -> Flask:
                 invoice_count=sum(item.invoice_count for item in days),
             )
         )
+
+    # ----- Đợt 1: menu đồ ăn/đồ uống ----------------------------------------------
+    # Kiểu dữ liệu (int/bool) được MenuService kiểm tra; route chỉ chuyển giá trị thô.
+    @app.get("/api/portal/menu")
+    def portal_menu():
+        return reply(g.services.menu.portal_menu(g.customer, portal_integer("store_id")))
+
+    @app.post("/api/portal/menu/orders")
+    def portal_menu_order():
+        data = body()
+        return reply(
+            g.services.menu.place_order(g.customer, data.get("lines"), data.get("note", "")), 201
+        )
+
+    @app.get("/api/portal/menu/items/<int:item_id>/image")
+    def portal_menu_image(item_id):
+        return Response(g.services.menu.portal_image(g.customer, item_id), content_type="image/webp")
+
+    @app.get("/api/menu")
+    def menu_manage():
+        return reply(g.services.menu.manage_menu(g.actor))
+
+    @app.route("/api/menu/categories", methods=["POST"])
+    @app.route("/api/menu/categories/<int:category_id>", methods=["PATCH"])
+    def menu_category_save(category_id=None):
+        data = body()
+        return reply(
+            g.services.menu.save_category(
+                g.actor,
+                category_id,
+                page=data.get("page"),
+                name=data.get("name"),
+                sort_order=data.get("sort_order", 0),
+                is_active=data.get("is_active", True),
+            )
+        )
+
+    @app.route("/api/menu/items", methods=["POST"])
+    @app.route("/api/menu/items/<int:item_id>", methods=["PATCH"])
+    def menu_item_save(item_id=None):
+        data = body()
+        return reply(
+            g.services.menu.save_item(
+                g.actor,
+                item_id,
+                category_id=data.get("category_id"),
+                name=data.get("name"),
+                description=data.get("description", ""),
+                price=data.get("price"),
+                sort_order=data.get("sort_order", 0),
+                is_visible=data.get("is_visible", True),
+                is_available=data.get("is_available", True),
+            )
+        )
+
+    @app.post("/api/menu/items/<int:item_id>/availability")
+    def menu_item_availability(item_id):
+        return reply(g.services.menu.set_item_available(g.actor, item_id, body().get("available")))
+
+    @app.get("/api/menu/items/<int:item_id>/image")
+    def menu_item_image(item_id):
+        return Response(g.services.menu.item_image(g.actor, item_id), content_type="image/webp")
+
+    @app.post("/api/menu/items/<int:item_id>/image")
+    def menu_item_image_upload(item_id):
+        upload = request.files.get("image")
+        if upload is None:
+            raise ValidationError(field_errors={"image": "Vui lòng chọn ảnh món"})
+        return reply(g.services.menu.upload_item_image(g.actor, item_id, upload.read(2 * 1024 * 1024 + 1)))
+
+    @app.get("/api/menu/items/<int:item_id>/history")
+    def menu_item_history(item_id):
+        return reply(g.services.menu.item_history(g.actor, item_id))
+
+    @app.get("/api/menu/orders")
+    def menu_orders():
+        return reply(g.services.menu.list_orders(g.actor, request.args.get("status", "NEW")))
+
+    @app.post("/api/menu/orders/<int:order_id>/status")
+    def menu_order_status(order_id):
+        return reply(g.services.menu.finish_order(g.actor, order_id, body().get("status")))
 
     return app

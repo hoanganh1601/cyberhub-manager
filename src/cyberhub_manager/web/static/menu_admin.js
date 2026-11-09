@@ -1,0 +1,241 @@
+"use strict";
+// Đợt 1 — Trang "Menu" cho nhân viên: hàng đợi gọi món (mọi nhân viên), còn/hết món (mọi nhân viên),
+// thêm/sửa/ẩn món, nhóm món, giá, ảnh, thứ tự và lịch sử (MANAGER/ADMIN, backend kiểm tra lại quyền).
+
+Object.assign(paths, {
+  utensils: '<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 3c-2.2 0-3 2.5-3 5.5V13h3v8"/>',
+});
+Object.assign(copy, {
+  menu: ["Menu đồ ăn", "Food menu"],
+  menuSub: ["Yêu cầu gọi món từ khách đang chơi và danh mục món của cơ sở", "Orders from players and this store's menu"],
+  dot1Queue: ["Yêu cầu gọi món", "Incoming orders"],
+  dot1NoOrders: ["Chưa có yêu cầu mới", "No new orders"],
+  dot1Catalog: ["Danh mục món", "Menu items"],
+  dot1NewCategory: ["Nhóm món", "Category"],
+  dot1NewItem: ["Thêm món", "Add item"],
+  dot1EditItem: ["Sửa món", "Edit item"],
+  dot1EditCategory: ["Nhóm món", "Category"],
+  dot1Served: ["Đã phục vụ", "Served"],
+  dot1Cancel: ["Hủy", "Cancel"],
+  dot1Available: ["Còn món", "Available"],
+  dot1Unavailable: ["Hết món", "Sold out"],
+  dot1Hidden: ["Đang ẩn", "Hidden"],
+  dot1Visible: ["Hiển thị cho khách", "Visible to customers"],
+  dot1CategoryOff: ["Nhóm đang tắt", "Category disabled"],
+  dot1Price: ["Giá (VND)", "Price (VND)"],
+  dot1Description: ["Mô tả ngắn", "Short description"],
+  dot1Sort: ["Thứ tự hiển thị", "Display order"],
+  dot1PageLabel: ["Trang menu", "Menu page"],
+  dot1Image: ["Ảnh", "Image"],
+  dot1UploadImage: ["Tải ảnh", "Upload image"],
+  dot1History: ["Lịch sử", "History"],
+  dot1NoHistory: ["Chưa có thay đổi", "No changes yet"],
+  dot1Saved: ["Đã lưu", "Saved"],
+  dot1Active: ["Đang dùng", "Active"],
+  dot1Seat2: ["Máy", "Seat"],
+  dot1FieldCREATE: ["Tạo món", "Created"], dot1FieldNAME: ["Tên", "Name"], dot1FieldCATEGORY: ["Nhóm", "Category"],
+  dot1FieldPRICE: ["Giá", "Price"], dot1FieldAVAILABLE: ["Còn món", "Available"], dot1FieldVISIBLE: ["Hiển thị", "Visible"],
+  dot1FieldIMAGE: ["Ảnh", "Image"],
+  dot1ConfirmCancel: ["Hủy yêu cầu gọi món này?", "Cancel this order?"],
+  dot1SortTip: ["Thứ tự cùng hàng trăm nằm chung một nhóm nhỏ trên bảng menu (vd. 0–99 là nhóm đầu, 100–199 có vạch ngăn bên trên).", "Items with the same hundreds in display order share a sub-group on the menu board (e.g. 0–99, then 100–199 below a divider)."],
+});
+
+let dot1AdminTimer = null;
+
+async function loadMenuAdmin(seq) {
+  const [menu, orders] = await Promise.all([api("/menu"), api("/menu/orders?status=NEW")]);
+  if (seq !== state.seq || state.page !== "menu") return false;
+  state.menuAdmin = menu;
+  state.menuOrders = orders;
+  return true;
+}
+
+function menuAdminPage() {
+  const d = state.menuAdmin, orders = state.menuOrders || [];
+  if (!d) return pageHead() + loading();
+  const extra = d.can_manage
+    ? `<button class="btn small" data-menuadmin="category">${icon("plus")}${t("dot1NewCategory")}</button><button class="btn primary small" data-menuadmin="item">${icon("plus")}${t("dot1NewItem")}</button>`
+    : "";
+  return pageHead(extra) + `<div class="dot1-admin">
+      <section class="panel"><header class="panel-heading"><h3>${icon("bell")} ${t("dot1Queue")}</h3><span class="badge amber">${orders.length}</span></header>
+        ${orders.length ? orders.map(dot1OrderCard).join("") : empty("dot1NoOrders")}</section>
+      <section class="panel"><header class="panel-heading"><h3>${icon("utensils")} ${t("dot1Catalog")}</h3></header>${dot1CatalogTable(d)}</section>
+    </div>`;
+}
+
+function dot1OrderCard(order) {
+  return `<article class="dot1-order"><header><span><strong>${esc(order.machine_code)}</strong> · ${esc(order.customer_name)}</span><small>${dt(order.created_at)}</small></header>
+      <ul>${order.lines.map((l) => `<li>${l.quantity} × ${esc(l.item_name)} — ${money(l.unit_price * l.quantity)}</li>`).join("")}</ul>
+      ${order.note ? `<p class="note">“${esc(order.note)}”</p>` : ""}
+      <div class="actions"><span class="spacer">${t("dot1Total")}: <b>${money(order.total_amount)}</b></span>
+        <button class="btn small" data-menuadmin="cancel-order" data-id="${order.id}">${t("dot1Cancel")}</button>
+        <button class="btn small primary" data-menuadmin="serve-order" data-id="${order.id}">${t("dot1Served")}</button></div>
+    </article>`;
+}
+
+function dot1CatalogTable(d) {
+  const pageName = (page) => t(page === "FOOD" ? "dot1Food" : "dot1Drink");
+  const categories = [...d.categories].sort((a, b) => a.page.localeCompare(b.page) || a.sort_order - b.sort_order || a.id - b.id);
+  const rows = categories.map((c) => {
+    const items = d.items.filter((i) => i.category_id === c.id).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+    const head = `<tr class="dot1-category-row"><td colspan="5">${pageName(c.page)} · ${esc(c.name)} ${c.is_active ? "" : `<span class="badge red">${t("dot1CategoryOff")}</span>`}
+        ${d.can_manage ? `<button class="btn ghost small" data-menuadmin="category" data-id="${c.id}">${icon("edit")}${t("edit")}</button>` : ""}</td></tr>`;
+    return head + items.map((item) => `<tr>
+        <td>${item.image_version ? `<img class="dot1-thumb" src="/api/menu/items/${item.id}/image?v=${encodeURIComponent(item.image_version)}" alt="">` : `<span class="dot1-thumb">${esc(item.name.slice(0, 1).toUpperCase())}</span>`}</td>
+        <td><strong>${esc(item.name)}</strong>${item.is_visible ? "" : ` <span class="badge">${t("dot1Hidden")}</span>`}<br><small class="muted">${esc(item.description)}</small></td>
+        <td class="money">${money(item.price)}</td>
+        <td><button class="btn small ${item.is_available ? "" : "danger"}" data-menuadmin="toggle" data-id="${item.id}" data-available="${!item.is_available}" title="${t(item.is_available ? "dot1Unavailable" : "dot1Available")}">${t(item.is_available ? "dot1Available" : "dot1Unavailable")}</button></td>
+        <td>${d.can_manage ? `<div class="actions"><button class="btn ghost small" data-menuadmin="item" data-id="${item.id}">${t("edit")}</button><button class="btn ghost small" data-menuadmin="image" data-id="${item.id}">${t("dot1UploadImage")}</button><button class="btn ghost small" data-menuadmin="history" data-id="${item.id}">${t("dot1History")}</button></div>` : ""}</td>
+      </tr>`).join("");
+  }).join("");
+  return rows ? table(["dot1Image", "name", "dot1Price", "status", ""], rows) : empty();
+}
+
+// ----- Hộp thoại riêng (không dùng #modal để không đụng luồng submit chung) ------------
+function dot1Dialog(title, body, onSubmit, submitLabel = "save") {
+  let dialog = $("#dot1-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "dot1-dialog";
+    document.body.append(dialog);
+  }
+  dialog.innerHTML = `<form id="dot1-form" novalidate><header class="modal-header"><div><h2>${t(title)}</h2></div><button class="close" type="button" data-menuadmin="close" aria-label="${t("close")}">×</button></header>
+      <div class="modal-body">${body}<div id="dot1-form-error" class="error-box" role="alert"></div></div>
+      <footer class="modal-footer"><small>CyberHub Manager</small><button class="btn small" type="button" data-menuadmin="close">${t("cancel")}</button>${onSubmit ? `<button class="btn primary" type="submit">${t(submitLabel)}</button>` : ""}</footer></form>`;
+  const form = $("#dot1-form", dialog);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!onSubmit) return;
+    const button = $("button[type=submit]", form);
+    button.disabled = true;
+    for (const node of form.querySelectorAll("[data-error]")) node.textContent = "";
+    $("#dot1-form-error", form).textContent = "";
+    try {
+      await onSubmit(form);
+      dialog.close();
+      toast(t("dot1Saved"));
+      await loadPage(true);
+    } catch (error) {
+      const errors = error.field_errors || {};
+      let shown = false;
+      for (const [key, message] of Object.entries(errors)) {
+        const target = form.querySelector(`[data-error="${key}"]`);
+        if (target) { target.textContent = message; shown = true; }
+      }
+      if (!shown) $("#dot1-form-error", form).textContent = Object.values(errors).join(" · ") || error.message;
+      button.disabled = false;
+    }
+  });
+  dialog.showModal();
+  setTimeout(() => form.querySelector("input,select")?.focus(), 50);
+}
+
+const dot1Input = (name, label, value, type = "text", attrs = "") =>
+  `<label><span>${t(label)}</span><input class="input" name="${name}" type="${type}" value="${esc(value ?? "")}" ${attrs}><span class="field-error" data-error="${name}"></span></label>`;
+const dot1Check = (name, label, checked) =>
+  `<label class="dot1-check"><input type="checkbox" name="${name}" ${checked ? "checked" : ""}><span>${t(label)}</span></label>`;
+
+function dot1CategoryForm(id) {
+  const c = id ? state.menuAdmin.categories.find((x) => x.id === Number(id)) : null;
+  dot1Dialog("dot1EditCategory", `<div class="form-grid">
+      ${dot1Input("name", "name", c?.name, "text", 'maxlength="60" required')}
+      <label><span>${t("dot1PageLabel")}</span><select class="input" name="page"><option value="FOOD" ${c?.page !== "DRINK" ? "selected" : ""}>${t("dot1Food")}</option><option value="DRINK" ${c?.page === "DRINK" ? "selected" : ""}>${t("dot1Drink")}</option></select><span class="field-error" data-error="page"></span></label>
+      ${dot1Input("sort_order", "dot1Sort", c?.sort_order ?? 0, "number", 'min="0" max="9999" step="1"')}
+      ${dot1Check("is_active", "dot1Active", c ? c.is_active : true)}
+    </div>`, async (form) => {
+    const body = { name: form.elements.name.value, page: form.elements.page.value,
+      sort_order: Number(form.elements.sort_order.value), is_active: form.elements.is_active.checked };
+    await api(c ? `/menu/categories/${c.id}` : "/menu/categories", { method: c ? "PATCH" : "POST", body });
+  });
+}
+
+function dot1ItemForm(id) {
+  const d = state.menuAdmin, item = id ? d.items.find((x) => x.id === Number(id)) : null;
+  if (!d.categories.length) { dot1CategoryForm(); return; }
+  const options = d.categories.map((c) => `<option value="${c.id}" ${item?.category_id === c.id ? "selected" : ""}>${t(c.page === "FOOD" ? "dot1Food" : "dot1Drink")} · ${esc(c.name)}</option>`).join("");
+  dot1Dialog(item ? "dot1EditItem" : "dot1NewItem", `<div class="form-grid">
+      ${dot1Input("name", "name", item?.name, "text", 'maxlength="80" required')}
+      <label><span>${t("dot1NewCategory")}</span><select class="input" name="category_id">${options}</select><span class="field-error" data-error="category_id"></span></label>
+      ${dot1Input("price", "dot1Price", item?.price ?? 25000, "number", 'min="1000" max="10000000" step="1000"')}
+      ${dot1Input("sort_order", "dot1Sort", item?.sort_order ?? 0, "number", 'min="0" max="9999" step="1"')}
+      <p class="dot1-tip">${t("dot1SortTip")}</p>
+      <label class="wide"><span>${t("dot1Description")}</span><input class="input" name="description" maxlength="200" value="${esc(item?.description || "")}"><span class="field-error" data-error="description"></span></label>
+      ${dot1Check("is_visible", "dot1Visible", item ? item.is_visible : true)}
+      ${dot1Check("is_available", "dot1Available", item ? item.is_available : true)}
+    </div>`, async (form) => {
+    const body = { name: form.elements.name.value, category_id: Number(form.elements.category_id.value),
+      price: Number(form.elements.price.value), sort_order: Number(form.elements.sort_order.value),
+      description: form.elements.description.value, is_visible: form.elements.is_visible.checked,
+      is_available: form.elements.is_available.checked };
+    await api(item ? `/menu/items/${item.id}` : "/menu/items", { method: item ? "PATCH" : "POST", body });
+  });
+}
+
+function dot1ImageForm(id) {
+  dot1Dialog("dot1UploadImage", `<label><span>${t("dot1Image")} (JPEG, PNG, WebP · ≤ 2 MB)</span><input class="input" type="file" name="image" accept="image/jpeg,image/png,image/webp" required><span class="field-error" data-error="image"></span></label>`,
+    async (form) => {
+      const file = form.elements.image.files[0];
+      if (!file) throw Object.assign(new Error(t("dot1UploadImage")), { field_errors: { image: t("dot1UploadImage") } });
+      const data = new FormData();
+      data.append("image", file);
+      // Không dùng api(): request multipart, không đặt Content-Type JSON.
+      const response = await fetch(`/api/menu/items/${id}/image`, {
+        method: "POST", credentials: "same-origin", body: data,
+        headers: { "X-CSRF-Token": state.csrf, "X-Language": state.lang },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw Object.assign(new Error(result.error?.message || t("network")), result.error || {});
+    }, "dot1UploadImage");
+}
+
+async function dot1HistoryDialog(id) {
+  const history = await api(`/menu/items/${id}/history`);
+  const label = (value) => value === "True" ? "✓" : value === "False" ? "✗" : esc(value ?? "—");
+  dot1Dialog("dot1History", history.length
+    ? `<ul class="dot1-history">${history.map((h) => `<li><strong>${t("dot1Field" + h.field)}</strong>: ${label(h.old_value)} → ${label(h.new_value)}<br><small class="muted">${esc(h.employee_name)} · ${dt(h.created_at)}</small></li>`).join("")}</ul>`
+    : empty("dot1NoHistory"), null);
+}
+
+// ----- Sự kiện ------------------------------------------------------------------------
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-menuadmin]");
+  if (!button || button.disabled) return;
+  const action = button.dataset.menuadmin, id = button.dataset.id;
+  if (action === "close") { $("#dot1-dialog")?.close(); return; }
+  if (state.page !== "menu" || !state.menuAdmin) return;
+  try {
+    if (action === "category") dot1CategoryForm(id);
+    if (action === "item") dot1ItemForm(id);
+    if (action === "image") dot1ImageForm(id);
+    if (action === "history") await dot1HistoryDialog(id);
+    if (action === "toggle") {
+      button.disabled = true;
+      await api(`/menu/items/${id}/availability`, { method: "POST", body: { available: button.dataset.available === "true" } });
+      await loadPage(true);
+    }
+    if (action === "serve-order" || action === "cancel-order") {
+      if (action === "cancel-order" && !confirm(t("dot1ConfirmCancel"))) return;
+      button.disabled = true;
+      await api(`/menu/orders/${id}/status`, { method: "POST", body: { status: action === "serve-order" ? "SERVED" : "CANCELLED" } });
+      await loadPage(true);
+    }
+  } catch (error) {
+    button.disabled = false;
+    const details = Object.values(error.field_errors || {});
+    toast(details.length ? details.join(" · ") : error.message, true);
+    if (error.code === "CONFLICT") await loadPage(true);
+  }
+});
+
+// Được renderPage() gọi sau khi vẽ trang menu: tự làm mới hàng đợi mỗi 20 giây.
+function wireMenuAdmin() {
+  clearInterval(dot1AdminTimer);
+  dot1AdminTimer = setInterval(() => {
+    if (state.page !== "menu" || !state.actor) { clearInterval(dot1AdminTimer); return; }
+    if (document.hidden || $("#dot1-dialog")?.open) return;
+    loadPage(true);
+  }, 20000);
+  for (const img of document.querySelectorAll("img.dot1-thumb")) {
+    img.addEventListener("error", () => { const span = document.createElement("span"); span.className = "dot1-thumb"; span.textContent = "?"; img.replaceWith(span); }, { once: true });
+  }
+}

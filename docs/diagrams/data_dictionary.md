@@ -24,6 +24,12 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`machine_room_types`](#machine_room_types) | Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường. | 2 |
 | [`loyalty_settings`](#loyalty_settings) | Cấu hình toàn hệ thống, một dòng id=1; chỉ Admin được sửa, có version chống ghi đè. | 8 |
 | [`customer_avatars`](#customer_avatars) | Ảnh đại diện riêng theo tài khoản; WebP 512×512 đã chuẩn hóa, không giữ tên file hay metadata gốc. | 4 |
+| [`menu_categories`](#menu_categories) | Nhóm món theo cơ sở, xếp vào trang Đồ ăn (FOOD) hoặc Đồ uống (DRINK). | 7 |
+| [`menu_items`](#menu_items) | Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món. | 11 |
+| [`menu_item_images`](#menu_item_images) | Ảnh món đã chuẩn hóa (WebP 512×512, không metadata). | 4 |
+| [`menu_item_changes`](#menu_item_changes) | Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa. | 7 |
+| [`menu_orders`](#menu_orders) | Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy. | 12 |
+| [`menu_order_items`](#menu_order_items) | Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt. | 5 |
 
 ## 2. Quan hệ và cardinality
 
@@ -38,11 +44,16 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `stores` | 1 — 0..n | `invoices` | `invoices.store_id` → `stores.id` | Cửa hàng; dùng cho báo cáo doanh thu. |
 | `stores` | 0..1 — 0..n | `promotions` | `promotions.store_id` → `stores.id` | Cơ sở áp dụng; NULL = toàn hệ thống. |
 | `stores` | 1 — 0..n | `management_audit` | `management_audit.store_id` → `stores.id` | Cơ sở đang vận hành. |
+| `stores` | 1 — 0..n | `menu_categories` | `menu_categories.store_id` → `stores.id` | Cơ sở sở hữu nhóm món. |
+| `stores` | 1 — 0..n | `menu_items` | `menu_items.store_id` → `stores.id` | Cơ sở bán món; menu khác nhau giữa các cơ sở. |
+| `stores` | 1 — 0..n | `menu_orders` | `menu_orders.store_id` → `stores.id` | Cơ sở của máy đang dùng. |
 | `employees` | 0..1 — 0..n | `usage_sessions` | `usage_sessions.closed_by` → `employees.id` | Nhân viên checkout; NULL khi phiên đang chạy. |
 | `employees` | 1 — 0..n | `usage_sessions` | `usage_sessions.opened_by` → `employees.id` | Nhân viên mở phiên. |
 | `employees` | 1 — 0..n | `account_transactions` | `account_transactions.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 1 — 0..n | `invoices` | `invoices.employee_id` → `employees.id` | Nhân viên checkout. |
 | `employees` | 1 — 0..n | `management_audit` | `management_audit.employee_id` → `employees.id` | Nhân viên thực hiện. |
+| `employees` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.employee_id` → `employees.id` | Nhân viên thực hiện. |
+| `employees` | 0..1 — 0..n | `menu_orders` | `menu_orders.handled_by` → `employees.id` | Nhân viên phục vụ/hủy; NULL khi còn NEW. |
 | `customers` | 1 — 0..1 | `accounts` | `accounts.customer_id` → `customers.id` | Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản. |
 | `customers` | 1 — 0..n | `usage_sessions` | `usage_sessions.customer_id` → `customers.id` | Khách dùng máy. |
 | `customers` | 1 — 0..n | `invoices` | `invoices.customer_id` → `customers.id` | Khách (lưu thẳng để báo cáo không phải đi qua phiên). |
@@ -50,11 +61,19 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `accounts` | 1 — 0..n | `account_transactions` | `account_transactions.account_id` → `accounts.id` | Tài khoản bị thay đổi số dư. |
 | `accounts` | 1 — 0..n | `customer_notification_reads` | `customer_notification_reads.account_id` → `accounts.id` | Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính. |
 | `accounts` | 1 — 0..1 | `customer_avatars` | `customer_avatars.account_id` → `accounts.id` | Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa. |
+| `accounts` | 1 — 0..n | `menu_orders` | `menu_orders.account_id` → `accounts.id` | Tài khoản khách đặt món. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
+| `machines` | 1 — 0..n | `menu_orders` | `menu_orders.machine_id` → `machines.id` | Máy giao món tới. |
 | `usage_sessions` | 0..1 — 0..n | `account_transactions` | `account_transactions.session_id` → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
 | `usage_sessions` | 1 — 0..1 | `invoices` | `invoices.session_id` → `usage_sessions.id` | Phiên được thanh toán; UNIQUE ⇒ mỗi phiên tối đa một hóa đơn. |
+| `usage_sessions` | 1 — 0..n | `menu_orders` | `menu_orders.session_id` → `usage_sessions.id` | Phiên ACTIVE lúc đặt. |
 | `promotions` | 0..1 — 0..n | `account_transactions` | `account_transactions.promotion_id` → `promotions.id` | Chính sách thưởng đã áp dụng, NULL với giao dịch thường. |
+| `menu_categories` | 1 — 0..n | `menu_items` | `menu_items.category_id` → `menu_categories.id` | Nhóm món; service bảo đảm cùng cơ sở với món. |
+| `menu_items` | 1 — 0..1 | `menu_item_images` | `menu_item_images.item_id` → `menu_items.id` | Món sở hữu ảnh; PK/FK. |
+| `menu_items` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.item_id` → `menu_items.id` | Món bị thay đổi. |
+| `menu_items` | 1 — 0..n | `menu_order_items` | `menu_order_items.item_id` → `menu_items.id` | Món được gọi. |
+| `menu_orders` | 1 — 0..n | `menu_order_items` | `menu_order_items.order_id` → `menu_orders.id` | Yêu cầu gọi món. |
 
 ## 3. Chi tiết từng bảng
 
@@ -454,3 +473,160 @@ Ràng buộc:
 
 - PRIMARY KEY (`account_id`)
 - FOREIGN KEY `fk_customer_avatar_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+
+### menu_categories
+
+Nhóm món theo cơ sở, xếp vào trang Đồ ăn (FOOD) hoặc Đồ uống (DRINK).
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở sở hữu nhóm món. |
+| `page` | `varchar(10)` | Không | — | — | `FOOD` (trang 1) / `DRINK` (trang 2) của menu sách lật. |
+| `name` | `varchar(60)` | Không | — | — | Tên nhóm, duy nhất trong một cơ sở. |
+| `sort_order` | `int` | Không | `0` | — | Thứ tự hiển thị 0–9999, nhỏ đứng trước. |
+| `is_active` | `tinyint(1)` | Không | `1` | — | FALSE thì toàn bộ món trong nhóm bị ẩn với khách. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_menu_categories_store_name` (`store_id,name`)
+- FOREIGN KEY `fk_menu_categories_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_menu_categories_name`: `(char_length(trim(name)) > 0)`
+- CHECK `chk_menu_categories_page`: `(page in ('FOOD','DRINK'))`
+- CHECK `chk_menu_categories_sort`: `(sort_order between 0 and 9999)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_menu_categories_store_page` (`store_id, page, sort_order`)
+
+### menu_items
+
+Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở bán món; menu khác nhau giữa các cơ sở. |
+| `category_id` | `bigint unsigned` | Không | — | FK → `menu_categories.id` | Nhóm món; service bảo đảm cùng cơ sở với món. |
+| `name` | `varchar(80)` | Không | — | — | Tên món, duy nhất trong một cơ sở. |
+| `description` | `varchar(200)` | Không | `` | — | Mô tả ngắn hiển thị cho khách. |
+| `price` | `bigint` | Không | — | — | Giá bán (VND, 1.000–10.000.000); backend đọc lại khi khách đặt. |
+| `sort_order` | `int` | Không | `0` | — | Thứ tự trong nhóm. |
+| `is_visible` | `tinyint(1)` | Không | `1` | — | FALSE = ẩn khỏi menu khách. |
+| `is_available` | `tinyint(1)` | Không | `1` | — | FALSE = hết món; khách không chọn/đặt được. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_menu_items_store_name` (`store_id,name`)
+- FOREIGN KEY `fk_menu_items_category` (`category_id`) → `menu_categories` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_items_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_menu_items_name`: `(char_length(trim(name)) > 0)`
+- CHECK `chk_menu_items_price`: `(price between 1000 and 10000000)`
+- CHECK `chk_menu_items_sort`: `(sort_order between 0 and 9999)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_menu_items_store_category` (`store_id, category_id, sort_order`)
+
+### menu_item_images
+
+Ảnh món đã chuẩn hóa (WebP 512×512, không metadata).
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `item_id` | `bigint unsigned` | Không | — | PK, FK → `menu_items.id` | Món sở hữu ảnh; PK/FK. |
+| `image_data` | `mediumblob` | Không | — | — | Nội dung WebP sau chuẩn hóa. |
+| `digest` | `char(64)` | Không | — | — | SHA-256 nội dung ảnh; 12 ký tự đầu dùng làm phiên bản cache. |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`item_id`)
+- FOREIGN KEY `fk_menu_item_images_item` (`item_id`) → `menu_items` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+
+### menu_item_changes
+
+Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `item_id` | `bigint unsigned` | Không | — | FK → `menu_items.id` | Món bị thay đổi. |
+| `employee_id` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên thực hiện. |
+| `field` | `varchar(20)` | Không | — | — | `CREATE` / `NAME` / `CATEGORY` / `PRICE` / `AVAILABLE` / `VISIBLE` / `IMAGE`. |
+| `old_value` | `varchar(200)` | Có | — | — | Giá trị cũ (dạng chữ), NULL khi tạo mới. |
+| `new_value` | `varchar(200)` | Có | — | — | Giá trị mới (dạng chữ). |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm thay đổi (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- FOREIGN KEY `fk_menu_item_changes_employee` (`employee_id`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_item_changes_item` (`item_id`) → `menu_items` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_menu_item_changes_field`: `(field in ('CREATE','NAME','CATEGORY','PRICE','AVAILABLE','VISIBLE','IMAGE'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_menu_item_changes_item` (`item_id, created_at`)
+
+### menu_orders
+
+Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(20)` | Không | — | UK | Mã yêu cầu, duy nhất (`ORD-` + hex). |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở của máy đang dùng. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản khách đặt món. |
+| `session_id` | `bigint unsigned` | Không | — | FK → `usage_sessions.id` | Phiên ACTIVE lúc đặt. |
+| `machine_id` | `bigint unsigned` | Không | — | FK → `machines.id` | Máy giao món tới. |
+| `note` | `varchar(200)` | Không | `` | — | Ghi chú của khách (≤ 200 ký tự). |
+| `total_amount` | `bigint` | Không | — | — | Tổng tiền theo giá chụp lúc đặt (VND). |
+| `status` | `varchar(12)` | Không | `NEW` | — | `NEW` / `SERVED` / `CANCELLED`. |
+| `handled_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên phục vụ/hủy; NULL khi còn NEW. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đặt (UTC). |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật trạng thái (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_menu_orders_code` (`code`)
+- FOREIGN KEY `fk_menu_orders_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_orders_handled_by` (`handled_by`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_orders_machine` (`machine_id`) → `machines` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_orders_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_orders_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_menu_orders_handled`: `(((status = 'NEW') and (handled_by is null)) or ((status <> 'NEW') and (handled_by is not null)))`
+- CHECK `chk_menu_orders_status`: `(status in ('NEW','SERVED','CANCELLED'))`
+- CHECK `chk_menu_orders_total`: `(total_amount > 0)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_menu_orders_account` (`account_id, created_at`)
+- INDEX `idx_menu_orders_store_status` (`store_id, status, created_at`)
+
+### menu_order_items
+
+Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `order_id` | `bigint unsigned` | Không | — | PK, FK → `menu_orders.id` | Yêu cầu gọi món. |
+| `item_id` | `bigint unsigned` | Không | — | PK, FK → `menu_items.id` | Món được gọi. |
+| `item_name` | `varchar(80)` | Không | — | — | Tên món tại thời điểm đặt. |
+| `unit_price` | `bigint` | Không | — | — | Đơn giá tại thời điểm đặt (VND). |
+| `quantity` | `int` | Không | — | — | Số lượng 1–20. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`order_id,item_id`)
+- FOREIGN KEY `fk_menu_order_items_item` (`item_id`) → `menu_items` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_order_items_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_menu_order_items_price`: `(unit_price between 1000 and 10000000)`
+- CHECK `chk_menu_order_items_quantity`: `(quantity between 1 and 20)`

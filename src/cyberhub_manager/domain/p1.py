@@ -18,6 +18,7 @@ class Permission(StrEnum):
     MANAGE_STORES = "manage_stores"
     SWITCH_STORE = "switch_store"
     EXPORT_INVOICE = "export_invoice"
+    MANAGE_MENU = "manage_menu"  # Đợt 1: thêm/sửa/ẩn món, nhóm món, giá, ảnh (MANAGER/ADMIN)
 
 
 ROLE_PERMISSIONS = {

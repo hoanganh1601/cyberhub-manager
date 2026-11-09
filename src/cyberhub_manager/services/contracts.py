@@ -390,3 +390,4 @@ class ServiceBundle:
     reports: ReportServiceProtocol
     management: ManagementServiceProtocol | None = None
     portal: PortalServiceProtocol | None = None
+    menu: object | None = None  # Đợt 1: MenuService (web); desktop chưa dùng

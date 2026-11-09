@@ -37,6 +37,13 @@ TABLES = (
     "machine_room_types",
     "loyalty_settings",
     "customer_avatars",
+    # Đợt 1 — menu đồ ăn/đồ uống
+    "menu_categories",
+    "menu_items",
+    "menu_item_images",
+    "menu_item_changes",
+    "menu_orders",
+    "menu_order_items",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -197,6 +204,40 @@ DESCRIPTIONS["customer_avatars"]=("Ảnh đại diện riêng theo tài khoản;
     "account_id":"Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa.",
     "image_data":"Nội dung WebP tối đa 300.000 byte sau chuẩn hóa.","digest":"SHA-256 của nội dung ảnh chuẩn hóa.",
     "updated_at":"Thời điểm cập nhật UTC."})
+
+# ----- Đợt 1: menu đồ ăn/đồ uống ----------------------------------------------------
+DESCRIPTIONS["menu_categories"] = ("Nhóm món theo cơ sở, xếp vào trang Đồ ăn (FOOD) hoặc Đồ uống (DRINK).", {
+    "id": "Khóa chính.", "store_id": "Cơ sở sở hữu nhóm món.",
+    "page": "`FOOD` (trang 1) / `DRINK` (trang 2) của menu sách lật.",
+    "name": "Tên nhóm, duy nhất trong một cơ sở.", "sort_order": "Thứ tự hiển thị 0–9999, nhỏ đứng trước.",
+    "is_active": "FALSE thì toàn bộ món trong nhóm bị ẩn với khách.", "created_at": "Thời điểm tạo (UTC)."})
+DESCRIPTIONS["menu_items"] = ("Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món.", {
+    "id": "Khóa chính.", "store_id": "Cơ sở bán món; menu khác nhau giữa các cơ sở.",
+    "category_id": "Nhóm món; service bảo đảm cùng cơ sở với món.",
+    "name": "Tên món, duy nhất trong một cơ sở.", "description": "Mô tả ngắn hiển thị cho khách.",
+    "price": "Giá bán (VND, 1.000–10.000.000); backend đọc lại khi khách đặt.",
+    "sort_order": "Thứ tự trong nhóm.", "is_visible": "FALSE = ẩn khỏi menu khách.",
+    "is_available": "FALSE = hết món; khách không chọn/đặt được.",
+    "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm sửa gần nhất (UTC)."})
+DESCRIPTIONS["menu_item_images"] = ("Ảnh món đã chuẩn hóa (WebP 512×512, không metadata).", {
+    "item_id": "Món sở hữu ảnh; PK/FK.", "image_data": "Nội dung WebP sau chuẩn hóa.",
+    "digest": "SHA-256 nội dung ảnh; 12 ký tự đầu dùng làm phiên bản cache.", "updated_at": "Thời điểm cập nhật (UTC)."})
+DESCRIPTIONS["menu_item_changes"] = ("Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa.", {
+    "id": "Khóa chính.", "item_id": "Món bị thay đổi.", "employee_id": "Nhân viên thực hiện.",
+    "field": "`CREATE` / `NAME` / `CATEGORY` / `PRICE` / `AVAILABLE` / `VISIBLE` / `IMAGE`.",
+    "old_value": "Giá trị cũ (dạng chữ), NULL khi tạo mới.", "new_value": "Giá trị mới (dạng chữ).",
+    "created_at": "Thời điểm thay đổi (UTC)."})
+DESCRIPTIONS["menu_orders"] = ("Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy.", {
+    "id": "Khóa chính.", "code": "Mã yêu cầu, duy nhất (`ORD-` + hex).",
+    "store_id": "Cơ sở của máy đang dùng.", "account_id": "Tài khoản khách đặt món.",
+    "session_id": "Phiên ACTIVE lúc đặt.", "machine_id": "Máy giao món tới.",
+    "note": "Ghi chú của khách (≤ 200 ký tự).", "total_amount": "Tổng tiền theo giá chụp lúc đặt (VND).",
+    "status": "`NEW` / `SERVED` / `CANCELLED`.", "handled_by": "Nhân viên phục vụ/hủy; NULL khi còn NEW.",
+    "created_at": "Thời điểm đặt (UTC).", "updated_at": "Thời điểm cập nhật trạng thái (UTC)."})
+DESCRIPTIONS["menu_order_items"] = ("Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.", {
+    "order_id": "Yêu cầu gọi món.", "item_id": "Món được gọi.",
+    "item_name": "Tên món tại thời điểm đặt.", "unit_price": "Đơn giá tại thời điểm đặt (VND).",
+    "quantity": "Số lượng 1–20."})
 
 DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.",{
     "machine_id":"Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa.",
