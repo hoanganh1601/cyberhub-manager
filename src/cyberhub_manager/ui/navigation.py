@@ -46,7 +46,7 @@ NAV_ITEMS: tuple[NavItem, ...] = (
     NavItem(NavKey.CUSTOMERS, "nav.customers", "☻", ALL_ROLES),
     NavItem(NavKey.MACHINES, "nav.machines", "▭", MANAGEMENT_ROLES),
     NavItem(NavKey.INVOICES, "nav.invoices", "▤", ALL_ROLES),
-    NavItem(NavKey.REPORTS, "nav.reports", "₫", ALL_ROLES),
+    NavItem(NavKey.REPORTS, "nav.reports", "₫", MANAGEMENT_ROLES),
     NavItem(NavKey.EMPLOYEES, "nav.employees", "", MANAGEMENT_ROLES),
     NavItem(NavKey.PROMOTIONS, "nav.promotions", "", MANAGEMENT_ROLES),
     NavItem(NavKey.STORES, "nav.stores", "", frozenset({Role.ADMIN})),

@@ -170,13 +170,19 @@ def test_staff_cannot_elevate_permissions(app, path, data):
     assert post(c, path, token, data).status_code == 403
 
 
-def test_staff_can_read_current_store_reports_but_cannot_choose_store(app):
+def test_staff_reads_invoices_but_not_revenue_and_cannot_choose_store(app):
     c = app.test_client()
     login(c, "nhanvien01")
     machines = c.get("/api/machines?store_id=999").json
     assert len(machines) == 20
     assert {item["store_id"] for item in machines} == {1}
     assert c.get("/api/invoices").status_code == 200
+    assert c.get("/api/revenue").status_code == 403  # Đợt 0
+
+
+def test_manager_reads_revenue(app):
+    c = app.test_client()
+    login(c, "quanly01")
     assert c.get("/api/revenue").status_code == 200
 
 

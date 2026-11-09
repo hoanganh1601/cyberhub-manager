@@ -66,6 +66,9 @@ def make_actor(role=Role.STAFF, store_id=STORE_ID, *, employee_id=None):
     )
 
 
+MANAGER = make_actor(Role.MANAGER)
+
+
 def make_summary(
     invoice_id=1,
     *,
@@ -174,6 +177,7 @@ class FakeDatabase:
         self.machines = {}
         self.customers = {}
         self.error = None
+        self.audits = []
 
     @contextmanager
     def transaction(self):
@@ -188,6 +192,14 @@ class FakeAuthRepository:
     def get_active_session_by_id(self, conn, employee_id):
         # Employee/store không ACTIVE thì repository thật trả None.
         return self.db.employees.get(employee_id)
+
+
+class FakeAuditRepository:
+    def __init__(self, db):
+        self.db = db
+
+    def audit(self, conn, actor, action, entity_id):
+        self.db.audits.append((actor.employee_id, action, entity_id))
 
 
 class FakeInvoiceRepository:
@@ -263,6 +275,7 @@ def build_service(actor=None, *, employees=None, invoices=()):
     service = ReportService(
         invoice_repo=FakeInvoiceRepository(db),
         auth_repo=FakeAuthRepository(db),
+        audit_repo=FakeAuditRepository(db),
         actor_provider=lambda: actor,
         transaction_factory=db.transaction,
     )
@@ -647,7 +660,7 @@ def utc(*args):
 
 
 def test_daily_revenue_passes_half_open_utc_range():
-    service, db = build_service()
+    service, db = build_service(MANAGER)
 
     service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 3))
 
@@ -664,6 +677,7 @@ def test_daily_revenue_passes_half_open_utc_range():
 
 def test_daily_revenue_counts_only_paid_and_respects_vietnam_day_boundaries():
     service, _ = build_service(
+        MANAGER,
         invoices=[
             invoice_at(1, utc(2026, 10, 31, 16, 59, 59)),  # 23:59:59 ngày 31/10 VN
             invoice_at(2, utc(2026, 10, 31, 17, 0, 0), cost=1_000),  # 00:00 01/11 VN
@@ -683,13 +697,14 @@ def test_daily_revenue_counts_only_paid_and_respects_vietnam_day_boundaries():
 
 
 def test_daily_revenue_returns_empty_list_without_invoices():
-    service, _ = build_service()
+    service, _ = build_service(MANAGER)
 
     assert service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 30)) == []
 
 
 def test_daily_revenue_only_counts_current_store():
     service, _ = build_service(
+        MANAGER,
         invoices=[
             invoice_at(1, utc(2026, 11, 1, 3)),
             replace(invoice_at(2, utc(2026, 11, 1, 3)), store_id=OTHER_STORE_ID),
@@ -703,13 +718,26 @@ def test_daily_revenue_only_counts_current_store():
     ]
 
 
-@pytest.mark.parametrize("role", [Role.STAFF, Role.MANAGER, Role.ADMIN])
-def test_every_store_role_can_view_revenue(role):
+@pytest.mark.parametrize("role", [Role.MANAGER, Role.ADMIN])
+def test_manager_and_admin_view_revenue_and_access_is_audited(role):
     service, db = build_service(make_actor(role))
 
     service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 1))
 
     assert len(db.revenue_calls) == 1
+    assert db.audits == [(ROLE_EMPLOYEE_IDS[role], "REVENUE_VIEW", STORE_ID)]
+
+
+def test_staff_cannot_view_revenue_but_still_lists_invoices():
+    # Đợt 0: nhân viên vẫn cần hóa đơn để thanh toán, nhưng không xem doanh thu.
+    service, db = build_service(make_actor(Role.STAFF))
+
+    with pytest.raises(PermissionDeniedError):
+        service.daily_revenue(STORE_ID, date(2026, 11, 1), date(2026, 11, 1))
+    assert db.revenue_calls == [] and db.audits == []
+
+    service.list_invoices(STORE_ID, InvoiceFilters())
+    assert len(db.list_calls) == 1
 
 
 @pytest.mark.parametrize(
@@ -744,7 +772,7 @@ def test_daily_revenue_rejects_invalid_store_id(store_id):
 
 
 def test_daily_revenue_of_other_store_is_denied():
-    service, db = build_service()
+    service, db = build_service(MANAGER)
 
     with pytest.raises(PermissionDeniedError) as exc_info:
         service.daily_revenue(OTHER_STORE_ID, date(2026, 11, 1), date(2026, 11, 1))
@@ -769,7 +797,7 @@ def test_daily_revenue_rechecks_actor_in_database(actor, employees):
 
 
 def test_daily_revenue_database_error_maps_to_service_unavailable():
-    service, db = build_service()
+    service, db = build_service(MANAGER)
     db.error = InterfaceError(msg="mất kết nối")
 
     with pytest.raises(ServiceUnavailableError):

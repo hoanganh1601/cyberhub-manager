@@ -67,6 +67,10 @@ def mysql_web(test_scenario):
                 cursor.execute(
                     "DELETE FROM machines WHERE store_id = %s", (records.store_id,)
                 )
+                # Đợt 0: xem doanh thu ghi management_audit (FK RESTRICT tới employees).
+                cursor.execute(
+                    "DELETE FROM management_audit WHERE store_id = %s", (records.store_id,)
+                )
                 cursor.execute(
                     "DELETE FROM employees WHERE store_id = %s", (records.store_id,)
                 )
