@@ -34,11 +34,15 @@ from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import translate_db_errors
+from cyberhub_manager.repositories.p1_repository import P1Repository
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
-# P0: STAFF, MANAGER và ADMIN đều xem được hóa đơn/doanh thu của cửa hàng mình.
-REPORT_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
+# Đợt 0: mọi vai trò xem/xuất hóa đơn để thanh toán; chỉ MANAGER/ADMIN xem doanh thu.
+INVOICE_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
+REVENUE_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
+REPORT_ROLES = INVOICE_ROLES  # giữ tên cũ cho code đang import
+REVENUE_VIEW_AUDIT = "REVENUE_VIEW"
 
 # Asia/Ho_Chi_Minh không có giờ mùa hè; tránh phụ thuộc gói tzdata trên Windows.
 VN_TZ = timezone(timedelta(hours=7))
@@ -146,6 +150,7 @@ class ReportService:
         session_repo: SessionRepository | None = None,
         machine_repo: MachineRepository | None = None,
         customer_repo: CustomerRepository | None = None,
+        audit_repo: P1Repository | None = None,
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
     ) -> None:
@@ -157,6 +162,7 @@ class ReportService:
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
+        self._audit = audit_repo or P1Repository()
 
     def list_invoices(
         self,
@@ -246,9 +252,9 @@ class ReportService:
         start, end = local_dates_to_utc_range(date_from, date_to)
 
         with self._database() as conn:
-            self._require_store(conn, store_id)
-            # Repository chỉ cộng usage_cost của hóa đơn PAID (số nguyên VND), gom
-            # theo ngày giờ Việt Nam và chỉ trả những ngày có hóa đơn.
+            current = self._require_store(conn, store_id, REVENUE_ROLES)
+            # Ghi audit trong cùng transaction: xem doanh thu là thao tác nhạy cảm.
+            self._audit.audit(conn, current, REVENUE_VIEW_AUDIT, store_id)
             return self._invoices.daily_revenue_by_store(
                 conn,
                 store_id,
@@ -256,7 +262,9 @@ class ReportService:
                 created_before_utc=end,
             )
 
-    def _require_actor(self, conn: Any) -> EmployeeSession:
+    def _require_actor(
+        self, conn: Any, roles: frozenset[Role] = INVOICE_ROLES
+    ) -> EmployeeSession:
         """Đọc lại người đang đăng nhập từ DB; không tin role/store từ UI."""
 
         actor = self._actor_provider() if self._actor_provider else None
@@ -268,18 +276,20 @@ class ReportService:
             raise PermissionDeniedError()
 
         # Repository chỉ trả nhân viên ACTIVE thuộc cửa hàng ACTIVE.
-        current = operating_actor(conn,self._auth,actor)
+        current = operating_actor(conn, self._auth, actor)
         if (
             current is None
             or current.store_id != actor.store_id
             or current.role != actor.role
-            or current.role not in REPORT_ROLES
+            or current.role not in roles
         ):
             raise PermissionDeniedError()
         return current
 
-    def _require_store(self, conn: Any, store_id: int) -> EmployeeSession:
-        current = self._require_actor(conn)
+    def _require_store(
+        self, conn: Any, store_id: int, roles: frozenset[Role] = INVOICE_ROLES
+    ) -> EmployeeSession:
+        current = self._require_actor(conn, roles)
         if store_id != current.store_id:
             raise PermissionDeniedError(WRONG_STORE)
         return current

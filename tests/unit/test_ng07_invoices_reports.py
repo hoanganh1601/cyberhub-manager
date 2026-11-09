@@ -294,6 +294,7 @@ def test_shell_registers_invoices_and_reports(tk_root, username: str) -> None:
         shell = AppShell(tk_root, services, session, on_logout=lambda: None, view_factories=factories)
         assert shell.navigate(NavKey.INVOICES)
         assert isinstance(shell.current_view, InvoicesView)
-        assert shell.navigate(NavKey.REPORTS)
-        assert isinstance(shell.current_view, ReportsView)
+        allowed = username == "quanly01"  # Đợt 0: STAFF không mở được Doanh thu
+        assert shell.navigate(NavKey.REPORTS) is allowed
+        assert isinstance(shell.current_view, ReportsView) is allowed
         shell.destroy()

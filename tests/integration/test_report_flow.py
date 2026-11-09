@@ -61,7 +61,7 @@ def db():
 
         employee_ids = {}
         for key, sid, role in (
-            ("staff", store_id, Role.STAFF),
+            ("staff", store_id, Role.MANAGER),  # Đợt 0: doanh thu chỉ cho MANAGER/ADMIN
             ("other", other_store_id, Role.MANAGER),
         ):
             employee_ids[key] = _execute(
@@ -193,6 +193,8 @@ def db():
             )
             _execute(conn, "DELETE FROM customers WHERE id = %s", (customer_id,))
             for sid in store_ids:
+                # Xem doanh thu ghi management_audit (FK RESTRICT tới employees): xóa trước.
+                _execute(conn, "DELETE FROM management_audit WHERE store_id = %s", (sid,))
                 _execute(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
                 _execute(conn, "DELETE FROM stores WHERE id = %s", (sid,))
 

@@ -502,7 +502,7 @@ function renderShell() {
     ["customers", "users"],
     ...(isManager() ? [["machines", "monitor"]] : []),
     ["invoices", "invoice"],
-    ["revenue", "chart"],
+    ...(isManager() ? [["revenue", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
   ];
@@ -536,6 +536,7 @@ function metric(label, value, color = "", symbol = "monitor", hint = "") {
   return `<div class="metric"><div class="metric-label">${t(label)}</div>${icon(symbol)}<div class="metric-value ${color}">${esc(value)}</div><small>${esc(hint)}</small></div>`;
 }
 async function loadPage(silent = false) {
+  if (state.page === "revenue" && !isManager()) state.page = "dashboard";
   const seq = ++state.seq;
   const page = state.page;
   if (!state.actor) return;
@@ -597,7 +598,8 @@ function renderPage() {
   else if (state.page === "machines") html = machinesPage();
   else if (state.page === "invoices") html = invoicesPage();
   else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
-  else html = revenuePage();
+  else if (state.page === "revenue" && isManager()) html = revenuePage();
+  else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
   installRoomManagement();

@@ -896,6 +896,7 @@ def create_app(config: dict | None = None) -> Flask:
         return reply(detail)
 
     @app.get("/api/revenue")
+    @manager_only
     def revenue():
         start = query_date("date_from", today() - timedelta(days=6))
         end = query_date("date_to", today())
