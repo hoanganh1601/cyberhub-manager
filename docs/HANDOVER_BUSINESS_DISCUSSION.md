@@ -5,6 +5,10 @@ Dự án: CyberHub Manager
 
 Tài liệu này tổng hợp hai phiên thảo luận nghiệp vụ để bàn giao cho người tiếp tục phân tích và triển khai. Đây là định hướng nghiệp vụ, chưa phải đặc tả kỹ thuật hoàn chỉnh.
 
+Bản cập nhật tiến độ, các việc Đợt 0 còn thiếu, checklist Đợt 1–4 và phần RAG 5A
+đã làm/cần tiếp tục nằm tại
+[Bàn giao công việc tiếp theo — 09/11/2026](HANDOVER_NEXT_PHASES_2026-11-09.md).
+
 ## 1. Phân quyền nhân viên và doanh thu
 
 ### Vấn đề cần xử lý
@@ -277,7 +281,11 @@ Giới hạn bắt buộc:
    ↓
 Đợt 4: Quảng cáo nhận thưởng
    ↓
-Đợt 5: AI hỗ trợ (phần này Hoàng Anh làm, làm cho bạn 4 phần trên trước nhé)
+Đợt 5C: AI kết nối menu/voucher/game đã hoàn thiện
 ```
 
-Không nên triển khai quảng cáo hoặc AI trước khi voucher, audit log và cơ chế chống gian lận đã ổn định.
+Quảng cáo nhận thưởng cần game/voucher, audit và cơ chế chống gian lận ổn định.
+Riêng **Đợt 5A (RAG hỏi đáp tài liệu)** do Hoàng Anh phụ trách, được làm song song
+với Đợt 1–4; bước 1–2 đã có trên branch `feat/rag-knowledge-assistant`.
+Đợt 5B phân tích số liệu cần quyền và API báo cáo, còn 5C tư vấn dịch vụ cần các
+module tương ứng. Người nhận có thể ưu tiên Đợt 1–4 theo checklist bàn giao mới.
