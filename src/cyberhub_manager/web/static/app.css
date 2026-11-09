@@ -1,17 +1,3 @@
-@font-face {
-  font-family: Inter;
-  src: local("Inter"), url("/assets/fonts/Inter-400.ttf");
-}
-@font-face {
-  font-family: Inter;
-  src: local("Inter Bold"), local("Inter-Bold"), url("/assets/fonts/Inter-700.ttf");
-  font-weight: 700;
-}
-@font-face {
-  font-family: Space;
-  src: local("Space Grotesk Bold"), local("SpaceGrotesk-Bold"), url("/assets/fonts/SpaceGrotesk-700.ttf");
-  font-weight: 700;
-}
 :root {
   color-scheme: dark;
   --bg: #0b101b;
@@ -26,8 +12,8 @@
   --red: #f43f5e;
   --amber: #f5a400;
   --radius: 12px;
-  --font-sans: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-heading: "Space Grotesk", "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-sans: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-heading: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
   font-family: var(--font-sans);
   font-size: 16px;
   background: var(--bg);
@@ -542,7 +528,7 @@ input[aria-invalid="true"] {
 }
 .brand-word small {
   display: block;
-  font-family: Inter, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11.5px;
   letter-spacing: 1.3px;
   color: var(--muted);
