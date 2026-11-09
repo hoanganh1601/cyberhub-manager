@@ -503,6 +503,7 @@ function renderShell() {
     ...(isManager() ? [["machines", "monitor"]] : []),
     ["invoices", "invoice"],
     ["menu", "utensils"],
+    ["vouchers", "ticket"],
     ...(isManager() ? [["revenue", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
@@ -547,6 +548,11 @@ async function loadPage(silent = false) {
     if (page === "menu") {
       // Đợt 1: menu + hàng đợi gọi món của cơ sở đang thao tác.
       if (await loadMenuAdmin(seq)) renderPage();
+      return;
+    }
+    if (page === "vouchers") {
+      // Đợt 2: tra cứu/xác nhận voucher, danh mục phần thưởng, nhật ký.
+      if (await loadVoucherAdmin(seq)) renderPage();
       return;
     }
     if (["employees","promotions","stores"].includes(page)) {
@@ -605,6 +611,7 @@ function renderPage() {
   else if (state.page === "invoices") html = invoicesPage();
   else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
   else if (state.page === "menu") html = menuAdminPage();
+  else if (state.page === "vouchers") html = voucherAdminPage();
   else if (state.page === "revenue" && isManager()) html = revenuePage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();

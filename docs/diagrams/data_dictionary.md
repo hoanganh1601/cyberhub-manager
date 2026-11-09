@@ -30,6 +30,10 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`menu_item_changes`](#menu_item_changes) | Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa. | 7 |
 | [`menu_orders`](#menu_orders) | Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy. | 12 |
 | [`menu_order_items`](#menu_order_items) | Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt. | 5 |
+| [`reward_catalog`](#reward_catalog) | Danh mục phần thưởng; không có loại nào quy đổi tiền mặt. | 11 |
+| [`customer_vouchers`](#customer_vouchers) | Voucher của khách; điều kiện được chụp lúc phát, dùng một lần. | 19 |
+| [`voucher_events`](#voucher_events) | Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm. | 7 |
+| [`loyalty_point_grants`](#loyalty_point_grants) | Điểm thành viên tặng qua voucher; cộng vào điểm, không đổi hạng. | 6 |
 
 ## 2. Quan hệ và cardinality
 
@@ -47,6 +51,10 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `stores` | 1 — 0..n | `menu_categories` | `menu_categories.store_id` → `stores.id` | Cơ sở sở hữu nhóm món. |
 | `stores` | 1 — 0..n | `menu_items` | `menu_items.store_id` → `stores.id` | Cơ sở bán món; menu khác nhau giữa các cơ sở. |
 | `stores` | 1 — 0..n | `menu_orders` | `menu_orders.store_id` → `stores.id` | Cơ sở của máy đang dùng. |
+| `stores` | 0..1 — 0..n | `reward_catalog` | `reward_catalog.store_id` → `stores.id` | Cơ sở áp dụng; NULL = mọi cơ sở (chỉ ADMIN tạo). |
+| `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.store_id` → `stores.id` | Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở. |
+| `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_store_id` → `stores.id` | Cơ sở nơi dùng. |
+| `stores` | 0..1 — 0..n | `voucher_events` | `voucher_events.store_id` → `stores.id` | Cơ sở phát sinh. |
 | `employees` | 0..1 — 0..n | `usage_sessions` | `usage_sessions.closed_by` → `employees.id` | Nhân viên checkout; NULL khi phiên đang chạy. |
 | `employees` | 1 — 0..n | `usage_sessions` | `usage_sessions.opened_by` → `employees.id` | Nhân viên mở phiên. |
 | `employees` | 1 — 0..n | `account_transactions` | `account_transactions.employee_id` → `employees.id` | Nhân viên thực hiện. |
@@ -54,14 +62,20 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `employees` | 1 — 0..n | `management_audit` | `management_audit.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 0..1 — 0..n | `menu_orders` | `menu_orders.handled_by` → `employees.id` | Nhân viên phục vụ/hủy; NULL khi còn NEW. |
+| `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.issued_by` → `employees.id` | Nhân viên phát (NULL khi do hệ thống). |
+| `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_by` → `employees.id` | Nhân viên xác nhận. |
+| `employees` | 0..1 — 0..n | `voucher_events` | `voucher_events.employee_id` → `employees.id` | Nhân viên thực hiện. |
+| `employees` | 1 — 0..n | `loyalty_point_grants` | `loyalty_point_grants.employee_id` → `employees.id` | Nhân viên xác nhận. |
 | `customers` | 1 — 0..1 | `accounts` | `accounts.customer_id` → `customers.id` | Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản. |
 | `customers` | 1 — 0..n | `usage_sessions` | `usage_sessions.customer_id` → `customers.id` | Khách dùng máy. |
 | `customers` | 1 — 0..n | `invoices` | `invoices.customer_id` → `customers.id` | Khách (lưu thẳng để báo cáo không phải đi qua phiên). |
 | `customers` | 0..1 — 0..n | `promotions` | `promotions.target_customer_id` → `customers.id` | Khách nhận riêng; NULL áp dụng cho mọi khách đủ các điều kiện còn lại. |
+| `customers` | 1 — 0..n | `loyalty_point_grants` | `loyalty_point_grants.customer_id` → `customers.id` | Khách nhận điểm. |
 | `accounts` | 1 — 0..n | `account_transactions` | `account_transactions.account_id` → `accounts.id` | Tài khoản bị thay đổi số dư. |
 | `accounts` | 1 — 0..n | `customer_notification_reads` | `customer_notification_reads.account_id` → `accounts.id` | Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính. |
 | `accounts` | 1 — 0..1 | `customer_avatars` | `customer_avatars.account_id` → `accounts.id` | Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa. |
 | `accounts` | 1 — 0..n | `menu_orders` | `menu_orders.account_id` → `accounts.id` | Tài khoản khách đặt món. |
+| `accounts` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.account_id` → `accounts.id` | Tài khoản sở hữu voucher. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `machines` | 1 — 0..n | `menu_orders` | `menu_orders.machine_id` → `machines.id` | Máy giao món tới. |
@@ -74,6 +88,10 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `menu_items` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.item_id` → `menu_items.id` | Món bị thay đổi. |
 | `menu_items` | 1 — 0..n | `menu_order_items` | `menu_order_items.item_id` → `menu_items.id` | Món được gọi. |
 | `menu_orders` | 1 — 0..n | `menu_order_items` | `menu_order_items.order_id` → `menu_orders.id` | Yêu cầu gọi món. |
+| `menu_orders` | 0..1 — 0..1 | `customer_vouchers` | `customer_vouchers.used_order_id` → `menu_orders.id` | Yêu cầu gọi món được áp (voucher đồ ăn); UNIQUE. |
+| `reward_catalog` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.catalog_id` → `reward_catalog.id` | Phần thưởng gốc. |
+| `customer_vouchers` | 0..1 — 0..n | `voucher_events` | `voucher_events.voucher_id` → `customer_vouchers.id` | Voucher liên quan; NULL khi mã nhập không tồn tại. |
+| `customer_vouchers` | 1 — 0..1 | `loyalty_point_grants` | `loyalty_point_grants.voucher_id` → `customer_vouchers.id` | Voucher MEMBER_POINTS; UNIQUE. |
 
 ## 3. Chi tiết từng bảng
 
@@ -630,3 +648,136 @@ Ràng buộc:
 - FOREIGN KEY `fk_menu_order_items_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_menu_order_items_price`: `(unit_price between 1000 and 10000000)`
 - CHECK `chk_menu_order_items_quantity`: `(quantity between 1 and 20)`
+
+### reward_catalog
+
+Danh mục phần thưởng; không có loại nào quy đổi tiền mặt.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(20)` | Không | — | UK | Mã phần thưởng, duy nhất. |
+| `name` | `varchar(80)` | Không | — | — | Tên hiển thị. |
+| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở áp dụng; NULL = mọi cơ sở (chỉ ADMIN tạo). |
+| `reward_type` | `varchar(20)` | Không | — | — | `FOOD_DISCOUNT` / `FREE_DRINK` / `PLAYTIME_CREDIT` (số dư khuyến mãi) / `MEMBER_POINTS`. |
+| `value` | `bigint` | Không | — | — | VND giảm/tặng/cộng giờ, hoặc số điểm với MEMBER_POINTS. |
+| `min_order_amount` | `bigint` | Không | `0` | — | Đơn gọi món tối thiểu (chỉ voucher đồ ăn/đồ uống). |
+| `valid_days` | `int` | Không | — | — | Số ngày hiệu lực kể từ lúc phát. |
+| `coin_cost` | `bigint` | Có | — | — | Giá đổi bằng xu game (Đợt 3); NULL = không bán. |
+| `is_active` | `tinyint(1)` | Không | `1` | — | FALSE = tạm ngưng phát. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_reward_catalog_code` (`code`)
+- FOREIGN KEY `fk_reward_catalog_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_reward_catalog_coin`: `((coin_cost is null) or (coin_cost between 1 and 1000000))`
+- CHECK `chk_reward_catalog_days`: `(valid_days between 1 and 365)`
+- CHECK `chk_reward_catalog_min_order`: `(min_order_amount between 0 and 10000000)`
+- CHECK `chk_reward_catalog_name`: `(char_length(trim(name)) > 0)`
+- CHECK `chk_reward_catalog_type`: `(reward_type in ('FOOD_DISCOUNT','FREE_DRINK','PLAYTIME_CREDIT','MEMBER_POINTS'))`
+- CHECK `chk_reward_catalog_value`: `(value between 1 and 1000000)`
+
+### customer_vouchers
+
+Voucher của khách; điều kiện được chụp lúc phát, dùng một lần.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(20)` | Không | — | UK | Mã ngẫu nhiên (secrets) khách đưa cho nhân viên, duy nhất. |
+| `catalog_id` | `bigint unsigned` | Không | — | FK → `reward_catalog.id` | Phần thưởng gốc. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản sở hữu voucher. |
+| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở. |
+| `reward_type` | `varchar(20)` | Không | — | — | Loại phần thưởng (chụp). |
+| `value` | `bigint` | Không | — | — | Giá trị (chụp). |
+| `min_order_amount` | `bigint` | Không | `0` | — | Đơn tối thiểu (chụp). |
+| `status` | `varchar(10)` | Không | `ISSUED` | — | `ISSUED` / `USED` / `REVOKED`; hết hạn suy ra từ `expires_at`. |
+| `source` | `varchar(10)` | Không | — | — | `MANUAL` / `GAME` / `AD`. |
+| `source_ref` | `varchar(64)` | Có | — | — | Mã nguồn; UNIQUE cùng `source` chống phát trùng. |
+| `issued_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên phát (NULL khi do hệ thống). |
+| `issued_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm phát (UTC). |
+| `expires_at` | `datetime` | Không | — | — | Hết hạn (UTC). |
+| `used_at` | `datetime` | Có | — | — | Thời điểm dùng (UTC). |
+| `used_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên xác nhận. |
+| `used_store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở nơi dùng. |
+| `used_order_id` | `bigint unsigned` | Có | — | UK, FK → `menu_orders.id` | Yêu cầu gọi món được áp (voucher đồ ăn); UNIQUE. |
+| `revoked_reason` | `varchar(200)` | Có | — | — | Lý do khóa. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_customer_vouchers_code` (`code`)
+- UNIQUE `uq_customer_vouchers_order` (`used_order_id`)
+- UNIQUE `uq_customer_vouchers_source` (`source,source_ref`)
+- FOREIGN KEY `fk_customer_vouchers_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_customer_vouchers_catalog` (`catalog_id`) → `reward_catalog` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_customer_vouchers_issued_by` (`issued_by`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_customer_vouchers_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_customer_vouchers_used_by` (`used_by`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_customer_vouchers_used_order` (`used_order_id`) → `menu_orders` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_customer_vouchers_used_store` (`used_store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_customer_vouchers_period`: `(expires_at > issued_at)`
+- CHECK `chk_customer_vouchers_source`: `(source in ('MANUAL','GAME','AD'))`
+- CHECK `chk_customer_vouchers_status`: `(status in ('ISSUED','USED','REVOKED'))`
+- CHECK `chk_customer_vouchers_type`: `(reward_type in ('FOOD_DISCOUNT','FREE_DRINK','PLAYTIME_CREDIT','MEMBER_POINTS'))`
+- CHECK `chk_customer_vouchers_used`: `(((status = 'USED') and (used_at is not null) and (used_by is not null) and (used_store_id is not null)) or ((status <> 'USED') and (used_at is null) and (used_by is null) and (used_order_id is null)))`
+- CHECK `chk_customer_vouchers_value`: `(value between 1 and 1000000)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_customer_vouchers_account` (`account_id, status, expires_at`)
+
+### voucher_events
+
+Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `voucher_id` | `bigint unsigned` | Có | — | FK → `customer_vouchers.id` | Voucher liên quan; NULL khi mã nhập không tồn tại. |
+| `action` | `varchar(10)` | Không | — | — | `ISSUE` / `REDEEM` / `REVOKE` / `REJECT`. |
+| `employee_id` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên thực hiện. |
+| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở phát sinh. |
+| `reason` | `varchar(200)` | Không | `` | — | Lý do/chi tiết (vd. EXPIRED, USED, WRONG_OWNER). |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- FOREIGN KEY `fk_voucher_events_employee` (`employee_id`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_voucher_events_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_voucher_events_voucher` (`voucher_id`) → `customer_vouchers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_voucher_events_action`: `(action in ('ISSUE','REDEEM','REVOKE','REJECT'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_voucher_events_store` (`store_id, created_at`)
+- INDEX `idx_voucher_events_voucher` (`voucher_id, created_at`)
+
+### loyalty_point_grants
+
+Điểm thành viên tặng qua voucher; cộng vào điểm, không đổi hạng.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `customer_id` | `bigint unsigned` | Không | — | FK → `customers.id` | Khách nhận điểm. |
+| `voucher_id` | `bigint unsigned` | Không | — | UK, FK → `customer_vouchers.id` | Voucher MEMBER_POINTS; UNIQUE. |
+| `points` | `bigint` | Không | — | — | Số điểm tặng. |
+| `employee_id` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên xác nhận. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_loyalty_point_grants_voucher` (`voucher_id`)
+- FOREIGN KEY `fk_loyalty_point_grants_customer` (`customer_id`) → `customers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_loyalty_point_grants_employee` (`employee_id`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_loyalty_point_grants_voucher` (`voucher_id`) → `customer_vouchers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_loyalty_point_grants_points`: `(points between 1 and 1000000)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_loyalty_point_grants_customer` (`customer_id`)

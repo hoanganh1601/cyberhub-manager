@@ -26,6 +26,7 @@ def create_service_bundle(
     from .management_service import ManagementService
     from .portal_service import PortalService
     from .menu_service import MenuService
+    from .voucher_service import VoucherService
 
     return ServiceBundle(
         auth=AuthService(),
@@ -37,4 +38,5 @@ def create_service_bundle(
         management=ManagementService(actor_provider=actor_provider),
         portal=PortalService(),
         menu=MenuService(actor_provider=actor_provider),
+        vouchers=VoucherService(actor_provider=actor_provider),
     )

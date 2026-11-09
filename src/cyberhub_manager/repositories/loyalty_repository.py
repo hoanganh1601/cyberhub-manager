@@ -49,7 +49,7 @@ class LoyaltyRepositoryMixin:
                 (customer_id,),
             )
             return membership(
-                sum(r["loyalty_points"] for r in awards),
+                sum(r["loyalty_points"] for r in awards) + self._granted_points(conn, customer_id, lock=True),
                 sum(r["loyalty_eligible_amount"] for r in awards),
                 self.loyalty_settings(conn),
             )
@@ -60,9 +60,20 @@ class LoyaltyRepositoryMixin:
             (customer_id,),
         )[0]
         return membership(
-            int(totals["points"]),
+            int(totals["points"]) + self._granted_points(conn, customer_id),
             int(totals["eligible_spend"]),
             self.loyalty_settings(conn),
+        )
+
+    def _granted_points(self, conn, customer_id, lock=False):
+        """Đợt 2: điểm tặng qua voucher MEMBER_POINTS; cộng vào điểm, không tính vào chi tiêu xét hạng."""
+        return int(
+            rows(
+                conn,
+                "SELECT COALESCE(SUM(points),0) AS points FROM loyalty_point_grants WHERE customer_id=%s"
+                + (" FOR SHARE" if lock else ""),
+                (customer_id,),
+            )[0]["points"]
         )
 
     def loyalty_history(self, conn, customer_id, page=1, page_size=10):

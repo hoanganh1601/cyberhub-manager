@@ -44,6 +44,11 @@ TABLES = (
     "menu_item_changes",
     "menu_orders",
     "menu_order_items",
+    # Đợt 2 — voucher và phần thưởng
+    "reward_catalog",
+    "customer_vouchers",
+    "voucher_events",
+    "loyalty_point_grants",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -238,6 +243,36 @@ DESCRIPTIONS["menu_order_items"] = ("Từng món trong yêu cầu gọi món, v�
     "order_id": "Yêu cầu gọi món.", "item_id": "Món được gọi.",
     "item_name": "Tên món tại thời điểm đặt.", "unit_price": "Đơn giá tại thời điểm đặt (VND).",
     "quantity": "Số lượng 1–20."})
+
+# ----- Đợt 2: voucher và phần thưởng ---------------------------------------------
+DESCRIPTIONS["reward_catalog"] = ("Danh mục phần thưởng; không có loại nào quy đổi tiền mặt.", {
+    "id": "Khóa chính.", "code": "Mã phần thưởng, duy nhất.", "name": "Tên hiển thị.",
+    "store_id": "Cơ sở áp dụng; NULL = mọi cơ sở (chỉ ADMIN tạo).",
+    "reward_type": "`FOOD_DISCOUNT` / `FREE_DRINK` / `PLAYTIME_CREDIT` (số dư khuyến mãi) / `MEMBER_POINTS`.",
+    "value": "VND giảm/tặng/cộng giờ, hoặc số điểm với MEMBER_POINTS.",
+    "min_order_amount": "Đơn gọi món tối thiểu (chỉ voucher đồ ăn/đồ uống).",
+    "valid_days": "Số ngày hiệu lực kể từ lúc phát.", "coin_cost": "Giá đổi bằng xu game (Đợt 3); NULL = không bán.",
+    "is_active": "FALSE = tạm ngưng phát.", "created_at": "Thời điểm tạo (UTC)."})
+DESCRIPTIONS["customer_vouchers"] = ("Voucher của khách; điều kiện được chụp lúc phát, dùng một lần.", {
+    "id": "Khóa chính.", "code": "Mã ngẫu nhiên (secrets) khách đưa cho nhân viên, duy nhất.",
+    "catalog_id": "Phần thưởng gốc.", "account_id": "Tài khoản sở hữu voucher.",
+    "store_id": "Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở.",
+    "reward_type": "Loại phần thưởng (chụp).", "value": "Giá trị (chụp).",
+    "min_order_amount": "Đơn tối thiểu (chụp).",
+    "status": "`ISSUED` / `USED` / `REVOKED`; hết hạn suy ra từ `expires_at`.",
+    "source": "`MANUAL` / `GAME` / `AD`.", "source_ref": "Mã nguồn; UNIQUE cùng `source` chống phát trùng.",
+    "issued_by": "Nhân viên phát (NULL khi do hệ thống).", "issued_at": "Thời điểm phát (UTC).",
+    "expires_at": "Hết hạn (UTC).", "used_at": "Thời điểm dùng (UTC).", "used_by": "Nhân viên xác nhận.",
+    "used_store_id": "Cơ sở nơi dùng.", "used_order_id": "Yêu cầu gọi món được áp (voucher đồ ăn); UNIQUE.",
+    "revoked_reason": "Lý do khóa."})
+DESCRIPTIONS["voucher_events"] = ("Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm.", {
+    "id": "Khóa chính.", "voucher_id": "Voucher liên quan; NULL khi mã nhập không tồn tại.",
+    "action": "`ISSUE` / `REDEEM` / `REVOKE` / `REJECT`.", "employee_id": "Nhân viên thực hiện.",
+    "store_id": "Cơ sở phát sinh.", "reason": "Lý do/chi tiết (vd. EXPIRED, USED, WRONG_OWNER).",
+    "created_at": "Thời điểm (UTC)."})
+DESCRIPTIONS["loyalty_point_grants"] = ("Điểm thành viên tặng qua voucher; cộng vào điểm, không đổi hạng.", {
+    "id": "Khóa chính.", "customer_id": "Khách nhận điểm.", "voucher_id": "Voucher MEMBER_POINTS; UNIQUE.",
+    "points": "Số điểm tặng.", "employee_id": "Nhân viên xác nhận.", "created_at": "Thời điểm (UTC)."})
 
 DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.",{
     "machine_id":"Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa.",
