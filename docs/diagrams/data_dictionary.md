@@ -39,6 +39,9 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`game_wallets`](#game_wallets) | Ví xu game của tài khoản; xu không phải tiền và không phải điểm thành viên. | 8 |
 | [`game_sessions`](#game_sessions) | Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại. | 8 |
 | [`game_coin_ledger`](#game_coin_ledger) | Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm. | 8 |
+| [`ad_settings`](#ad_settings) | Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất). | 7 |
+| [`ad_creatives`](#ad_creatives) | Nội dung quảng cáo nội bộ do CyberHub tự soạn. | 8 |
+| [`ad_reward_events`](#ad_reward_events) | Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game. | 15 |
 
 ## 2. Quan hệ và cardinality
 
@@ -84,6 +87,7 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `accounts` | 1 — 0..1 | `game_wallets` | `game_wallets.account_id` → `accounts.id` | Tài khoản khách; PK/FK. |
 | `accounts` | 1 — 0..n | `game_sessions` | `game_sessions.account_id` → `accounts.id` | Tài khoản chơi. |
 | `accounts` | 1 — 0..n | `game_coin_ledger` | `game_coin_ledger.account_id` → `accounts.id` | Tài khoản. |
+| `accounts` | 1 — 0..n | `ad_reward_events` | `ad_reward_events.account_id` → `accounts.id` | Tài khoản xem. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `machines` | 1 — 0..n | `menu_orders` | `menu_orders.machine_id` → `machines.id` | Máy giao món tới. |
@@ -103,6 +107,7 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `customer_vouchers` | 0..1 — 0..n | `game_coin_ledger` | `game_coin_ledger.voucher_id` → `customer_vouchers.id` | Voucher nhận được khi đổi xu. |
 | `games` | 1 — 0..n | `game_prizes` | `game_prizes.game_id` → `games.id` | Game sở hữu ô thưởng. |
 | `games` | 1 — 0..n | `game_sessions` | `game_sessions.game_id` → `games.id` | Game. |
+| `ad_creatives` | 0..1 — 0..n | `ad_reward_events` | `ad_reward_events.creative_id` → `ad_creatives.id` | Nội dung đã phát. |
 
 ## 3. Chi tiết từng bảng
 
@@ -913,3 +918,87 @@ Ràng buộc:
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_game_coin_ledger_account` (`account_id, created_at`)
+
+### ad_settings
+
+Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất).
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `tinyint unsigned` | Không | — | PK | Luôn bằng 1. |
+| `enabled` | `tinyint(1)` | Không | `1` | — | Bật/tắt chương trình. |
+| `mode` | `varchar(10)` | Không | `HOUSE` | — | `HOUSE` (quảng cáo nội bộ, máy chủ đo thời lượng) / `NETWORK` (callback có chữ ký HMAC). |
+| `daily_cap` | `int` | Không | `3` | — | Số lần nhận thưởng tối đa mỗi tài khoản mỗi ngày. |
+| `reward_type` | `varchar(12)` | Không | `EXTRA_SPIN` | — | `EXTRA_SPIN` (thêm lượt quay) / `COINS` (xu game). |
+| `reward_amount` | `int` | Không | `1` | — | Số lượt (1–3) hoặc số xu (1–100) mỗi lần. |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- CHECK `chk_ad_settings_cap`: `(daily_cap between 1 and 10)`
+- CHECK `chk_ad_settings_mode`: `(mode in ('HOUSE','NETWORK'))`
+- CHECK `chk_ad_settings_reward`: `(((reward_type = 'EXTRA_SPIN') and (reward_amount between 1 and 3)) or ((reward_type = 'COINS') and (reward_amount between 1 and 100)))`
+- CHECK `chk_ad_settings_singleton`: `(id = 1)`
+
+### ad_creatives
+
+Nội dung quảng cáo nội bộ do CyberHub tự soạn.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(20)` | Không | — | UK | Mã nội dung, duy nhất. |
+| `title` | `varchar(80)` | Không | — | — | Tiêu đề. |
+| `body` | `varchar(300)` | Không | — | — | Nội dung hiển thị. |
+| `cta` | `varchar(40)` | Không | `` | — | Lời kêu gọi hành động. |
+| `duration_seconds` | `int` | Không | — | — | Thời lượng phải xem (5–60 giây). |
+| `is_active` | `tinyint(1)` | Không | `1` | — | FALSE = không phát. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_ad_creatives_code` (`code`)
+- CHECK `chk_ad_creatives_duration`: `(duration_seconds between 5 and 60)`
+- CHECK `chk_ad_creatives_title`: `(char_length(trim(title)) > 0)`
+
+### ad_reward_events
+
+Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `token` | `char(32)` | Không | — | UK | Token ngẫu nhiên do máy chủ cấp; UNIQUE, chỉ dùng một lần. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản xem. |
+| `creative_id` | `bigint unsigned` | Có | — | FK → `ad_creatives.id` | Nội dung đã phát. |
+| `provider` | `varchar(10)` | Không | — | — | `HOUSE` / `NETWORK`. |
+| `reward_type` | `varchar(12)` | Không | — | — | Loại thưởng (chụp từ cấu hình). |
+| `reward_amount` | `int` | Không | — | — | Số lượng thưởng (chụp). |
+| `status` | `varchar(10)` | Không | `ISSUED` | — | `ISSUED` / `COMPLETED` / `REJECTED`; hết hạn suy ra từ `expires_at`. |
+| `played_on` | `date` | Không | — | — | Ngày theo giờ Việt Nam, dùng giới hạn mỗi ngày. |
+| `issued_at` | `datetime` | Không | — | — | Thời điểm cấp token (UTC). |
+| `min_complete_at` | `datetime` | Không | — | — | Sớm nhất được nhận thưởng = bắt đầu + thời lượng (UTC). |
+| `expires_at` | `datetime` | Không | — | — | Hạn token (UTC). |
+| `completed_at` | `datetime` | Có | — | — | Thời điểm hoàn thành hợp lệ (UTC). |
+| `provider_txn_id` | `varchar(80)` | Có | — | UK | Mã giao dịch của mạng quảng cáo; UNIQUE chống gửi lại. |
+| `reject_reason` | `varchar(40)` | Có | — | — | `TOO_EARLY` / `EXPIRED` / `CAP` / `LOCKED` / `SUPERSEDED`. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_ad_reward_events_token` (`token`)
+- UNIQUE `uq_ad_reward_events_txn` (`provider_txn_id`)
+- FOREIGN KEY `fk_ad_reward_events_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_ad_reward_events_creative` (`creative_id`) → `ad_creatives` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_ad_reward_events_done`: `(((status = 'COMPLETED') and (completed_at is not null) and (reject_reason is null)) or ((status = 'REJECTED') and (reject_reason is not null)) or ((status = 'ISSUED') and (completed_at is null)))`
+- CHECK `chk_ad_reward_events_period`: `((min_complete_at >= issued_at) and (expires_at > min_complete_at))`
+- CHECK `chk_ad_reward_events_provider`: `(provider in ('HOUSE','NETWORK'))`
+- CHECK `chk_ad_reward_events_reward`: `((reward_type in ('EXTRA_SPIN','COINS')) and (reward_amount > 0))`
+- CHECK `chk_ad_reward_events_status`: `(status in ('ISSUED','COMPLETED','REJECTED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_ad_reward_events_account_day` (`account_id, played_on, status`)
+- INDEX `idx_ad_reward_events_day` (`played_on`)

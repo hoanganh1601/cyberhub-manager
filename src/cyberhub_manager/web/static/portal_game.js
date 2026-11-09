@@ -47,9 +47,11 @@ async function loadCustomerGame() {
   const ui = portalUI;
   ui.gameLoading = true;
   try {
-    const data = await api("/portal/game");
+    // Đợt 4: thông tin quảng cáo nhận thưởng tải kèm; lỗi quảng cáo không làm hỏng vòng quay.
+    const [data, ads] = await Promise.all([api("/portal/game"), api("/portal/ads").catch(() => null)]);
     if (ui !== portalUI) return;
     ui.game = data;
+    ui.ads = ads;
     ui.gameError = null;
   } catch (error) {
     if (ui !== portalUI) return;
@@ -108,13 +110,14 @@ function dot3Body() {
       <section class="pc-card dot3-stage">
         ${dot3Wheel(d.game.prizes, ui.wheelRotation)}
         <div class="dot3-controls">
-          <div class="dot3-stat"><small>${t("dot3SpinsLeft")}</small><strong>${d.spins_left}/${d.game.daily_limit}</strong></div>
+          <div class="dot3-stat"><small>${t("dot3SpinsLeft")}</small><strong>${d.spins_left}/${d.game.daily_limit + (d.bonus_spins || 0)}</strong></div>
           <button class="btn primary dot3-spin" data-game="spin" ${canSpin ? "" : "disabled"}>${icon("wheel")}${ui.gameBusy ? t("dot3Spinning") : t("dot3Spin")}</button>
           <div class="dot3-stat"><small>${t("dot3Coins")}</small><strong class="gold">${icon("coin")}${d.wallet.balance}</strong></div>
         </div>
         ${blocked ? `<p class="dot3-blocked">${t(blocked)}${d.wallet.is_locked && d.wallet.locked_reason ? ` — ${esc(d.wallet.locked_reason)}` : ""}</p>` : ""}
         <p class="dot3-rules">${t("dot3Rules").replace("{n}", d.game.daily_limit)}</p>
       </section>
+      ${typeof dot4AdCard === "function" ? dot4AdCard() : ""}
       <section class="pc-card"><header><h2>${icon("ticket")} ${t("dot3Shop")}</h2></header>${d.shop.length ? `<ul class="dot3-shop">${shop}</ul>` : `<p class="muted">—</p>`}</section>
       <section class="pc-card dot3-two"><div><h3>${t("dot3History")}</h3>${history}</div><div><h3>${t("dot3Ledger")}</h3>${ledger}</div></section>
     </div>`;

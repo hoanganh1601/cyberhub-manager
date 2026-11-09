@@ -28,6 +28,7 @@ def create_service_bundle(
     from .menu_service import MenuService
     from .voucher_service import VoucherService
     from .game_service import GameService
+    from .ad_service import AdService
 
     return ServiceBundle(
         auth=AuthService(),
@@ -41,4 +42,5 @@ def create_service_bundle(
         menu=MenuService(actor_provider=actor_provider),
         vouchers=(vouchers := VoucherService(actor_provider=actor_provider)),
         games=GameService(vouchers=vouchers, actor_provider=actor_provider),
+        ads=AdService(vouchers=vouchers, actor_provider=actor_provider),
     )
