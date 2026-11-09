@@ -172,6 +172,17 @@ class GameRepository:
             )[0]["total"]
         )
 
+    def count_ad_spins(self, conn: Any, account_id: int, day) -> int:
+        """Đợt 4: lượt quay thêm nhận được từ quảng cáo đã hoàn thành trong ngày."""
+        return int(
+            rows(
+                conn,
+                "SELECT COALESCE(SUM(reward_amount), 0) AS spins FROM ad_reward_events"
+                " WHERE account_id = %s AND played_on = %s AND status = 'COMPLETED' AND reward_type = 'EXTRA_SPIN'",
+                (account_id, day),
+            )[0]["spins"]
+        )
+
     def last_session_at(self, conn: Any, account_id: int):
         result = rows(
             conn,

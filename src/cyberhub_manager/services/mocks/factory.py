@@ -86,6 +86,10 @@ def build_mock_services(
     from .game import MemoryGameRepository
     from cyberhub_manager.services.game_service import GameService
     game_repo = MemoryGameRepository(data, voucher_repo)
+    # Đợt 4: quảng cáo nội bộ; sự kiện lưu trong game_repo để vòng quay đếm lượt thêm.
+    from .ad import MemoryAdRepository
+    from cyberhub_manager.services.ad_service import AdService
+    ad_repo = MemoryAdRepository(data, game_repo)
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
         customers=MockCustomerService(data, clock, scenario),
@@ -99,4 +103,6 @@ def build_mock_services(
         vouchers=vouchers,
         games=GameService(repo=game_repo,p1_repo=repo,vouchers=vouchers,
                           transaction_factory=game_repo.transaction,clock=clock.now),
+        ads=AdService(repo=ad_repo,game_repo=game_repo,vouchers=vouchers,p1_repo=repo,
+                      transaction_factory=ad_repo.transaction,clock=clock.now),
     )

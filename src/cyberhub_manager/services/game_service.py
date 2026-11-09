@@ -100,7 +100,9 @@ class GameService:
             game = self._game(conn)
             wallet = self._repo.wallet(conn, customer.account_id)
             now = self._now()
-            used = self._repo.count_sessions(conn, customer.account_id, game.id, self._local_day(now))
+            today = self._local_day(now)
+            used = self._repo.count_sessions(conn, customer.account_id, game.id, today)
+            bonus = self._repo.count_ad_spins(conn, customer.account_id, today)  # Đợt 4
             stores = {s.id: s.name for s in self._p1.list_stores(conn)}
             playable = game.is_active and not wallet.is_locked
             return dict(
@@ -108,7 +110,8 @@ class GameService:
                           min_interval_seconds=game.min_interval_seconds,
                           prizes=[dict(index=p.sort_order, label=p.label, coins=p.coins) for p in game.prizes]),
                 wallet=dict(balance=wallet.balance, is_locked=wallet.is_locked, locked_reason=wallet.locked_reason),
-                spins_left=max(0, game.daily_limit - used) if playable else 0,
+                spins_left=max(0, game.daily_limit + bonus - used) if playable else 0,
+                bonus_spins=bonus,
                 history=self._repo.account_sessions(conn, customer.account_id, 10),
                 ledger=self._repo.account_ledger(conn, customer.account_id, 10),
                 shop=[
@@ -135,7 +138,8 @@ class GameService:
             today = self._local_day(now)
             used = self._repo.count_sessions(conn, customer.account_id, game.id, today)
             last = self._repo.last_session_at(conn, customer.account_id)
-            if used >= game.daily_limit:
+            limit = game.daily_limit + self._repo.count_ad_spins(conn, customer.account_id, today)  # Đợt 4
+            if used >= limit:
                 rejected = LIMIT_REACHED
             elif last is not None and (now - last).total_seconds() < game.min_interval_seconds:
                 rejected = TOO_FAST
@@ -158,7 +162,7 @@ class GameService:
                                              reason=LedgerReason.PLAY, ref=f"session:{session_id}",
                                              balance_after=balance, voucher_id=None, created_at=now)
                 result = dict(session_id=session_id, prize_index=prize.sort_order, label=prize.label,
-                              coins=prize.coins, balance=balance, spins_left=game.daily_limit - used - 1)
+                              coins=prize.coins, balance=balance, spins_left=limit - used - 1)
         if rejected:
             raise ConflictError(rejected)
         return result

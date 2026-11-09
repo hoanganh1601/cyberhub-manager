@@ -1085,4 +1085,64 @@ def create_app(config: dict | None = None) -> Flask:
         data = body()
         return reply(g.services.games.set_wallet_lock(g.actor, account_id, data.get("locked"), data.get("reason", "")))
 
+    # ----- Đợt 4: quảng cáo nhận thưởng ----------------------------------------------
+    @app.get("/api/portal/ads")
+    def portal_ads():
+        return reply(g.services.ads.portal_ads(g.customer))
+
+    @app.post("/api/portal/ads/start")
+    def portal_ads_start():
+        return reply(g.services.ads.start(g.customer))
+
+    @app.post("/api/portal/ads/complete")
+    def portal_ads_complete():
+        # Chỉ nhận token; thời lượng xem do máy chủ tự đo, không tin số giây trình duyệt gửi.
+        return reply(g.services.ads.complete(g.customer, body().get("token")))
+
+    @app.get("/api/ads")
+    def ads_overview():
+        return reply(g.services.ads.overview(g.actor))
+
+    @app.put("/api/ads/settings")
+    def ads_settings():
+        data = body()
+        return reply(
+            g.services.ads.save_settings(
+                g.actor,
+                enabled=data.get("enabled"),
+                mode=data.get("mode"),
+                daily_cap=data.get("daily_cap"),
+                reward_type=data.get("reward_type"),
+                reward_amount=data.get("reward_amount"),
+            )
+        )
+
+    @app.route("/api/ads/creatives", methods=["POST"])
+    @app.route("/api/ads/creatives/<int:creative_id>", methods=["PATCH"])
+    def ads_creative_save(creative_id=None):
+        data = body()
+        return reply(
+            g.services.ads.save_creative(
+                g.actor,
+                creative_id,
+                code=data.get("code"),
+                title=data.get("title"),
+                body=data.get("body"),
+                cta=data.get("cta", ""),
+                duration_seconds=data.get("duration_seconds"),
+                is_active=data.get("is_active", True),
+            )
+        )
+
+    @app.get("/ads/callback")
+    def ads_network_callback():
+        # Callback server-to-server của mạng quảng cáo: không có phiên đăng nhập, xác thực bằng chữ ký HMAC.
+        # Nằm ngoài /api nên không qua kiểm tra đăng nhập/CSRF; chỉ hoạt động ở chế độ MySQL.
+        if real_services is None:
+            return error("NOT_AVAILABLE", "Không hỗ trợ ở chế độ demo", "Not available in demo mode", 404)
+        result = real_services.ads.verify_network_callback(
+            request.args.get("token", "")[:64], request.args.get("txn", "")[:100], request.args.get("sig", "")[:128]
+        )
+        return reply(dict(ok=True, reward_type=result["reward_type"], reward_amount=result["reward_amount"]))
+
     return app

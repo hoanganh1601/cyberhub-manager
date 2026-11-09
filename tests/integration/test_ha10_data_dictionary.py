@@ -33,8 +33,9 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
                   "menu_categories", "menu_items", "menu_item_images", "menu_item_changes",
                   "menu_orders", "menu_order_items",
                   "reward_catalog", "customer_vouchers", "voucher_events", "loyalty_point_grants",
-                  "games", "game_prizes", "game_wallets", "game_sessions", "game_coin_ledger"):
+                  "games", "game_prizes", "game_wallets", "game_sessions", "game_coin_ledger",
+                  "ad_settings", "ad_creatives", "ad_reward_events"):
         assert f"### {table}" in content
-    # 23 khóa ngoại trước Đợt 1 + 13 (menu) + 14 (voucher, Đợt 2) + 6 (game, Đợt 3).
-    assert content.count(" — 0..") == 56
+    # 23 khóa ngoại trước Đợt 1 + 13 (menu) + 14 (voucher) + 6 (game) + 2 (quảng cáo, Đợt 4).
+    assert content.count(" — 0..") == 58
     assert "password_hash" in content and "bcrypt" in content

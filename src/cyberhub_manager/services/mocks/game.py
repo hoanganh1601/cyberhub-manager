@@ -39,15 +39,16 @@ class MemoryGameRepository:
         self.wallets: dict[int, GameWallet] = {}
         self.sessions: list[dict] = []
         self.ledger: list[CoinLedgerEntry] = []
+        self.ad_events: list[dict] = []  # Đợt 4: MemoryAdRepository ghi vào đây
 
     @contextmanager
     def transaction(self):
         with self.vouchers.transaction() as conn:
-            snapshot = deepcopy((self.game, self.wallets, self.sessions, self.ledger))
+            snapshot = deepcopy((self.game, self.wallets, self.sessions, self.ledger, self.ad_events))
             try:
                 yield conn
             except Exception:
-                self.game, self.wallets, self.sessions, self.ledger = snapshot
+                self.game, self.wallets, self.sessions, self.ledger, self.ad_events = snapshot
                 raise
 
     def _name(self, account_id):
@@ -94,6 +95,11 @@ class MemoryGameRepository:
     # ----- Phiên chơi -------------------------------------------------------------------
     def count_sessions(self, conn, account_id, game_id, day):
         return sum(1 for s in self.sessions if s["account_id"] == account_id and s["played_on"] == day)
+
+    def count_ad_spins(self, conn, account_id, day):
+        return sum(e["reward_amount"] for e in self.ad_events
+                   if e["account_id"] == account_id and e["played_on"] == day and e["status"] == "COMPLETED"
+                   and e["reward_type"] == "EXTRA_SPIN")
 
     def last_session_at(self, conn, account_id):
         times = [s["created_at"] for s in self.sessions if s["account_id"] == account_id]

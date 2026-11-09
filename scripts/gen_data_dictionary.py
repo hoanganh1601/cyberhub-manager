@@ -55,6 +55,10 @@ TABLES = (
     "game_wallets",
     "game_sessions",
     "game_coin_ledger",
+    # Đợt 4 — quảng cáo nhận thưởng
+    "ad_settings",
+    "ad_creatives",
+    "ad_reward_events",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -305,6 +309,28 @@ DESCRIPTIONS["game_coin_ledger"] = ("Sổ cái xu: mọi thay đổi số dư xu
     "ref": "Tham chiếu duy nhất theo `reason` (vd. `session:12`, khóa yêu cầu đổi thưởng).",
     "balance_after": "Số dư xu sau thay đổi (≥ 0).", "voucher_id": "Voucher nhận được khi đổi xu.",
     "created_at": "Thời điểm (UTC)."})
+
+# ----- Đợt 4: quảng cáo nhận thưởng -------------------------------------------------
+DESCRIPTIONS["ad_settings"] = ("Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất).", {
+    "id": "Luôn bằng 1.", "enabled": "Bật/tắt chương trình.",
+    "mode": "`HOUSE` (quảng cáo nội bộ, máy chủ đo thời lượng) / `NETWORK` (callback có chữ ký HMAC).",
+    "daily_cap": "Số lần nhận thưởng tối đa mỗi tài khoản mỗi ngày.",
+    "reward_type": "`EXTRA_SPIN` (thêm lượt quay) / `COINS` (xu game).",
+    "reward_amount": "Số lượt (1–3) hoặc số xu (1–100) mỗi lần.", "updated_at": "Thời điểm cập nhật (UTC)."})
+DESCRIPTIONS["ad_creatives"] = ("Nội dung quảng cáo nội bộ do CyberHub tự soạn.", {
+    "id": "Khóa chính.", "code": "Mã nội dung, duy nhất.", "title": "Tiêu đề.", "body": "Nội dung hiển thị.",
+    "cta": "Lời kêu gọi hành động.", "duration_seconds": "Thời lượng phải xem (5–60 giây).",
+    "is_active": "FALSE = không phát.", "created_at": "Thời điểm tạo (UTC)."})
+DESCRIPTIONS["ad_reward_events"] = ("Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game.", {
+    "id": "Khóa chính.", "token": "Token ngẫu nhiên do máy chủ cấp; UNIQUE, chỉ dùng một lần.",
+    "account_id": "Tài khoản xem.", "creative_id": "Nội dung đã phát.", "provider": "`HOUSE` / `NETWORK`.",
+    "reward_type": "Loại thưởng (chụp từ cấu hình).", "reward_amount": "Số lượng thưởng (chụp).",
+    "status": "`ISSUED` / `COMPLETED` / `REJECTED`; hết hạn suy ra từ `expires_at`.",
+    "played_on": "Ngày theo giờ Việt Nam, dùng giới hạn mỗi ngày.", "issued_at": "Thời điểm cấp token (UTC).",
+    "min_complete_at": "Sớm nhất được nhận thưởng = bắt đầu + thời lượng (UTC).",
+    "expires_at": "Hạn token (UTC).", "completed_at": "Thời điểm hoàn thành hợp lệ (UTC).",
+    "provider_txn_id": "Mã giao dịch của mạng quảng cáo; UNIQUE chống gửi lại.",
+    "reject_reason": "`TOO_EARLY` / `EXPIRED` / `CAP` / `LOCKED` / `SUPERSEDED`."})
 
 DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.",{
     "machine_id":"Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa.",
