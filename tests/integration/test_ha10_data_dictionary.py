@@ -31,8 +31,9 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
     for table in ("stores", "employees", "customers", "accounts", "machines",
                   "usage_sessions", "account_transactions", "invoices", "promotions", "management_audit", "customer_notification_reads", "machine_room_types", "loyalty_settings", "customer_avatars",
                   "menu_categories", "menu_items", "menu_item_images", "menu_item_changes",
-                  "menu_orders", "menu_order_items"):
+                  "menu_orders", "menu_order_items",
+                  "reward_catalog", "customer_vouchers", "voucher_events", "loyalty_point_grants"):
         assert f"### {table}" in content
-    # 23 khóa ngoại trước Đợt 1 + 13 khóa ngoại của 6 bảng menu.
-    assert content.count(" — 0..") == 36
+    # 23 khóa ngoại trước Đợt 1 + 13 của 6 bảng menu + 14 của 4 bảng voucher (Đợt 2).
+    assert content.count(" — 0..") == 50
     assert "password_hash" in content and "bcrypt" in content

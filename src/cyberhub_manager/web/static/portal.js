@@ -149,7 +149,7 @@ async function renderCustomerPortal(silent=false) {
 }
 
 function drawCustomerPortal() {
-  const d=portalUI.data, n=portalUI.notices, tabs={home:"pcHome",offers:"pcOffers",history:"pcHistory",notifications:"pcNotifications",availability:"p2Availability",usage:"p2Usage",profile:"p2Profile",member:"p3Member",menu:"dot1Menu"};
+  const d=portalUI.data, n=portalUI.notices, tabs={home:"pcHome",offers:"pcOffers",history:"pcHistory",notifications:"pcNotifications",availability:"p2Availability",usage:"p2Usage",profile:"p2Profile",member:"p3Member",menu:"dot1Menu",vouchers:"dot2Vouchers"};
   document.title="CyberHub — "+t(tabs[portalUI.tab]);
   $("#app").innerHTML=`<div class="customer-workspace pc-workspace">
     <header class="portal-header pc-header"><a href="/customer" aria-label="CyberHub"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub Manager"></a>
@@ -157,12 +157,12 @@ function drawCustomerPortal() {
       <button class="btn pc-icon-button" data-portal="refresh" aria-label="${t("refresh")}">${icon("refresh")}</button>
       ${customerAccountMenu()}
     </header>
-    <nav class="pc-nav" aria-label="${t("customerPortal")}">${pcButton("home","pcHome","grid")}${pcButton("availability","p2Availability","monitor")}${pcButton("menu","dot1Menu","utensils")}${pcButton("offers","pcOffers","gift")}${pcButton("member","p3Member","shield")}${pcButton("usage","p2Usage","chart")}${pcButton("history","pcHistory","clock")}${pcButton("notifications","pcNotifications","bell")}</nav>
+    <nav class="pc-nav" aria-label="${t("customerPortal")}">${pcButton("home","pcHome","grid")}${pcButton("availability","p2Availability","monitor")}${pcButton("menu","dot1Menu","utensils")}${pcButton("vouchers","dot2Vouchers","ticket")}${pcButton("offers","pcOffers","gift")}${pcButton("member","p3Member","shield")}${pcButton("usage","p2Usage","chart")}${pcButton("history","pcHistory","clock")}${pcButton("notifications","pcNotifications","bell")}</nav>
     <main id="pc-main">${state.mode==="demo"?`<p class="pc-demo">${icon("shield")}${t("pcDemo")}</p>`:""}
-      <header class="pc-page-head"><div>${portalUI.tab==="home"?`<p class="pc-eyebrow">CYBERHUB · ${esc(d.wallet.account_code)}</p><h1>${t("pcHello")} <span>${esc(d.profile.full_name)}</span></h1><p>${t("pcWelcome")}</p>`:`<p class="pc-eyebrow">${esc(d.profile.full_name)} · CYBERHUB</p><h1>${t(tabs[portalUI.tab])}</h1><p>${t({offers:"pcOfferSub",history:"pcHistorySub",notifications:"pcNotifySub",availability:"p2AvailabilitySub",usage:"p2UsageSub",profile:"p2ProfileSub",member:"p3MemberSub",menu:"dot1MenuSub"}[portalUI.tab])}</p>`}</div>
+      <header class="pc-page-head"><div>${portalUI.tab==="home"?`<p class="pc-eyebrow">CYBERHUB · ${esc(d.wallet.account_code)}</p><h1>${t("pcHello")} <span>${esc(d.profile.full_name)}</span></h1><p>${t("pcWelcome")}</p>`:`<p class="pc-eyebrow">${esc(d.profile.full_name)} · CYBERHUB</p><h1>${t(tabs[portalUI.tab])}</h1><p>${t({offers:"pcOfferSub",history:"pcHistorySub",notifications:"pcNotifySub",availability:"p2AvailabilitySub",usage:"p2UsageSub",profile:"p2ProfileSub",member:"p3MemberSub",menu:"dot1MenuSub",vouchers:"dot2VouchersSub"}[portalUI.tab])}</p>`}</div>
         ${["home","usage"].includes(portalUI.tab)?`<div class="segment pc-period" role="group" aria-label="${t("period")}">${[7,30,90].map(days=>`<button data-portal="days" data-days="${days}" class="${portalUI.days===days?"active":""}" aria-pressed="${portalUI.days===days}">${days} ${t("pcDays")}</button>`).join("")}</div>`:`<button class="p3-tier-chip" data-portal="tab" data-tab="member">${icon("shield")}${t(d.member.tier)}</button>`}
       </header>
-      ${portalUI.tab==="home"?pcHome():portalUI.tab==="offers"?pcOffers():portalUI.tab==="history"?pcHistory():portalUI.tab==="notifications"?pcNotifications():portalUI.tab==="menu"?customerMenuPage():customerPhase2Page()}
+      ${portalUI.tab==="home"?pcHome():portalUI.tab==="offers"?pcOffers():portalUI.tab==="history"?pcHistory():portalUI.tab==="notifications"?pcNotifications():portalUI.tab==="menu"?customerMenuPage():portalUI.tab==="vouchers"?customerVoucherPage():customerPhase2Page()}
     </main><footer class="pc-footer"><span><i class="dot"></i>${t("pcUpdated")} ${dt(portalUI.tab==="availability"?portalUI.phase2?.as_of:d.as_of)}</span><span>${t(portalUI.tab==="availability"?"p2EveryFive":"pcAutomatic")} · Asia/Ho_Chi_Minh</span></footer></div>`;
   const nav=$(".pc-nav"),selected=$(".pc-nav-button.selected");if(nav&&selected)nav.scrollLeft=selected.offsetLeft-nav.offsetLeft-nav.clientWidth/2+selected.clientWidth/2;
   decorateCustomerMembership();

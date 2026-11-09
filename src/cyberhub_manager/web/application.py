@@ -999,4 +999,53 @@ def create_app(config: dict | None = None) -> Flask:
     def menu_order_status(order_id):
         return reply(g.services.menu.finish_order(g.actor, order_id, body().get("status")))
 
+    # ----- Đợt 2: voucher và phần thưởng ------------------------------------------
+    @app.get("/api/portal/vouchers")
+    def portal_vouchers():
+        return reply(g.services.vouchers.portal_vouchers(g.customer))
+
+    @app.get("/api/vouchers")
+    def vouchers_overview():
+        return reply(g.services.vouchers.overview(g.actor))
+
+    @app.route("/api/rewards", methods=["POST"])
+    @app.route("/api/rewards/<int:catalog_id>", methods=["PATCH"])
+    def reward_save(catalog_id=None):
+        data = body()
+        return reply(
+            g.services.vouchers.save_reward(
+                g.actor,
+                catalog_id,
+                code=data.get("code"),
+                name=data.get("name"),
+                reward_type=data.get("reward_type"),
+                value=data.get("value"),
+                min_order_amount=data.get("min_order_amount", 0),
+                valid_days=data.get("valid_days"),
+                coin_cost=data.get("coin_cost"),
+                is_active=data.get("is_active", True),
+                all_stores=data.get("all_stores", False),
+            )
+        )
+
+    @app.post("/api/vouchers/issue")
+    def voucher_issue():
+        data = body()
+        return reply(g.services.vouchers.issue_voucher(g.actor, data.get("catalog_id"), data.get("customer_id")), 201)
+
+    @app.get("/api/vouchers/lookup")
+    def voucher_lookup():
+        return reply(g.services.vouchers.lookup(g.actor, request.args.get("code", "")[:40]))
+
+    @app.post("/api/vouchers/redeem")
+    def voucher_redeem():
+        data = body()
+        return reply(
+            g.services.vouchers.redeem(g.actor, data.get("code"), data.get("customer_id"), data.get("order_id"))
+        )
+
+    @app.post("/api/vouchers/<int:voucher_id>/revoke")
+    def voucher_revoke(voucher_id):
+        return reply(g.services.vouchers.revoke(g.actor, voucher_id, body().get("reason")))
+
     return app

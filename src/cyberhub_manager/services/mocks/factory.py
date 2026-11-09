@@ -75,6 +75,11 @@ def build_mock_services(
     from cyberhub_manager.services.menu_service import MenuService
     menu_repo = MemoryMenuRepository(data, repo, clock=clock.now)
     menu_repo.seed_demo()
+    # Đợt 2: danh mục phần thưởng + voucher mẫu.
+    from .voucher import MemoryVoucherRepository
+    from cyberhub_manager.services.voucher_service import VoucherService
+    voucher_repo = MemoryVoucherRepository(data, repo, clock=clock.now)
+    voucher_repo.seed_demo()
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
         customers=MockCustomerService(data, clock, scenario),
@@ -85,4 +90,6 @@ def build_mock_services(
         management=ManagementService(repo=repo,transaction_factory=repo.transaction),
         portal=PortalService(repo=repo,transaction_factory=repo.transaction,clock=clock.now),
         menu=MenuService(repo=menu_repo,p1_repo=repo,transaction_factory=menu_repo.transaction,clock=clock.now),
+        vouchers=VoucherService(repo=voucher_repo,p1_repo=repo,menu_repo=menu_repo,
+                                transaction_factory=voucher_repo.transaction,clock=clock.now),
     )
