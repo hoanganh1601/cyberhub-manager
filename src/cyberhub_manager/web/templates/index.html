@@ -12,11 +12,14 @@
     <link rel="icon" type="image/png" href="/assets/cyberhub_logo_dark.png" />
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='menu.css') }}" />
     <script defer src="{{ url_for('static', filename='app.js') }}"></script>
     <script defer src="{{ url_for('static', filename='p1.js') }}"></script>
     <script defer src="{{ url_for('static', filename='portal.js') }}"></script>
     <script defer src="{{ url_for('static', filename='portal2.js') }}"></script>
     <script defer src="{{ url_for('static', filename='portal3.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='portal_menu.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='menu_admin.js') }}"></script>
   </head>
   <body data-customer-portal="{{ 'true' if customer_portal else 'false' }}">
     <div id="app">

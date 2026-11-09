@@ -25,6 +25,7 @@ def create_service_bundle(
     from .wallet_service import WalletService
     from .management_service import ManagementService
     from .portal_service import PortalService
+    from .menu_service import MenuService
 
     return ServiceBundle(
         auth=AuthService(),
@@ -35,4 +36,5 @@ def create_service_bundle(
         reports=ReportService(actor_provider=actor_provider),
         management=ManagementService(actor_provider=actor_provider),
         portal=PortalService(),
+        menu=MenuService(actor_provider=actor_provider),
     )

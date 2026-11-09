@@ -70,6 +70,11 @@ def build_mock_services(
             clock.now()-timedelta(days=1),clock.now()+timedelta(days=7),True,'BRONZE',5,1)
     if customer_offers:
         repo.room_types.update({machine.id:'VIP' for machine in data.machines.values() if machine.id>15})
+    # Đợt 1: menu demo cho mọi cơ sở, dùng chung khóa/transaction với repo P1.
+    from .menu import MemoryMenuRepository
+    from cyberhub_manager.services.menu_service import MenuService
+    menu_repo = MemoryMenuRepository(data, repo, clock=clock.now)
+    menu_repo.seed_demo()
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
         customers=MockCustomerService(data, clock, scenario),
@@ -79,4 +84,5 @@ def build_mock_services(
         reports=MockReportService(data, clock, scenario),
         management=ManagementService(repo=repo,transaction_factory=repo.transaction),
         portal=PortalService(repo=repo,transaction_factory=repo.transaction,clock=clock.now),
+        menu=MenuService(repo=menu_repo,p1_repo=repo,transaction_factory=menu_repo.transaction,clock=clock.now),
     )
