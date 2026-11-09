@@ -17,25 +17,29 @@
 
 .dot3-controls {display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap}
 .dot3-stat {display:flex;flex-direction:column;align-items:center;gap:2px}
-.dot3-stat small {font-size:11px;color:var(--muted)}
+.dot3-stat small {font-size:12px;color:var(--muted)}
 .dot3-stat strong {font-size:20px;display:inline-flex;align-items:center;gap:4px}
 .dot3-stat strong.gold {color:#f5a400}
 .dot3-stat .icon {width:18px;height:18px}
 .dot3-spin {min-width:140px;font-size:16px;padding:12px 22px}
-.dot3-blocked {color:var(--amber);font-size:13px;text-align:center}
-.dot3-rules {color:var(--muted);font-size:11px;text-align:center;max-width:420px}
+.dot3-blocked {color:var(--amber);font-size:14px;text-align:center}
+.dot3-rules {color:var(--muted);font-size:12px;text-align:center;max-width:420px}
 
 .dot3-shop {list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .dot3-shop-item {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
-.dot3-shop-item small {display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.dot3-shop-item small {display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .dot3-shop-item .btn .icon {width:16px;height:16px}
-.dot3-list {list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:12px}
+.dot3-list {list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px}
 .dot3-list li {display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(34,44,62,.6);padding-bottom:4px}
 .dot3-list small {color:var(--muted)}
 .dot3-list .green {color:var(--green)}
 .dot3-list .red {color:var(--red)}
 
 .dot3-admin {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:18px}
+.dot3-config-meta {padding:16px 18px;border-bottom:1px solid var(--line)}
+.dot3-config-meta .key-values {gap:12px}
+.dot3-config-meta .key-values > div > span:last-child {font-weight:600;color:var(--text)}
+.dot3-config-note {padding:14px 18px 18px}
 
 @media (max-width: 900px) {
   .dot3-layout,.dot3-admin {grid-template-columns:1fr}

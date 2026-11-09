@@ -67,12 +67,14 @@ function adAdminPage() {
     <div class="metrics">${metric("dot4Issued", totals.issued, "cyan", "monitor")}${metric("dot4Completed", totals.completed, "green", "check")}${metric("dot4Rejected", totals.rejected, "", "alert")}</div>
     <div class="dot4-admin">
       <section class="panel"><header class="panel-heading"><h3>${icon("chart")} ${t("dot4Stats")}</h3></header>${stats}</section>
-      <section class="panel"><header class="panel-heading"><h3>${t("dot4Settings")}</h3>${badge(s.enabled ? "ACTIVE" : "INACTIVE")}</header>
-        <div class="key-values">${kv("dot4Mode", t("dot4Mode" + s.mode))}${kv("dot4Cap", s.daily_cap)}${kv("dot4RewardType", dot4Reward(s.reward_type, s.reward_amount))}</div>
-        <p class="notice ${d.network_ready ? "success" : "info"}">${t(d.network_ready ? "dot4NetworkReady" : "dot4NetworkMissing")}</p>
-        <p class="notice info">${t("dot4Policy")}</p></section>
+      <section class="panel"><header class="panel-heading"><h3>${icon("wrench")} ${t("dot4Settings")}</h3>${badge(s.enabled ? "ACTIVE" : "INACTIVE")}</header>
+        <div class="panel-body stack">
+          <div class="key-values">${kv("dot4Mode", t("dot4Mode" + s.mode))}${kv("dot4Cap", s.daily_cap)}${kv("dot4RewardType", dot4Reward(s.reward_type, s.reward_amount))}</div>
+          <p class="notice ${d.network_ready ? "success" : "info"}">${t(d.network_ready ? "dot4NetworkReady" : "dot4NetworkMissing")}</p>
+          <p class="notice info">${t("dot4Policy")}</p>
+        </div></section>
     </div>
-    <section class="panel"><header class="panel-heading"><h3>${t("dot4Creatives")}</h3></header>${creatives}</section>
+    <section class="panel"><header class="panel-heading"><h3>${icon("monitor")} ${t("dot4Creatives")}</h3></header>${creatives}</section>
     <section class="panel"><header class="panel-heading"><h3>${icon("clock")} ${t("dot4Recent")}</h3></header>${recent}</section>`;
 }
 

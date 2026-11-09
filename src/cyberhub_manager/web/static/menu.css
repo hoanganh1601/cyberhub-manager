@@ -120,16 +120,16 @@
 .dot1-order {border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 14px}
 .dot1-order header {display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
 .dot1-order header strong {color:var(--cyan)}
-.dot1-order ul {list-style:none;margin:0 0 8px;padding:0;font-size:12px;display:grid;gap:4px}
-.dot1-order .note {font-size:12px;color:var(--amber);margin-bottom:8px}
+.dot1-order ul {list-style:none;margin:0 0 8px;padding:0;font-size:13px;display:grid;gap:4px}
+.dot1-order .note {font-size:13px;color:var(--amber);margin-bottom:8px}
 .dot1-order .actions {display:flex;gap:8px;justify-content:flex-end}
-.dot1-category-row td {background:#0d1422;color:var(--menu-gold);font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:11px}
+.dot1-category-row td {background:#0d1422;color:var(--menu-gold);font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:12px}
 .dot1-thumb {width:40px;height:40px;border-radius:8px;object-fit:cover;background:#0d3040;display:inline-flex;align-items:center;justify-content:center;color:var(--menu-gold);font-weight:700}
-.dot1-history {list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:360px;overflow:auto;font-size:12px}
+.dot1-history {list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:360px;overflow:auto;font-size:13px}
 .dot1-history li {border-bottom:1px solid var(--line);padding-bottom:6px}
 .dot1-check {display:flex;align-items:center;gap:8px}
 .dot1-check input {width:16px;height:16px}
-.dot1-tip {font-size:12px;color:var(--muted);grid-column:1 / -1}
+.dot1-tip {font-size:13px;color:var(--muted);grid-column:1 / -1}
 @media (max-width: 1100px) {
   .dot1-admin {grid-template-columns:1fr}
 }
