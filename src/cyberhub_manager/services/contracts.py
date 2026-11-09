@@ -392,3 +392,4 @@ class ServiceBundle:
     portal: PortalServiceProtocol | None = None
     menu: object | None = None  # Đợt 1: MenuService (web); desktop chưa dùng
     vouchers: object | None = None  # Đợt 2: VoucherService (web)
+    games: object | None = None  # Đợt 3: GameService (web)

@@ -504,6 +504,7 @@ function renderShell() {
     ["invoices", "invoice"],
     ["menu", "utensils"],
     ["vouchers", "ticket"],
+    ["games", "wheel"],
     ...(isManager() ? [["revenue", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
@@ -553,6 +554,11 @@ async function loadPage(silent = false) {
     if (page === "vouchers") {
       // Đợt 2: tra cứu/xác nhận voucher, danh mục phần thưởng, nhật ký.
       if (await loadVoucherAdmin(seq)) renderPage();
+      return;
+    }
+    if (page === "games") {
+      // Đợt 3: thống kê vòng quay, cấu hình, ví game bị khóa.
+      if (await loadGameAdmin(seq)) renderPage();
       return;
     }
     if (["employees","promotions","stores"].includes(page)) {
@@ -612,6 +618,7 @@ function renderPage() {
   else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
   else if (state.page === "menu") html = menuAdminPage();
   else if (state.page === "vouchers") html = voucherAdminPage();
+  else if (state.page === "games") html = gameAdminPage();
   else if (state.page === "revenue" && isManager()) html = revenuePage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();

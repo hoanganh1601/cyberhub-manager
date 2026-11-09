@@ -104,6 +104,10 @@ class MemoryVoucherRepository:
         return sorted((c for c in self.catalog.values() if c.store_id in (None, store_id)),
                       key=lambda c: (not c.is_active, c.reward_type, c.value, c.id))
 
+    def coin_catalog(self, conn):
+        return sorted((c for c in self.catalog.values() if c.coin_cost is not None and c.is_active),
+                      key=lambda c: (c.coin_cost, c.id))
+
     def get_catalog(self, conn, catalog_id, *, lock=False):
         return self.catalog.get(catalog_id)
 
