@@ -1048,4 +1048,41 @@ def create_app(config: dict | None = None) -> Flask:
     def voucher_revoke(voucher_id):
         return reply(g.services.vouchers.revoke(g.actor, voucher_id, body().get("reason")))
 
+    # ----- Đợt 3: vòng quay và xu game ----------------------------------------------
+    @app.get("/api/portal/game")
+    def portal_game():
+        return reply(g.services.games.portal_game(g.customer))
+
+    @app.post("/api/portal/game/spin")
+    def portal_game_spin():
+        # Không đọc body: kết quả do máy chủ bốc thăm, trình duyệt không gửi điểm/kết quả.
+        return reply(g.services.games.spin(g.customer))
+
+    @app.post("/api/portal/game/redeem")
+    def portal_game_redeem():
+        data = body()
+        return reply(g.services.games.redeem(g.customer, data.get("catalog_id"), data.get("request_key")))
+
+    @app.get("/api/games")
+    def games_manage():
+        return reply(g.services.games.manage(g.actor))
+
+    @app.put("/api/games")
+    def games_save():
+        data = body()
+        return reply(
+            g.services.games.save_game(
+                g.actor,
+                is_active=data.get("is_active"),
+                daily_limit=data.get("daily_limit"),
+                min_interval_seconds=data.get("min_interval_seconds"),
+                prizes=data.get("prizes"),
+            )
+        )
+
+    @app.post("/api/games/wallets/<int:account_id>/lock")
+    def games_wallet_lock(account_id):
+        data = body()
+        return reply(g.services.games.set_wallet_lock(g.actor, account_id, data.get("locked"), data.get("reason", "")))
+
     return app

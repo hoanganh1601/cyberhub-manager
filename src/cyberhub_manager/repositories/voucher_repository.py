@@ -90,6 +90,17 @@ class VoucherRepository:
             )
         ]
 
+    def coin_catalog(self, conn: Any) -> list[RewardCatalogItem]:
+        """Đợt 3: phần thưởng đang bán bằng xu game (mọi cơ sở)."""
+        return [
+            _catalog(r)
+            for r in rows(
+                conn,
+                f"SELECT {_CATALOG_COLUMNS} FROM reward_catalog WHERE coin_cost IS NOT NULL AND is_active = TRUE"
+                " ORDER BY coin_cost, id",
+            )
+        ]
+
     def get_catalog(self, conn: Any, catalog_id: int, *, lock: bool = False) -> RewardCatalogItem | None:
         result = rows(
             conn,

@@ -34,6 +34,11 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`customer_vouchers`](#customer_vouchers) | Voucher của khách; điều kiện được chụp lúc phát, dùng một lần. | 19 |
 | [`voucher_events`](#voucher_events) | Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm. | 7 |
 | [`loyalty_point_grants`](#loyalty_point_grants) | Điểm thành viên tặng qua voucher; cộng vào điểm, không đổi hạng. | 6 |
+| [`games`](#games) | Cấu hình trò chơi (giai đoạn đầu: vòng quay may mắn), dùng chung mọi cơ sở. | 7 |
+| [`game_prizes`](#game_prizes) | Các ô thưởng trên vòng quay và tỉ lệ trúng tương đối. | 6 |
+| [`game_wallets`](#game_wallets) | Ví xu game của tài khoản; xu không phải tiền và không phải điểm thành viên. | 8 |
+| [`game_sessions`](#game_sessions) | Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại. | 8 |
+| [`game_coin_ledger`](#game_coin_ledger) | Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm. | 8 |
 
 ## 2. Quan hệ và cardinality
 
@@ -76,6 +81,9 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `accounts` | 1 — 0..1 | `customer_avatars` | `customer_avatars.account_id` → `accounts.id` | Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa. |
 | `accounts` | 1 — 0..n | `menu_orders` | `menu_orders.account_id` → `accounts.id` | Tài khoản khách đặt món. |
 | `accounts` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.account_id` → `accounts.id` | Tài khoản sở hữu voucher. |
+| `accounts` | 1 — 0..1 | `game_wallets` | `game_wallets.account_id` → `accounts.id` | Tài khoản khách; PK/FK. |
+| `accounts` | 1 — 0..n | `game_sessions` | `game_sessions.account_id` → `accounts.id` | Tài khoản chơi. |
+| `accounts` | 1 — 0..n | `game_coin_ledger` | `game_coin_ledger.account_id` → `accounts.id` | Tài khoản. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `machines` | 1 — 0..n | `menu_orders` | `menu_orders.machine_id` → `machines.id` | Máy giao món tới. |
@@ -92,6 +100,9 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `reward_catalog` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.catalog_id` → `reward_catalog.id` | Phần thưởng gốc. |
 | `customer_vouchers` | 0..1 — 0..n | `voucher_events` | `voucher_events.voucher_id` → `customer_vouchers.id` | Voucher liên quan; NULL khi mã nhập không tồn tại. |
 | `customer_vouchers` | 1 — 0..1 | `loyalty_point_grants` | `loyalty_point_grants.voucher_id` → `customer_vouchers.id` | Voucher MEMBER_POINTS; UNIQUE. |
+| `customer_vouchers` | 0..1 — 0..n | `game_coin_ledger` | `game_coin_ledger.voucher_id` → `customer_vouchers.id` | Voucher nhận được khi đổi xu. |
+| `games` | 1 — 0..n | `game_prizes` | `game_prizes.game_id` → `games.id` | Game sở hữu ô thưởng. |
+| `games` | 1 — 0..n | `game_sessions` | `game_sessions.game_id` → `games.id` | Game. |
 
 ## 3. Chi tiết từng bảng
 
@@ -781,3 +792,124 @@ Ràng buộc:
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_loyalty_point_grants_customer` (`customer_id`)
+
+### games
+
+Cấu hình trò chơi (giai đoạn đầu: vòng quay may mắn), dùng chung mọi cơ sở.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(20)` | Không | — | UK | Mã game, duy nhất (`LUCKY_WHEEL`). |
+| `name` | `varchar(60)` | Không | — | — | Tên hiển thị. |
+| `is_active` | `tinyint(1)` | Không | `1` | — | FALSE = tạm dừng, không quay được. |
+| `daily_limit` | `int` | Không | — | — | Số lượt mỗi tài khoản mỗi ngày (giờ Việt Nam). |
+| `min_interval_seconds` | `int` | Không | — | — | Khoảng cách tối thiểu giữa hai lượt; nhanh hơn bị tính là bất thường. |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_games_code` (`code`)
+- CHECK `chk_games_daily_limit`: `(daily_limit between 1 and 20)`
+- CHECK `chk_games_interval`: `(min_interval_seconds between 1 and 60)`
+
+### game_prizes
+
+Các ô thưởng trên vòng quay và tỉ lệ trúng tương đối.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `game_id` | `bigint unsigned` | Không | — | FK → `games.id` | Game sở hữu ô thưởng. |
+| `sort_order` | `int` | Không | — | — | Vị trí ô trên vòng quay (0, 1, ...). |
+| `label` | `varchar(40)` | Không | — | — | Nhãn hiển thị. |
+| `coins` | `int` | Không | — | — | Số xu nhận được (0 = chúc may mắn). |
+| `weight` | `int` | Không | — | — | Trọng số; xác suất = weight / tổng weight. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_game_prizes_slot` (`game_id,sort_order`)
+- FOREIGN KEY `fk_game_prizes_game` (`game_id`) → `games` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_game_prizes_coins`: `(coins between 0 and 1000)`
+- CHECK `chk_game_prizes_label`: `(char_length(trim(label)) > 0)`
+- CHECK `chk_game_prizes_weight`: `(weight between 1 and 1000)`
+
+### game_wallets
+
+Ví xu game của tài khoản; xu không phải tiền và không phải điểm thành viên.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `account_id` | `bigint unsigned` | Không | — | PK, FK → `accounts.id` | Tài khoản khách; PK/FK. |
+| `balance` | `bigint` | Không | `0` | — | Số xu hiện có (≥ 0). |
+| `is_locked` | `tinyint(1)` | Không | `0` | — | TRUE = tạm khóa quay/đổi thưởng. |
+| `locked_reason` | `varchar(200)` | Có | — | — | Lý do khóa (tự động hoặc quản lý). |
+| `locked_at` | `datetime` | Có | — | — | Thời điểm khóa (UTC). |
+| `suspicious_count` | `int` | Không | `0` | — | Số lần bị chặn (hết lượt/quá nhanh) trong ngày. |
+| `suspicious_on` | `date` | Có | — | — | Ngày (giờ Việt Nam) của bộ đếm bất thường. |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`account_id`)
+- FOREIGN KEY `fk_game_wallets_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_game_wallets_balance`: `(balance >= 0)`
+- CHECK `chk_game_wallets_lock`: `(((is_locked = true) and (locked_reason is not null) and (locked_at is not null)) or ((is_locked = false) and (locked_reason is null) and (locked_at is null)))`
+
+### game_sessions
+
+Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản chơi. |
+| `game_id` | `bigint unsigned` | Không | — | FK → `games.id` | Game. |
+| `prize_index` | `int` | Không | — | — | Ô trúng (chụp). |
+| `prize_label` | `varchar(40)` | Không | — | — | Nhãn ô trúng (chụp). |
+| `coins` | `int` | Không | — | — | Xu nhận được (chụp). |
+| `played_on` | `date` | Không | — | — | Ngày chơi theo giờ Việt Nam, dùng đếm lượt. |
+| `created_at` | `datetime` | Không | — | — | Thời điểm quay (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- FOREIGN KEY `fk_game_sessions_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_game_sessions_game` (`game_id`) → `games` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_game_sessions_coins`: `(coins between 0 and 1000)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_game_sessions_account_day` (`account_id, played_on`)
+- INDEX `idx_game_sessions_game_time` (`game_id, created_at`)
+
+### game_coin_ledger
+
+Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản. |
+| `delta` | `bigint` | Không | — | — | Số xu cộng (+) hoặc trừ (−), khác 0. |
+| `reason` | `varchar(10)` | Không | — | — | `PLAY` / `REDEEM` / `AD` / `ADJUST`. |
+| `ref` | `varchar(64)` | Không | — | — | Tham chiếu duy nhất theo `reason` (vd. `session:12`, khóa yêu cầu đổi thưởng). |
+| `balance_after` | `bigint` | Không | — | — | Số dư xu sau thay đổi (≥ 0). |
+| `voucher_id` | `bigint unsigned` | Có | — | FK → `customer_vouchers.id` | Voucher nhận được khi đổi xu. |
+| `created_at` | `datetime` | Không | — | — | Thời điểm (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_game_coin_ledger_ref` (`reason,ref`)
+- FOREIGN KEY `fk_game_coin_ledger_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_game_coin_ledger_voucher` (`voucher_id`) → `customer_vouchers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- CHECK `chk_game_coin_ledger_balance`: `(balance_after >= 0)`
+- CHECK `chk_game_coin_ledger_delta`: `(delta <> 0)`
+- CHECK `chk_game_coin_ledger_reason`: `(reason in ('PLAY','REDEEM','AD','ADJUST'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_game_coin_ledger_account` (`account_id, created_at`)

@@ -49,6 +49,12 @@ TABLES = (
     "customer_vouchers",
     "voucher_events",
     "loyalty_point_grants",
+    # Đợt 3 — game và xu game
+    "games",
+    "game_prizes",
+    "game_wallets",
+    "game_sessions",
+    "game_coin_ledger",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -273,6 +279,32 @@ DESCRIPTIONS["voucher_events"] = ("Nhật ký phát hành, sử dụng, khóa v�
 DESCRIPTIONS["loyalty_point_grants"] = ("Điểm thành viên tặng qua voucher; cộng vào điểm, không đổi hạng.", {
     "id": "Khóa chính.", "customer_id": "Khách nhận điểm.", "voucher_id": "Voucher MEMBER_POINTS; UNIQUE.",
     "points": "Số điểm tặng.", "employee_id": "Nhân viên xác nhận.", "created_at": "Thời điểm (UTC)."})
+
+# ----- Đợt 3: game và xu game ----------------------------------------------------
+DESCRIPTIONS["games"] = ("Cấu hình trò chơi (giai đoạn đầu: vòng quay may mắn), dùng chung mọi cơ sở.", {
+    "id": "Khóa chính.", "code": "Mã game, duy nhất (`LUCKY_WHEEL`).", "name": "Tên hiển thị.",
+    "is_active": "FALSE = tạm dừng, không quay được.", "daily_limit": "Số lượt mỗi tài khoản mỗi ngày (giờ Việt Nam).",
+    "min_interval_seconds": "Khoảng cách tối thiểu giữa hai lượt; nhanh hơn bị tính là bất thường.",
+    "updated_at": "Thời điểm sửa gần nhất (UTC)."})
+DESCRIPTIONS["game_prizes"] = ("Các ô thưởng trên vòng quay và tỉ lệ trúng tương đối.", {
+    "id": "Khóa chính.", "game_id": "Game sở hữu ô thưởng.", "sort_order": "Vị trí ô trên vòng quay (0, 1, ...).",
+    "label": "Nhãn hiển thị.", "coins": "Số xu nhận được (0 = chúc may mắn).",
+    "weight": "Trọng số; xác suất = weight / tổng weight."})
+DESCRIPTIONS["game_wallets"] = ("Ví xu game của tài khoản; xu không phải tiền và không phải điểm thành viên.", {
+    "account_id": "Tài khoản khách; PK/FK.", "balance": "Số xu hiện có (≥ 0).",
+    "is_locked": "TRUE = tạm khóa quay/đổi thưởng.", "locked_reason": "Lý do khóa (tự động hoặc quản lý).",
+    "locked_at": "Thời điểm khóa (UTC).", "suspicious_count": "Số lần bị chặn (hết lượt/quá nhanh) trong ngày.",
+    "suspicious_on": "Ngày (giờ Việt Nam) của bộ đếm bất thường.", "updated_at": "Thời điểm cập nhật (UTC)."})
+DESCRIPTIONS["game_sessions"] = ("Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại.", {
+    "id": "Khóa chính.", "account_id": "Tài khoản chơi.", "game_id": "Game.",
+    "prize_index": "Ô trúng (chụp).", "prize_label": "Nhãn ô trúng (chụp).", "coins": "Xu nhận được (chụp).",
+    "played_on": "Ngày chơi theo giờ Việt Nam, dùng đếm lượt.", "created_at": "Thời điểm quay (UTC)."})
+DESCRIPTIONS["game_coin_ledger"] = ("Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm.", {
+    "id": "Khóa chính.", "account_id": "Tài khoản.", "delta": "Số xu cộng (+) hoặc trừ (−), khác 0.",
+    "reason": "`PLAY` / `REDEEM` / `AD` / `ADJUST`.",
+    "ref": "Tham chiếu duy nhất theo `reason` (vd. `session:12`, khóa yêu cầu đổi thưởng).",
+    "balance_after": "Số dư xu sau thay đổi (≥ 0).", "voucher_id": "Voucher nhận được khi đổi xu.",
+    "created_at": "Thời điểm (UTC)."})
 
 DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.",{
     "machine_id":"Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa.",

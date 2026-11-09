@@ -80,6 +80,12 @@ def build_mock_services(
     from cyberhub_manager.services.voucher_service import VoucherService
     voucher_repo = MemoryVoucherRepository(data, repo, clock=clock.now)
     voucher_repo.seed_demo()
+    vouchers = VoucherService(repo=voucher_repo,p1_repo=repo,menu_repo=menu_repo,
+                              transaction_factory=voucher_repo.transaction,clock=clock.now)
+    # Đợt 3: vòng quay + ví xu, transaction bọc voucher để đổi xu và phát voucher cùng rollback.
+    from .game import MemoryGameRepository
+    from cyberhub_manager.services.game_service import GameService
+    game_repo = MemoryGameRepository(data, voucher_repo)
     return ServiceBundle(
         auth=MockAuthService(data, clock, scenario),
         customers=MockCustomerService(data, clock, scenario),
@@ -90,6 +96,7 @@ def build_mock_services(
         management=ManagementService(repo=repo,transaction_factory=repo.transaction),
         portal=PortalService(repo=repo,transaction_factory=repo.transaction,clock=clock.now),
         menu=MenuService(repo=menu_repo,p1_repo=repo,transaction_factory=menu_repo.transaction,clock=clock.now),
-        vouchers=VoucherService(repo=voucher_repo,p1_repo=repo,menu_repo=menu_repo,
-                                transaction_factory=voucher_repo.transaction,clock=clock.now),
+        vouchers=vouchers,
+        games=GameService(repo=game_repo,p1_repo=repo,vouchers=vouchers,
+                          transaction_factory=game_repo.transaction,clock=clock.now),
     )

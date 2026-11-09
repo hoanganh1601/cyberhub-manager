@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='menu.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='voucher.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='game.css') }}" />
     <script defer src="{{ url_for('static', filename='app.js') }}"></script>
     <script defer src="{{ url_for('static', filename='p1.js') }}"></script>
     <script defer src="{{ url_for('static', filename='portal.js') }}"></script>
@@ -23,6 +24,8 @@
     <script defer src="{{ url_for('static', filename='menu_admin.js') }}"></script>
     <script defer src="{{ url_for('static', filename='portal_voucher.js') }}"></script>
     <script defer src="{{ url_for('static', filename='voucher_admin.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='portal_game.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='game_admin.js') }}"></script>
   </head>
   <body data-customer-portal="{{ 'true' if customer_portal else 'false' }}">
     <div id="app">
