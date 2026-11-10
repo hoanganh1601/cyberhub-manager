@@ -27,7 +27,11 @@ def test_customer_counts_are_private_and_usage_is_consistent(app):
     login(client)
     available = client.get("/api/portal/availability?store_id=1")
     assert available.status_code == 200 and available.json["refresh_seconds"] == 300
-    assert available.json["rooms"][1]["available"] == 5
+    assert [(room["room_type"], room["total"], room["available"]) for room in available.json["rooms"]] == [
+        ("STANDARD", 8, 5), ("VIP", 8, 8), ("COUPLE", 2, 2), ("SUPER_VIP", 2, 2),
+    ]
+    assert [room["min_hourly_rate"] for room in available.json["rooms"]] == [10000, 20000, 25000, 35000]
+    assert [room["max_hourly_rate"] for room in available.json["rooms"]] == [10000, 20000, 25000, 35000]
     assert "machine_code" not in available.text and "customer_id" not in available.text
     usage = client.get("/api/portal/usage?days=7")
     assert usage.status_code == 200 and usage.json["usage_seconds"] == 18000
@@ -100,6 +104,12 @@ def test_room_classification_roles_and_occupied_machine(app):
         == 200
     )
     assert client.get("/api/machine-rooms").json[0]["room_type"] == "VIP"
+    assert client.get("/api/machines").json[0]["room_type"] == "VIP"
+    for room_type in ("COUPLE", "SUPER_VIP"):
+        assert client.patch(
+            "/api/machines/1/room-type", json={"room_type": room_type}, headers=headers
+        ).status_code == 200
+        assert client.get("/api/machines").json[0]["room_type"] == room_type
     assert (
         client.patch(
             "/api/machines/2/room-type", json={"room_type": "VIP"}, headers=headers

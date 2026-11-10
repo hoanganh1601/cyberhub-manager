@@ -3,7 +3,7 @@
 Dữ liệu demo: `lethibinh` đang có phiên ACTIVE trên máy 2 của cơ sở 1; `nguyenvanan` không chơi.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -41,6 +41,26 @@ def items_of(menu_data):
 
 def find(menu_data, name):
     return next(i for i in items_of(menu_data) if i.name == name)
+
+
+def test_paid_pos_revenue_uses_payment_day_in_vietnam():
+    clock = MockClock(NOW)
+    bundle = build_mock_services(p1=True, clock=clock)
+    customer = bundle.portal.login("lethibinh", DEMO_PASSWORD)
+    manager = bundle.auth.login("quanly01", DEMO_PASSWORD)
+    coca = find(bundle.menu.portal_menu(customer), "Coca")
+    clock.set(datetime(2026, 10, 18, 16, 59, tzinfo=timezone.utc))
+    order = bundle.menu.place_order(customer, [{"item_id": coca.id, "quantity": 2}])
+    bundle.menu.finish_order(manager, order.id, "SERVED")
+    assert bundle.menu.paid_revenue(manager, date(2026, 10, 18), date(2026, 10, 18))["days"] == []
+
+    clock.advance(minutes=2)
+    bundle.menu.pay_order(manager, order.id, "CASH")
+    assert bundle.menu.paid_revenue(manager, date(2026, 10, 18), date(2026, 10, 18))["days"] == []
+    report = bundle.menu.paid_revenue(manager, date(2026, 10, 19), date(2026, 10, 19))
+    assert report["days"] == [{"date": date(2026, 10, 19), "order_count": 1,
+                               "revenue": 2 * coca.price}]
+    assert report["top_items"][0]["quantity"] == 2
 
 
 # ----- Xem menu -----------------------------------------------------------------
@@ -235,6 +255,33 @@ def test_staff_serves_order_only_once(ctx):
     with pytest.raises(ConflictError):
         menu.finish_order(ctx["manager"], order.id, "CANCELLED")
     assert menu.list_orders(ctx["staff"]) == []
+
+
+def test_pos_order_moves_through_preparing_served_and_paid(ctx):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+
+    preparing = menu.finish_order(ctx["staff"], order.id, "PREPARING")
+    assert preparing.status == MenuOrderStatus.PREPARING
+    served = menu.finish_order(ctx["staff"], order.id, "SERVED")
+    assert served.status == MenuOrderStatus.SERVED
+    paid = menu.pay_order(ctx["staff"], order.id, "CASH")
+    assert paid.status == MenuOrderStatus.PAID
+    assert paid.payment_method.value == "CASH" and paid.paid_by == ctx["staff"].employee_id
+    with pytest.raises(ConflictError):
+        menu.pay_order(ctx["manager"], order.id, "TRANSFER")
+
+
+def test_pos_order_cannot_pay_before_served_or_cancel_after_served(ctx):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+    with pytest.raises(ConflictError):
+        menu.pay_order(ctx["staff"], order.id, "CASH")
+    menu.finish_order(ctx["staff"], order.id, "SERVED")
+    with pytest.raises(ConflictError):
+        menu.finish_order(ctx["manager"], order.id, "CANCELLED")
 
 
 def test_failed_save_rolls_back_menu_changes(ctx, monkeypatch):

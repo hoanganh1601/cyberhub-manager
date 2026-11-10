@@ -10,14 +10,16 @@ from __future__ import annotations
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from cyberhub_manager.domain.menu import (
     MenuCategory,
     MenuItem,
     MenuItemChange,
     MenuOrder,
+    MenuOrderLine,
     MenuOrderStatus,
+    MenuPaymentMethod,
     MenuPage,
 )
 
@@ -69,6 +71,7 @@ class MemoryMenuRepository:
         self.images: dict[int, bytes] = {}
         self.changes: list[MenuItemChange] = []
         self.orders: dict[int, MenuOrder] = {}
+        self.voucher_repo = None
         self._ids = {"category": 0, "item": 0, "order": 0}
 
     # ----- Transaction ---------------------------------------------------------
@@ -102,6 +105,51 @@ class MemoryMenuRepository:
                             description=description, price=price, sort_order=group * 100 + position * 10,
                             is_visible=True, is_available=available,
                         )
+
+    def seed_pos_orders(self) -> None:
+        """Populate one employee demo workspace with orders in every POS state."""
+        from cyberhub_manager.services.report_service import VN_TZ, local_day_start_utc
+
+        store_id = next(iter(self.data.stores))
+        people = {c.account.username: c for c in self.data.customers.values()}
+        items = {i.name: i for i in self.items.values() if i.store_id == store_id}
+        if not {"lethibinh", "hoangvanem", "nguyenvanan"} <= people.keys():
+            return
+        employee_id = next(e.id for e in self.data.employees.values() if e.store_id == store_id)
+        now = self.clock()
+        today = now.astimezone(VN_TZ).date()
+        yesterday_noon = local_day_start_utc(today - timedelta(days=1)) + timedelta(hours=12)
+        two_days_noon = local_day_start_utc(today - timedelta(days=2)) + timedelta(hours=12)
+        # Each row: customer, machine, status, time, ordered items.
+        samples = (
+            ("lethibinh", 2, MenuOrderStatus.NEW, now - timedelta(minutes=8), (("Coca", 2), ("Khoai tây chiên", 1))),
+            ("hoangvanem", 5, MenuOrderStatus.NEW, now - timedelta(minutes=4), (("Cơm chiên bò", 1),)),
+            ("lethibinh", 2, MenuOrderStatus.PREPARING, now - timedelta(minutes=22), (("Trà đào", 1),)),
+            ("hoangvanem", 5, MenuOrderStatus.SERVED, now - timedelta(minutes=10), (("Nui xào bò", 1), ("Nước suối", 1))),
+            ("nguyenvanan", 4, MenuOrderStatus.CANCELLED, two_days_noon - timedelta(hours=1), (("Sting", 1),)),
+            ("hoangvanem", 5, MenuOrderStatus.PAID, now, (("Coca", 2), ("Cơm chiên trứng", 1))),
+            ("nguyenvanan", 6, MenuOrderStatus.PAID, yesterday_noon + timedelta(hours=2), (("Coca", 1), ("Cơm chiên bò", 1))),
+            ("nguyenvanan", 4, MenuOrderStatus.PAID, two_days_noon - timedelta(minutes=30), (("Trà đào", 2),)),
+        )
+        for person, machine_id, status, event_at, selected in samples:
+            lines = tuple(MenuOrderLine(items[name].id, name, items[name].price, quantity)
+                          for name, quantity in selected)
+            order_id = self.insert_order(None, code=f"DEMO-POS-{self._ids['order'] + 1:04d}",
+                                         store_id=store_id, account_id=people[person].account.id,
+                                         session_id=next(s.id for s in self.data.sessions.values()
+                                                         if s.customer_id == people[person].id
+                                                         and s.machine_id == machine_id),
+                                         machine_id=machine_id, note="", lines=lines)
+            self.orders[order_id] = replace(self.orders[order_id], created_at=event_at - timedelta(minutes=15))
+            if status == MenuOrderStatus.PREPARING:
+                self.finish_order(None, order_id, status, employee_id)
+            elif status == MenuOrderStatus.SERVED:
+                self.finish_order(None, order_id, status, employee_id)
+            elif status == MenuOrderStatus.CANCELLED:
+                self.finish_order(None, order_id, status, employee_id)
+            elif status == MenuOrderStatus.PAID:
+                self.finish_order(None, order_id, MenuOrderStatus.SERVED, employee_id)
+                self.pay_order(None, order_id, MenuPaymentMethod.CASH, employee_id, event_at)
 
     # ----- Nhóm món --------------------------------------------------------------
     def list_categories(self, conn, store_id):
@@ -185,7 +233,7 @@ class MemoryMenuRepository:
 
     # ----- Yêu cầu gọi món -------------------------------------------------------------
     def count_open_orders(self, conn, account_id):
-        return sum(1 for o in self.orders.values() if o.account_id == account_id and o.status == MenuOrderStatus.NEW)
+        return sum(1 for o in self.orders.values() if o.account_id == account_id and o.status in (MenuOrderStatus.NEW, MenuOrderStatus.PREPARING))
 
     def insert_order(self, conn, *, code, store_id, account_id, session_id, machine_id, note, lines):
         order_id = self._next("order")
@@ -202,19 +250,65 @@ class MemoryMenuRepository:
             found.sort(key=lambda o: (o.created_at, o.id), reverse=True)
         else:
             found.sort(key=lambda o: (o.created_at, o.id))
-        return found[:limit]
+        return [self._with_discount(o) for o in found[:limit]]
 
     def account_orders(self, conn, account_id, limit=5):
         found = sorted((o for o in self.orders.values() if o.account_id == account_id),
                        key=lambda o: (o.created_at, o.id), reverse=True)
-        return found[:limit]
+        return [self._with_discount(o) for o in found[:limit]]
 
     def get_order(self, conn, order_id, *, lock=False):
-        return self.orders.get(order_id)
+        order = self.orders.get(order_id)
+        return self._with_discount(order) if order else None
+
+    def _with_discount(self, order):
+        discount = 0
+        if self.voucher_repo is not None:
+            discount = sum(min(order.total_amount, v["value"])
+                           for v in self.voucher_repo.vouchers.values()
+                           if v["used_order_id"] == order.id and v["status"] == "USED")
+        return replace(order, discount_amount=min(discount, order.total_amount))
 
     def finish_order(self, conn, order_id, status, employee_id):
         order = self.orders.get(order_id)
-        if order is None or order.status != MenuOrderStatus.NEW:
+        allowed = {
+            MenuOrderStatus.PREPARING: (MenuOrderStatus.NEW,),
+            MenuOrderStatus.SERVED: (MenuOrderStatus.NEW, MenuOrderStatus.PREPARING),
+            MenuOrderStatus.CANCELLED: (MenuOrderStatus.NEW, MenuOrderStatus.PREPARING),
+        }
+        if order is None or order.status not in allowed.get(status, ()):
             return False
         self.orders[order_id] = replace(order, status=status, handled_by=employee_id)
         return True
+
+    def pay_order(self, conn, order_id, method, employee_id, paid_at):
+        order = self.orders.get(order_id)
+        if order is None or order.status != MenuOrderStatus.SERVED or order.payment_method is not None:
+            return False
+        self.orders[order_id] = replace(order, status=MenuOrderStatus.PAID,
+                                        payment_method=method, paid_at=paid_at, paid_by=employee_id,
+                                        handled_by=employee_id)
+        return True
+
+    def paid_order_report(self, conn, store_id, start_utc, before_utc):
+        from cyberhub_manager.services.mocks.store import local_date
+
+        daily = {}
+        best = {}
+        for order in self.orders.values():
+            if (order.store_id != store_id or order.status != MenuOrderStatus.PAID
+                    or order.paid_at is None or not start_utc <= order.paid_at < before_utc):
+                continue
+            discount = self._with_discount(order).discount_amount
+            day = local_date(order.paid_at)
+            entry = daily.setdefault(day, {"date": day, "order_count": 0, "revenue": 0})
+            entry["order_count"] += 1
+            entry["revenue"] += max(0, order.total_amount - discount)
+            for line in order.lines:
+                current_item = self.items.get(line.item_id)
+                key = (line.item_id, current_item.name if current_item else line.item_name)
+                best[key] = best.get(key, 0) + line.quantity
+        top = [dict(item_id=item_id, name=name, quantity=quantity)
+               for (item_id, name), quantity in best.items()]
+        top.sort(key=lambda item: (-item["quantity"], item["name"], item["item_id"]))
+        return dict(days=[daily[d] for d in sorted(daily)], top_items=top[:5])

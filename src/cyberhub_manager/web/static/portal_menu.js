@@ -1,5 +1,5 @@
 "use strict";
-// Đợt 1 — Menu dạng bảng (board) có lật trang trong cổng khách hàng.
+// Menu dạng sách lật trong cổng khách hàng.
 // Mỗi nhóm món là một cột có nhãn tiêu đề; trong nhóm, các món chia "nhóm nhỏ" theo hàng trăm
 // của sort_order (0-99, 100-199, ...) và được ngăn bằng vạch kẻ.
 // Giá/trạng thái món do backend quyết định; trình duyệt chỉ gửi mã món + số lượng khi đặt.
@@ -35,9 +35,12 @@ Object.assign(copy, {
   dot1Items: ["món", "items"],
   dot1EmptyMenu: ["Trang này chưa có món", "No items on this page yet"],
   dot1StNEW: ["Đang chờ", "Pending"],
+  dot1StPREPARING: ["Đang chuẩn bị", "Preparing"],
   dot1StSERVED: ["Đã phục vụ", "Served"],
+  dot1StPAID: ["Đã thanh toán", "Paid"],
   dot1StCANCELLED: ["Đã hủy", "Cancelled"],
-  dot1Swipe: ["Vuốt sang trái/phải để lật trang", "Swipe left/right to turn the page"],
+  dot1Swipe: ["Vuốt hoặc dùng phím ← → để lật trang", "Swipe or use ← → to turn pages"],
+  dot1BlankLeaf: ["Khám phá các món ở trang bên cạnh", "Explore the menu on the facing page"],
 });
 
 const DOT1_MAX_QTY = 20;
@@ -52,6 +55,30 @@ function dot1State() {
 }
 const dot1Items = (data) => data.pages.flatMap((p) => p.categories.flatMap((g) => g.items));
 const dot1PageName = (page) => t(page === "FOOD" ? "dot1Food" : "dot1Drink");
+const dot1Mobile = () => matchMedia("(max-width: 900px)").matches;
+// Mỗi tờ chứa tối đa hai nhóm món; mỗi mục FOOD/DRINK kết thúc ở ranh giới một cặp trang.
+function dot1Leaves(data) {
+  const leaves = [];
+  for (const section of data.pages) {
+    const groups = section.categories;
+    const sectionLeaves = [];
+    for (let i = 0; i < groups.length; i += 2) {
+      sectionLeaves.push({ page: section.page, categories: groups.slice(i, i + 2) });
+    }
+    if (!sectionLeaves.length) sectionLeaves.push({ page: section.page, categories: [] });
+    if (sectionLeaves.length % 2) sectionLeaves.push({ page: section.page, categories: [], blank: true });
+    leaves.push(...sectionLeaves);
+  }
+  return leaves;
+}
+function dot1VisiblePage(index, count, mobile = dot1Mobile()) {
+  const bounded = Math.max(0, Math.min(Number.isInteger(index) ? index : 0, count - 1));
+  return mobile ? bounded : bounded - bounded % 2;
+}
+function dot1Spread(leaves, start, mobile = dot1Mobile()) {
+  const shown = mobile ? [start] : [start, start + 1];
+  return `<div class="dot1-spread">${shown.filter(i => leaves[i]).map(i => dot1Sheet(leaves[i], i)).join("")}</div>`;
+}
 // Giá trên bảng menu: chỉ số, không ký hiệu tiền (đơn vị ghi ở đầu trang).
 const dot1Price = (value) => new Intl.NumberFormat(state.lang === "en" ? "en-US" : "vi-VN").format(value);
 
@@ -73,7 +100,7 @@ async function loadCustomerMenu() {
     ui.menuStore = data.store_id;
     ui.menuLoadedAt = Date.now();
     ui.menuError = null;
-    ui.menuPage = Math.min(ui.menuPage, Math.max(0, data.pages.length - 1));
+    ui.menuPage = Math.min(ui.menuPage, Math.max(0, dot1Leaves(data).length - 1));
     // Bỏ khỏi giỏ những món vừa hết hoặc bị ẩn để không gửi yêu cầu chắc chắn bị từ chối.
     const orderable = new Set(dot1Items(data).filter((i) => i.is_available).map((i) => String(i.id)));
     for (const id of Object.keys(ui.menuCart)) if (!orderable.has(id)) delete ui.menuCart[id];
@@ -91,6 +118,8 @@ async function loadCustomerMenu() {
 function dot1Redraw() {
   const root = $("#dot1-menu-root");
   if (!root) return;
+  dot1FlipToken++;
+  dot1FlipBusy = false;
   root.innerHTML = dot1Body();
   wireMenu();
 }
@@ -109,7 +138,10 @@ function dot1Body() {
       ? `<section class="pc-card"><div class="pc-empty">${icon("alert")}<h3>${t("unavailable")}</h3><p>${esc(ui.menuError)}</p><button class="btn primary" data-menu="reload">${t("retry")}</button></div></section>`
       : `<section class="pc-card"><div class="pc-loading" role="status"><span class="spinner"></span><p>${t("loading")}</p></div></section>`;
   }
-  const page = Math.min(ui.menuPage, d.pages.length - 1);
+  const leaves = dot1Leaves(d), mobile = dot1Mobile();
+  const page = dot1VisiblePage(ui.menuPage, leaves.length, mobile);
+  const step = mobile ? 1 : 2;
+  const section = leaves[page]?.page;
   const lines = dot1CartLines();
   const count = lines.reduce((n, l) => n + l.qty, 0);
   const total = lines.reduce((sum, l) => sum + l.item.price * l.qty, 0);
@@ -121,19 +153,19 @@ function dot1Body() {
     : "";
   return `<div class="dot1-layout">
       <div class="dot1-toolbar">
-        <div class="dot1-book-tabs segment" role="tablist">${d.pages.map((p, i) => `<button role="tab" aria-selected="${i === page}" class="${i === page ? "active" : ""}" data-menu="page" data-page="${i}">${t("dot1Page")} ${i + 1} · ${dot1PageName(p.page)}</button>`).join("")}</div>
+        <div class="dot1-book-tabs segment" role="tablist">${d.pages.map(p => { const i = leaves.findIndex(leaf => leaf.page === p.page); return `<button role="tab" aria-selected="${section === p.page}" class="${section === p.page ? "active" : ""}" data-menu="page" data-page="${i}">${dot1PageName(p.page)}</button>`; }).join("")}</div>
         <span class="spacer"></span>${stores}${summary}
       </div>
       <section class="dot1-book" aria-label="${t("dot1Menu")}">
-        <div class="dot1-stage" id="dot1-stage">${d.pages.map((p, i) => dot1Sheet(p, i, page)).join("")}</div>
-        <footer class="dot1-book-nav"><button class="btn small" data-menu="flip" data-dir="-1" ${page === 0 ? "disabled" : ""}>‹ ${t("dot1Prev")}</button><span>${t("dot1Page")} ${page + 1}/${d.pages.length} · <small>${t("dot1Swipe")}</small></span><button class="btn small" data-menu="flip" data-dir="1" ${page >= d.pages.length - 1 ? "disabled" : ""}>${t("dot1Next")} ›</button></footer>
+        <div class="dot1-stage" id="dot1-stage">${dot1Spread(leaves, page, mobile)}</div>
+        <footer class="dot1-book-nav"><button class="btn small" data-menu="flip" data-dir="-1" ${page === 0 ? "disabled" : ""}>‹ ${t("dot1Prev")}</button><span>${t("dot1Page")} ${mobile ? page + 1 : `${page + 1}–${Math.min(page + 2, leaves.length)}`}/${leaves.length} · <small>${t("dot1Swipe")}</small></span><button class="btn small" data-menu="flip" data-dir="1" ${page + step >= leaves.length ? "disabled" : ""}>${t("dot1Next")} ›</button></footer>
       </section>
       ${dot1Cart(lines, total)}
     </div>`;
 }
 
 // Một trang menu dạng bảng: chữ "menu" + logo, các cột nhóm món, dải ảnh món ở chân trang.
-function dot1Sheet(p, index, current) {
+function dot1Sheet(p, index) {
   const columns = p.categories.map((g) => {
     const groups = [];
     let last = null;
@@ -145,12 +177,12 @@ function dot1Sheet(p, index, current) {
     return `<section class="dot1-col"><h3 class="dot1-pill">${esc(g.category.name)}</h3>${groups.map((rows) => `<ul class="dot1-rows">${rows.map(dot1Row).join("")}</ul>`).join("")}</section>`;
   }).join("");
   const photos = p.categories.flatMap((g) => g.items).filter((i) => i.image_version).slice(0, 5);
-  return `<article class="dot1-sheet dot1-board ${index === current ? "current" : ""}" data-index="${index}" aria-hidden="${index !== current}">
+  return `<article class="dot1-sheet dot1-board" data-index="${index}">
       <header class="dot1-board-head">
         <div class="dot1-brand"><span class="dot1-word">menu</span><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub"></div>
         <div class="dot1-board-title"><p class="pc-eyebrow">CYBERHUB · ${t("dot1Page")} ${index + 1}</p><h2>${dot1PageName(p.page)}</h2><small>${t("dot1Unit")}</small></div>
       </header>
-      ${columns ? `<div class="dot1-columns">${columns}</div>` : pcEmpty("dot1EmptyMenu", "", "utensils")}
+      ${columns ? `<div class="dot1-columns">${columns}</div>` : `<div class="dot1-blank">${icon("utensils")}<p>${t(p.blank ? "dot1BlankLeaf" : "dot1EmptyMenu")}</p></div>`}
       ${photos.length ? `<div class="dot1-photos">${photos.map((i) => `<figure><img src="/api/portal/menu/items/${i.id}/image?v=${encodeURIComponent(i.image_version)}" alt="${esc(i.name)}" loading="lazy"><figcaption>${esc(i.name)}</figcaption></figure>`).join("")}</div>` : ""}
       <footer class="dot1-sheet-foot">— ${index + 1} —</footer>
     </article>`;
@@ -195,25 +227,50 @@ function dot1Cart(lines, total) {
 
 // ----- Lật trang ---------------------------------------------------------------
 let dot1FlipToken = 0;
+let dot1FlipBusy = false;
 function flipMenu(to) {
   const ui = portalUI, d = ui?.menu;
-  if (!d) return;
-  const from = Math.min(ui.menuPage, d.pages.length - 1);
-  if (to === from || to < 0 || to >= d.pages.length) return;
-  ui.menuPage = to;
+  if (!d || dot1FlipBusy) return;
+  const leaves = dot1Leaves(d), mobile = dot1Mobile();
+  const from = dot1VisiblePage(ui.menuPage, leaves.length, mobile);
+  const target = dot1VisiblePage(to, leaves.length, mobile);
+  if (target === from || to < 0 || to >= leaves.length) return;
+  ui.menuPage = target;
   const stage = $("#dot1-stage");
-  const current = stage?.querySelector(`.dot1-sheet[data-index="${from}"]`);
-  const next = stage?.querySelector(`.dot1-sheet[data-index="${to}"]`);
-  if (!current || !next || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const current = stage?.querySelector(".dot1-spread");
+  const step = mobile ? 1 : 2;
+  stage?.scrollIntoView({ block: "start", behavior: "auto" });
+  if (!current || Math.abs(target - from) !== step || matchMedia("(prefers-reduced-motion: reduce)").matches) {
     dot1Redraw();
     return;
   }
+  dot1FlipBusy = true;
+  const next = document.createElement("div");
+  next.innerHTML = dot1Spread(leaves, target, mobile);
+  const incoming = next.firstElementChild;
+  incoming.classList.add("entering");
+  incoming.setAttribute("aria-hidden", "true");
+  stage.append(incoming);
+  stage.style.height = `${Math.max(current.offsetHeight, incoming.offsetHeight)}px`;
+  const forward = target > from;
+  const front = current.children[mobile ? 0 : forward ? 1 : 0];
+  const back = incoming.children[mobile ? 0 : forward ? 0 : 1];
+  const leaf = document.createElement("div");
+  leaf.className = `dot1-turn-leaf ${forward ? "forward" : "backward"}`;
+  const frontFace = document.createElement("div"), backFace = document.createElement("div");
+  frontFace.className = "dot1-turn-front";
+  backFace.className = "dot1-turn-back-face";
+  frontFace.append(front.cloneNode(true));
+  backFace.append(back.cloneNode(true));
+  leaf.append(frontFace, backFace);
+  stage.append(leaf);
+  current.classList.add("leaving");
+  stage.classList.add("turning");
   const token = ++dot1FlipToken;
-  const done = () => { if (token === dot1FlipToken) { dot1FlipToken++; dot1Redraw(); } };
-  next.classList.add("under");
-  current.classList.add(to > from ? "turn-forward" : "turn-back");
-  current.addEventListener("animationend", done, { once: true });
-  setTimeout(done, 900); // phòng khi trình duyệt không bắn animationend
+  const done = () => { if (token === dot1FlipToken) dot1Redraw(); };
+  leaf.addEventListener("animationend", done, { once: true });
+  leaf.classList.add("animate");
+  setTimeout(done, 950); // phòng khi trình duyệt không bắn animationend
 }
 
 // Gắn sự kiện sau mỗi lần vẽ: ảnh lỗi thì bỏ khỏi dải ảnh; vuốt trên điện thoại.
@@ -235,7 +292,7 @@ function wireMenu() {
     if (startX === null) return;
     const dx = event.clientX - startX, dy = event.clientY - startY;
     startX = null;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) flipMenu(portalUI.menuPage + (dx < 0 ? 1 : -1));
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) flipMenu(portalUI.menuPage + (dx < 0 ? 1 : -1) * (dot1Mobile() ? 1 : 2));
   });
   stage.addEventListener("pointercancel", () => { startX = null; });
 }
@@ -268,7 +325,7 @@ document.addEventListener("click", (event) => {
   const ui = dot1State(), action = button.dataset.menu, id = button.dataset.id;
   if (action === "reload") { ui.menuLoadedAt = 0; loadCustomerMenu(); }
   if (action === "page") flipMenu(Number(button.dataset.page));
-  if (action === "flip") flipMenu(ui.menuPage + Number(button.dataset.dir));
+  if (action === "flip") flipMenu(ui.menuPage + Number(button.dataset.dir) * (dot1Mobile() ? 1 : 2));
   if (action === "inc") { ui.menuCart[id] = Math.min(DOT1_MAX_QTY, (ui.menuCart[id] || 0) + 1); dot1Redraw(); }
   if (action === "dec") { const qty = (ui.menuCart[id] || 0) - 1; if (qty > 0) ui.menuCart[id] = qty; else delete ui.menuCart[id]; dot1Redraw(); }
   if (action === "to-cart") $("#dot1-cart")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -288,6 +345,9 @@ document.addEventListener("input", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (portalUI?.tab !== "menu" || !portalUI.menu || event.target.closest("input,select,textarea")) return;
-  if (event.key === "ArrowRight") flipMenu(portalUI.menuPage + 1);
-  if (event.key === "ArrowLeft") flipMenu(portalUI.menuPage - 1);
+  if (event.key === "ArrowRight") flipMenu(portalUI.menuPage + (dot1Mobile() ? 1 : 2));
+  if (event.key === "ArrowLeft") flipMenu(portalUI.menuPage - (dot1Mobile() ? 1 : 2));
+});
+matchMedia("(max-width: 900px)").addEventListener("change", () => {
+  if (portalUI?.tab === "menu" && portalUI.menu) dot1Redraw();
 });

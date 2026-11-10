@@ -6,9 +6,9 @@ audience:
   - MANAGER
   - ADMIN
 status: APPROVED
-version: 1
+version: 2
 language: vi
-updated_at: 2026-11-09
+updated_at: 2026-11-10
 tags:
   - machine
   - session
@@ -43,7 +43,7 @@ Không cố mở bằng cách sửa request hoặc ghi SQL trực tiếp.
 
 STAFF vận hành phiên, không mặc định có quyền thêm/sửa máy hoặc chuyển bảo trì.
 Các thao tác quản lý máy và phân phòng thuộc Manager/Admin theo cơ sở vận hành.
-Máy đang có phiên phải kết thúc phiên trước khi đổi phòng. Đổi STANDARD/VIP
+Máy đang có phiên phải kết thúc phiên trước khi đổi phòng. Đổi loại STANDARD/VIP/COUPLE/SUPER_VIP
 không tự thay đổi giá giờ hoặc trạng thái sử dụng.
 
 ## Kết thúc phiên

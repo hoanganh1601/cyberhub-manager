@@ -50,7 +50,8 @@ def corpus(tmp_path):
 def write(root, source="staff/payment.md", text=DOCUMENT):
     path = root / source
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    # Preserve fixture bytes on Windows so size/content assertions are portable.
+    path.write_bytes(text.encode("utf-8"))
     return path
 
 

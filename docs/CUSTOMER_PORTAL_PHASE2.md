@@ -1,8 +1,8 @@
 # Web khách hàng — đợt 2
 
 Đợt này gồm **Máy trống**, **Sử dụng**, **Hồ sơ** trên cổng `/customer`, cùng phần
-phân loại máy cho quản lý. Theo lựa chọn đã chốt, mục máy trống chỉ công bố số lượng
-phòng thường/VIP tại cơ sở, không tạo đơn đặt hoặc giữ chỗ.
+phân loại máy cho quản lý. Mục máy trống công bố số lượng và khoảng giá theo máy/giờ
+của từng loại phòng tại cơ sở, không tạo đơn đặt hoặc giữ chỗ.
 
 ## Chạy và kiểm tra
 
@@ -13,10 +13,14 @@ $env:CYBERHUB_WEB_MODE="demo"
 .\.venv\Scripts\python.exe -m cyberhub_manager.web --port 8000
 ```
 
+Giá demo theo **mỗi máy/giờ**: Thường **10.000đ**, VIP **20.000đ**, Couple **25.000đ**, Siêu VIP **35.000đ**. Để đổi mức mặc định cho lần đăng nhập demo tiếp theo, sửa bốn số trong `DEMO_ROOM_HOURLY_RATES` ở `src/cyberhub_manager/services/mocks/factory.py`, khởi động lại web rồi đăng xuất/đăng nhập lại. Khi đang sử dụng demo, quản lý có thể sửa giá riêng từng máy tại **Quản lý máy → nút Sửa → Đơn giá theo giờ**; phiên đã mở giữ giá lúc mở.
+
+Với MySQL thật, các mức demo trên không tự áp dụng. Quản lý tự sửa đơn giá từng máy trong **Quản lý máy → nút Sửa**; đổi loại phòng trong **Phân phòng máy** chỉ đổi nhãn phòng. Khách hàng thấy giá thấp nhất–cao nhất theo máy trong mỗi loại phòng của cơ sở, tính từ giá hiện tại của các máy đang phục vụ.
+
 Mở <http://127.0.0.1:8000/customer>, tài khoản demo `nguyenvanan` / `demo123`.
 Trên điện thoại, thanh điều hướng cuộn ngang để chọn đủ các mục.
 
-1. **Máy trống**: cơ sở Cầu Giấy mẫu có 12 máy thường và 5 máy VIP còn trống.
+1. **Máy trống**: cơ sở Cầu Giấy mẫu có 5 máy thường, 8 máy VIP, 2 máy Couple và 2 máy Siêu VIP còn trống.
    Chuyển cơ sở Hà Đông mẫu để kiểm tra trường hợp chưa có máy.
 2. **Sử dụng**: chọn 7/30/90 ngày, chọn cột biểu đồ, xem phân bố 24 giờ, các ngày trong tuần và cơ sở.
 3. **Hồ sơ**: thử đổi họ tên/số điện thoại bằng mật khẩu hiện tại; thử số trùng hoặc sai mật khẩu.
@@ -30,7 +34,10 @@ chia sẻ với desktop/nhân viên.
 
 ## Số máy trống
 
-- Chỉ cho xem cơ sở ACTIVE; tổng hợp riêng `STANDARD` (phòng thường) và `VIP`.
+- Chỉ cho xem cơ sở ACTIVE; tổng hợp riêng `STANDARD`, `VIP`, `COUPLE` và `SUPER_VIP`.
+- Các số liệu `available`/`total` là số **máy**, không phải số phòng vật lý. Phòng Couple bố trí 2 máy;
+  phòng VIP khoảng 4–5 máy; phòng Siêu VIP dành cho một người với một máy. Hệ thống chưa lưu mã phòng
+  riêng nên không suy ra số phòng vật lý còn trống từ các tổng máy này.
 - Chỉ tính máy `is_active=1`, `status=AVAILABLE` và không có phiên ACTIVE.
   Máy bảo trì, đang dùng hoặc đã ngừng phục vụ không được tính là còn trống.
 - Không công bố mã/tên từng máy, khách đang sử dụng hoặc thông tin phiên của người khác.
@@ -44,7 +51,7 @@ chia sẻ với desktop/nhân viên.
 ## Quản lý phân loại phòng
 
 Web nhân viên: đăng nhập Manager/Admin → **Quản lý máy → Phân phòng máy**.
-Chọn phòng thường hoặc VIP cho từng máy; lưu ngay và ghi `management_audit`.
+Chọn loại máy thường, VIP, Couple hoặc Siêu VIP cho từng máy; lưu ngay và ghi `management_audit`.
 
 Chỉ phân phòng máy tại cơ sở đang vận hành của người quản lý. STAFF và khách không có quyền sửa.
 Máy còn phiên chạy phải kết thúc phiên trước khi đổi phòng. API kiểm tra lại quyền và trạng thái máy,
@@ -53,6 +60,9 @@ không dựa vào nút ẩn/khóa trên giao diện.
 Máy chưa được phân loại được tính là phòng thường. Migration không tự suy đoán phòng VIP từ
 đơn giá/tên máy hoặc tự phân loại dữ liệu thật. Phân loại không đổi đơn giá, trạng thái máy hoặc số dư.
 Ánh xạ phòng được lưu trong `machine_room_types`; desktop/web dùng chung database sẽ có chung số máy.
+Với MySQL đã có dữ liệu, chạy `python -m scripts.init_db` để áp dụng migration 011 trước khi
+phân loại Couple/Siêu VIP. Migration giữ nguyên các phân loại cũ; Manager/Admin cần gán loại
+cho từng máy thật trong màn **Phân phòng máy**.
 
 ## Biểu đồ sử dụng
 

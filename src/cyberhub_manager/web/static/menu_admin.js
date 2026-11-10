@@ -9,13 +9,26 @@ Object.assign(copy, {
   menu: ["Menu đồ ăn", "Food menu"],
   menuSub: ["Yêu cầu gọi món từ khách đang chơi và danh mục món của cơ sở", "Orders from players and this store's menu"],
   dot1Queue: ["Yêu cầu gọi món", "Incoming orders"],
-  dot1NoOrders: ["Chưa có yêu cầu mới", "No new orders"],
+  dot1NoOrders: ["Không có đơn ở trạng thái này", "No orders in this status"],
+  dot1AllOrders: ["Tất cả", "All"],
+  dot1StatusNEW: ["Mới", "New"],
+  dot1StatusPREPARING: ["Đang chuẩn bị", "Preparing"],
+  dot1StatusSERVED: ["Đã phục vụ", "Served"],
+  dot1StatusPAID: ["Đã thanh toán", "Paid"],
+  dot1StatusCANCELLED: ["Đã hủy", "Cancelled"],
+  dot1StartPreparing: ["Bắt đầu chuẩn bị", "Start preparing"],
   dot1Catalog: ["Danh mục món", "Menu items"],
   dot1NewCategory: ["Nhóm món", "Category"],
   dot1NewItem: ["Thêm món", "Add item"],
   dot1EditItem: ["Sửa món", "Edit item"],
   dot1EditCategory: ["Nhóm món", "Category"],
   dot1Served: ["Đã phục vụ", "Served"],
+  dot1Pay: ["Thanh toán", "Pay"],
+  dot1PaymentMethod: ["Phương thức thanh toán", "Payment method"],
+  dot1Discount: ["Giảm từ voucher", "Voucher discount"],
+  dot1AmountDue: ["Cần thu", "Amount due"],
+  dot1Cash: ["Tiền mặt", "Cash"],
+  dot1Transfer: ["Chuyển khoản", "Transfer"],
   dot1Cancel: ["Hủy", "Cancel"],
   dot1Available: ["Còn món", "Available"],
   dot1Unavailable: ["Hết món", "Sold out"],
@@ -43,7 +56,7 @@ Object.assign(copy, {
 let dot1AdminTimer = null;
 
 async function loadMenuAdmin(seq) {
-  const [menu, orders] = await Promise.all([api("/menu"), api("/menu/orders?status=NEW")]);
+  const [menu, orders] = await Promise.all([api("/menu"), api("/menu/orders?status=ALL")]);
   if (seq !== state.seq || state.page !== "menu") return false;
   state.menuAdmin = menu;
   state.menuOrders = orders;
@@ -56,20 +69,32 @@ function menuAdminPage() {
   const extra = d.can_manage
     ? `<button class="btn small" data-menuadmin="category">${icon("plus")}${t("dot1NewCategory")}</button><button class="btn primary small" data-menuadmin="item">${icon("plus")}${t("dot1NewItem")}</button>`
     : "";
+  const filter = state.menuOrderFilter || "ALL";
+  const visible = filter === "ALL" ? orders : orders.filter(o => o.status === filter);
   return pageHead(extra) + `<div class="dot1-admin">
-      <section class="panel"><header class="panel-heading"><h3>${icon("bell")} ${t("dot1Queue")}</h3><span class="badge amber">${orders.length}</span></header>
-        ${orders.length ? orders.map(dot1OrderCard).join("") : empty("dot1NoOrders")}</section>
+      <section class="panel"><header class="panel-heading"><h3>${icon("bell")} ${t("dot1Queue")}</h3><span class="badge amber">${visible.length}</span></header>
+        <div class="dot1-order-filters">${["ALL","NEW","PREPARING","SERVED","PAID","CANCELLED"].map(s => `<button class="filter-btn ${filter === s ? "active" : ""}" data-menuadmin="order-filter" data-status="${s}">${t(s === "ALL" ? "dot1AllOrders" : "dot1Status" + s)} <span>${s === "ALL" ? orders.length : orders.filter(o => o.status === s).length}</span></button>`).join("")}</div>
+        ${visible.length ? visible.map(dot1OrderCard).join("") : empty("dot1NoOrders")}</section>
       <section class="panel"><header class="panel-heading"><h3>${icon("utensils")} ${t("dot1Catalog")}</h3></header>${dot1CatalogTable(d)}</section>
     </div>`;
 }
 
 function dot1OrderCard(order) {
+  const action = order.status === "NEW"
+    ? `<button class="btn small primary" data-menuadmin="prepare-order" data-id="${order.id}">${t("dot1StartPreparing")}</button>`
+    : order.status === "PREPARING"
+      ? `<button class="btn small primary" data-menuadmin="serve-order" data-id="${order.id}">${t("dot1Served")}</button>`
+      : order.status === "SERVED"
+        ? `<button class="btn small primary" data-menuadmin="pay-order" data-id="${order.id}">${t("dot1Pay")}</button>`
+        : "";
+  const status = `<span class="dot1-status ${order.status}">${t("dot1Status" + order.status)}</span>`;
   return `<article class="dot1-order"><header><span><strong>${esc(order.machine_code)}</strong> · ${esc(order.customer_name)}</span><small>${dt(order.created_at)}</small></header>
+      <div class="dot1-order-meta">${status}${order.payment_method ? `<span>${t("dot1" + (order.payment_method === "CASH" ? "Cash" : "Transfer"))}</span>` : ""}</div>
       <ul>${order.lines.map((l) => `<li>${l.quantity} × ${esc(l.item_name)} — ${money(l.unit_price * l.quantity)}</li>`).join("")}</ul>
       ${order.note ? `<p class="note">“${esc(order.note)}”</p>` : ""}
-      <div class="actions"><span class="spacer">${t("dot1Total")}: <b>${money(order.total_amount)}</b></span>
-        <button class="btn small" data-menuadmin="cancel-order" data-id="${order.id}">${t("dot1Cancel")}</button>
-        <button class="btn small primary" data-menuadmin="serve-order" data-id="${order.id}">${t("dot1Served")}</button></div>
+      <div class="actions"><span class="spacer">${t("dot1Total")}: <b>${money(order.total_amount)}</b>${order.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}<br>${t("dot1AmountDue")}: <b>${money(order.total_amount - order.discount_amount)}</b>` : ""}</span>
+        ${["NEW","PREPARING"].includes(order.status) ? `<button class="btn small" data-menuadmin="cancel-order" data-id="${order.id}">${t("dot1Cancel")}</button>` : ""}
+        ${action}</div>
     </article>`;
 }
 
@@ -205,6 +230,7 @@ document.addEventListener("click", async (event) => {
   if (state.page !== "menu" || !state.menuAdmin) return;
   try {
     if (action === "category") dot1CategoryForm(id);
+    if (action === "order-filter") { state.menuOrderFilter = button.dataset.status; renderPage(); return; }
     if (action === "item") dot1ItemForm(id);
     if (action === "image") dot1ImageForm(id);
     if (action === "history") await dot1HistoryDialog(id);
@@ -213,11 +239,17 @@ document.addEventListener("click", async (event) => {
       await api(`/menu/items/${id}/availability`, { method: "POST", body: { available: button.dataset.available === "true" } });
       await loadPage(true);
     }
-    if (action === "serve-order" || action === "cancel-order") {
+    if (action === "prepare-order" || action === "serve-order" || action === "cancel-order") {
       if (action === "cancel-order" && !confirm(t("dot1ConfirmCancel"))) return;
       button.disabled = true;
-      await api(`/menu/orders/${id}/status`, { method: "POST", body: { status: action === "serve-order" ? "SERVED" : "CANCELLED" } });
+      await api(`/menu/orders/${id}/status`, { method: "POST", body: { status: action === "prepare-order" ? "PREPARING" : action === "serve-order" ? "SERVED" : "CANCELLED" } });
       await loadPage(true);
+    }
+    if (action === "pay-order") {
+      const order = (state.menuOrders || []).find(item => item.id === Number(id));
+      dot1Dialog("dot1Pay", `<div class="form-grid"><label><span>${t("dot1PaymentMethod")}</span><select class="input" name="method"><option value="CASH">${t("dot1Cash")}</option><option value="TRANSFER">${t("dot1Transfer")}</option></select></label></div><div class="notice info">${t("dot1Total")}: ${money(order?.total_amount || 0)}${order?.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}` : ""}<br>${t("dot1AmountDue")}: <strong>${money((order?.total_amount || 0) - (order?.discount_amount || 0))}</strong></div>`, async (form) => {
+        await api(`/menu/orders/${id}/payment`, { method: "POST", body: { method: form.elements.method.value } });
+      }, "dot1Pay");
     }
   } catch (error) {
     button.disabled = false;

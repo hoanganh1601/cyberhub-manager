@@ -43,6 +43,7 @@ INVOICE_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
 REVENUE_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
 REPORT_ROLES = INVOICE_ROLES  # giữ tên cũ cho code đang import
 REVENUE_VIEW_AUDIT = "REVENUE_VIEW"
+AI_REVENUE_ANALYSIS_AUDIT = "AI_REVENUE_ANALYSIS"
 
 # Asia/Ho_Chi_Minh không có giờ mùa hè; tránh phụ thuộc gói tzdata trên Windows.
 VN_TZ = timezone(timedelta(hours=7))
@@ -261,6 +262,92 @@ class ReportService:
                 created_from_utc=start,
                 created_before_utc=end,
             )
+
+    def assistant_analytics(
+        self,
+        actor: EmployeeSession,
+        store_ids: tuple[int, ...],
+        date_from: date,
+        date_to: date,
+    ) -> dict:
+        """Return a bounded, de-identified 5B snapshot after role/store checks."""
+        _validate_date_range(date_from, date_to, required=True)
+        if (date_to - date_from).days not in (6, 29, 89):
+            raise ValidationError(field_errors={"days": "Chọn kỳ 7, 30 hoặc 90 ngày"})
+        if (
+            not isinstance(actor, EmployeeSession)
+            or type(store_ids) is not tuple
+            or not store_ids
+            or len(set(store_ids)) != len(store_ids)
+            or any(not _is_positive_id(store_id) for store_id in store_ids)
+        ):
+            raise PermissionDeniedError()
+
+        start, end = local_dates_to_utc_range(date_from, date_to)
+        period_days = (date_to - date_from).days + 1
+        previous_from = date_from - timedelta(days=period_days)
+        previous_to = date_from - timedelta(days=1)
+        previous_start, previous_end = local_dates_to_utc_range(previous_from, previous_to)
+        with self._database() as conn:
+            current = self._require_actor(conn, REVENUE_ROLES)
+            if (
+                current.employee_id != actor.employee_id
+                or current.role != actor.role
+                or current.store_id != actor.store_id
+            ):
+                raise PermissionDeniedError()
+            if current.role == Role.MANAGER and store_ids != (current.store_id,):
+                raise PermissionDeniedError(WRONG_STORE)
+
+            stores = []
+            for store_id in store_ids:
+                store = self._audit.store(conn, store_id, lock="share")
+                if store is None or store.status != "ACTIVE":
+                    raise PermissionDeniedError(WRONG_STORE)
+                if current.role != Role.ADMIN and store_id != current.store_id:
+                    raise PermissionDeniedError(WRONG_STORE)
+                daily = self._invoices.daily_revenue_by_store(
+                    conn, store_id, created_from_utc=start, created_before_utc=end,
+                )
+                previous = self._invoices.daily_revenue_by_store(
+                    conn, store_id, created_from_utc=previous_start,
+                    created_before_utc=previous_end,
+                )
+                details = self._invoices.assistant_analytics_by_store(
+                    conn, store_id, created_from_utc=start, created_before_utc=end,
+                )
+                self._audit.audit(conn, current, AI_REVENUE_ANALYSIS_AUDIT, store_id)
+                by_day = {item.date: item for item in daily}
+                calendar = [
+                    {
+                        "date": date_from + timedelta(days=index),
+                        "invoice_count": by_day.get(date_from + timedelta(days=index), DailyRevenue(date_from, 0, 0)).invoice_count,
+                        "revenue": by_day.get(date_from + timedelta(days=index), DailyRevenue(date_from, 0, 0)).revenue,
+                    }
+                    for index in range(period_days)
+                ]
+                total = sum(item["revenue"] for item in calendar)
+                previous_total = sum(item.revenue for item in previous)
+                average = total // period_days
+                low_days = [item for item in calendar if average and item["revenue"] * 100 < average * 60]
+                stores.append({
+                    "store_id": store.id, "store_code": store.code, "store_name": store.name,
+                    "date_from": date_from, "date_to": date_to,
+                    "total_revenue": total,
+                    "invoice_count": sum(item["invoice_count"] for item in calendar),
+                    "average_daily_revenue": average,
+                    "previous_total_revenue": previous_total,
+                    "change_percent": None if previous_total == 0 else round((total - previous_total) * 100 / previous_total, 1),
+                    "daily": calendar,
+                    "low_days": low_days[:10],
+                    **details,
+                })
+        return {
+            "date_from": date_from, "date_to": date_to,
+            "timezone": "Asia/Ho_Chi_Minh", "stores": stores,
+            "total_revenue": sum(store["total_revenue"] for store in stores),
+            "invoice_count": sum(store["invoice_count"] for store in stores),
+        }
 
     def _require_actor(
         self, conn: Any, roles: frozenset[Role] = INVOICE_ROLES

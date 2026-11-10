@@ -319,6 +319,16 @@ class ReportServiceProtocol(Protocol):
         """
         ...
 
+    def assistant_analytics(
+        self,
+        actor: EmployeeSession,
+        store_ids: tuple[int, ...],
+        date_from: date,
+        date_to: date,
+    ) -> dict:
+        """De-identified, role-scoped snapshot for AI phase 5B."""
+        ...
+
 
 class ManagementServiceProtocol(Protocol):
     def loyalty_settings(self, actor: EmployeeSession): ...

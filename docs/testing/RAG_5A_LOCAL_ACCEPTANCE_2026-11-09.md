@@ -1,5 +1,9 @@
 # RAG 5A — Bản tích hợp local để nghiệm thu
 
+> LƯU TRỮ: Đây là số đo của provider cũ ngày 09/11/2026. Ứng dụng đã chuyển sang Gemini API
+> ngày 10/11/2026; dùng [runbook hiện tại](../GEMINI_API_RUNBOOK.md). Giữ nguyên model/hash/metrics
+> bên dưới để đối chiếu lịch sử, không dùng các kết quả này để chứng nhận Gemini.
+
 Ngày 09/11/2026, branch `feat/rag-knowledge-assistant`. Chưa commit/push trong
 đợt này. Phạm vi: hoàn thiện luồng 5A đọc tài liệu tĩnh, API có đăng nhập và UI
 web đã duyệt. Không triển khai 5B/5C, không nhận là deployment public đã hoàn tất.

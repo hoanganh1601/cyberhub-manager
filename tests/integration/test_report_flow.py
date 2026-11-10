@@ -328,6 +328,40 @@ def test_daily_revenue_of_other_store_is_denied(db):
         )
 
 
+# ----- AI phase 5B -----------------------------------------------------------
+def test_assistant_analytics_returns_only_deidentified_current_store_data(db):
+    first = db.make_invoice(utc(2026, 11, 1, 3), cost=10_000)
+    db.make_invoice(utc(2026, 11, 2, 4), cost=20_000)
+    db.make_invoice(utc(2026, 11, 2, 5), cost=99_000, store=db.other_store_id)
+
+    result = db.service.assistant_analytics(
+        db.staff, (db.store_id,), date(2026, 10, 27), date(2026, 11, 2)
+    )
+
+    assert result["total_revenue"] == 30_000
+    assert result["invoice_count"] == 2
+    store, = result["stores"]
+    assert store["store_id"] == db.store_id
+    assert store["top_machines"][0]["machine_code"] in {
+        first.machine_code, store["top_machines"][1]["machine_code"]
+    }
+    assert not any("customer" in key for key in store)
+    assert {row["hour"] for row in store["peak_hours"]} == {10, 11}
+    with transaction() as conn:
+        assert _execute(
+            conn,
+            "SELECT COUNT(*) FROM management_audit WHERE action='AI_REVENUE_ANALYSIS' AND store_id=%s",
+            (db.store_id,),
+        ) == (1,)
+
+
+def test_manager_cannot_use_assistant_analytics_for_another_store(db):
+    with pytest.raises(PermissionDeniedError):
+        db.service.assistant_analytics(
+            db.staff, (db.other_store_id,), date(2026, 10, 27), date(2026, 11, 2)
+        )
+
+
 # ----- Actor ------------------------------------------------------------------
 @pytest.mark.parametrize(
     ("table", "status"),

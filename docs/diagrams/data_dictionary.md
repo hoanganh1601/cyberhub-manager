@@ -28,7 +28,7 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`menu_items`](#menu_items) | Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món. | 11 |
 | [`menu_item_images`](#menu_item_images) | Ảnh món đã chuẩn hóa (WebP 512×512, không metadata). | 4 |
 | [`menu_item_changes`](#menu_item_changes) | Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa. | 7 |
-| [`menu_orders`](#menu_orders) | Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy. | 12 |
+| [`menu_orders`](#menu_orders) | Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi. | 15 |
 | [`menu_order_items`](#menu_order_items) | Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt. | 5 |
 | [`reward_catalog`](#reward_catalog) | Danh mục phần thưởng; không có loại nào quy đổi tiền mặt. | 11 |
 | [`customer_vouchers`](#customer_vouchers) | Voucher của khách; điều kiện được chụp lúc phát, dùng một lần. | 19 |
@@ -69,7 +69,8 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `employees` | 1 — 0..n | `invoices` | `invoices.employee_id` → `employees.id` | Nhân viên checkout. |
 | `employees` | 1 — 0..n | `management_audit` | `management_audit.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.employee_id` → `employees.id` | Nhân viên thực hiện. |
-| `employees` | 0..1 — 0..n | `menu_orders` | `menu_orders.handled_by` → `employees.id` | Nhân viên phục vụ/hủy; NULL khi còn NEW. |
+| `employees` | 0..1 — 0..n | `menu_orders` | `menu_orders.handled_by` → `employees.id` | Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW. |
+| `employees` | 0..1 — 0..n | `menu_orders` | `menu_orders.paid_by` → `employees.id` | Nhân viên xác nhận thanh toán. |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.issued_by` → `employees.id` | Nhân viên phát (NULL khi do hệ thống). |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_by` → `employees.id` | Nhân viên xác nhận. |
 | `employees` | 0..1 — 0..n | `voucher_events` | `voucher_events.employee_id` → `employees.id` | Nhân viên thực hiện. |
@@ -468,7 +469,7 @@ Ràng buộc:
 
 - PRIMARY KEY (`machine_id`)
 - FOREIGN KEY `fk_machine_room_machine` (`machine_id`) → `machines` (`id`) ON UPDATE RESTRICT ON DELETE CASCADE
-- CHECK `chk_machine_room_type`: `(room_type in ('STANDARD','VIP'))`
+- CHECK `chk_machine_room_type`: `(room_type in ('STANDARD','VIP','COUPLE','SUPER_VIP'))`
 
 ### loyalty_settings
 
@@ -610,7 +611,7 @@ Index bổ sung (`002_indexes.sql`):
 
 ### menu_orders
 
-Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy.
+Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi.
 
 | Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
 |---|---|:---:|---|---|---|
@@ -622,8 +623,11 @@ Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tạ
 | `machine_id` | `bigint unsigned` | Không | — | FK → `machines.id` | Máy giao món tới. |
 | `note` | `varchar(200)` | Không | `` | — | Ghi chú của khách (≤ 200 ký tự). |
 | `total_amount` | `bigint` | Không | — | — | Tổng tiền theo giá chụp lúc đặt (VND). |
-| `status` | `varchar(12)` | Không | `NEW` | — | `NEW` / `SERVED` / `CANCELLED`. |
-| `handled_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên phục vụ/hủy; NULL khi còn NEW. |
+| `status` | `varchar(12)` | Không | `NEW` | — | `NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED`. |
+| `handled_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW. |
+| `payment_method` | `varchar(10)` | Có | — | — | `CASH` / `TRANSFER` khi đã thanh toán; NULL trước đó. |
+| `paid_at` | `datetime` | Có | — | — | Thời điểm thanh toán tại quầy (UTC). |
+| `paid_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên xác nhận thanh toán. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đặt (UTC). |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật trạng thái (UTC). |
 
@@ -634,15 +638,18 @@ Ràng buộc:
 - FOREIGN KEY `fk_menu_orders_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_menu_orders_handled_by` (`handled_by`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_menu_orders_machine` (`machine_id`) → `machines` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_menu_orders_paid_by` (`paid_by`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_menu_orders_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_menu_orders_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_menu_orders_handled`: `(((status = 'NEW') and (handled_by is null)) or ((status <> 'NEW') and (handled_by is not null)))`
-- CHECK `chk_menu_orders_status`: `(status in ('NEW','SERVED','CANCELLED'))`
+- CHECK `chk_menu_orders_payment`: `(((status = 'PAID') and (payment_method in ('CASH','TRANSFER')) and (paid_at is not null) and (paid_by is not null)) or ((status <> 'PAID') and (payment_method is null) and (paid_at is null) and (paid_by is null)))`
+- CHECK `chk_menu_orders_status`: `(status in ('NEW','PREPARING','SERVED','PAID','CANCELLED'))`
 - CHECK `chk_menu_orders_total`: `(total_amount > 0)`
 
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_menu_orders_account` (`account_id, created_at`)
+- INDEX `idx_menu_orders_paid_at` (`store_id, paid_at`)
 - INDEX `idx_menu_orders_store_status` (`store_id, status, created_at`)
 
 ### menu_order_items

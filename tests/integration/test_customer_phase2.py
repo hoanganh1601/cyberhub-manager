@@ -47,9 +47,13 @@ def test_mysql_categories_counts_and_usage_with_running_machine(db_conn, test_sc
     principal = portal.login("test.c." + scenario.token, "customer123")
     management.set_machine_room(actor, scenario.machine_id, "VIP")
     assert portal.availability(principal, scenario.store_id)["rooms"] == [
-        dict(room_type="STANDARD", available=0, total=0),
-        dict(room_type="VIP", available=1, total=1),
+        dict(room_type="STANDARD", available=0, total=0, min_hourly_rate=None, max_hourly_rate=None),
+        dict(room_type="VIP", available=1, total=1, min_hourly_rate=10000, max_hourly_rate=10000),
+        dict(room_type="COUPLE", available=0, total=0, min_hourly_rate=None, max_hourly_rate=None),
+        dict(room_type="SUPER_VIP", available=0, total=0, min_hourly_rate=None, max_hourly_rate=None),
     ]
+    # Classification leaves existing MySQL tariffs under manager control.
+    assert portal.availability(principal, scenario.store_id)["rooms"][1]["min_hourly_rate"] == 10000
     wallet = WalletService(
         transaction_factory=boundary, actor_provider=lambda: actor, clock=lambda: now[0]
     )

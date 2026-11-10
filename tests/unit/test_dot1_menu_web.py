@@ -83,6 +83,75 @@ def test_staff_handles_menu_but_cannot_edit_items(app):
     assert toggle.status_code == 200 and toggle.json["is_available"] is False
 
 
+def test_staff_can_advance_and_pay_menu_order(app):
+    staff = app.test_client()
+    staff_headers = sign_in(staff, "nhanvien01")
+    with staff.session_transaction() as session:
+        workspace = app.extensions["cyberhub_demo"].get(session["workspace"])
+    customer = workspace.services.portal.login("lethibinh", "demo123")
+    item = next(i for p in workspace.services.menu.portal_menu(customer)["pages"] for g in p["categories"] for i in g["items"] if i.is_available)
+    order_id = workspace.services.menu.place_order(customer, [{"item_id": item.id, "quantity": 1}]).id
+    assert staff.post(f"/api/menu/orders/{order_id}/status", json={"status": "PREPARING"}, headers=staff_headers).json["status"] == "PREPARING"
+    assert staff.post(f"/api/menu/orders/{order_id}/status", json={"status": "SERVED"}, headers=staff_headers).json["status"] == "SERVED"
+    paid = staff.post(f"/api/menu/orders/{order_id}/payment", json={"method": "TRANSFER"}, headers=staff_headers)
+    assert paid.status_code == 200 and paid.json["status"] == "PAID" and paid.json["payment_method"] == "TRANSFER"
+
+
+def test_demo_pos_samples_and_revenue_change_only_when_paid(app):
+    client = app.test_client()
+    headers = sign_in(client, "quanly01")
+    orders = client.get("/api/menu/orders?status=ALL").json
+    assert {o["status"] for o in orders} == {"NEW", "PREPARING", "SERVED", "PAID", "CANCELLED"}
+    assert sum(o["status"] == "PAID" for o in orders) == 3
+
+    before = client.get("/api/revenue").json
+    assert before["menu_order_count"] >= 1
+    assert before["total_revenue"] == before["machine_revenue"] + before["menu_revenue"]
+    assert before["top_menu_items"][0]["name"] == "Coca"
+    assert sum(day["menu_revenue"] for day in before["days"]) == before["menu_revenue"]
+
+    served = next(o for o in orders if o["status"] == "SERVED")
+    paid = client.post(f"/api/menu/orders/{served['id']}/payment",
+                       json={"method": "CASH"}, headers=headers)
+    assert paid.status_code == 200
+    after = client.get("/api/revenue").json
+    assert after["menu_order_count"] == before["menu_order_count"] + 1
+    assert after["menu_revenue"] == before["menu_revenue"] + served["total_amount"]
+
+    new_order = next(o for o in orders if o["status"] == "NEW")
+    cancelled = client.post(f"/api/menu/orders/{new_order['id']}/status",
+                            json={"status": "CANCELLED"}, headers=headers)
+    assert cancelled.status_code == 200
+    assert client.get("/api/revenue").json == after
+
+
+def test_food_voucher_reduces_paid_revenue(app):
+    client = app.test_client()
+    headers = sign_in(client, "quanly01")
+    with client.session_transaction() as session:
+        workspace = app.extensions["cyberhub_demo"].get(session["workspace"])
+    customer = workspace.services.portal.login("lethibinh", "demo123")
+    item = next(i for i in workspace.services.menu.portal_menu(customer)["pages"][0]["categories"][0]["items"]
+                if i.price >= 25_000)
+    order = workspace.services.menu.place_order(customer, [{"item_id": item.id, "quantity": 2}])
+    workspace.services.menu.finish_order(workspace.actor, order.id, "SERVED")
+    baseline = client.get("/api/revenue").json
+    discount = client.post("/api/vouchers/redeem",
+                           json={"code": "CHDEMO0004", "customer_id": customer.customer_id,
+                                 "order_id": order.id}, headers=headers)
+    assert discount.status_code == 200, discount.json
+    assert discount.json["discount"] == 20_000
+    paid = client.post(f"/api/menu/orders/{order.id}/payment",
+                       json={"method": "TRANSFER"}, headers=headers)
+    assert paid.status_code == 200, paid.json
+    assert paid.json["discount_amount"] == 20_000
+    report = client.get("/api/revenue").json
+    assert report["menu_revenue"] == baseline["menu_revenue"] + order.total_amount - 20_000
+    assert client.post("/api/vouchers/redeem",
+                       json={"code": "CHDEMO0005", "customer_id": customer.customer_id,
+                             "order_id": order.id}, headers=headers).status_code == 409
+
+
 def test_manager_creates_item_and_history_is_kept(app):
     c = app.test_client()
     headers = sign_in(c, "quanly01")

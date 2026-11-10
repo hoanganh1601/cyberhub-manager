@@ -31,17 +31,21 @@ def test_availability_is_aggregate_scoped_and_has_five_minute_contract(scenario)
     bundle, customer, _, _ = scenario
     result = bundle.portal.availability(customer, 1)
     assert result["rooms"] == [
-        dict(room_type="STANDARD", available=12, total=15),
-        dict(room_type="VIP", available=5, total=5),
+        dict(room_type="STANDARD", available=5, total=8, min_hourly_rate=10000, max_hourly_rate=10000),
+        dict(room_type="VIP", available=8, total=8, min_hourly_rate=20000, max_hourly_rate=20000),
+        dict(room_type="COUPLE", available=2, total=2, min_hourly_rate=25000, max_hourly_rate=25000),
+        dict(room_type="SUPER_VIP", available=2, total=2, min_hourly_rate=35000, max_hourly_rate=35000),
     ]
     assert result["refresh_seconds"] == 300
     assert result["next_update_at"] - result["as_of"] == timedelta(minutes=5)
     assert all(
-        set(row) == {"room_type", "available", "total"} for row in result["rooms"]
+        set(row) == {"room_type", "available", "total", "min_hourly_rate", "max_hourly_rate"} for row in result["rooms"]
     )
     assert bundle.portal.availability(customer, 2)["rooms"] == [
-        dict(room_type="STANDARD", available=0, total=0),
-        dict(room_type="VIP", available=0, total=0),
+        dict(room_type="STANDARD", available=0, total=0, min_hourly_rate=None, max_hourly_rate=None),
+        dict(room_type="VIP", available=0, total=0, min_hourly_rate=None, max_hourly_rate=None),
+        dict(room_type="COUPLE", available=0, total=0, min_hourly_rate=None, max_hourly_rate=None),
+        dict(room_type="SUPER_VIP", available=0, total=0, min_hourly_rate=None, max_hourly_rate=None),
     ]
     for store in (None, True, -1, 999):
         with pytest.raises(ValidationError):
@@ -56,8 +60,9 @@ def test_manager_classification_affects_counts_without_changing_machine_or_walle
     bundle.management.set_machine_room(admin, 1, "VIP")
     result = bundle.portal.availability(customer, 1)
     assert (
-        result["rooms"][0]["available"] == 11 and result["rooms"][1]["available"] == 6
+        result["rooms"][0]["available"] == 4 and result["rooms"][1]["available"] == 9
     )
+    assert (result["rooms"][1]["min_hourly_rate"], result["rooms"][1]["max_hourly_rate"]) == (10000, 20000)
     assert bundle.portal.snapshot(customer) == before
     staff = bundle.auth.login("nhanvien01", "demo123")
     with pytest.raises(PermissionDeniedError):
@@ -68,6 +73,17 @@ def test_manager_classification_affects_counts_without_changing_machine_or_walle
         bundle.management.set_machine_room(
             bundle.management.switch_store(admin, 2), 1, "STANDARD"
         )
+
+
+def test_demo_room_prices_drive_open_preview_and_leave_running_session_rate(scenario):
+    bundle, _, admin, _ = scenario
+    rates = {machine.machine_id: machine.hourly_rate for machine in bundle.machines.list_machines(1)}
+    assert [rates[machine_id] for machine_id in (1, 9, 17, 19)] == [10000, 20000, 25000, 35000]
+    for machine_id, rate in ((1, 10000), (9, 20000), (17, 25000), (19, 35000)):
+        preview = bundle.sessions.preview_open(1, machine_id, admin)
+        assert preview.hourly_rate == rate
+        assert preview.minimum_balance == rate // 2
+    assert bundle.machines.list_machines(1)[1].active_session.session.hourly_rate == 10000
 
 
 def test_usage_matches_dashboard_and_has_no_other_customer_rows(scenario):

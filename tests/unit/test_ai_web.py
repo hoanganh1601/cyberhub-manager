@@ -14,6 +14,7 @@ import pytest
 from cyberhub_manager.ai.errors import ProviderTimeoutError
 from cyberhub_manager.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
 from cyberhub_manager.ai.models import KnowledgeDocument
+from cyberhub_manager.ai.gemini import GeminiLLMProvider
 from cyberhub_manager.ai.policy_store import AssistantLimits
 from cyberhub_manager.ai.retrieval import KnowledgeRetriever
 from cyberhub_manager.ai.service import RAGAssistantService
@@ -152,6 +153,28 @@ def test_fallback_and_provider_failure_are_distinct_safe_envelopes(ctx, monkeypa
     assert response.status_code == 503
     assert "SECRET" not in response.text and "private prompt" not in response.text
     assert audit_rows(ctx)[1]["result"] == "INTERNAL_ERROR"
+
+
+def test_local_model_refusal_with_claims_returns_no_context_instead_of_service_failure(ctx):
+    class RefusingTransport:
+        calls = 0
+
+        def post(self, model, method, payload):
+            self.calls += 1
+            return {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": json.dumps({
+                "answerable": False,
+                "claims": [{"text": "private unsupported content", "ref": "S99", "passage": "S99.P1"}],
+            })}]}}]}
+
+    login(ctx, "nguyenvanan", "customer")
+    transport = RefusingTransport()
+    ctx.service._llm = GeminiLLMProvider(transport)
+    response = ask(ctx)
+    assert response.status_code == 200
+    assert response.json["grounded"] is False and response.json["citations"] == []
+    assert "private unsupported content" not in response.text
+    assert audit_rows(ctx)[0]["result"] == "NO_CONTEXT"
+    assert transport.calls == 1
 
 
 def test_quota_is_applied_before_embedding_and_generation(ctx):

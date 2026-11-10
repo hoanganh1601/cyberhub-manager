@@ -527,15 +527,14 @@ Kiểm tra model và cấu trúc kho tài liệu:
 .\.venv\Scripts\python.exe -m pytest tests/unit/test_ai_models.py tests/unit/test_ai_knowledge_base.py -q
 ```
 
-## Bản tích hợp model local — bước 12C–12D
+## Bản tích hợp Gemini API — cập nhật 10/11/2026
 
-Xem [runbook RAG 5A](../RAG_5A_RUNBOOK.md) để chạy web có đăng nhập tại cổng 8059,
-và [báo cáo local](../testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md) để xem kết quả
-mô hình thật. Các số đo bước 10–11 và 12A–12B ở trên là mốc lịch sử, không phải
-kết quả model local mới. Corpus hiện có 12 tài liệu APPROVED, 62 chunk; tài liệu
-thanh toán và glossary version 2 đã giải thích tiền khách đưa/tiền thừa đúng SES-08.
-Hai DRAFT giữ nguyên. Mặc định RAG vẫn tắt trong app thường; helper mới bật local.
+Xem [runbook Gemini API](../GEMINI_API_RUNBOOK.md) để chạy web có đăng nhập tại cổng 8059.
+Embedding, sinh câu trả lời và kiểm chứng sử dụng API key. Nguồn đưa vào prompt vẫn lọc theo
+audience; kho APPROVED được gửi Google để tạo embedding. Các tài liệu DRAFT không được phục vụ.
 
-Runtime dùng Qwen embedding và LLM local, có passage-ID/numeric gate và lượt kiểm tra
-nghĩa; không gửi tài liệu ra cloud, không thực hiện giao dịch. Ngưỡng 0,53 chỉ được
-hiệu chỉnh cho bộ model/corpus trong báo cáo, không dùng như xác suất đúng 53%.
+Passage-ID/numeric gate, kiểm chứng nghĩa và xác thực nghiệp vụ vẫn áp dụng. Ngưỡng Gemini
+ban đầu là 0,6 và cần đánh giá bằng key thật; không diễn giải điểm cosine như xác suất câu trả lời đúng.
+
+[Báo cáo ngày 09/11/2026](../testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md) và các số đo
+ở các phần trước là lịch sử của provider cũ, không phải kết quả nghiệm thu Gemini.

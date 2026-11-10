@@ -25,12 +25,14 @@ Object.assign(copy, {
   dot4Enabled: ["Bật chương trình", "Enabled"],
   dot4EditSettings: ["Sửa cấu hình", "Edit settings"],
   dot4Creatives: ["Nội dung quảng cáo", "Ad creatives"],
+  dot4NoCreatives: ["Chưa có nội dung quảng cáo.", "No ad creatives yet."],
   dot4NewCreative: ["Nội dung mới", "New creative"],
   dot4Title: ["Tiêu đề", "Title"],
   dot4Body: ["Nội dung", "Body"],
   dot4Cta: ["Lời kêu gọi", "Call to action"],
   dot4Duration: ["Thời lượng (giây)", "Duration (s)"],
   dot4Recent: ["Sự kiện gần đây", "Recent events"],
+  dot4NoRecent: ["Chưa có sự kiện quảng cáo nào.", "No ad events yet."],
   dot4NetworkReady: ["Đã cấu hình khóa xác minh cho mạng quảng cáo", "Ad network verification key configured"],
   dot4NetworkMissing: ["Chưa có CYBERHUB_AD_SSV_SECRET: chỉ dùng được quảng cáo nội bộ", "No CYBERHUB_AD_SSV_SECRET: house ads only"],
   dot4Policy: ["Quảng cáo luôn tự nguyện, có nhãn rõ ràng và không chặn chức năng nào. Không cam kết doanh thu từ quảng cáo.", "Ads are always optional, clearly labelled and never block features. No ad revenue is promised."],
@@ -54,12 +56,14 @@ function adAdminPage() {
     ? table(["dot4Day", "dot4Issued", "dot4Completed", "dot4Rejected", "dot4Expired", "dot4Spins", "dot4CoinsGranted"],
       d.stats.map((r) => `<tr><td>${esc(r.day)}</td><td>${r.issued}</td><td class="green">${r.completed}</td><td class="red">${r.rejected}</td><td>${r.expired}</td><td>${r.spins}</td><td>${r.coins}</td></tr>`).join(""))
     : empty();
-  const creatives = table(["code", "dot4Title", "dot4Duration", "status", ""], d.creatives.map((c) => `<tr><td>${esc(c.code)}</td><td>${esc(c.title)}</td><td>${c.duration_seconds}</td><td>${badge(c.is_active ? "ACTIVE" : "INACTIVE")}</td>
-      <td>${d.can_configure ? `<button class="btn ghost small" data-adadmin="creative" data-id="${c.id}">${t("edit")}</button>` : ""}</td></tr>`).join(""));
+  const creatives = d.creatives.length
+    ? table(["code", "dot4Title", "dot4Duration", "status", ""], d.creatives.map((c) => `<tr><td>${esc(c.code)}</td><td>${esc(c.title)}</td><td>${c.duration_seconds}</td><td>${badge(c.is_active ? "ACTIVE" : "INACTIVE")}</td>
+        <td>${d.can_configure ? `<button class="btn ghost small" data-adadmin="creative" data-id="${c.id}">${t("edit")}</button>` : ""}</td></tr>`).join(""))
+    : `<div class="dot4-empty">${icon("monitor")}<p>${t("dot4NoCreatives")}</p>${d.can_configure ? `<button class="btn small" data-adadmin="creative">${icon("plus")}${t("dot4NewCreative")}</button>` : ""}</div>`;
   const recent = d.recent.length
     ? table(["dot2When", "dot2Customer", "dot4RewardType", "status", "dot2Reason"], d.recent.map((e) => `<tr><td>${dt(e.issued_at)}</td><td>${esc(e.customer_name)}</td><td>${dot4Reward(e.reward_type, e.reward_amount)}</td>
         <td>${t("dot4Status" + e.status)}</td><td><small>${esc(e.reject_reason || "")}</small></td></tr>`).join(""))
-    : empty();
+    : `<div class="dot4-empty">${icon("clock")}<p>${t("dot4NoRecent")}</p></div>`;
   const extra = d.can_configure
     ? `<button class="btn small" data-adadmin="creative">${icon("plus")}${t("dot4NewCreative")}</button><button class="btn primary small" data-adadmin="settings">${t("dot4EditSettings")}</button>`
     : "";
@@ -68,9 +72,11 @@ function adAdminPage() {
     <div class="dot4-admin">
       <section class="panel"><header class="panel-heading"><h3>${icon("chart")} ${t("dot4Stats")}</h3></header>${stats}</section>
       <section class="panel"><header class="panel-heading"><h3>${t("dot4Settings")}</h3>${badge(s.enabled ? "ACTIVE" : "INACTIVE")}</header>
-        <div class="key-values">${kv("dot4Mode", t("dot4Mode" + s.mode))}${kv("dot4Cap", s.daily_cap)}${kv("dot4RewardType", dot4Reward(s.reward_type, s.reward_amount))}</div>
-        <p class="notice ${d.network_ready ? "success" : "info"}">${t(d.network_ready ? "dot4NetworkReady" : "dot4NetworkMissing")}</p>
-        <p class="notice info">${t("dot4Policy")}</p></section>
+        <div class="key-values dot4-config-summary">${kv("dot4Mode", t("dot4Mode" + s.mode))}${kv("dot4Cap", s.daily_cap)}${kv("dot4RewardType", dot4Reward(s.reward_type, s.reward_amount))}</div>
+        <div class="dot4-config-notes">
+          <p class="notice ${d.network_ready ? "success" : "info"}">${t(d.network_ready ? "dot4NetworkReady" : "dot4NetworkMissing")}</p>
+          <p class="notice info">${t("dot4Policy")}</p>
+        </div></section>
     </div>
     <section class="panel"><header class="panel-heading"><h3>${t("dot4Creatives")}</h3></header>${creatives}</section>
     <section class="panel"><header class="panel-heading"><h3>${icon("clock")} ${t("dot4Recent")}</h3></header>${recent}</section>`;

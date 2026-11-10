@@ -9,6 +9,8 @@
   {"case_id":"customer-points","question":"Mỗi 10.000 VND phí chơi hợp lệ được bao nhiêu điểm thành viên?","role":"CUSTOMER","language":"vi","expected_source":"customer/membership-policy.md","expected_keywords":["1 điểm"]},
   {"case_id":"customer-no-topup-points","question":"Nạp tiền có tự tạo điểm thành viên không?","role":"CUSTOMER","language":"vi","expected_source":"customer/membership-policy.md","expected_keywords":["không"]},
   {"case_id":"customer-bonus-policy","question":"Nạp tiền chọn mốc thưởng cao nhất hay cộng chồng các mốc?","role":"CUSTOMER","language":"vi","expected_source":"customer/promotion-policy.md","expected_keywords":["không cộng chồng"]},
+  {"case_id":"customer-topup-methods","question":"Nạp tiền hỗ trợ phương thức nào?","role":"CUSTOMER","language":"vi","expected_source":"customer/promotion-policy.md","expected_keywords":["CASH","TRANSFER"]},
+  {"case_id":"customer-minimum-session-balance","question":"Cần bao nhiêu số dư để mở phiên?","role":"CUSTOMER","language":"vi","expected_source":"shared/faq.md","expected_keywords":["30 phút"]},
   {"case_id":"customer-password","question":"Tôi đổi mật khẩu tài khoản như thế nào?","role":"CUSTOMER","language":"vi","expected_source":"customer/account-guide.md","expected_keywords":["mật khẩu"]},
   {"case_id":"customer-avatar","question":"Ảnh đại diện được tải lên có giới hạn dung lượng và định dạng gì?","role":"CUSTOMER","language":"vi","expected_source":"customer/account-guide.md","expected_keywords":["ảnh"]},
   {"case_id":"manager-promotion","question":"Quản lý chương trình khuyến mãi nạp tiền trong cơ sở như thế nào?","role":"MANAGER","language":"vi","expected_source":"manager/promotion-management.md","expected_keywords":["cơ sở"]},

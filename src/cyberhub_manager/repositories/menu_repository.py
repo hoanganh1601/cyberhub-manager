@@ -13,6 +13,7 @@ from cyberhub_manager.domain.menu import (
     MenuOrder,
     MenuOrderLine,
     MenuOrderStatus,
+    MenuPaymentMethod,
     MenuPage,
 )
 from cyberhub_manager.repositories.p1_repository import execute, rows
@@ -26,7 +27,8 @@ _ITEM_SELECT = """
 
 _ORDER_SELECT = """
     SELECT o.id, o.code, o.store_id, o.account_id, c.full_name AS customer_name,
-           m.code AS machine_code, o.status, o.total_amount, o.note, o.created_at, o.handled_by
+           m.code AS machine_code, o.status, o.total_amount, o.note, o.created_at, o.handled_by,
+           o.payment_method, o.paid_at, o.paid_by
     FROM menu_orders AS o
     JOIN accounts AS a ON a.id = o.account_id
     JOIN customers AS c ON c.id = a.customer_id
@@ -245,6 +247,11 @@ class MenuRepository:
             lines[int(r["order_id"])].append(
                 MenuOrderLine(int(r["item_id"]), r["item_name"], int(r["unit_price"]), int(r["quantity"]))
             )
+        discount_rows = rows(
+            conn, "SELECT used_order_id, value FROM customer_vouchers"
+                  f" WHERE status = 'USED' AND used_order_id IN ({placeholders})", tuple(ids)
+        )
+        discounts = {int(r["used_order_id"]): int(r["value"]) for r in discount_rows}
         return [
             MenuOrder(
                 id=int(h["id"]),
@@ -259,6 +266,10 @@ class MenuRepository:
                 lines=tuple(lines[int(h["id"])]),
                 created_at=_utc(h["created_at"]),
                 handled_by=None if h["handled_by"] is None else int(h["handled_by"]),
+                payment_method=None if h["payment_method"] is None else MenuPaymentMethod(h["payment_method"]),
+                paid_at=_utc(h["paid_at"]),
+                paid_by=None if h["paid_by"] is None else int(h["paid_by"]),
+                discount_amount=min(int(h["total_amount"]), discounts.get(int(h["id"]), 0)),
             )
             for h in heads
         ]
@@ -282,11 +293,54 @@ class MenuRepository:
         return result[0] if result else None
 
     def finish_order(self, conn: Any, order_id: int, status: MenuOrderStatus, employee_id: int) -> bool:
-        """Chỉ đổi được yêu cầu còn NEW; trả False nếu đã có người xử lý trước."""
+        """Đổi trạng thái chuẩn bị/phục vụ/hủy theo điều kiện hiện tại."""
+        allowed = {
+            MenuOrderStatus.PREPARING: (MenuOrderStatus.NEW,),
+            MenuOrderStatus.SERVED: (MenuOrderStatus.NEW, MenuOrderStatus.PREPARING),
+            MenuOrderStatus.CANCELLED: (MenuOrderStatus.NEW, MenuOrderStatus.PREPARING),
+        }
+        previous = allowed.get(status, ())
+        placeholders = ",".join(["%s"] * len(previous))
         return bool(
             execute(
                 conn,
-                "UPDATE menu_orders SET status = %s, handled_by = %s WHERE id = %s AND status = 'NEW'",
-                (status.value, employee_id, order_id),
+                f"UPDATE menu_orders SET status = %s, handled_by = %s WHERE id = %s AND status IN ({placeholders})",
+                (status.value, employee_id, order_id, *(s.value for s in previous)),
             )
         )
+
+    def pay_order(self, conn: Any, order_id: int, method: MenuPaymentMethod, employee_id: int, paid_at) -> bool:
+        return bool(execute(
+            conn,
+            "UPDATE menu_orders SET status='PAID', payment_method=%s, paid_at=%s, paid_by=%s, handled_by=%s "
+            "WHERE id=%s AND status='SERVED' AND payment_method IS NULL",
+            (method.value, paid_at, employee_id, employee_id, order_id),
+        ))
+
+    def paid_order_report(self, conn: Any, store_id: int, start_utc, before_utc):
+        """Paid POS revenue by Vietnam date, net of redeemed food vouchers."""
+        bounds = (store_id, start_utc.replace(tzinfo=None), before_utc.replace(tzinfo=None))
+        days = rows(conn, """
+            SELECT DATE(DATE_ADD(o.paid_at, INTERVAL 7 HOUR)) AS local_day,
+                   COUNT(*) AS order_count,
+                   SUM(o.total_amount - LEAST(o.total_amount, COALESCE(v.value, 0))) AS revenue
+            FROM menu_orders AS o
+            LEFT JOIN customer_vouchers AS v ON v.used_order_id = o.id AND v.status = 'USED'
+            WHERE o.store_id = %s AND o.status = 'PAID'
+              AND o.paid_at >= %s AND o.paid_at < %s
+            GROUP BY local_day ORDER BY local_day
+        """, bounds)
+        top = rows(conn, """
+            SELECT l.item_id, i.name, SUM(l.quantity) AS quantity
+            FROM menu_orders AS o
+            JOIN menu_order_items AS l ON l.order_id = o.id
+            JOIN menu_items AS i ON i.id = l.item_id
+            WHERE o.store_id = %s AND o.status = 'PAID'
+              AND o.paid_at >= %s AND o.paid_at < %s
+            GROUP BY l.item_id, i.name
+            ORDER BY quantity DESC, name, l.item_id LIMIT 5
+        """, bounds)
+        return dict(days=[dict(date=d["local_day"], order_count=int(d["order_count"]),
+                               revenue=int(d["revenue"])) for d in days],
+                    top_items=[dict(item_id=int(i["item_id"]), name=i["name"],
+                                    quantity=int(i["quantity"])) for i in top])

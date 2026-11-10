@@ -350,9 +350,11 @@ def test_reports_exclude_void_and_topups(app):
     revenue = c.get("/api/revenue?date_from=2000-01-01&date_to=2000-01-02")
     assert revenue.json["total_revenue"] == 0
     current = c.get("/api/revenue").json
-    assert current["total_revenue"] == sum(
+    assert current["machine_revenue"] == sum(
         item["usage_cost"] for item in invoices if item["status"] == "PAID"
     )
+    assert current["menu_revenue"] > 0
+    assert current["total_revenue"] == current["machine_revenue"] + current["menu_revenue"]
     post(c, "/api/customers/1/topup", token, dict(amount=100000, method="TRANSFER"))
     assert c.get("/api/revenue").json == current
     assert (

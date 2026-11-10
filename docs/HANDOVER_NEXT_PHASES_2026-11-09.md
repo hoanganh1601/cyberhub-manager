@@ -1,23 +1,24 @@
 # Bàn giao công việc tiếp theo — CyberHub Manager
 
-Ngày cập nhật: 09/11/2026, giờ Việt Nam.
+Ngày cập nhật trạng thái: 10/11/2026, giờ Việt Nam.
 
-Branch bàn giao: **`feat/rag-knowledge-assistant`**. Branch đã tích hợp `develop`
-đến commit `5341162` (PR #33 của Linh, phân quyền doanh thu), cùng phần RAG 5A
-bước 1–2 tại commit `1e15f9a`. Người nhận cần đọc tài liệu này trước khi nhận việc.
+Phần lịch sử 5A nằm trên **`feat/rag-knowledge-assistant`**. Phần 5B–5C tiếp tục
+trên **`feat/ai-phases-5b-5c`**, tạo từ `develop` tại commit `6416bef` sau khi các
+Đợt 0–4 và RAG 5A đã được tích hợp. Người nhận cần đọc tài liệu này và
+`AI_PHASES_5B_5C.md` trước khi nhận việc.
 
 ## 1. Trạng thái hiện tại và phân công
 
 | Hạng mục | Trạng thái | Công việc tiếp theo |
 |---|---|---|
 | Đợt 0 — Phân quyền | Cốt lõi đã kiểm tra pass | Đồng bộ tài liệu và xác định audit demo |
-| Đợt 1 — Menu đồ ăn/đồ uống | Chưa triển khai | Người nhận làm menu và quản trị món |
-| Đợt 2 — Voucher | Chưa triển khai | Làm sau khi chốt nghiệp vụ sử dụng voucher |
-| Đợt 3 — Game/xu | Chưa triển khai | Dùng nền voucher và sổ giao dịch xu |
-| Đợt 4 — Quảng cáo | Chưa triển khai | Làm khi game/voucher và xác minh thưởng ổn định |
+| Đợt 1 — Menu đồ ăn/đồ uống | Đã tích hợp | Theo dõi lỗi nghiệp vụ/UI sau nghiệm thu |
+| Đợt 2 — Voucher | Đã tích hợp | Theo dõi đổi/trừ voucher và audit |
+| Đợt 3 — Game/xu | Đã tích hợp | Theo dõi chống lặp và khóa ví xu |
+| Đợt 4 — Quảng cáo | Đã tích hợp | Theo dõi callback, hạn mức và thống kê |
 | Đợt 5A — RAG tài liệu | Đã nối API, model local và UI đăng nhập | Xem runbook và báo cáo nghiệm thu local; deployment public cần chuẩn bị riêng |
-| Đợt 5B — AI phân tích số liệu | Chưa triển khai | Cần API dữ liệu đúng quyền và phạm vi cơ sở |
-| Đợt 5C — AI tư vấn dịch vụ mở rộng | Chưa triển khai | Kết nối menu/voucher/game sau khi có dữ liệu |
+| Đợt 5B — AI phân tích số liệu | Đã triển khai trên branch `feat/ai-phases-5b-5c` | Nghiệm thu model local và biểu đồ/số liệu thực tế |
+| Đợt 5C — AI tư vấn dịch vụ mở rộng | Đã triển khai trên branch `feat/ai-phases-5b-5c` | Nghiệm thu chất lượng gợi ý menu/ưu đãi/voucher/game |
 
 “Đợt 1–3” trong tài liệu này là lộ trình menu/voucher/game, khác với các đợt
 web khách hàng đã hoàn thành trong `CUSTOMER_PORTAL_PHASE1/2/3.md`.
@@ -303,6 +304,9 @@ giới hạn triển khai và việc chưa làm:
 [báo cáo 12A–12B](testing/RAG_STEP_12AB_2026-11-09.md).
 
 ### Bước 12C–12D — Model local và UI có đăng nhập
+
+> Mốc lịch sử ngày 09/11/2026. Runtime hiện tại đã chuyển sang Gemini API vào 10/11/2026;
+> dùng [runbook Gemini](GEMINI_API_RUNBOOK.md) để chạy. Mô tả/số đo provider cũ bên dưới được giữ để đối chiếu.
 
 Đã bổ sung adapter Ollama loopback: `qwen3-embedding:0.6b` và `qwen3:8b`, ngưỡng
 cosine 0,53 trên tập development. Context mở rộng theo tài liệu cha đã được phép

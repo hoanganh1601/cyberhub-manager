@@ -71,6 +71,7 @@ _FAILURES: dict[MockScenario, dict[str, Callable[[], ApplicationError]]] = {
             "list_machines",
             "list_invoices",
             "daily_revenue",
+            "assistant_analytics",
         )
     },
 }

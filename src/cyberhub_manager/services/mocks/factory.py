@@ -16,12 +16,24 @@ from .store import MockDataStore
 from .wallet import MockWalletService
 
 
+# Demo prices in VND per hour for each PC. Change these values, restart the
+# demo server and sign in again to create a workspace with the new rates.
+# Real MySQL machine prices are managed separately in Machine management.
+DEMO_ROOM_HOURLY_RATES = {
+    "STANDARD": 10_000,
+    "VIP": 20_000,
+    "COUPLE": 25_000,
+    "SUPER_VIP": 35_000,
+}
+
+
 def build_mock_services(
     scenario: MockScenario = MockScenario.SUCCESS,
     *,
     clock: MockClock | None = None,
     p1: bool = False,
     customer_offers: bool = False,
+    pos_samples: bool = False,
 ) -> ServiceBundle:
     """Tạo một bộ dữ liệu demo mới và sáu mock service dùng chung bộ dữ liệu đó.
 
@@ -68,18 +80,32 @@ def build_mock_services(
         entity_id=data.next_id('promotion')
         data.promotions[entity_id]=Promotion(entity_id,'DEMO-PERSONAL','Ưu đãi thành viên CyberHub',None,300000,25,
             clock.now()-timedelta(days=1),clock.now()+timedelta(days=7),True,'BRONZE',5,1)
-    if customer_offers:
-        repo.room_types.update({machine.id:'VIP' for machine in data.machines.values() if machine.id>15})
+    if p1:
+        # Demo location: eight standard PCs, two four-PC VIP rooms, one
+        # two-PC couple room and two private single-PC super-VIP rooms.
+        repo.room_types.update({machine.id: (
+            "SUPER_VIP" if machine.id in (19, 20) else
+            "COUPLE" if machine.id in (17, 18) else
+            "VIP" if 9 <= machine.id <= 16 else
+            "STANDARD"
+        ) for machine in data.machines.values()})
+        for machine in data.machines.values():
+            machine.update_info(
+                machine.name, DEMO_ROOM_HOURLY_RATES[repo.room_types[machine.id]]
+            )
     # Đợt 1: menu demo cho mọi cơ sở, dùng chung khóa/transaction với repo P1.
     from .menu import MemoryMenuRepository
     from cyberhub_manager.services.menu_service import MenuService
     menu_repo = MemoryMenuRepository(data, repo, clock=clock.now)
     menu_repo.seed_demo()
+    if pos_samples and scenario == MockScenario.SUCCESS:
+        menu_repo.seed_pos_orders()
     # Đợt 2: danh mục phần thưởng + voucher mẫu.
     from .voucher import MemoryVoucherRepository
     from cyberhub_manager.services.voucher_service import VoucherService
     voucher_repo = MemoryVoucherRepository(data, repo, clock=clock.now)
     voucher_repo.seed_demo()
+    menu_repo.voucher_repo = voucher_repo
     vouchers = VoucherService(repo=voucher_repo,p1_repo=repo,menu_repo=menu_repo,
                               transaction_factory=voucher_repo.transaction,clock=clock.now)
     # Đợt 3: vòng quay + ví xu, transaction bọc voucher để đổi xu và phát voucher cùng rollback.

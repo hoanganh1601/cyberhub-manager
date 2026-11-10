@@ -252,6 +252,11 @@ const copy = {
   duration: ["Thời lượng tính phí", "Billed duration"],
   total: ["Tổng cộng", "Total"],
   paidCount: ["Hóa đơn đã thanh toán", "Paid invoices"],
+  paidMenuOrders: ["Đơn món đã thanh toán", "Paid food orders"],
+  machineRevenue: ["Doanh thu giờ chơi", "Gaming revenue"],
+  menuRevenue: ["Doanh thu đồ ăn, thức uống", "Food and drink revenue"],
+  bestSellingItems: ["Món bán chạy", "Best-selling items"],
+  soldQuantity: ["Số lượng bán", "Units sold"],
   totalRevenue: ["Tổng doanh thu", "Total revenue"],
   dailyAverage: ["Doanh thu TB/ngày", "Average per day"],
   bestDay: ["Ngày cao nhất", "Best day"],
@@ -259,8 +264,8 @@ const copy = {
   revenueDaily: ["Doanh thu theo ngày", "Daily revenue"],
   summary: ["Tổng kết báo cáo", "Report summary"],
   reportNote: [
-    "Chỉ cộng phí sử dụng trên hóa đơn PAID. Tiền nạp ví và tiền bù không được cộng lần nữa.",
-    "Only usage costs on PAID invoices count as revenue. Top-ups and settlement are not counted again.",
+    "Giờ chơi chỉ tính hóa đơn PAID; món ăn chỉ tính đơn PAID theo ngày thu tiền, đã trừ voucher đồ ăn. Không cộng lại tiền nạp ví.",
+    "Gaming uses PAID invoice usage; food uses PAID orders by payment date, net of food vouchers. Wallet top-ups are excluded.",
   ],
   reportScope: ["Phạm vi", "Scope"],
   currentStore: ["Cửa hàng hiện tại", "Current store"],
@@ -343,6 +348,7 @@ const state = {
   mode: "demo",
   page: "dashboard",
   filter: "all",
+  roomFilter: "all",
   keyword: "",
   selected: null,
   detail: null,
@@ -645,13 +651,14 @@ function filteredMachines() {
   return state.items.filter(
     (m) =>
       (state.filter === "all" || m.status === state.filter) &&
+      (state.roomFilter === "all" || (m.room_type || "STANDARD") === state.roomFilter) &&
       `${m.machine_code} ${m.name}`
         .toLocaleLowerCase()
         .includes(state.keyword.toLocaleLowerCase()),
   );
 }
 function machineToolbar() {
-  return `<div class="toolbar"><input id="local-search" class="input search" placeholder="${t("machineSearch")}" value="${esc(state.keyword)}" aria-label="${t("search")}"><span class="spacer"></span>${["all", "AVAILABLE", "IN_USE", "MAINTENANCE"].map((value) => `<button class="filter-btn ${state.filter === value ? "active" : ""}" data-action="filter" data-filter="${value}">${t(value === "all" ? "all" : statusKey(value))} (${state.items.filter((m) => value === "all" || m.status === value).length})</button>`).join("")}</div>`;
+  return `<div class="toolbar"><input id="local-search" class="input search" placeholder="${t("machineSearch")}" value="${esc(state.keyword)}" aria-label="${t("search")}"><label class="machine-room-filter"><span>${t("p2RoomFilter")}</span><select id="machine-room-filter" class="input">${["all", "STANDARD", "VIP", "COUPLE", "SUPER_VIP"].map(value => `<option value="${value}" ${state.roomFilter === value ? "selected" : ""}>${t(value)} (${state.items.filter(m => value === "all" || (m.room_type || "STANDARD") === value).length})</option>`).join("")}</select></label><span class="spacer"></span>${["all", "AVAILABLE", "IN_USE", "MAINTENANCE"].map((value) => `<button class="filter-btn ${state.filter === value ? "active" : ""}" data-action="filter" data-filter="${value}">${t(value === "all" ? "all" : statusKey(value))} (${state.items.filter((m) => value === "all" || m.status === value).length})</button>`).join("")}</div>`;
 }
 function dashboard() {
   const list = filteredMachines();
@@ -663,7 +670,7 @@ function dashboard() {
     `<div class="machine-grid">${list
       .map((m) => {
         const active = m.active_session;
-        return `<article class="machine-card ${esc(m.status)}"><div class="row between"><strong>${esc(m.machine_code)}</strong>${badge(m.status)}</div><p class="machine-name">${esc(m.name)}</p><div class="machine-body">${active ? `<div class="row between"><span class="muted">${t("customer")}</span><strong>${esc(active.session.customer_name)}</strong></div><div class="row between"><span class="muted">${t("elapsed")}</span><span>${duration(active.elapsed_seconds)}</span></div><div class="row between"><span class="muted">${t("estimated")}</span><span class="money">${money(active.estimated_cost)}</span></div><div class="row between"><span class="muted">${t("projected")}</span><span class="money ${active.projected_balance < 0 ? "red" : "green"}">${money(active.projected_balance)}</span></div>` : m.status === "MAINTENANCE" ? `<div class="notice">${t("maintenanceNote")}</div>` : `<p class="muted">${t("idleNote")}</p><div class="row between"><span class="muted">${t("hourly")}</span><span class="money">${money(m.hourly_rate)}${t("perHour")}</span></div>`}</div>${m.status === "AVAILABLE" ? `<button class="btn success full" data-action="open" data-id="${m.machine_id}">${icon("plus")}${t("open")}</button>` : m.status === "IN_USE" ? `<button class="btn danger full" data-action="checkout" data-id="${m.machine_id}">${icon("wallet")}${t("checkout")}</button>` : isManager() ? `<button class="btn warning full" data-action="maintenance" data-id="${m.machine_id}">${icon("check")}${t("endMaintenance")}</button>` : `<button class="btn full" disabled>${t("maintenance")}</button>`}</article>`;
+        return `<article class="machine-card ${esc(m.status)}"><div class="row between"><strong>${esc(m.machine_code)}</strong>${badge(m.status)}</div><p class="machine-name">${esc(m.name)}</p><span class="machine-room-type ${esc((m.room_type || "STANDARD").toLowerCase())}">${t(m.room_type || "STANDARD")}</span><div class="machine-body">${active ? `<div class="row between"><span class="muted">${t("customer")}</span><strong>${esc(active.session.customer_name)}</strong></div><div class="row between"><span class="muted">${t("elapsed")}</span><span>${duration(active.elapsed_seconds)}</span></div><div class="row between"><span class="muted">${t("estimated")}</span><span class="money">${money(active.estimated_cost)}</span></div><div class="row between"><span class="muted">${t("projected")}</span><span class="money ${active.projected_balance < 0 ? "red" : "green"}">${money(active.projected_balance)}</span></div>` : m.status === "MAINTENANCE" ? `<div class="notice">${t("maintenanceNote")}</div>` : `<p class="muted">${t("idleNote")}</p><div class="row between"><span class="muted">${t("hourly")}</span><span class="money">${money(m.hourly_rate)}${t("perHour")}</span></div>`}</div>${m.status === "AVAILABLE" ? `<button class="btn success full" data-action="open" data-id="${m.machine_id}">${icon("plus")}${t("open")}</button>` : m.status === "IN_USE" ? `<button class="btn danger full" data-action="checkout" data-id="${m.machine_id}">${icon("wallet")}${t("checkout")}</button>` : isManager() ? `<button class="btn warning full" data-action="maintenance" data-id="${m.machine_id}">${icon("check")}${t("endMaintenance")}</button>` : `<button class="btn full" disabled>${t("maintenance")}</button>`}</article>`;
       })
       .join("")}</div>${!list.length ? empty() : ""}`
   );
@@ -763,10 +770,6 @@ function revenuePage() {
       new Date(`${data.date_from}T00:00Z`)) /
       86400000 +
     1;
-  const best = days.reduce(
-    (a, b) => (b.revenue > (a?.revenue || 0) ? b : a),
-    null,
-  );
   // Display buckets only; the service remains the source of all revenue values.
   const bucketSize = Math.max(1, Math.ceil(count / 18));
   const buckets = [];
@@ -788,7 +791,7 @@ function revenuePage() {
   return (
     pageHead() +
     dateToolbar() +
-    `<div class="metrics">${metric("totalRevenue", money(data.total_revenue), "cyan", "wallet")}${metric("paidCount", data.invoice_count, "", "invoice")}${metric("dailyAverage", money(Math.round(data.total_revenue / count)), "", "chart")}${metric("bestDay", best ? best.date : "—", "", "clock")}${metric("revenueDays", days.length, "green", "check")}</div><div class="revenue-layout"><section class="panel"><header class="panel-heading"><h3>${icon("chart")} ${t("revenueDaily")}</h3><small>${esc(data.date_from)} → ${esc(data.date_to)}</small></header><div class="revenue-chart" role="img" aria-label="${t("revenueDaily")}">${buckets.map((d) => `<div class="bar-column"><div class="bar" style="height:${Math.max(1, (d.revenue / max) * 80)}%" title="${esc(d.date)}: ${money(d.revenue)}"><span>${d.revenue ? new Intl.NumberFormat(state.lang, { notation: "compact" }).format(d.revenue) : ""}</span></div><small>${d.date.slice(5).split("-").reverse().join("/")}</small></div>`).join("")}</div>${rows.length ? table(["createdAt", "paidCount", "revenue"], rows.map((d) => `<tr><td>${esc(d.date)}</td><td>${d.invoice_count}</td><td class="money green">${money(d.revenue)}</td></tr>`).join("")) : empty()}${foot}</section><aside class="panel"><header class="panel-heading"><h3>${t("summary")}</h3></header><div class="mini-summary"><div class="key-values">${kv("reportScope", esc(state.actor.store_name))}${kv("from", esc(data.date_from))}${kv("to", esc(data.date_to))}${kv("paidCount", data.invoice_count)}</div><div class="summary-total"><small>${t("totalRevenue")}</small><p class="money cyan" style="margin-top:8px">${money(data.total_revenue)}</p></div><div class="notice info">${t("reportNote")}</div><small>${t("localTimezone")}</small></div></aside></div>`
+    `<div class="metrics">${metric("totalRevenue", money(data.total_revenue), "cyan", "wallet")}${metric("machineRevenue", money(data.machine_revenue), "", "clock")}${metric("menuRevenue", money(data.menu_revenue), "green", "wallet")}${metric("paidMenuOrders", data.menu_order_count, "", "check")}${metric("paidCount", data.invoice_count, "", "invoice")}</div><div class="revenue-layout"><section class="panel"><header class="panel-heading"><h3>${icon("chart")} ${t("revenueDaily")}</h3><small>${esc(data.date_from)} → ${esc(data.date_to)}</small></header><div class="revenue-chart" role="img" aria-label="${t("revenueDaily")}">${buckets.map((d) => `<div class="bar-column"><div class="bar" style="height:${Math.max(1, (d.revenue / max) * 80)}%" title="${esc(d.date)}: ${money(d.revenue)}"><span>${d.revenue ? new Intl.NumberFormat(state.lang, { notation: "compact" }).format(d.revenue) : ""}</span></div><small>${d.date.slice(5).split("-").reverse().join("/")}</small></div>`).join("")}</div>${rows.length ? table(["createdAt", "machineRevenue", "menuRevenue", "totalRevenue"], rows.map((d) => `<tr><td>${esc(d.date)}</td><td class="money">${money(d.machine_revenue)}</td><td class="money">${money(d.menu_revenue)}</td><td class="money green">${money(d.revenue)}</td></tr>`).join("")) : empty()}${foot}</section><aside class="panel"><header class="panel-heading"><h3>${t("summary")}</h3></header><div class="mini-summary"><div class="key-values">${kv("reportScope", esc(state.actor.store_name))}${kv("from", esc(data.date_from))}${kv("to", esc(data.date_to))}${kv("paidCount", data.invoice_count)}${kv("paidMenuOrders", data.menu_order_count)}${kv("machineRevenue", money(data.machine_revenue))}${kv("menuRevenue", money(data.menu_revenue))}</div><div class="summary-total"><small>${t("totalRevenue")}</small><p class="money cyan" style="margin-top:8px">${money(data.total_revenue)}</p></div><h4>${t("bestSellingItems")}</h4>${data.top_menu_items.length ? `<div class="key-values">${data.top_menu_items.map((item) => `<div><span>${esc(item.name)}</span><span>${item.quantity} ${t("soldQuantity")}</span></div>`).join("")}</div>` : empty()}<div class="notice info">${t("reportNote")}</div><small>${t("localTimezone")}</small></div></aside></div>`
   );
 }
 function field(name, label, value = "", type = "text", extra = "") {
@@ -1104,6 +1107,10 @@ document.addEventListener("input", (event) => {
   if (event.target.closest("#modal")) updateModalControls();
 });
 document.addEventListener("change", (event) => {
+  if (event.target.id === "machine-room-filter") {
+    state.roomFilter = event.target.value;
+    renderPage();
+  }
   if (event.target.id === "open-customer") updateOpenPreview();
   if (event.target.closest("#modal")) updateModalControls();
 });
@@ -1135,6 +1142,7 @@ document.addEventListener("click", async (event) => {
       state.page = button.dataset.page;
       state.keyword = "";
       state.filter = "all";
+      state.roomFilter = "all";
       state.selected = null;
       state.detail = null;
       state.tablePage = 1;

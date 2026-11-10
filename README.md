@@ -9,7 +9,7 @@ cổng khách hàng và xuất/in hóa đơn. Xem [hướng dẫn chạy và ngh
 Web khách hàng đợt 1 có dashboard, biểu đồ chi tiêu, ưu đãi theo cơ sở, lịch sử phân trang
 và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/CUSTOMER_PORTAL_PHASE1.md).
 
-Đợt 2 bổ sung số máy trống phòng thường/VIP theo cơ sở (5 phút/lần), biểu đồ sử dụng và hồ sơ/đổi mật khẩu.
+Đợt 2 bổ sung số máy trống theo loại thường/VIP/Couple/Siêu VIP tại cơ sở (5 phút/lần), biểu đồ sử dụng và hồ sơ/đổi mật khẩu.
 Xem [hướng dẫn đợt 2](docs/CUSTOMER_PORTAL_PHASE2.md).
 
 Đợt 3 có menu avatar góc phải, tải ảnh đại diện, điểm/hạng thành viên và ưu đãi theo từng khách.
@@ -193,6 +193,17 @@ và mật khẩu demo đã nhập khi seed.
 
 Thiếu biến cấu hình bắt buộc thì lệnh dừng trước khi mở cửa sổ (exit code 2),
 hướng dẫn cấu hình `.env` hoặc dùng `--mock`.
+
+### Menu sách lật trên web
+
+Chạy web ở chế độ demo rồi mở `http://127.0.0.1:8000/customer`, đăng nhập tài khoản khách demo và chọn **Menu đồ ăn**:
+
+```powershell
+$env:CYBERHUB_WEB_MODE="demo"
+python -m cyberhub_manager.web --port 8000
+```
+
+Desktop hiển thị hai trang cạnh nhau; điện thoại hiển thị một trang. Dùng nút **Trang trước/Trang sau**, phím mũi tên hoặc vuốt để lật. Menu, giá, trạng thái còn món và ảnh do quản lý tải lên vẫn lấy từ dữ liệu của từng cơ sở; giỏ món được giữ khi chuyển trang. Hiệu ứng dùng CSS/JavaScript của dự án, không cần nhúng dịch vụ Heyzine.
 
 ## Chuẩn bị và chạy kiểm thử
 
@@ -399,11 +410,23 @@ python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration
 
 Để xác nhận, nhập chính xác `RESET cyberhub_manager_migration_test`. Reset giữ nguyên cấu trúc bảng và lịch sử migration, nhưng xóa dữ liệu nghiệp vụ trong database này. Có thể chạy seed lại để lấy lại dữ liệu demo ban đầu; dữ liệu phát sinh sau đó không được khôi phục bằng seed. **Không chạy reset trên database chứa dữ liệu cần giữ.**
 
-## Trợ lý tài liệu RAG 5A (local)
+## Trợ lý Gemini API cho máy cấu hình thấp
 
-Web có đăng nhập và AI local: `python -m scripts.run_rag_local --port 8059`.
-Cần Ollama/model đã tải; helper không tự tải hoặc gọi cloud. Xem
-[hướng dẫn chạy, tài khoản demo và giới hạn](docs/RAG_5A_RUNBOOK.md),
-[báo cáo nghiệm thu](docs/testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md).
-Bản UI mock độc lập dùng cổng 8058. 5A giải thích nguồn đúng quyền, không đọc số
-liệu khách thật hoặc thao tác nạp tiền/checkout. Mặc định app thường chưa bật RAG.
+Tạo API key tại [Google AI Studio](https://aistudio.google.com/api-keys), thêm
+`GEMINI_API_KEY=key_cua_ban` vào `.env`, rồi chạy:
+
+```powershell
+python -m scripts.run_rag_gemini --port 8059
+```
+
+Không cần GPU hoặc tải model. Mặc định dùng Gemini Flash-Lite và Gemini embedding;
+free tier có giới hạn và gửi dữ liệu tới Google. Xem [hướng dẫn Gemini API](docs/GEMINI_API_RUNBOOK.md)
+để cấu hình model, quyền dữ liệu và xử lý lỗi key/quota.
+
+5A giải thích tài liệu đúng quyền; 5B phân tích
+snapshot doanh thu/máy đã lọc cho MANAGER/ADMIN; 5C gợi ý menu, ưu đãi, voucher và
+game cho chính khách hàng đang đăng nhập. Xem [thiết kế và cách kiểm tra 5B–5C](docs/AI_PHASES_5B_5C.md).
+AI không được thao tác nạp tiền, checkout, đặt món hay dùng voucher. Mặc định app
+thường chỉ bật trợ lý khi cấu hình API key, cờ bật và audit path; helper Gemini tự đặt cờ/audit path.
+Lệnh cũ `python -m scripts.run_rag_local` cũng chuyển tiếp sang Gemini API.
+Xem [các lựa chọn API miễn phí](docs/FREE_API_OPTIONS.md) khi cần dự phòng hạn mức.

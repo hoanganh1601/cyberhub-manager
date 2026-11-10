@@ -1,11 +1,10 @@
-"""Explicit composition for local RAG; feature stays off unless configured."""
+"""API-key RAG composition; credentials and provider selection are backend-only."""
 
 import os
 from threading import RLock
 
 from .documents import KnowledgeDocumentLoader
-from .errors import KnowledgeAccessError, KnowledgeIndexUnavailableError, ProviderBusyError
-from .ollama import OllamaEmbeddingProvider, OllamaLLMProvider, OllamaTransport
+from .errors import KnowledgeAccessError, KnowledgeIndexUnavailableError, ProviderBusyError, ProviderError
 from .retrieval import KnowledgeRetriever
 from .service import RAGAssistantService
 
@@ -27,6 +26,10 @@ class LiveKnowledgeRetriever(KnowledgeRetriever):
                 if documents != self._documents:
                     self.rebuild(documents)
                     self._documents = documents
+            except ProviderError:
+                self._index.clear()
+                self._documents = None
+                raise
             except Exception:
                 self._index.clear()
                 self._documents = None
@@ -68,26 +71,33 @@ class LiveKnowledgeRetriever(KnowledgeRetriever):
         return self.authorize_context(expanded, access)
 
 
-def local_service_factory(audit_sink):
-    transport = OllamaTransport(os.getenv("CYBERHUB_OLLAMA_URL", "http://127.0.0.1:11435"), timeout=30)
-    embedding = OllamaEmbeddingProvider(transport, model=os.getenv("CYBERHUB_EMBEDDING_MODEL", "qwen3-embedding:0.6b"))
-    llm = OllamaLLMProvider(transport, model=os.getenv("CYBERHUB_LLM_MODEL", "qwen3:8b"))
-    # Warmup is bounded startup work, not an unaudited user question/model retry.
-    warmup = OllamaTransport(transport.base_url, timeout=120)
-    warmup.post("/api/embed", {"model": embedding.model, "input": ["CyberHub startup"], "truncate": False, "keep_alive": "30m"})
-    warmup.post("/api/chat", {"model": llm.model, "messages": [], "stream": False, "keep_alive": "30m", "options": {"num_ctx": 32768}})
+def gemini_service_factory(audit_sink):
+    from .gemini import GeminiEmbeddingProvider, GeminiLLMProvider, GeminiTransport
+
+    transport = GeminiTransport(os.getenv("GEMINI_API_KEY", ""), timeout=30)
+    embedding = GeminiEmbeddingProvider(transport, model=os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"))
+    llm = GeminiLLMProvider(transport, model=os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"))
     knowledge_root = os.getenv("CYBERHUB_KNOWLEDGE_ROOT")
     loader = KnowledgeDocumentLoader(knowledge_root=knowledge_root) if knowledge_root else KnowledgeDocumentLoader()
     retriever = LiveKnowledgeRetriever(embedding, loader)
-    # Threshold calibrated on development; supplemental cases are diagnostic regression.
-    return RAGAssistantService(retriever, llm, audit=audit_sink, min_similarity=0.53, limit=4, context_limit=16, timeout_seconds=40,
+    # Embedding scores are model-specific; this cloud threshold is configurable
+    # and must be evaluated against a real key before claiming semantic accuracy.
+    minimum = float(os.getenv("CYBERHUB_GEMINI_MIN_SIMILARITY", "0.6"))
+    return RAGAssistantService(retriever, llm, audit=audit_sink, min_similarity=minimum,
+                               limit=4, context_limit=16, timeout_seconds=60,
                                max_context_chars=14000, max_prompt_chars=18000)
 
 
-def configure_local_assistant(app):
+def configure_assistant(app):
+    from dotenv import load_dotenv
+
+    load_dotenv()
     if os.getenv("CYBERHUB_ASSISTANT_ENABLED", "false").lower() == "true":
+        provider = os.getenv("CYBERHUB_ASSISTANT_PROVIDER", "gemini").strip().lower()
+        if provider != "gemini":
+            raise ValueError("only the Gemini API is supported; set CYBERHUB_ASSISTANT_PROVIDER=gemini")
         path = os.getenv("CYBERHUB_ASSISTANT_AUDIT_PATH")
         if not path:
             raise ValueError("set a private persistent CYBERHUB_ASSISTANT_AUDIT_PATH")
-        app.config.update(ASSISTANT_ENABLED=True, ASSISTANT_SERVICE_FACTORY=local_service_factory,
+        app.config.update(ASSISTANT_ENABLED=True, ASSISTANT_SERVICE_FACTORY=gemini_service_factory,
                           ASSISTANT_AUDIT_PATH=path)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import PurePosixPath
 from typing import Literal, TypeAlias, get_args
 
@@ -157,6 +157,44 @@ class KnowledgeChunk:
         _positive_int(self.version, "version")
         if not isinstance(self.language, str) or self.language not in _LANGUAGES:
             raise ValueError("language must be vi or en")
+
+
+@dataclass(frozen=True)
+class DynamicAssistantSource:
+    """A short-lived, backend-produced snapshot for phases 5B and 5C.
+
+    The browser and the model must never construct this object.  Business
+    services first revalidate the principal and filter the store/account data;
+    this contract then carries only the already-authorized projection into the
+    bounded prompt builder.
+    """
+
+    source_id: str
+    title: str
+    section: str
+    content: str
+    source: str
+    audience: tuple[Role, ...]
+    store_ids: tuple[int, ...]
+    generated_at: datetime
+    version: int = 1
+
+    def __post_init__(self) -> None:
+        _document_id(self.source_id)
+        _text(self.title, "title")
+        _text(self.section, "section")
+        _text(self.content, "content")
+        _source(self.source)
+        _audience(self.audience)
+        if type(self.store_ids) is not tuple:
+            raise ValueError("store_ids must be a tuple")
+        for store_id in self.store_ids:
+            _positive_int(store_id, "store_id")
+        if len(set(self.store_ids)) != len(self.store_ids):
+            raise ValueError("store_ids must be unique")
+        if not isinstance(self.generated_at, datetime) or self.generated_at.tzinfo is None:
+            raise ValueError("generated_at must be timezone-aware")
+        _positive_int(self.version, "version")
 
 
 @dataclass(frozen=True)

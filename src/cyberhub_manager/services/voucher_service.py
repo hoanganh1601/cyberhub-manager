@@ -346,12 +346,12 @@ class VoucherService:
         if voucher.reward_type in FOOD_TYPES:
             if order_id is None:
                 return "ORDER_REQUIRED"
-            order = self._menu.get_order(conn, order_id)
+            order = self._menu.get_order(conn, order_id, lock=True)
             if (
                 order is None
                 or order.account_id != voucher.account_id
                 or order.store_id != current.store_id
-                or order.status == MenuOrderStatus.CANCELLED
+                or order.status in (MenuOrderStatus.CANCELLED, MenuOrderStatus.PAID)
             ):
                 return "ORDER_INVALID"
             if self._repo.order_has_voucher(conn, order.id):

@@ -16,6 +16,7 @@ from cyberhub_manager.ai.policy_store import (
 from cyberhub_manager.ai.retrieval import normalize_question
 from cyberhub_manager.ai.service import RAGAssistantService
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
+from .assistant_context import analytics_sources, personalized_sources, validate_mode
 
 _blueprint = Blueprint("assistant", __name__)
 
@@ -42,7 +43,7 @@ def register_assistant(app) -> None:
     app.register_blueprint(_blueprint)
 
 
-def _access(language: str, *, revalidate: bool = False) -> AIAccessContext:
+def _access(language: str, *, revalidate: bool = False, mode: str = "knowledge") -> AIAccessContext:
     if revalidate and current_app.config["WEB_MODE"] == "demo":
         workspace = current_app.extensions["cyberhub_demo"].get(session.get("workspace"))
         if workspace is None or workspace.services is not g.services:
@@ -62,7 +63,13 @@ def _access(language: str, *, revalidate: bool = False) -> AIAccessContext:
         raise PermissionDeniedError()
     if revalidate:
         actor = g.services.management.validate_actor(actor)
-    return AIAccessContext(actor.employee_id, actor.role.value, (actor.store_id,), language)
+    store_ids = (actor.store_id,)
+    if actor.role.value == "ADMIN" and mode == "analytics":
+        store_ids = tuple(
+            store.id for store in g.services.management.list_stores(actor)
+            if store.status == "ACTIVE"
+        )
+    return AIAccessContext(actor.employee_id, actor.role.value, store_ids, language)
 
 
 def _error(code: str, vi: str, en: str, status: int, request_id: str):
@@ -77,7 +84,9 @@ def messages():
     if extension is None:
         return _error("ASSISTANT_DISABLED", "Trợ lý chưa được bật.", "The assistant is not enabled.", 503, request_id)
     data = request.get_json(silent=True)
-    if not isinstance(data, dict) or set(data) - {"question", "language", "conversation_id"}:
+    if not isinstance(data, dict) or set(data) - {
+        "question", "language", "conversation_id", "mode", "days", "store_id",
+    }:
         return _error("VALIDATION_ERROR", "Chỉ gửi câu hỏi và ngôn ngữ hợp lệ.", "Send only a question and valid language.", 422, request_id)
     language = data.get("language", "vi")
     if not isinstance(language, str) or language not in ("vi", "en") or data.get("conversation_id") is not None:
@@ -87,6 +96,24 @@ def messages():
     except InvalidQuestionError:
         return _error("VALIDATION_ERROR", "Nhập câu hỏi từ 1 đến 2.000 ký tự.", "Enter a question of 1 to 2,000 characters.", 422, request_id)
     access = _access(language)
+    mode = validate_mode(data.get("mode"), access)
+    if mode == "analytics":
+        access = _access(language, mode=mode)
+    days = data.get("days", 30)
+    store_id = data.get("store_id")
+    if type(days) is not int or days not in (7, 30, 90):
+        return _error("VALIDATION_ERROR", "Chọn kỳ 7, 30 hoặc 90 ngày.", "Choose a 7, 30 or 90-day period.", 422, request_id)
+    if store_id is not None and (type(store_id) is not int or store_id <= 0):
+        return _error("VALIDATION_ERROR", "Cơ sở không hợp lệ.", "Invalid store.", 422, request_id)
+    dynamic_sources = ()
+    if mode == "analytics":
+        dynamic_sources = analytics_sources(
+            services=g.services, actor=g.actor, access=access, days=days,
+        )
+    elif mode == "personalized":
+        dynamic_sources = personalized_sources(
+            services=g.services, customer=g.customer, access=access, store_id=store_id,
+        )
     service, store = extension
     try:
         store.reserve(request_id, access, now=datetime.now(timezone.utc))
@@ -105,13 +132,20 @@ def messages():
             g.workspace_lock = None
             lock.release()
         try:
-            answer = service.ask(question=question, access=access, request_id=request_id)
+            answer = (
+                service.ask(question=question, access=access, request_id=request_id)
+                if mode == "knowledge" else
+                service.ask_dynamic(
+                    question=question, access=access, sources=dynamic_sources,
+                    mode=mode, request_id=request_id,
+                )
+            )
         finally:
             if lock is not None:
                 lock.acquire()
                 g.workspace_lock = lock
         try:
-            refreshed = _access(language, revalidate=True)
+            refreshed = _access(language, revalidate=True, mode=mode)
             if refreshed != access:
                 raise PermissionDeniedError()
         except PermissionDeniedError:
@@ -123,6 +157,18 @@ def messages():
         result = store.result(request_id)
         if result in {None, "ACCEPTED"}:
             return _unavailable(request_id)
+        if result == "PROVIDER_RATE_LIMITED":
+            response, status = _error("ASSISTANT_QUOTA_EXCEEDED",
+                                     "Dịch vụ AI đã đạt hạn mức. Vui lòng thử lại sau.",
+                                     "The AI provider quota has been reached. Please try again later.",
+                                     429, request_id)
+            response.headers["Retry-After"] = "60"
+            return response, status
+        if result == "PROVIDER_AUTH_ERROR":
+            return _error("ASSISTANT_CONFIGURATION_ERROR",
+                          "Trợ lý chưa được cấp quyền kết nối AI. Vui lòng liên hệ quản trị viên.",
+                          "The assistant cannot access its AI provider. Please contact an administrator.",
+                          503, request_id)
         if result not in {"ANSWERED", "NO_CONTEXT", "LOW_RELEVANCE"}:
             return _unavailable(request_id)
     except PermissionDeniedError:
@@ -134,7 +180,7 @@ def messages():
     return jsonify(
         answer=answer.answer, grounded=answer.grounded,
         citations=[asdict(citation) for citation in answer.citations],
-        request_id=request_id, conversation_id=None,
+        request_id=request_id, conversation_id=None, mode=mode,
     )
 
 

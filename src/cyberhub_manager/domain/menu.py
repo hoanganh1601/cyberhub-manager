@@ -18,8 +18,15 @@ class MenuPage(StrEnum):
 
 class MenuOrderStatus(StrEnum):
     NEW = "NEW"
+    PREPARING = "PREPARING"
     SERVED = "SERVED"
+    PAID = "PAID"
     CANCELLED = "CANCELLED"
+
+
+class MenuPaymentMethod(StrEnum):
+    CASH = "CASH"
+    TRANSFER = "TRANSFER"
 
 
 class MenuChangeField(StrEnum):
@@ -102,6 +109,10 @@ class MenuOrder:
     lines: tuple[MenuOrderLine, ...]
     created_at: datetime
     handled_by: int | None = None
+    payment_method: MenuPaymentMethod | None = None
+    paid_at: datetime | None = None
+    paid_by: int | None = None
+    discount_amount: int = 0
 
 
 def order_total(lines: tuple[MenuOrderLine, ...] | list[MenuOrderLine]) -> int:
