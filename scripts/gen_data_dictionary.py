@@ -242,12 +242,14 @@ DESCRIPTIONS["menu_item_changes"] = ("Lịch sử thay đổi giá, tên, nhóm,
     "field": "`CREATE` / `NAME` / `CATEGORY` / `PRICE` / `AVAILABLE` / `VISIBLE` / `IMAGE`.",
     "old_value": "Giá trị cũ (dạng chữ), NULL khi tạo mới.", "new_value": "Giá trị mới (dạng chữ).",
     "created_at": "Thời điểm thay đổi (UTC)."})
-DESCRIPTIONS["menu_orders"] = ("Yêu cầu gọi món của khách đang chơi; chưa trừ ví, thu tiền tại quầy.", {
+DESCRIPTIONS["menu_orders"] = ("Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi.", {
     "id": "Khóa chính.", "code": "Mã yêu cầu, duy nhất (`ORD-` + hex).",
     "store_id": "Cơ sở của máy đang dùng.", "account_id": "Tài khoản khách đặt món.",
     "session_id": "Phiên ACTIVE lúc đặt.", "machine_id": "Máy giao món tới.",
     "note": "Ghi chú của khách (≤ 200 ký tự).", "total_amount": "Tổng tiền theo giá chụp lúc đặt (VND).",
-    "status": "`NEW` / `SERVED` / `CANCELLED`.", "handled_by": "Nhân viên phục vụ/hủy; NULL khi còn NEW.",
+    "status": "`NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED`.", "handled_by": "Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW.",
+    "payment_method": "`CASH` / `TRANSFER` khi đã thanh toán; NULL trước đó.",
+    "paid_at": "Thời điểm thanh toán tại quầy (UTC).", "paid_by": "Nhân viên xác nhận thanh toán.",
     "created_at": "Thời điểm đặt (UTC).", "updated_at": "Thời điểm cập nhật trạng thái (UTC)."})
 DESCRIPTIONS["menu_order_items"] = ("Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.", {
     "order_id": "Yêu cầu gọi món.", "item_id": "Món được gọi.",

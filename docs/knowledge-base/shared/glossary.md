@@ -7,9 +7,9 @@ audience:
   - MANAGER
   - ADMIN
 status: APPROVED
-version: 2
+version: 3
 language: vi
-updated_at: 2026-11-09
+updated_at: 2026-11-10
 tags:
   - glossary
   - wallet
@@ -25,8 +25,11 @@ tags:
 - `IN_USE`: máy đang được sử dụng.
 - `MAINTENANCE`: máy bảo trì, không nhận phiên mới.
 - Phiên `ACTIVE`: đang diễn ra; `COMPLETED`: đã kết thúc; `CANCELLED`: đã hủy.
-- Phòng thường (`STANDARD`) và VIP là phân loại máy. Máy chưa phân loại được
-  tính là phòng thường; đổi loại phòng không tự đổi giá giờ.
+- Máy thường (`STANDARD`), VIP (`VIP`), Couple (`COUPLE`) và Siêu VIP (`SUPER_VIP`)
+  là phân loại máy. Máy chưa phân loại được tính là máy thường; đổi loại không tự đổi giá giờ.
+- Phòng VIP thường bố trí khoảng 4–5 máy với nhiều tiện ích chung; phòng Couple hướng đến
+  hai người với 2 máy; phòng Siêu VIP là phòng riêng cho một người với 1 máy. Hệ thống
+  chỉ tổng hợp số máy theo loại, chưa lưu số phòng vật lý hoặc tình trạng trống cả phòng.
 
 ## Số dư
 

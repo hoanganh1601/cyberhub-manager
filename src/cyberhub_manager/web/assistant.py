@@ -157,6 +157,18 @@ def messages():
         result = store.result(request_id)
         if result in {None, "ACCEPTED"}:
             return _unavailable(request_id)
+        if result == "PROVIDER_RATE_LIMITED":
+            response, status = _error("ASSISTANT_QUOTA_EXCEEDED",
+                                     "Dịch vụ AI đã đạt hạn mức. Vui lòng thử lại sau.",
+                                     "The AI provider quota has been reached. Please try again later.",
+                                     429, request_id)
+            response.headers["Retry-After"] = "60"
+            return response, status
+        if result == "PROVIDER_AUTH_ERROR":
+            return _error("ASSISTANT_CONFIGURATION_ERROR",
+                          "Trợ lý chưa được cấp quyền kết nối AI. Vui lòng liên hệ quản trị viên.",
+                          "The assistant cannot access its AI provider. Please contact an administrator.",
+                          503, request_id)
         if result not in {"ANSWERED", "NO_CONTEXT", "LOW_RELEVANCE"}:
             return _unavailable(request_id)
     except PermissionDeniedError:

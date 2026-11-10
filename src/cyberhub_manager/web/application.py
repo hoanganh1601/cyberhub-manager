@@ -150,7 +150,8 @@ def _demo_bundle(*, customer_portal=False) -> ServiceBundle:
         def now(self) -> datetime:
             return datetime.now(UTC)
 
-    return build_mock_services(clock=RunningClock(datetime.now(UTC)),p1=True,customer_offers=customer_portal)
+    return build_mock_services(clock=RunningClock(datetime.now(UTC)),p1=True,
+                               customer_offers=customer_portal, pos_samples=not customer_portal)
 
 
 def create_app(config: dict | None = None) -> Flask:
@@ -285,8 +286,8 @@ def create_app(config: dict | None = None) -> Flask:
 
     from .assistant import register_assistant
     if "ASSISTANT_ENABLED" not in (config or {}):
-        from cyberhub_manager.ai.runtime import configure_local_assistant
-        configure_local_assistant(app)
+        from cyberhub_manager.ai.runtime import configure_assistant
+        configure_assistant(app)
     register_assistant(app)
 
     @app.teardown_request
@@ -348,7 +349,7 @@ def create_app(config: dict | None = None) -> Flask:
             "current_password": "Enter the correct current password.",
             "new_password": "Use a different password with at least 6 characters and at most 72 UTF-8 bytes.",
             "confirmation": "Enter the new password again, exactly as above.",
-            "room_type": "Choose Standard or VIP.",
+            "room_type": "Choose a valid room category.",
             "avatar": "Choose a static JPEG, PNG or WebP image up to 2 MB and 16 megapixels.",
             "minimum_tier": "Choose a valid membership tier.",
             "minimum_points": "Enter a whole point threshold from 0 to 1,000,000,000.",
@@ -720,7 +721,11 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.get("/api/machines")
     def machines():
-        return reply(g.services.machines.list_machines(g.actor.store_id))
+        rooms = {item["machine_id"]: item["room_type"] for item in g.services.management.list_machine_rooms(g.actor)}
+        return reply([
+            dict(serialize(machine), room_type=rooms.get(machine.machine_id, "STANDARD"))
+            for machine in g.services.machines.list_machines(g.actor.store_id)
+        ])
 
     @app.post("/api/machines")
     @manager_only
@@ -914,12 +919,28 @@ def create_app(config: dict | None = None) -> Flask:
                 field_errors={"date_to": "Chọn khoảng ngày hợp lệ, tối đa 10 năm"}
             )
         days = g.services.reports.daily_revenue(g.actor.store_id, start, end)
+        pos = g.services.menu.paid_revenue(g.actor, start, end)
+        by_day = {item.date: dict(date=item.date, invoice_count=item.invoice_count,
+                                  machine_revenue=item.revenue, menu_order_count=0,
+                                  menu_revenue=0, revenue=item.revenue) for item in days}
+        for item in pos["days"]:
+            day = by_day.setdefault(item["date"], dict(date=item["date"], invoice_count=0,
+                                    machine_revenue=0, menu_order_count=0,
+                                    menu_revenue=0, revenue=0))
+            day["menu_order_count"] = item["order_count"]
+            day["menu_revenue"] = item["revenue"]
+            day["revenue"] += item["revenue"]
+        combined = [by_day[day] for day in sorted(by_day)]
         return reply(
             dict(
-                days=days,
+                days=combined,
                 date_from=start,
                 date_to=end,
-                total_revenue=sum(item.revenue for item in days),
+                machine_revenue=sum(item.revenue for item in days),
+                menu_revenue=sum(item["revenue"] for item in pos["days"]),
+                menu_order_count=sum(item["order_count"] for item in pos["days"]),
+                top_menu_items=pos["top_items"],
+                total_revenue=sum(item["revenue"] for item in combined),
                 invoice_count=sum(item.invoice_count for item in days),
             )
         )
@@ -1004,6 +1025,10 @@ def create_app(config: dict | None = None) -> Flask:
     @app.post("/api/menu/orders/<int:order_id>/status")
     def menu_order_status(order_id):
         return reply(g.services.menu.finish_order(g.actor, order_id, body().get("status")))
+
+    @app.post("/api/menu/orders/<int:order_id>/payment")
+    def menu_order_payment(order_id):
+        return reply(g.services.menu.pay_order(g.actor, order_id, body().get("method")))
 
     # ----- Đợt 2: voucher và phần thưởng ------------------------------------------
     @app.get("/api/portal/vouchers")

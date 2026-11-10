@@ -54,7 +54,8 @@ class PortalRepositoryMixin:
             conn,
             "SELECT COALESCE(r.room_type,'STANDARD') AS room_type,COUNT(*) AS total,"
             "SUM(CASE WHEN m.status='AVAILABLE' AND NOT EXISTS(SELECT 1 FROM usage_sessions u "
-            "WHERE u.machine_id=m.id AND u.status='ACTIVE') THEN 1 ELSE 0 END) AS available "
+            "WHERE u.machine_id=m.id AND u.status='ACTIVE') THEN 1 ELSE 0 END) AS available,"
+            "MIN(m.hourly_rate) AS min_hourly_rate,MAX(m.hourly_rate) AS max_hourly_rate "
             "FROM machines m LEFT JOIN machine_room_types r ON r.machine_id=m.id "
             "WHERE m.store_id=%s AND m.is_active=1 GROUP BY COALESCE(r.room_type,'STANDARD')",
             (store_id,),
@@ -65,8 +66,14 @@ class PortalRepositoryMixin:
                 room_type=kind,
                 total=int(values.get(kind, {}).get("total", 0)),
                 available=int(values.get(kind, {}).get("available", 0)),
+                min_hourly_rate=(
+                    int(values[kind]["min_hourly_rate"]) if kind in values else None
+                ),
+                max_hourly_rate=(
+                    int(values[kind]["max_hourly_rate"]) if kind in values else None
+                ),
             )
-            for kind in ("STANDARD", "VIP")
+            for kind in ("STANDARD", "VIP", "COUPLE", "SUPER_VIP")
         ]
 
     def portal_usage_sessions(self, conn, principal, start, end):

@@ -7,8 +7,14 @@ Object.assign(copy,{
   p2ProfileSub:["Quản lý thông tin cá nhân và bảo mật tài khoản của bạn.","Manage your personal information and account security."],
   p2EveryFive:["Số máy cập nhật mỗi 5 phút","PC availability updates every 5 minutes"],
   p2NextUpdate:["Lần cập nhật tiếp theo","Next update"],p2SnapshotNote:["Số liệu tại thời điểm cập nhật, có thể thay đổi khi bạn đến cơ sở.","This is a snapshot. Availability may change before you arrive."],
-  STANDARD:["Phòng thường","Standard room"],VIP:["Phòng VIP","VIP room"],
-  p2Available:["máy còn trống","PCs available"],p2Capacity:["Tổng số máy trong phòng","Room capacity"],
+  STANDARD:["Máy thường","Standard PCs"],VIP:["Phòng VIP","VIP room"],
+  COUPLE:["Phòng Couple","Couple room"],SUPER_VIP:["Phòng Siêu VIP","Super VIP room"],
+  p2RoomDescSTANDARD:["Khu máy phổ thông.","Standard shared PC area."],
+  p2RoomDescVIP:["Ít người, nhiều tiện ích chung · khoảng 4–5 máy/phòng.","Quieter room with shared amenities · around 4–5 PCs per room."],
+  p2RoomDescCOUPLE:["Dành cho hai người · 2 máy/phòng.","For two people · 2 PCs per room."],
+  p2RoomDescSUPER_VIP:["Phòng riêng cho một người · 1 máy/phòng.","Private room for one person · 1 PC per room."],
+  p2Available:["máy còn trống","PCs available"],p2Capacity:["Tổng máy loại này","Total PCs in this category"],
+  p2HourlyPrice:["Giá mỗi máy / giờ","Price per PC / hour"],
   p2NoCapacity:["Cơ sở chưa có máy thuộc loại phòng này.","This location has no PCs in this room category yet."],
   p2NoStores:["Chưa có cơ sở đang hoạt động","No active locations"],
   p2RoomNote:["Chỉ tính máy đang phục vụ, không có phiên sử dụng và không bảo trì.","Includes active PCs that have no running session and are not under maintenance."],
@@ -29,6 +35,7 @@ Object.assign(copy,{
   p2ConfirmEdit:["Nhập mật khẩu hiện tại để xác nhận thay đổi thông tin.","Enter your current password to confirm profile changes."],
   p2SecurityNote:["Phiên hiện tại được giữ lại sau khi đổi mật khẩu; các phiên khác cần đăng nhập lại.","Your current session stays signed in after a password change; other sessions must sign in again."],
   p2RoomSettings:["Phân phòng máy","PC room categories"],p2RoomSettingsNote:["Chọn phòng cho từng máy. Thay đổi được lưu ngay; máy đang dùng phải kết thúc phiên trước.","Assign each PC to a room category. Changes save immediately; running sessions must finish first."],
+  p2RoomFilter:["Loại máy","PC category"],
   p2RoomSaved:["Đã cập nhật loại phòng","Room category updated"],p2ConfirmMismatch:["Xác nhận mật khẩu không khớp","Passwords do not match"],
   p2Stale:["Chưa lấy được cập nhật mới. Vui lòng kiểm tra thời điểm số liệu và thử làm mới.","The latest update could not be loaded. Check the snapshot time and try refreshing."],
 });
@@ -61,7 +68,7 @@ function p2Availability(){
   const d=portalUI.phase2?.store_id===portalUI.availabilityStore?portalUI.phase2:null,stores=portalUI.data.stores;
   if(!stores.length)return `<section class="pc-card">${pcEmpty("p2NoStores",null,"store")}</section>`;
   return `<section class="p2-availability-toolbar pc-card"><label class="pc-field"><span>${t("store")}</span><select id="p2-availability-store">${stores.map(s=>`<option value="${s.id}" ${s.id===portalUI.availabilityStore?"selected":""}>${esc(s.code+" · "+s.name)}</option>`).join("")}</select></label><div class="p2-update-note">${icon("clock")}<div><strong>${t("p2EveryFive")}</strong><p>${t("pcUpdated")}: ${dt(d?.as_of)}</p><p>${t("p2NextUpdate")}: ${dt(d?.next_update_at)}</p></div></div></section>
-    <div class="p2-rooms">${(d?.rooms||[]).map(room=>`<article class="pc-card p2-room ${room.room_type.toLowerCase()}"><header><span class="p2-room-icon">${icon(room.room_type==="VIP"?"shield":"monitor")}</span><span class="badge ${room.room_type==="VIP"?"amber":""}">${t(room.room_type)}</span></header><h2>${t(room.room_type)}</h2><div class="p2-room-number ${room.available?"cyan":"muted"}">${room.available}</div><p>${t("p2Available")}</p><div class="p2-room-capacity"><span>${t("p2Capacity")}</span><strong>${room.total}</strong></div><meter min="0" max="${Math.max(1,room.total)}" value="${room.available}" aria-label="${t(room.room_type)}: ${room.available} / ${room.total}"></meter>${!room.total?`<p class="pc-fine">${t("p2NoCapacity")}</p>`:""}</article>`).join("")}</div><section class="pc-card p2-availability-note">${icon("store")}<div><h3>${esc(d?.store_name||"")}</h3><p>${t("p2SnapshotNote")}</p><p>${t("p2RoomNote")}</p><strong>${t("p2NoBooking")}</strong></div></section>`;
+    <div class="p2-rooms">${(d?.rooms||[]).map(room=>`<article class="pc-card p2-room ${room.room_type.toLowerCase()}"><header><span class="p2-room-icon">${icon(room.room_type==="VIP"||room.room_type==="SUPER_VIP"?"shield":room.room_type==="COUPLE"?"users":"monitor")}</span><span class="badge ${room.room_type==="VIP"||room.room_type==="SUPER_VIP"?"amber":""}">${t(room.room_type)}</span></header><h2>${t(room.room_type)}</h2><p class="p2-room-description">${t("p2RoomDesc"+room.room_type)}</p><div class="p2-room-number ${room.available?"cyan":"muted"}">${room.available}</div><p>${t("p2Available")}</p><div class="p2-room-capacity"><span>${t("p2Capacity")}</span><strong>${room.total}</strong></div>${room.min_hourly_rate!=null?`<div class="p2-room-price"><span>${t("p2HourlyPrice")}</span><strong>${money(room.min_hourly_rate)}${room.max_hourly_rate!==room.min_hourly_rate?` – ${money(room.max_hourly_rate)}`:""}</strong></div>`:""}<meter min="0" max="${Math.max(1,room.total)}" value="${room.available}" aria-label="${t(room.room_type)}: ${room.available} / ${room.total}"></meter>${!room.total?`<p class="pc-fine">${t("p2NoCapacity")}</p>`:""}</article>`).join("")}</div><section class="pc-card p2-availability-note">${icon("store")}<div><h3>${esc(d?.store_name||"")}</h3><p>${t("p2SnapshotNote")}</p><p>${t("p2RoomNote")}</p><strong>${t("p2NoBooking")}</strong></div></section>`;
 }
 
 function p2Usage(){
@@ -145,9 +152,9 @@ async function showRoomManagement(){
     const rooms=await api("/machine-rooms");
     const dialog=document.createElement("dialog");dialog.className="p2-room-dialog";
     dialog.setAttribute("aria-labelledby","p2-room-title");
-    dialog.innerHTML=`<header><h2 id="p2-room-title">${t("p2RoomSettings")}</h2><button class="btn small" data-room-close aria-label="${t("close")}">×</button></header><p>${t("p2RoomSettingsNote")}</p><div class="p2-room-settings">${rooms.map(m=>`<label><span><strong>${esc(m.machine_code)}</strong> · ${esc(m.name)}<small>${t(statusKey(m.status))}</small></span><select data-room-machine="${m.machine_id}" data-original="${m.room_type}" ${m.status==="IN_USE"?"disabled":""}>${["STANDARD","VIP"].map(k=>`<option value="${k}" ${k===m.room_type?"selected":""}>${t(k)}</option>`).join("")}</select></label>`).join("")}</div>`;
+    dialog.innerHTML=`<header><h2 id="p2-room-title">${t("p2RoomSettings")}</h2><button class="btn small" data-room-close aria-label="${t("close")}">×</button></header><p>${t("p2RoomSettingsNote")}</p><div class="p2-room-settings">${rooms.map(m=>`<label><span><strong>${esc(m.machine_code)}</strong> · ${esc(m.name)}<small>${t(statusKey(m.status))}</small></span><select data-room-machine="${m.machine_id}" data-original="${m.room_type}" ${m.status==="IN_USE"?"disabled":""}>${["STANDARD","VIP","COUPLE","SUPER_VIP"].map(k=>`<option value="${k}" ${k===m.room_type?"selected":""}>${t(k)}</option>`).join("")}</select></label>`).join("")}</div>`;
     const feedback=document.createElement("p");feedback.className="p2-room-feedback";feedback.setAttribute("role","status");feedback.setAttribute("aria-live","polite");dialog.append(feedback);
-    document.body.append(dialog);dialog.addEventListener("close",()=>dialog.remove(),{once:true});
+    document.body.append(dialog);dialog.addEventListener("close",()=>{dialog.remove();loadPage(true);},{once:true});
     $("[data-room-close]",dialog).onclick=()=>dialog.close();
     dialog.addEventListener("change",async event=>{
       const select=event.target;if(!select.dataset.roomMachine)return;select.disabled=true;

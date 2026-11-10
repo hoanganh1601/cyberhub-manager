@@ -60,15 +60,17 @@ Các mode:
 
 Client không được gửi `role`, `store_ids`, `actor_id`, context hoặc dữ liệu tự dựng.
 
-## Chạy local
+## Chạy web với API key
 
 Giống 5A:
 
 ```powershell
-python -m scripts.run_rag_local --port 8059
+python -m scripts.run_rag_gemini --port 8059
 ```
 
-Sau khi đăng nhập, mở **Hỏi CyberHub** và chọn chế độ trong thanh công cụ.
+Thêm `GEMINI_API_KEY` vào `.env` trước khi chạy. Sau khi đăng nhập, mở **Hỏi CyberHub**
+và chọn chế độ trong thanh công cụ. Embedding, trả lời và kiểm chứng dùng Gemini API;
+snapshot Phân tích/Gợi ý đã lọc theo quyền cũng được gửi tới Google.
 
 Tài khoản demo:
 

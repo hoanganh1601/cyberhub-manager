@@ -24,4 +24,23 @@
 .dot4-ad footer {display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 
 .dot4-admin {display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:18px}
+.dot4-config-summary {gap:0;padding:16px 18px 12px}
+.dot4-config-summary > div {display:grid;grid-template-columns:minmax(96px,32%) minmax(0,1fr);gap:12px;align-items:start;
+  padding:11px 13px;background:var(--input);border:1px solid var(--line);border-bottom:0}
+.dot4-config-summary > div:first-child {border-radius:8px 8px 0 0}
+.dot4-config-summary > div:last-child {border-bottom:1px solid var(--line);border-radius:0 0 8px 8px}
+.dot4-config-summary > div > span:first-child {line-height:1.5}
+.dot4-config-summary > div > span:last-child {line-height:1.5;font-weight:600;overflow-wrap:break-word}
+.dot4-config-notes {display:grid;gap:9px;padding:0 18px 18px}
+.dot4-config-notes .notice {margin:0;line-height:1.6}
+.dot4-admin ~ .panel {flex-shrink:0}
+.dot4-admin ~ .panel + .panel {margin-top:18px}
+.dot4-empty {min-height:148px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:20px;text-align:center;color:var(--muted);font-size:12px;line-height:1.5}
+.dot4-empty > .icon {width:24px;height:24px;color:#54718f}
+.dot4-empty .btn .icon {width:15px;height:15px}
 @media (max-width: 1000px) {.dot4-admin {grid-template-columns:1fr}}
+@media (max-width: 580px) {
+  .dot4-config-summary > div {grid-template-columns:1fr;gap:4px}
+  .dot4-config-summary > div > span:last-child {text-align:left}
+}

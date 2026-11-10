@@ -126,13 +126,21 @@
 .p2-rooms {display:grid;grid-template-columns:1fr 1fr;gap:24px}
 .p2-room {padding:30px;background:radial-gradient(ellipse at 0 0,#103244,transparent 75%),var(--panel)}
 .p2-room.vip {background:radial-gradient(ellipse at 0 0,#302b24,transparent 75%),var(--panel);border-color:#4c3d29}
+.p2-room.couple {background:radial-gradient(ellipse at 0 0,#302236,transparent 75%),var(--panel);border-color:#543456}
+.p2-room.super_vip {background:radial-gradient(ellipse at 0 0,#3a2e16,transparent 75%),var(--panel);border-color:#665121}
 .p2-room-icon {display:flex;padding:13px;border-radius:14px;background:#133849;color:var(--cyan)}
 .p2-room.vip .p2-room-icon {color:var(--amber);background:#393021}
+.p2-room.couple .p2-room-icon {color:#e7a6e8;background:#38213f}
+.p2-room.super_vip .p2-room-icon {color:#ffda7a;background:#40331d}
 .p2-room-icon .icon {width:26px;height:26px}
 .p2-room-number {font-size:76px;font-weight:700;letter-spacing:-3px;line-height:1.3;margin-top:16px;font-variant-numeric:tabular-nums}
 .p2-room>p {font-size:13px;color:var(--muted)}
+.p2-room .p2-room-description {font-size:12px;line-height:1.5;min-height:36px;margin-top:8px}
 .p2-room-capacity {display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:22px;margin-top:28px;font-size:13px}
 .p2-room-capacity span {color:var(--muted)}
+.p2-room-price {display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:13px}
+.p2-room-price span {color:var(--muted)}
+.p2-room-price strong {font-variant-numeric:tabular-nums}
 .p2-rooms meter,.p2-ranks meter {display:block;width:100%;height:6px;margin-top:14px;border:0;appearance:none;background:#263347;border-radius:6px;overflow:hidden}
 .p2-rooms meter::-webkit-meter-bar,.p2-ranks meter::-webkit-meter-bar {background:#263347;border:0}
 .p2-rooms meter::-webkit-meter-optimum-value,.p2-ranks meter::-webkit-meter-optimum-value {background:var(--cyan)}

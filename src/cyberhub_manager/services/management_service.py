@@ -92,10 +92,10 @@ class ManagementService:
         if (
             type(machine_id) is not int
             or machine_id <= 0
-            or room_type not in ("STANDARD", "VIP")
+            or room_type not in ("STANDARD", "VIP", "COUPLE", "SUPER_VIP")
         ):
             raise ValidationError(
-                field_errors={"room_type": "Chọn phòng thường hoặc VIP"}
+                field_errors={"room_type": "Chọn loại phòng hợp lệ"}
             )
         with self._errors(), self._transaction() as conn:
             actor = self._actor(conn, actor, Permission.MANAGE_MACHINES)

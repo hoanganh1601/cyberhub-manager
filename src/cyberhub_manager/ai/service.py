@@ -20,7 +20,7 @@ from .errors import (
     ContextBudgetError, InsufficientContextError, InvalidContextError,
     InvalidProviderResponseError, InvalidQuestionError, KnowledgeAccessError,
     KnowledgeIndexUnavailableError, ProviderBusyError, ProviderError,
-    ProviderTimeoutError, ProviderUnavailableError,
+    ProviderAuthenticationError, ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError,
 )
 from .models import AIAccessContext, AssistantAnswer, Citation, DynamicAssistantSource
 from .prompts import DynamicPromptBuilder, RAGPromptBuilder
@@ -53,6 +53,8 @@ _FAILURES = (
     (ProviderTimeoutError, "PROVIDER_TIMEOUT"),
     (TimeoutError, "PROVIDER_TIMEOUT"),
     (ProviderBusyError, "PROVIDER_BUSY"),
+    (ProviderRateLimitError, "PROVIDER_RATE_LIMITED"),
+    (ProviderAuthenticationError, "PROVIDER_AUTH_ERROR"),
     (InvalidProviderResponseError, "INVALID_RESPONSE"),
     (ProviderUnavailableError, "PROVIDER_UNAVAILABLE"),
     (KnowledgeIndexUnavailableError, "INDEX_UNAVAILABLE"),

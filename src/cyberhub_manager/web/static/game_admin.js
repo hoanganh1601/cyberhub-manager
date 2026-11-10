@@ -52,7 +52,7 @@ function gameAdminPage() {
     <div class="metrics">${metric("dot3Sessions", s.sessions, "cyan", "wheel")}${metric("dot3Players", s.players, "", "users")}${metric("dot3Awarded", s.coins_awarded, "green", "coin")}${metric("dot3Spent", s.coins_redeemed, "", "coin")}${metric("dot3VoucherCount", s.vouchers, "", "ticket")}</div>
     <div class="dot3-admin">
       <section class="panel"><header class="panel-heading"><h3>${icon("wheel")} ${t("dot3Config")} · ${esc(game.name)}</h3>${badge(game.is_active ? "ACTIVE" : "INACTIVE")}</header>
-        <div class="key-values">${kv("dot3DailyLimit", game.daily_limit)}${kv("dot3Interval", game.min_interval_seconds)}${kv("dot3Expected", game.expected_coins)}</div>
+        <div class="key-values dot3-config-summary">${kv("dot3DailyLimit", game.daily_limit)}${kv("dot3Interval", game.min_interval_seconds)}${kv("dot3Expected", game.expected_coins)}</div>
         ${table(["dot3Prize", "dot3Coins", "dot3Weight", "dot3Chance"], prizes)}
         <p class="notice info">${t("dot3AutoLockNote").replace("{n}", d.suspicious_limit)}</p></section>
       <section class="panel"><header class="panel-heading"><h3>${icon("shield")} ${t("dot3LockedWallets")}</h3><span class="badge red">${d.locked.length}</span></header>${locked}</section>

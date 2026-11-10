@@ -13,7 +13,7 @@ Quy tắc:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from cyberhub_manager.domain.exceptions import (
@@ -33,6 +33,7 @@ from cyberhub_manager.domain.menu import (
     MenuItem,
     MenuOrderLine,
     MenuOrderStatus,
+    MenuPaymentMethod,
     MenuPage,
 )
 from cyberhub_manager.domain.p1 import CustomerSession, Permission, can
@@ -415,14 +416,26 @@ class MenuService:
             current = self._actor(conn, actor, Permission.OPERATE)
             return self._repo.list_orders(conn, current.store_id, status)
 
+    def paid_revenue(self, actor, date_from, date_to):
+        """Only settled orders count; the caller's store defines the scope."""
+        from cyberhub_manager.services.report_service import local_dates_to_utc_range
+
+        if (type(date_from) is not date or type(date_to) is not date
+                or date_from > date_to or (date_to - date_from).days > 3660):
+            raise ValidationError(field_errors={"date_to": "Chọn khoảng ngày hợp lệ, tối đa 10 năm"})
+        start, before = local_dates_to_utc_range(date_from, date_to)
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_MENU)
+            return self._repo.paid_order_report(conn, current.store_id, start, before)
+
     @retry_on_transient
     def finish_order(self, actor, order_id, status):
         try:
             status = MenuOrderStatus(status)
         except ValueError:
             status = None
-        if status not in (MenuOrderStatus.SERVED, MenuOrderStatus.CANCELLED):
-            raise ValidationError(field_errors={"status": "Chọn Đã phục vụ hoặc Hủy"})
+        if status not in (MenuOrderStatus.PREPARING, MenuOrderStatus.SERVED, MenuOrderStatus.CANCELLED):
+            raise ValidationError(field_errors={"status": "Chọn Đang chuẩn bị, Đã phục vụ hoặc Hủy"})
         with self._errors(), self._transaction() as conn:
             current = self._actor(conn, actor, Permission.OPERATE)
             order = self._repo.get_order(conn, order_id) if _positive_id(order_id) else None
@@ -432,4 +445,20 @@ class MenuService:
             if not self._repo.finish_order(conn, order.id, status, current.employee_id):
                 raise ConflictError(ORDER_ALREADY_HANDLED)
             self._p1.audit(conn, current, f"MENU_ORDER_{status.value}", order.id)
+            return self._repo.get_order(conn, order.id)
+
+    @retry_on_transient
+    def pay_order(self, actor, order_id, method):
+        try:
+            method = MenuPaymentMethod(method)
+        except ValueError:
+            raise ValidationError(field_errors={"method": "Chọn tiền mặt hoặc chuyển khoản"}) from None
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.OPERATE)
+            order = self._repo.get_order(conn, order_id, lock=True) if _positive_id(order_id) else None
+            if order is None or order.store_id != current.store_id:
+                raise NotFoundError(ORDER_NOT_FOUND)
+            if not self._repo.pay_order(conn, order.id, method, current.employee_id, self._clock()):
+                raise ConflictError("Chỉ thanh toán đơn đã phục vụ và chưa thanh toán")
+            self._p1.audit(conn, current, f"MENU_ORDER_PAID_{method.value}", order.id)
             return self._repo.get_order(conn, order.id)

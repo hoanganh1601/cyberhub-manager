@@ -305,6 +305,9 @@ giới hạn triển khai và việc chưa làm:
 
 ### Bước 12C–12D — Model local và UI có đăng nhập
 
+> Mốc lịch sử ngày 09/11/2026. Runtime hiện tại đã chuyển sang Gemini API vào 10/11/2026;
+> dùng [runbook Gemini](GEMINI_API_RUNBOOK.md) để chạy. Mô tả/số đo provider cũ bên dưới được giữ để đối chiếu.
+
 Đã bổ sung adapter Ollama loopback: `qwen3-embedding:0.6b` và `qwen3:8b`, ngưỡng
 cosine 0,53 trên tập development. Context mở rộng theo tài liệu cha đã được phép
 để giữ điều kiện/ngoại lệ; không mở rộng sang nguồn sai audience. Tài liệu thay

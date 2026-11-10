@@ -793,6 +793,13 @@ input[aria-invalid="true"] {
   font-size: 11px;
   color: var(--muted);
 }
+.machine-room-type {align-self:flex-start;padding:4px 8px;border-radius:5px;border:1px solid var(--line);
+  color:var(--muted);font-size:10px;font-weight:700;line-height:1.2}
+.machine-room-type.vip {color:#f4c878;border-color:#624921;background:#302816}
+.machine-room-type.couple {color:#e7a6e8;border-color:#543456;background:#302236}
+.machine-room-type.super_vip {color:#ffda7a;border-color:#665121;background:#3a2e16}
+.machine-room-filter {display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;white-space:nowrap}
+.machine-room-filter select {min-width:150px;max-width:200px;height:36px;padding:6px 9px}
 .machine-body {
   display: grid;
   gap: 10px;

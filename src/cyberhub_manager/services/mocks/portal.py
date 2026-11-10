@@ -44,7 +44,7 @@ class MemoryPortalRepositoryMixin:
             if m.store_id == store_id and m.is_active
         ]
         result = []
-        for kind in ("STANDARD", "VIP"):
+        for kind in ("STANDARD", "VIP", "COUPLE", "SUPER_VIP"):
             group = [
                 m for m in machines if self.room_types.get(m.id, "STANDARD") == kind
             ]
@@ -57,6 +57,8 @@ class MemoryPortalRepositoryMixin:
                         and self.data.active_session_for_machine(m.id) is None
                         for m in group
                     ),
+                    min_hourly_rate=min((m.hourly_rate for m in group), default=None),
+                    max_hourly_rate=max((m.hourly_rate for m in group), default=None),
                 )
             )
         return result

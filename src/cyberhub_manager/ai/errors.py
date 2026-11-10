@@ -45,6 +45,14 @@ class ProviderBusyError(ProviderUnavailableError):
     """The bounded provider runner has no available worker slot."""
 
 
+class ProviderRateLimitError(ProviderUnavailableError):
+    """An external provider refused the request because its quota was exhausted."""
+
+
+class ProviderAuthenticationError(ProviderUnavailableError):
+    """The backend API credential is missing permission or no longer valid."""
+
+
 class InvalidProviderResponseError(ProviderError):
     """Provider output violates the shared vector/text contract."""
 

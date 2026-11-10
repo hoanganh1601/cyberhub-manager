@@ -4,15 +4,21 @@ title: Ưu đãi nạp tiền dành cho khách hàng
 audience:
   - CUSTOMER
 status: APPROVED
-version: 1
+version: 2
 language: vi
-updated_at: 2026-11-09
+updated_at: 2026-11-10
 tags:
   - promotion
   - top-up
 ---
 
 # Ưu đãi nạp tiền dành cho khách hàng
+
+## Phương thức nạp tiền
+
+CyberHub hỗ trợ nạp tiền bằng tiền mặt (`CASH`) hoặc chuyển khoản (`TRANSFER`). Nhân viên xác nhận
+khoản nạp tại quầy sau khi đã nhận đủ tiền; khách hàng không tự thực hiện giao dịch qua trợ lý AI.
+Xem trước quyền lợi chỉ là phép tính dự kiến, không làm tăng số dư và không xác nhận đã nhận tiền.
 
 ## Điều kiện áp dụng
 

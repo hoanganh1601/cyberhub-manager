@@ -75,15 +75,22 @@ def main():
                     )
 
             tab("availability")
-            expect(page.locator(".p2-room.standard .p2-room-number")).to_have_text("12")
-            expect(page.locator(".p2-room.vip .p2-room-number")).to_have_text("5")
+            expect(page.locator(".p2-room.standard .p2-room-number")).to_have_text("5")
+            expect(page.locator(".p2-room.vip .p2-room-number")).to_have_text("8")
+            for category, amount in (
+                ("standard", "10.000 VND"),
+                ("vip", "20.000 VND"),
+                ("couple", "25.000 VND"),
+                ("super_vip", "35.000 VND"),
+            ):
+                expect(page.locator(f".p2-room.{category} .p2-room-price")).to_contain_text(amount)
             assert len(availability_requests) == 1
             screenshot("availability-desktop")
             page.clock.fast_forward(299000)
             assert len(availability_requests) == 1, "Must not poll before five minutes"
             with page.expect_response(lambda r: "/api/portal/availability?" in r.url):
                 page.clock.fast_forward(1000)
-            expect(page.locator(".p2-room.vip .p2-room-number")).to_have_text("5")
+            expect(page.locator(".p2-room.vip .p2-room-number")).to_have_text("8")
             assert len(availability_requests) == 2
             tab("usage")
             expect(page.locator(".p2-usage-chart")).to_be_visible()
@@ -96,6 +103,7 @@ def main():
             page.locator("#p2-availability-store").select_option("2")
             expect(page.locator(".p2-room.standard .p2-room-number")).to_have_text("0")
             expect(page.locator(".p2-room.vip .p2-room-number")).to_have_text("0")
+            assert page.locator(".p2-room.vip .p2-room-price").count() == 0
             tab("profile")
             expect(page.locator(".p2-profile-identity h2")).to_have_text(
                 "Nguyễn Văn An"
@@ -168,7 +176,7 @@ def main():
             context.close()
             browser.close()
         print(
-            "PASS: five-minute polling/cache, Standard/VIP counts, store switch, usage, profile, password revocation, VI/EN, mobile and manager room settings."
+            "PASS: five-minute polling/cache, room prices and counts, store switch, usage, profile, password revocation, VI/EN, mobile and manager room settings."
         )
     finally:
         server.shutdown()

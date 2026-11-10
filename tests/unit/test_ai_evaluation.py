@@ -52,7 +52,7 @@ def test_lexical_invalid_query_rejected(value):
 
 def test_committed_evaluation_has_all_roles_languages_and_refusal_cases():
     cases = load_questions(QUESTIONS)
-    assert len(cases) == 27
+    assert len(cases) == 29
     assert {case.role for case in cases} == {"STAFF", "MANAGER", "ADMIN", "CUSTOMER"}
     assert {case.language for case in cases} == {"vi", "en"}
     assert any(case.expected_source is None for case in cases)
@@ -61,7 +61,7 @@ def test_committed_evaluation_has_all_roles_languages_and_refusal_cases():
 
 def test_baseline_exposes_threshold_misses_and_does_not_claim_llm_accuracy():
     report = evaluate(load_questions(QUESTIONS))
-    assert report["document_count"] == 12 and report["chunk_count"] == 62
+    assert report["document_count"] == 12 and report["chunk_count"] == 64
     assert report["semantic_llm_evaluated"] is False
     assert report["permission_leaks"] == 0
     assert report["citation_coverage_of_answered"] == 1.0
@@ -70,6 +70,15 @@ def test_baseline_exposes_threshold_misses_and_does_not_claim_llm_accuracy():
     assert not english["grounded"]
     assert report["correct_refusal_rate"] < 1.0  # Honest unresolved negative case.
     assert any(case["expected_source"] is None and not case["correct_refusal"] for case in report["cases"])
+
+
+def test_customer_session_suggestion_retrieves_public_minimum_balance_evidence():
+    case = next(case for case in load_questions(QUESTIONS) if case.case_id == "customer-minimum-session-balance")
+    result, = evaluate([case])["cases"]
+    assert result["top3_sources"][0] == "shared/faq.md"
+    assert result["evidence_hit_at_3"] is True
+    assert result["keyword_hits"] == ["30 phút"]
+    assert result["permission_leaks"] == 0
 
 
 def test_expected_labels_cannot_influence_ranking_or_provider_responses():
