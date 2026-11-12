@@ -261,6 +261,23 @@ class MemoryMenuRepository:
         order = self.orders.get(order_id)
         return self._with_discount(order) if order else None
 
+    def record_order_notification(self, conn, order, status, created_at):
+        key = f"menu-order:{order.id}:{status.value}"
+        if any(event["notification_key"] == key for event in self.p1.order_notifications):
+            return
+        self.p1.order_notifications.append(
+            dict(
+                id=len(self.p1.order_notifications) + 1,
+                notification_key=key,
+                account_id=order.account_id,
+                store_id=order.store_id,
+                kind=f"MENU_ORDER_{status.value}",
+                code=order.code,
+                amount=max(0, order.total_amount - order.discount_amount),
+                created_at=created_at,
+            )
+        )
+
     def _with_discount(self, order):
         discount = 0
         if self.voucher_repo is not None:
@@ -269,7 +286,7 @@ class MemoryMenuRepository:
                            if v["used_order_id"] == order.id and v["status"] == "USED")
         return replace(order, discount_amount=min(discount, order.total_amount))
 
-    def finish_order(self, conn, order_id, status, employee_id):
+    def finish_order(self, conn, order_id, status, employee_id, *, reason=None):
         order = self.orders.get(order_id)
         allowed = {
             MenuOrderStatus.PREPARING: (MenuOrderStatus.NEW,),
@@ -278,7 +295,9 @@ class MemoryMenuRepository:
         }
         if order is None or order.status not in allowed.get(status, ()):
             return False
-        self.orders[order_id] = replace(order, status=status, handled_by=employee_id)
+        self.orders[order_id] = replace(
+            order, status=status, handled_by=employee_id, cancel_reason=reason,
+        )
         return True
 
     def pay_order(self, conn, order_id, method, employee_id, paid_at):

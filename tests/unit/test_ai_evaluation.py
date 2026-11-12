@@ -61,7 +61,7 @@ def test_committed_evaluation_has_all_roles_languages_and_refusal_cases():
 
 def test_baseline_exposes_threshold_misses_and_does_not_claim_llm_accuracy():
     report = evaluate(load_questions(QUESTIONS))
-    assert report["document_count"] == 12 and report["chunk_count"] == 64
+    assert report["document_count"] == 13 and report["chunk_count"] == 66
     assert report["semantic_llm_evaluated"] is False
     assert report["permission_leaks"] == 0
     assert report["citation_coverage_of_answered"] == 1.0

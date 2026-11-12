@@ -1,10 +1,15 @@
 # POS đồ ăn và đồ uống
 
+Quy tắc tồn kho và quyền: [Chốt nghiệp vụ tồn kho và quyền POS](POS_INVENTORY_LIFECYCLE.md).
+Với MySQL đã chạy migration `013_inventory.sql`, món bật quản lý tồn sẽ giữ nguyên liệu
+khi tạo đơn, xuất dùng lúc bắt đầu chuẩn bị và không trừ tiếp khi thu tiền. Món chưa
+bật quản lý tồn vẫn dùng cờ còn/hết thủ công; demo bộ nhớ không có sổ kho.
+
 POS menu dùng chung danh mục món hiện có và lưu giá tại thời điểm khách đặt. Quy trình đơn:
 
 `NEW` → `PREPARING` → `SERVED` → `PAID`
 
-Nhân viên có thể hủy đơn ở `NEW` hoặc `PREPARING`. Đơn đã `SERVED` chỉ chuyển sang `PAID`; đơn đã thanh toán hoặc đã hủy là trạng thái kết thúc.
+Nhân viên có thể hủy đơn ở `NEW` hoặc `PREPARING`. Hủy đơn đã chuẩn bị phải nhập lý do; nguyên liệu đã xuất được ghi hao hụt, không tự hoàn kho. Đơn đã `SERVED` chỉ chuyển sang `PAID`; đơn đã thanh toán hoặc đã hủy là trạng thái kết thúc.
 
 ## Thao tác trên web
 
@@ -17,7 +22,7 @@ Tiền món ăn được thu tại quầy và không tự trừ ví giờ chơi.
 
 ## Cập nhật MySQL
 
-Migration `sql/012_menu_pos.sql` thêm trạng thái POS và thông tin thanh toán. Với database test, chạy:
+Migration `sql/012_menu_pos.sql` thêm trạng thái POS; `sql/013_inventory.sql` thêm kho và công thức; `sql/014_inventory_counting.sql` thêm phiếu kiểm kê, duyệt chênh lệch và xuất kho thủ công. Với database test, chạy:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/prepare_test_db.py

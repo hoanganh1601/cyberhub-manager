@@ -113,6 +113,7 @@ class MenuOrder:
     paid_at: datetime | None = None
     paid_by: int | None = None
     discount_amount: int = 0
+    cancel_reason: str | None = None
 
 
 def order_total(lines: tuple[MenuOrderLine, ...] | list[MenuOrderLine]) -> int:

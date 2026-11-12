@@ -28,7 +28,7 @@ _ITEM_SELECT = """
 _ORDER_SELECT = """
     SELECT o.id, o.code, o.store_id, o.account_id, c.full_name AS customer_name,
            m.code AS machine_code, o.status, o.total_amount, o.note, o.created_at, o.handled_by,
-           o.payment_method, o.paid_at, o.paid_by
+           o.payment_method, o.paid_at, o.paid_by, o.cancel_reason
     FROM menu_orders AS o
     JOIN accounts AS a ON a.id = o.account_id
     JOIN customers AS c ON c.id = a.customer_id
@@ -38,6 +38,12 @@ _ORDER_SELECT = """
 
 def _utc(value):
     return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
+
+
+def _db_time(value):
+    if value is None or value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def _category(row: dict) -> MenuCategory:
@@ -270,6 +276,7 @@ class MenuRepository:
                 paid_at=_utc(h["paid_at"]),
                 paid_by=None if h["paid_by"] is None else int(h["paid_by"]),
                 discount_amount=min(int(h["total_amount"]), discounts.get(int(h["id"]), 0)),
+                cancel_reason=h["cancel_reason"],
             )
             for h in heads
         ]
@@ -292,7 +299,32 @@ class MenuRepository:
         result = self._orders(conn, " WHERE o.id = %s" + (" FOR UPDATE" if lock else ""), (order_id,))
         return result[0] if result else None
 
-    def finish_order(self, conn: Any, order_id: int, status: MenuOrderStatus, employee_id: int) -> bool:
+    def record_order_notification(
+        self,
+        conn: Any,
+        order: MenuOrder,
+        status: MenuOrderStatus,
+        created_at,
+    ) -> None:
+        """Append one idempotent customer event in the order transaction."""
+        execute(
+            conn,
+            "INSERT IGNORE INTO customer_notification_events "
+            "(notification_key,account_id,store_id,kind,code,amount,created_at) "
+            "VALUES(%s,%s,%s,%s,%s,%s,%s)",
+            (
+                f"menu-order:{order.id}:{status.value}",
+                order.account_id,
+                order.store_id,
+                f"MENU_ORDER_{status.value}",
+                order.code,
+                max(0, order.total_amount - order.discount_amount),
+                _db_time(created_at),
+            ),
+        )
+
+    def finish_order(self, conn: Any, order_id: int, status: MenuOrderStatus, employee_id: int,
+                     *, reason: str | None = None) -> bool:
         """Đổi trạng thái chuẩn bị/phục vụ/hủy theo điều kiện hiện tại."""
         allowed = {
             MenuOrderStatus.PREPARING: (MenuOrderStatus.NEW,),
@@ -304,8 +336,9 @@ class MenuRepository:
         return bool(
             execute(
                 conn,
-                f"UPDATE menu_orders SET status = %s, handled_by = %s WHERE id = %s AND status IN ({placeholders})",
-                (status.value, employee_id, order_id, *(s.value for s in previous)),
+                f"UPDATE menu_orders SET status = %s, handled_by = %s, cancel_reason = %s"
+                f" WHERE id = %s AND status IN ({placeholders})",
+                (status.value, employee_id, reason, order_id, *(s.value for s in previous)),
             )
         )
 

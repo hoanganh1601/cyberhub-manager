@@ -77,6 +77,11 @@ Object.assign(copy, {
   pcVoided: ["Hóa đơn đã hủy", "Invoice voided"],
   pcVoidedNote: ["Không được tính vào chi tiêu đã thanh toán.", "Excluded from paid spending."],
   pcOfferNew: ["Ưu đãi đang áp dụng", "An offer for your next visit"],
+  pcOrderNew: ["Đơn món ăn đã được tiếp nhận", "Food order received"],
+  pcOrderPreparing: ["Đơn món ăn đang được chuẩn bị", "Food order is being prepared"],
+  pcOrderServed: ["Đơn món ăn đã được phục vụ", "Food order served"],
+  pcOrderPaid: ["Đơn món ăn đã thanh toán", "Food order paid"],
+  pcOrderCancelled: ["Đơn món ăn đã bị hủy", "Food order cancelled"],
   pcSessionLow: ["Phiên chơi sắp hết số dư", "Your session balance is running low"],
   pcSessionDepleted: ["Phiên chơi đã hết số dư", "Your session balance is depleted"],
   pcWalletLow: ["Số dư ví đang thấp", "Your wallet balance is low"],
@@ -219,7 +224,7 @@ function pcHistory() {
 }
 
 function pcNotice(item,compact=false) {
-  const title={TOP_UP:"pcTopupDone",PROMOTION:"pcBonusDone",PAID:"pcPaid",VOID:"pcVoided",OFFER:"pcOfferNew",SESSION_LOW:"pcSessionLow",SESSION_DEPLETED:"pcSessionDepleted",WALLET_LOW:"pcWalletLow"}[item.kind];
+  const title={TOP_UP:"pcTopupDone",PROMOTION:"pcBonusDone",PAID:"pcPaid",VOID:"pcVoided",OFFER:"pcOfferNew",SESSION_LOW:"pcSessionLow",SESSION_DEPLETED:"pcSessionDepleted",WALLET_LOW:"pcWalletLow",MENU_ORDER_NEW:"pcOrderNew",MENU_ORDER_PREPARING:"pcOrderPreparing",MENU_ORDER_SERVED:"pcOrderServed",MENU_ORDER_PAID:"pcOrderPaid",MENU_ORDER_CANCELLED:"pcOrderCancelled"}[item.kind];
   let detail=`${esc(item.code)} · ${money(item.amount)}`;
   if(item.kind==="OFFER")detail=`${esc(item.name)} · +${item.bonus_percent}% · ${t("pcTier")} ${money(item.amount)} · ${esc(item.store_name||t("global"))} · ${t("pcUntil")} ${dt(item.ends_at)}`;
   if(["SESSION_LOW","SESSION_DEPLETED"].includes(item.kind))detail=`${esc(item.code)} · ${t("pcRemaining")}: ${item.remaining_minutes} ${t("minute")} · ${t("projected")}: ${money(item.amount)}`;

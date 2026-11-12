@@ -51,15 +51,45 @@ Object.assign(copy, {
   dot1FieldIMAGE: ["Ảnh", "Image"],
   dot1ConfirmCancel: ["Hủy yêu cầu gọi món này?", "Cancel this order?"],
   dot1SortTip: ["Thứ tự cùng hàng trăm nằm chung một nhóm nhỏ trên bảng menu (vd. 0–99 là nhóm đầu, 100–199 có vạch ngăn bên trên).", "Items with the same hundreds in display order share a sub-group on the menu board (e.g. 0–99, then 100–199 below a divider)."],
+  invTitle: ["Kho nguyên liệu", "Ingredient stock"],
+  invAdd: ["Thêm nguyên liệu", "Add ingredient"],
+  invReceive: ["Nhập kho", "Receive stock"],
+  invRecipe: ["Công thức", "Recipe"],
+  invUnit: ["Đơn vị", "Unit"],
+  invOnHand: ["Tồn thực", "On hand"],
+  invReserved: ["Đã giữ", "Reserved"],
+  invAvailable: ["Khả dụng", "Available"],
+  invReorder: ["Ngưỡng cảnh báo", "Reorder point"],
+  invQuantity: ["Số lượng", "Quantity"],
+  invReference: ["Mã chứng từ", "Reference"],
+  invNote: ["Ghi chú", "Note"],
+  invTrack: ["Quản lý tồn theo công thức", "Track stock by recipe"],
+  invEmpty: ["Chưa có nguyên liệu", "No ingredients yet"],
+  invLow: ["Sắp hết", "Low stock"],
+  invCancelReason: ["Lý do hủy sau khi chuẩn bị", "Reason for cancelling after preparation"],
+  invIssue: ["Xuất kho", "Issue stock"],
+  invReturn: ["Trả kho", "Return stock"],
+  invCount: ["Kiểm kê", "Count stock"],
+  invCounted: ["Số đếm thực tế", "Counted on hand"],
+  invCountRequests: ["Phiếu kiểm kê chờ duyệt", "Pending stock counts"],
+  invApprove: ["Duyệt", "Approve"],
+  invReject: ["Từ chối", "Reject"],
+  invReason: ["Lý do", "Reason"],
+  invCountStale: ["Tồn đã thay đổi thì phải kiểm kê lại trước khi duyệt.", "Recount if stock has changed before approval."],
+  invConfirmApprove: ["Duyệt chênh lệch kiểm kê và cập nhật tồn kho?", "Approve the count difference and update stock?"],
+  invConfirmReject: ["Từ chối phiếu kiểm kê này?", "Reject this stock count?"],
 });
 
 let dot1AdminTimer = null;
 
 async function loadMenuAdmin(seq) {
-  const [menu, orders] = await Promise.all([api("/menu"), api("/menu/orders?status=ALL")]);
+  const [menu, orders, inventory] = await Promise.all([
+    api("/menu"), api("/menu/orders?status=ALL"), api("/inventory"),
+  ]);
   if (seq !== state.seq || state.page !== "menu") return false;
   state.menuAdmin = menu;
   state.menuOrders = orders;
+  state.menuInventory = inventory;
   return true;
 }
 
@@ -76,15 +106,44 @@ function menuAdminPage() {
         <div class="dot1-order-filters">${["ALL","NEW","PREPARING","SERVED","PAID","CANCELLED"].map(s => `<button class="filter-btn ${filter === s ? "active" : ""}" data-menuadmin="order-filter" data-status="${s}">${t(s === "ALL" ? "dot1AllOrders" : "dot1Status" + s)} <span>${s === "ALL" ? orders.length : orders.filter(o => o.status === s).length}</span></button>`).join("")}</div>
         ${visible.length ? visible.map(dot1OrderCard).join("") : empty("dot1NoOrders")}</section>
       <section class="panel"><header class="panel-heading"><h3>${icon("utensils")} ${t("dot1Catalog")}</h3></header>${dot1CatalogTable(d)}</section>
+      ${state.menuInventory?.enabled ? dot1InventoryPanel(state.menuInventory) : ""}
     </div>`;
 }
 
+function dot1InventoryPanel(inventory) {
+  const actions = inventory.can_configure
+    ? `<button class="btn primary small" data-menuadmin="ingredient">${t("invAdd")}</button>` : "";
+  const rows = inventory.ingredients.map((i) => `<tr>
+    <td><strong>${esc(i.name)}</strong><br><small>${esc(i.code)} · ${esc(i.unit)}</small></td>
+    <td>${i.on_hand}</td><td>${i.reserved}</td>
+    <td>${i.available}${i.available <= i.reorder_point ? ` <span class="badge amber">${t("invLow")}</span>` : ""}</td>
+    <td>${i.reorder_point}</td>
+    <td><div class="actions">
+      ${inventory.can_receive ? `<button class="btn small" data-menuadmin="receive" data-id="${i.id}">${t("invReceive")}</button>` : ""}
+      ${inventory.can_issue ? `<button class="btn small" data-menuadmin="issue" data-id="${i.id}">${t("invIssue")}</button><button class="btn small" data-menuadmin="return" data-id="${i.id}">${t("invReturn")}</button>` : ""}
+      ${inventory.can_count ? `<button class="btn small" data-menuadmin="count" data-id="${i.id}">${t("invCount")}</button>` : ""}
+    </div></td>
+  </tr>`).join("");
+  const recipeButtons = inventory.can_configure
+    ? state.menuAdmin.items.map((item) => `<button class="btn small" data-menuadmin="recipe" data-id="${item.id}">${t("invRecipe")}: ${esc(item.name)}</button>`).join(" ") : "";
+  const byId = new Map(inventory.ingredients.map((i) => [i.id, i]));
+  const pending = (inventory.counts || []).filter((c) => c.status === "PENDING");
+  const countRows = pending.map((c) => `<tr><td>${esc(byId.get(c.ingredient_id)?.name || c.ingredient_id)}</td>
+    <td>${c.expected_on_hand} → ${c.counted_on_hand}</td><td>${esc(c.reason)}</td>
+    <td>${inventory.can_approve && c.proposed_by !== inventory.actor_id ? `<div class="actions"><button class="btn small" data-menuadmin="approve-count" data-id="${c.id}">${t("invApprove")}</button><button class="btn small" data-menuadmin="reject-count" data-id="${c.id}">${t("invReject")}</button></div>` : ""}</td></tr>`).join("");
+  return `<section class="panel"><header class="panel-heading"><h3>${t("invTitle")}</h3>${actions}</header>
+    ${rows ? table(["name", "invOnHand", "invReserved", "invAvailable", "invReorder", ""], rows) : empty("invEmpty")}
+    ${countRows ? `<h4>${t("invCountRequests")}</h4>${table(["name", "invCounted", "invReason", ""], countRows)}<p class="dot1-tip">${t("invCountStale")}</p>` : ""}
+    <div class="actions">${recipeButtons}</div></section>`;
+}
+
 function dot1OrderCard(order) {
-  const action = order.status === "NEW"
+  const capabilities = state.menuAdmin || {};
+  const action = order.status === "NEW" && capabilities.can_prepare
     ? `<button class="btn small primary" data-menuadmin="prepare-order" data-id="${order.id}">${t("dot1StartPreparing")}</button>`
-    : order.status === "PREPARING"
+    : order.status === "PREPARING" && capabilities.can_serve
       ? `<button class="btn small primary" data-menuadmin="serve-order" data-id="${order.id}">${t("dot1Served")}</button>`
-      : order.status === "SERVED"
+      : order.status === "SERVED" && capabilities.can_collect_payment
         ? `<button class="btn small primary" data-menuadmin="pay-order" data-id="${order.id}">${t("dot1Pay")}</button>`
         : "";
   const status = `<span class="dot1-status ${order.status}">${t("dot1Status" + order.status)}</span>`;
@@ -93,7 +152,7 @@ function dot1OrderCard(order) {
       <ul>${order.lines.map((l) => `<li>${l.quantity} × ${esc(l.item_name)} — ${money(l.unit_price * l.quantity)}</li>`).join("")}</ul>
       ${order.note ? `<p class="note">“${esc(order.note)}”</p>` : ""}
       <div class="actions"><span class="spacer">${t("dot1Total")}: <b>${money(order.total_amount)}</b>${order.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}<br>${t("dot1AmountDue")}: <b>${money(order.total_amount - order.discount_amount)}</b>` : ""}</span>
-        ${["NEW","PREPARING"].includes(order.status) ? `<button class="btn small" data-menuadmin="cancel-order" data-id="${order.id}">${t("dot1Cancel")}</button>` : ""}
+        ${capabilities.can_cancel && ["NEW","PREPARING"].includes(order.status) ? `<button class="btn small" data-menuadmin="cancel-order" data-id="${order.id}">${t("dot1Cancel")}</button>` : ""}
         ${action}</div>
     </article>`;
 }
@@ -109,7 +168,7 @@ function dot1CatalogTable(d) {
         <td>${item.image_version ? `<img class="dot1-thumb" src="/api/menu/items/${item.id}/image?v=${encodeURIComponent(item.image_version)}" alt="">` : `<span class="dot1-thumb">${esc(item.name.slice(0, 1).toUpperCase())}</span>`}</td>
         <td><strong>${esc(item.name)}</strong>${item.is_visible ? "" : ` <span class="badge">${t("dot1Hidden")}</span>`}<br><small class="muted">${esc(item.description)}</small></td>
         <td class="money">${money(item.price)}</td>
-        <td><button class="btn small ${item.is_available ? "" : "danger"}" data-menuadmin="toggle" data-id="${item.id}" data-available="${!item.is_available}" title="${t(item.is_available ? "dot1Unavailable" : "dot1Available")}">${t(item.is_available ? "dot1Available" : "dot1Unavailable")}</button></td>
+        <td>${d.can_set_availability ? `<button class="btn small ${item.is_available ? "" : "danger"}" data-menuadmin="toggle" data-id="${item.id}" data-available="${!item.is_available}" title="${t(item.is_available ? "dot1Unavailable" : "dot1Available")}">${t(item.is_available ? "dot1Available" : "dot1Unavailable")}</button>` : t(item.is_available ? "dot1Available" : "dot1Unavailable")}</td>
         <td>${d.can_manage ? `<div class="actions"><button class="btn ghost small" data-menuadmin="item" data-id="${item.id}">${t("edit")}</button><button class="btn ghost small" data-menuadmin="image" data-id="${item.id}">${t("dot1UploadImage")}</button><button class="btn ghost small" data-menuadmin="history" data-id="${item.id}">${t("dot1History")}</button></div>` : ""}</td>
       </tr>`).join("");
   }).join("");
@@ -174,6 +233,105 @@ function dot1CategoryForm(id) {
   });
 }
 
+function dot1IngredientForm() {
+  dot1Dialog("invAdd", `<div class="form-grid">
+    ${dot1Input("name", "name", "", "text", 'maxlength="100" required')}
+    <label><span>${t("invUnit")}</span><select class="input" name="unit"><option value="g">g</option><option value="ml">ml</option><option value="each">${t("invUnit")} · 1</option></select></label>
+    ${dot1Input("reorder_point", "invReorder", 0, "number", 'min="0" step="1" required')}
+  </div>`, async (form) => {
+    await api("/inventory/ingredients", { method: "POST", body: {
+      name: form.elements.name.value, unit: form.elements.unit.value,
+      reorder_point: Number(form.elements.reorder_point.value),
+    } });
+  }, "invAdd");
+}
+
+function dot1ReceiveForm(id) {
+  const ingredient = state.menuInventory.ingredients.find((i) => i.id === Number(id));
+  if (!ingredient) return;
+  const requestId = dot1RequestId();
+  dot1Dialog("invReceive", `<p>${esc(ingredient.name)} · ${esc(ingredient.unit)}</p><div class="form-grid">
+    ${dot1Input("quantity", "invQuantity", "", "number", 'min="1" step="1" required')}
+    ${dot1Input("reference_code", "invReference", "", "text", 'maxlength="60" required')}
+    ${dot1Input("note", "invNote", "", "text", 'maxlength="255"')}
+  </div>`, async (form) => {
+    await api(`/inventory/ingredients/${id}/receipts`, { method: "POST", body: {
+      quantity: Number(form.elements.quantity.value),
+      reference_code: form.elements.reference_code.value,
+      note: form.elements.note.value,
+      request_id: requestId,
+    } });
+  }, "invReceive");
+}
+
+function dot1MovementForm(id, kind) {
+  const ingredient = state.menuInventory.ingredients.find((i) => i.id === Number(id));
+  if (!ingredient) return;
+  const requestId = dot1RequestId();
+  const title = kind === "ISSUE" ? "invIssue" : "invReturn";
+  dot1Dialog(title, `<p>${esc(ingredient.name)} · ${esc(ingredient.unit)}</p><div class="form-grid">
+    ${dot1Input("quantity", "invQuantity", "", "number", 'min="1" step="1" required')}
+    ${dot1Input("reference_code", "invReference", "", "text", 'maxlength="60" required')}
+    ${dot1Input("note", "invNote", "", "text", 'maxlength="255" required')}
+  </div>`, async (form) => {
+    await api(`/inventory/ingredients/${id}/movements`, { method: "POST", body: {
+      kind, quantity: Number(form.elements.quantity.value),
+      reference_code: form.elements.reference_code.value,
+      note: form.elements.note.value, request_id: requestId,
+    } });
+  }, title);
+}
+
+function dot1CountForm(id) {
+  const ingredient = state.menuInventory.ingredients.find((i) => i.id === Number(id));
+  if (!ingredient) return;
+  const requestId = dot1RequestId();
+  dot1Dialog("invCount", `<p>${esc(ingredient.name)} · ${esc(ingredient.unit)}</p><div class="form-grid">
+    ${dot1Input("counted_on_hand", "invCounted", ingredient.on_hand, "number", 'min="0" step="1" required')}
+    ${dot1Input("reason", "invReason", "", "text", 'maxlength="255" required')}
+  </div>`, async (form) => {
+    await api(`/inventory/ingredients/${id}/counts`, { method: "POST", body: {
+      counted_on_hand: Number(form.elements.counted_on_hand.value),
+      reason: form.elements.reason.value, request_id: requestId,
+    } });
+  }, "invCount");
+}
+
+function dot1RequestId() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 15) | 64;
+  bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function dot1RecipeForm(id) {
+  const inventory = state.menuInventory;
+  const item = state.menuAdmin.items.find((i) => i.id === Number(id));
+  if (!item) return;
+  const parts = inventory.recipes.find((r) => r.item_id === item.id)?.parts || [];
+  const quantities = new Map(parts.map((p) => [p.ingredient_id, p.quantity_per_unit]));
+  const ingredientRows = inventory.ingredients.filter((i) => i.is_active).map((i) => `
+    <label class="dot1-check"><input type="checkbox" data-ingredient="${i.id}" ${quantities.has(i.id) ? "checked" : ""}>
+      <span>${esc(i.name)} (${esc(i.unit)})</span></label>
+    <input class="input" type="number" data-quantity="${i.id}" min="1" step="1" value="${quantities.get(i.id) || 1}">`).join("");
+  dot1Dialog("invRecipe", `<p>${esc(item.name)}</p>
+    ${dot1Check("track_stock", "invTrack", Boolean(inventory.tracking[item.id]))}
+    <div class="form-grid">${ingredientRows || t("invEmpty")}</div>
+    <span class="field-error" data-error="parts"></span>`, async (form) => {
+    const selected = [...form.querySelectorAll("[data-ingredient]:checked")];
+    const body = {
+      track_stock: form.elements.track_stock.checked,
+      parts: selected.map((node) => ({
+        ingredient_id: Number(node.dataset.ingredient),
+        quantity_per_unit: Number(form.querySelector(`[data-quantity="${node.dataset.ingredient}"]`).value),
+      })),
+    };
+    await api(`/inventory/items/${id}/recipe`, { method: "PUT", body });
+  }, "save");
+}
+
 function dot1ItemForm(id) {
   const d = state.menuAdmin, item = id ? d.items.find((x) => x.id === Number(id)) : null;
   if (!d.categories.length) { dot1CategoryForm(); return; }
@@ -229,23 +387,50 @@ document.addEventListener("click", async (event) => {
   if (action === "close") { $("#dot1-dialog")?.close(); return; }
   if (state.page !== "menu" || !state.menuAdmin) return;
   try {
-    if (action === "category") dot1CategoryForm(id);
+    if (action === "category" && state.menuAdmin.can_manage) dot1CategoryForm(id);
+    if (action === "ingredient" && state.menuInventory?.can_configure) dot1IngredientForm();
+    if (action === "receive" && state.menuInventory?.can_receive) dot1ReceiveForm(id);
+    if (action === "issue" && state.menuInventory?.can_issue) dot1MovementForm(id, "ISSUE");
+    if (action === "return" && state.menuInventory?.can_issue) dot1MovementForm(id, "RETURN");
+    if (action === "count" && state.menuInventory?.can_count) dot1CountForm(id);
+    if (["approve-count", "reject-count"].includes(action) && state.menuInventory?.can_approve) {
+      if (!confirm(t(action === "approve-count" ? "invConfirmApprove" : "invConfirmReject"))) return;
+      button.disabled = true;
+      await api(`/inventory/counts/${id}/decision`, { method: "POST", body: { approve: action === "approve-count" } });
+      await loadPage(true);
+    }
+    if (action === "recipe" && state.menuInventory?.can_configure) dot1RecipeForm(id);
     if (action === "order-filter") { state.menuOrderFilter = button.dataset.status; renderPage(); return; }
-    if (action === "item") dot1ItemForm(id);
-    if (action === "image") dot1ImageForm(id);
-    if (action === "history") await dot1HistoryDialog(id);
-    if (action === "toggle") {
+    if (action === "item" && state.menuAdmin.can_manage) dot1ItemForm(id);
+    if (action === "image" && state.menuAdmin.can_manage) dot1ImageForm(id);
+    if (action === "history" && state.menuAdmin.can_manage) await dot1HistoryDialog(id);
+    if (action === "toggle" && state.menuAdmin.can_set_availability) {
       button.disabled = true;
       await api(`/menu/items/${id}/availability`, { method: "POST", body: { available: button.dataset.available === "true" } });
       await loadPage(true);
     }
     if (action === "prepare-order" || action === "serve-order" || action === "cancel-order") {
+      const allowed = {
+        "prepare-order": state.menuAdmin.can_prepare,
+        "serve-order": state.menuAdmin.can_serve,
+        "cancel-order": state.menuAdmin.can_cancel,
+      };
+      if (!allowed[action]) return;
+      const order = (state.menuOrders || []).find((item) => item.id === Number(id));
+      if (action === "cancel-order" && order?.status === "PREPARING") {
+        dot1Dialog("dot1Cancel", `<div class="form-grid">${dot1Input("reason", "invCancelReason", "", "text", 'maxlength="255" required')}</div>`, async (form) => {
+          await api(`/menu/orders/${id}/status`, { method: "POST", body: {
+            status: "CANCELLED", reason: form.elements.reason.value,
+          } });
+        }, "dot1Cancel");
+        return;
+      }
       if (action === "cancel-order" && !confirm(t("dot1ConfirmCancel"))) return;
       button.disabled = true;
       await api(`/menu/orders/${id}/status`, { method: "POST", body: { status: action === "prepare-order" ? "PREPARING" : action === "serve-order" ? "SERVED" : "CANCELLED" } });
       await loadPage(true);
     }
-    if (action === "pay-order") {
+    if (action === "pay-order" && state.menuAdmin.can_collect_payment) {
       const order = (state.menuOrders || []).find(item => item.id === Number(id));
       dot1Dialog("dot1Pay", `<div class="form-grid"><label><span>${t("dot1PaymentMethod")}</span><select class="input" name="method"><option value="CASH">${t("dot1Cash")}</option><option value="TRANSFER">${t("dot1Transfer")}</option></select></label></div><div class="notice info">${t("dot1Total")}: ${money(order?.total_amount || 0)}${order?.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}` : ""}<br>${t("dot1AmountDue")}: <strong>${money((order?.total_amount || 0) - (order?.discount_amount || 0))}</strong></div>`, async (form) => {
         await api(`/menu/orders/${id}/payment`, { method: "POST", body: { method: form.elements.method.value } });
