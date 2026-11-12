@@ -3,7 +3,7 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` + `sql/006_customer_membership_avatar.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+Nguồn: các migration `sql/001_*.sql` đến `sql/015_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
 tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.
 
 ## 1. Danh sách bảng
@@ -25,11 +25,17 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`loyalty_settings`](#loyalty_settings) | Cấu hình toàn hệ thống, một dòng id=1; chỉ Admin được sửa, có version chống ghi đè. | 8 |
 | [`customer_avatars`](#customer_avatars) | Ảnh đại diện riêng theo tài khoản; WebP 512×512 đã chuẩn hóa, không giữ tên file hay metadata gốc. | 4 |
 | [`menu_categories`](#menu_categories) | Nhóm món theo cơ sở, xếp vào trang Đồ ăn (FOOD) hoặc Đồ uống (DRINK). | 7 |
-| [`menu_items`](#menu_items) | Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món. | 11 |
+| [`menu_items`](#menu_items) | Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món. | 12 |
 | [`menu_item_images`](#menu_item_images) | Ảnh món đã chuẩn hóa (WebP 512×512, không metadata). | 4 |
 | [`menu_item_changes`](#menu_item_changes) | Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa. | 7 |
-| [`menu_orders`](#menu_orders) | Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi. | 15 |
+| [`menu_orders`](#menu_orders) | Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi. | 16 |
 | [`menu_order_items`](#menu_order_items) | Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt. | 5 |
+| [`inventory_ingredients`](#inventory_ingredients) | Nguyên liệu tồn kho theo từng cửa hàng; lượng khả dụng bằng tồn thực tế trừ lượng đã giữ chỗ. | 9 |
+| [`menu_item_recipes`](#menu_item_recipes) | Công thức hiện hành của món có theo dõi kho. | 3 |
+| [`menu_order_recipe_snapshots`](#menu_order_recipe_snapshots) | Ảnh chụp nhu cầu nguyên liệu của từng dòng đơn, giúp đổi công thức sau này không làm sai giữ/xuất kho cũ. | 4 |
+| [`inventory_movements`](#inventory_movements) | Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh. | 14 |
+| [`inventory_counts`](#inventory_counts) | Phiếu kiểm kê đề xuất; người khác có thẩm quyền phải phê duyệt trước khi tạo điều chỉnh kho. | 14 |
+| [`customer_notification_events`](#customer_notification_events) | Sổ sự kiện thông báo bền vững cho khách theo vòng đời đơn; khóa sự kiện chống phát trùng. | 8 |
 | [`reward_catalog`](#reward_catalog) | Danh mục phần thưởng; không có loại nào quy đổi tiền mặt. | 11 |
 | [`customer_vouchers`](#customer_vouchers) | Voucher của khách; điều kiện được chụp lúc phát, dùng một lần. | 19 |
 | [`voucher_events`](#voucher_events) | Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm. | 7 |
@@ -45,8 +51,8 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 
 ## 2. Quan hệ và cardinality
 
-Đọc từ khóa ngoại: phía cha là `1` khi cột FK `NOT NULL`, `0..1` khi cho phép NULL;
-phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
+Đọc từ khóa ngoại: phía cha là `1` khi mọi cột FK `NOT NULL`, `0..1` khi có cột cho phép NULL;
+phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 
 | Cha | | Con | Khóa ngoại | Ý nghĩa |
 |---|:---:|---|---|---|
@@ -59,6 +65,8 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `stores` | 1 — 0..n | `menu_categories` | `menu_categories.store_id` → `stores.id` | Cơ sở sở hữu nhóm món. |
 | `stores` | 1 — 0..n | `menu_items` | `menu_items.store_id` → `stores.id` | Cơ sở bán món; menu khác nhau giữa các cơ sở. |
 | `stores` | 1 — 0..n | `menu_orders` | `menu_orders.store_id` → `stores.id` | Cơ sở của máy đang dùng. |
+| `stores` | 1 — 0..n | `inventory_ingredients` | `inventory_ingredients.store_id` → `stores.id` | Cửa hàng sở hữu nguyên liệu; cùng `id` tạo khóa tham chiếu ghép cho sổ kho. |
+| `stores` | 1 — 0..n | `customer_notification_events` | `customer_notification_events.store_id` → `stores.id` | Cửa hàng phát sinh thông báo. |
 | `stores` | 0..1 — 0..n | `reward_catalog` | `reward_catalog.store_id` → `stores.id` | Cơ sở áp dụng; NULL = mọi cơ sở (chỉ ADMIN tạo). |
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.store_id` → `stores.id` | Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở. |
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_store_id` → `stores.id` | Cơ sở nơi dùng. |
@@ -71,6 +79,9 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `employees` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 0..1 — 0..n | `menu_orders` | `menu_orders.handled_by` → `employees.id` | Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW. |
 | `employees` | 0..1 — 0..n | `menu_orders` | `menu_orders.paid_by` → `employees.id` | Nhân viên xác nhận thanh toán. |
+| `employees` | 0..1 — 0..n | `inventory_movements` | `inventory_movements.employee_id` → `employees.id` | Nhân viên thực hiện hoặc phê duyệt; NULL với tác vụ hệ thống. |
+| `employees` | 0..1 — 0..n | `inventory_counts` | `inventory_counts.decided_by` → `employees.id` | Nhân viên khác phê duyệt/từ chối; NULL khi đang chờ. |
+| `employees` | 1 — 0..n | `inventory_counts` | `inventory_counts.proposed_by` → `employees.id` | Nhân viên đề xuất kiểm kê. |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.issued_by` → `employees.id` | Nhân viên phát (NULL khi do hệ thống). |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_by` → `employees.id` | Nhân viên xác nhận. |
 | `employees` | 0..1 — 0..n | `voucher_events` | `voucher_events.employee_id` → `employees.id` | Nhân viên thực hiện. |
@@ -84,6 +95,8 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `accounts` | 1 — 0..n | `customer_notification_reads` | `customer_notification_reads.account_id` → `accounts.id` | Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính. |
 | `accounts` | 1 — 0..1 | `customer_avatars` | `customer_avatars.account_id` → `accounts.id` | Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa. |
 | `accounts` | 1 — 0..n | `menu_orders` | `menu_orders.account_id` → `accounts.id` | Tài khoản khách đặt món. |
+| `accounts` | 0..1 — 0..n | `inventory_movements` | `inventory_movements.account_id` → `accounts.id` | Tài khoản khách liên quan; NULL nếu không gắn khách. |
+| `accounts` | 1 — 0..n | `customer_notification_events` | `customer_notification_events.account_id` → `accounts.id` | Tài khoản khách nhận thông báo. |
 | `accounts` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.account_id` → `accounts.id` | Tài khoản sở hữu voucher. |
 | `accounts` | 1 — 0..1 | `game_wallets` | `game_wallets.account_id` → `accounts.id` | Tài khoản khách; PK/FK. |
 | `accounts` | 1 — 0..n | `game_sessions` | `game_sessions.account_id` → `accounts.id` | Tài khoản chơi. |
@@ -100,8 +113,15 @@ phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.
 | `menu_items` | 1 — 0..1 | `menu_item_images` | `menu_item_images.item_id` → `menu_items.id` | Món sở hữu ảnh; PK/FK. |
 | `menu_items` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.item_id` → `menu_items.id` | Món bị thay đổi. |
 | `menu_items` | 1 — 0..n | `menu_order_items` | `menu_order_items.item_id` → `menu_items.id` | Món được gọi. |
+| `menu_items` | 1 — 0..n | `menu_item_recipes` | `menu_item_recipes.item_id` → `menu_items.id` | Món dùng nguyên liệu; phần thứ nhất của khóa chính. |
 | `menu_orders` | 1 — 0..n | `menu_order_items` | `menu_order_items.order_id` → `menu_orders.id` | Yêu cầu gọi món. |
+| `menu_orders` | 0..1 — 0..n | `inventory_movements` | `inventory_movements.order_id` → `menu_orders.id` | Đơn POS liên quan; NULL với nhập/kiểm kê độc lập. |
 | `menu_orders` | 0..1 — 0..1 | `customer_vouchers` | `customer_vouchers.used_order_id` → `menu_orders.id` | Yêu cầu gọi món được áp (voucher đồ ăn); UNIQUE. |
+| `menu_order_items` | 1 — 0..n | `menu_order_recipe_snapshots` | `menu_order_recipe_snapshots.order_id,item_id` → `menu_order_items.order_id,item_id` | Đơn chứa dòng món; thuộc khóa chính và FK ghép tới `menu_order_items`.; Món trong đơn; thuộc khóa chính và FK ghép tới `menu_order_items`. |
+| `inventory_ingredients` | 1 — 0..n | `menu_item_recipes` | `menu_item_recipes.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai của khóa chính. |
+| `inventory_ingredients` | 1 — 0..n | `menu_order_recipe_snapshots` | `menu_order_recipe_snapshots.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu đã được chụp cho dòng món. |
+| `inventory_ingredients` | 1 — 0..n | `inventory_movements` | `inventory_movements.store_id,ingredient_id` → `inventory_ingredients.store_id,id` | Cửa hàng phát sinh; cùng `ingredient_id` bảo đảm nguyên liệu đúng cửa hàng.; Nguyên liệu bị thay đổi. |
+| `inventory_ingredients` | 1 — 0..n | `inventory_counts` | `inventory_counts.store_id,ingredient_id` → `inventory_ingredients.store_id,id` | Cửa hàng kiểm kê; cùng `ingredient_id` khóa đúng nguyên liệu.; Nguyên liệu được kiểm kê. |
 | `reward_catalog` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.catalog_id` → `reward_catalog.id` | Phần thưởng gốc. |
 | `customer_vouchers` | 0..1 — 0..n | `voucher_events` | `voucher_events.voucher_id` → `customer_vouchers.id` | Voucher liên quan; NULL khi mã nhập không tồn tại. |
 | `customer_vouchers` | 1 — 0..1 | `loyalty_point_grants` | `loyalty_point_grants.voucher_id` → `customer_vouchers.id` | Voucher MEMBER_POINTS; UNIQUE. |
@@ -147,7 +167,7 @@ Nhân viên đăng nhập ứng dụng; vai trò quyết định quyền thao t�
 | `full_name` | `varchar(100)` | Không | — | — | Họ tên. |
 | `username` | `varchar(30)` | Không | — | UK | Tên đăng nhập, duy nhất, 4–30 ký tự. |
 | `password_hash` | `varchar(255)` | Không | — | — | Mật khẩu đã băm bcrypt; không bao giờ trả ra UI/DTO. |
-| `role` | `varchar(20)` | Không | — | — | `ADMIN` / `MANAGER` / `STAFF`. Chỉ MANAGER, ADMIN được quản lý máy và đổi trạng thái khách. |
+| `role` | `varchar(20)` | Không | — | — | `ADMIN` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác. |
 | `status` | `varchar(20)` | Không | `ACTIVE` | — | `ACTIVE` / `INACTIVE` / `LOCKED`. Chỉ ACTIVE đăng nhập được. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
@@ -553,6 +573,7 @@ Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ
 | `is_available` | `tinyint(1)` | Không | `1` | — | FALSE = hết món; khách không chọn/đặt được. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
+| `is_stock_tracked` | `tinyint(1)` | Không | `0` | — | TRUE = món dùng công thức kho và phải giữ chỗ nguyên liệu theo vòng đời đơn. |
 
 Ràng buộc:
 
@@ -630,6 +651,7 @@ Index bổ sung (`002_indexes.sql`):
 | `paid_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên xác nhận thanh toán. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đặt (UTC). |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật trạng thái (UTC). |
+| `cancel_reason` | `varchar(255)` | Có | — | — | Lý do hủy đơn; giữ được cả với đơn cũ chưa có ảnh chụp công thức. |
 
 Ràng buộc:
 
@@ -671,6 +693,164 @@ Ràng buộc:
 - FOREIGN KEY `fk_menu_order_items_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_menu_order_items_price`: `(unit_price between 1000 and 10000000)`
 - CHECK `chk_menu_order_items_quantity`: `(quantity between 1 and 20)`
+
+### inventory_ingredients
+
+Nguyên liệu tồn kho theo từng cửa hàng; lượng khả dụng bằng tồn thực tế trừ lượng đã giữ chỗ.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cửa hàng sở hữu nguyên liệu; cùng `id` tạo khóa tham chiếu ghép cho sổ kho. |
+| `code` | `varchar(32)` | Không | — | — | Mã nguyên liệu duy nhất trong cửa hàng. |
+| `name` | `varchar(100)` | Không | — | — | Tên nguyên liệu. |
+| `unit` | `varchar(4)` | Không | — | — | Đơn vị nguyên tử: `g`, `ml` hoặc `each` (cái). |
+| `on_hand` | `bigint` | Không | `0` | — | Lượng thực tế đang có, không âm. |
+| `reserved` | `bigint` | Không | `0` | — | Lượng đã giữ cho đơn chưa tiêu thụ/hủy; không vượt `on_hand`. |
+| `reorder_point` | `bigint` | Không | `0` | — | Ngưỡng cảnh báo sắp hết. |
+| `is_active` | `tinyint(1)` | Không | `1` | — | FALSE = ngừng nhập/dùng mới nhưng vẫn giữ lịch sử kho. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_inventory_ingredients_store_code` (`store_id,code`)
+- UNIQUE `uq_inventory_ingredients_store_id` (`store_id,id`)
+- FOREIGN KEY `fk_inventory_ingredients_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_inventory_ingredients_balance`: `((on_hand >= 0) and (reserved >= 0) and (reserved <= on_hand) and (reorder_point >= 0))`
+- CHECK `chk_inventory_ingredients_unit`: `(unit in ('g','ml','each'))`
+
+### menu_item_recipes
+
+Công thức hiện hành của món có theo dõi kho.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `item_id` | `bigint unsigned` | Không | — | PK, FK → `menu_items.id` | Món dùng nguyên liệu; phần thứ nhất của khóa chính. |
+| `ingredient_id` | `bigint unsigned` | Không | — | PK, FK → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai của khóa chính. |
+| `quantity_per_unit` | `bigint` | Không | — | — | Lượng nguyên liệu cần cho một đơn vị món, phải lớn hơn 0. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`item_id,ingredient_id`)
+- FOREIGN KEY `fk_menu_item_recipes_ingredient` (`ingredient_id`) → `inventory_ingredients` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_menu_item_recipes_item` (`item_id`) → `menu_items` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_menu_item_recipes_quantity`: `(quantity_per_unit > 0)`
+
+### menu_order_recipe_snapshots
+
+Ảnh chụp nhu cầu nguyên liệu của từng dòng đơn, giúp đổi công thức sau này không làm sai giữ/xuất kho cũ.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `order_id` | `bigint unsigned` | Không | — | PK | Đơn chứa dòng món; thuộc khóa chính và FK ghép tới `menu_order_items`. |
+| `item_id` | `bigint unsigned` | Không | — | PK | Món trong đơn; thuộc khóa chính và FK ghép tới `menu_order_items`. |
+| `ingredient_id` | `bigint unsigned` | Không | — | PK, FK → `inventory_ingredients.id` | Nguyên liệu đã được chụp cho dòng món. |
+| `quantity` | `bigint` | Không | — | — | Tổng lượng nguyên liệu cần cho số lượng món đã đặt, phải lớn hơn 0. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`order_id,item_id,ingredient_id`)
+- FOREIGN KEY `fk_menu_order_recipe_snapshots_ingredient` (`ingredient_id`) → `inventory_ingredients` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_menu_order_recipe_snapshots_line` (`order_id,item_id`) → `menu_order_items` (`order_id,item_id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_menu_order_recipe_snapshots_quantity`: `(quantity > 0)`
+
+### inventory_movements
+
+Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | — | Cửa hàng phát sinh; cùng `ingredient_id` bảo đảm nguyên liệu đúng cửa hàng. |
+| `ingredient_id` | `bigint unsigned` | Không | — | — | Nguyên liệu bị thay đổi. |
+| `order_id` | `bigint unsigned` | Có | — | FK → `menu_orders.id` | Đơn POS liên quan; NULL với nhập/kiểm kê độc lập. |
+| `employee_id` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên thực hiện hoặc phê duyệt; NULL với tác vụ hệ thống. |
+| `account_id` | `bigint unsigned` | Có | — | FK → `accounts.id` | Tài khoản khách liên quan; NULL nếu không gắn khách. |
+| `kind` | `varchar(10)` | Không | — | — | `RECEIVE` / `RESERVE` / `RELEASE` / `CONSUME` / `WASTE` / `RETURN` / `ADJUST` / `ISSUE`. |
+| `quantity` | `bigint` | Không | — | — | Độ lớn biến động theo đơn vị nguyên liệu, luôn dương. |
+| `on_hand_delta` | `bigint` | Không | `0` | — | Biến động có dấu áp vào tồn thực tế. |
+| `reserved_delta` | `bigint` | Không | `0` | — | Biến động có dấu áp vào lượng giữ chỗ. |
+| `idempotency_key` | `varchar(100)` | Không | — | UK | Khóa duy nhất chống ghi trùng khi retry. |
+| `reference_code` | `varchar(60)` | Có | — | — | Mã chứng từ/nguồn nghiệp vụ để đối soát. |
+| `note` | `varchar(255)` | Có | — | — | Ghi chú nghiệp vụ, không chứa bí mật. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm ghi sổ (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_inventory_movements_key` (`idempotency_key`)
+- FOREIGN KEY `fk_inventory_movements_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_inventory_movements_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_inventory_movements_ingredient` (`store_id,ingredient_id`) → `inventory_ingredients` (`store_id,id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_inventory_movements_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_inventory_movements_kind`: `(kind in ('RECEIVE','RESERVE','RELEASE','CONSUME','WASTE','RETURN','ADJUST','ISSUE'))`
+- CHECK `chk_inventory_movements_quantity`: `(quantity > 0)`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_inventory_movements_ingredient_id` (`ingredient_id, id`)
+- INDEX `idx_inventory_movements_store_time` (`store_id, created_at, id`)
+
+### inventory_counts
+
+Phiếu kiểm kê đề xuất; người khác có thẩm quyền phải phê duyệt trước khi tạo điều chỉnh kho.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | — | Cửa hàng kiểm kê; cùng `ingredient_id` khóa đúng nguyên liệu. |
+| `ingredient_id` | `bigint unsigned` | Không | — | — | Nguyên liệu được kiểm kê. |
+| `request_id` | `char(32)` | Không | — | UK | Khóa yêu cầu duy nhất để chống tạo phiếu trùng. |
+| `expected_on_hand` | `bigint` | Không | — | — | Tồn thực tế hệ thống tại lúc đề xuất. |
+| `expected_reserved` | `bigint` | Không | — | — | Lượng giữ chỗ hệ thống tại lúc đề xuất. |
+| `expected_movement_id` | `bigint unsigned` | Không | — | — | Mốc sổ kho gần nhất dùng phát hiện dữ liệu đã thay đổi trước khi duyệt. |
+| `counted_on_hand` | `bigint` | Không | — | — | Lượng thực đếm do người đề xuất nhập. |
+| `proposed_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên đề xuất kiểm kê. |
+| `decided_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên khác phê duyệt/từ chối; NULL khi đang chờ. |
+| `status` | `varchar(10)` | Không | `PENDING` | — | `PENDING` / `APPROVED` / `REJECTED`. |
+| `reason` | `varchar(255)` | Không | — | — | Lý do kiểm kê hoặc giải trình chênh lệch. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đề xuất (UTC). |
+| `decided_at` | `datetime` | Có | — | — | Thời điểm quyết định (UTC); NULL khi PENDING. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_inventory_counts_request` (`request_id`)
+- FOREIGN KEY `fk_inventory_counts_decider` (`decided_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_inventory_counts_ingredient` (`store_id,ingredient_id`) → `inventory_ingredients` (`store_id,id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_inventory_counts_proposer` (`proposed_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_inventory_counts_quantities`: `((expected_on_hand >= 0) and (expected_reserved >= 0) and (counted_on_hand >= 0))`
+- CHECK `chk_inventory_counts_status`: `(status in ('PENDING','APPROVED','REJECTED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_inventory_counts_store_status` (`store_id, status, created_at, id`)
+
+### customer_notification_events
+
+Sổ sự kiện thông báo bền vững cho khách theo vòng đời đơn; khóa sự kiện chống phát trùng.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `notification_key` | `varchar(100)` | Không | — | UK | Khóa idempotency duy nhất, phân biệt hoa/thường. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản khách nhận thông báo. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cửa hàng phát sinh thông báo. |
+| `kind` | `varchar(40)` | Không | — | — | Loại sự kiện vòng đời đơn, ví dụ tiếp nhận, chuẩn bị, phục vụ, thanh toán hoặc hết món. |
+| `code` | `varchar(20)` | Không | — | — | Mã đối tượng hiển thị cho khách, thường là mã đơn. |
+| `amount` | `int unsigned` | Không | `0` | — | Số tiền liên quan để hiển thị; 0 nếu sự kiện không có tiền. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo sự kiện (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_customer_notification_event_key` (`notification_key`)
+- FOREIGN KEY `fk_customer_notification_event_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_customer_notification_event_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_customer_notification_account_created` (`account_id, created_at, id`)
 
 ### reward_catalog
 

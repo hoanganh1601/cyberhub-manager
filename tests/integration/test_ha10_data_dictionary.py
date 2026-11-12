@@ -31,11 +31,13 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
     for table in ("stores", "employees", "customers", "accounts", "machines",
                   "usage_sessions", "account_transactions", "invoices", "promotions", "management_audit", "customer_notification_reads", "machine_room_types", "loyalty_settings", "customer_avatars",
                   "menu_categories", "menu_items", "menu_item_images", "menu_item_changes",
-                  "menu_orders", "menu_order_items",
+                      "menu_orders", "menu_order_items", "inventory_ingredients",
+                      "menu_item_recipes", "menu_order_recipe_snapshots", "inventory_movements",
+                      "inventory_counts", "customer_notification_events",
                   "reward_catalog", "customer_vouchers", "voucher_events", "loyalty_point_grants",
                   "games", "game_prizes", "game_wallets", "game_sessions", "game_coin_ledger",
                   "ad_settings", "ad_creatives", "ad_reward_events"):
         assert f"### {table}" in content
-    # 23 khóa ngoại trước Đợt 1 + 13 (menu) + 14 (voucher) + 6 (game) + 2 (quảng cáo) + 1 (POS payment).
-    assert content.count(" — 0..") == 59
+    # 59 khóa ngoại trước kho + 14 khóa ngoại của kho, kiểm kê và thông báo đơn.
+    assert content.count(" — 0..") == 73
     assert "password_hash" in content and "bcrypt" in content

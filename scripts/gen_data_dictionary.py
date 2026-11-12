@@ -44,6 +44,14 @@ TABLES = (
     "menu_item_changes",
     "menu_orders",
     "menu_order_items",
+    # Kho, công thức và kiểm kê
+    "inventory_ingredients",
+    "menu_item_recipes",
+    "menu_order_recipe_snapshots",
+    "inventory_movements",
+    "inventory_counts",
+    # Thông báo bền vững theo vòng đời đơn
+    "customer_notification_events",
     # Đợt 2 — voucher và phần thưởng
     "reward_catalog",
     "customer_vouchers",
@@ -83,7 +91,7 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "full_name": "Họ tên.",
             "username": "Tên đăng nhập, duy nhất, 4–30 ký tự.",
             "password_hash": "Mật khẩu đã băm bcrypt; không bao giờ trả ra UI/DTO.",
-            "role": "`ADMIN` / `MANAGER` / `STAFF`. Chỉ MANAGER, ADMIN được quản lý máy và đổi trạng thái khách.",
+            "role": "`ADMIN` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác.",
             "status": "`ACTIVE` / `INACTIVE` / `LOCKED`. Chỉ ACTIVE đăng nhập được.",
             "created_at": "Thời điểm tạo (UTC).",
             "updated_at": "Thời điểm sửa gần nhất (UTC).",
@@ -233,6 +241,7 @@ DESCRIPTIONS["menu_items"] = ("Món ăn/đồ uống của cơ sở; không xóa
     "price": "Giá bán (VND, 1.000–10.000.000); backend đọc lại khi khách đặt.",
     "sort_order": "Thứ tự trong nhóm.", "is_visible": "FALSE = ẩn khỏi menu khách.",
     "is_available": "FALSE = hết món; khách không chọn/đặt được.",
+    "is_stock_tracked": "TRUE = món dùng công thức kho và phải giữ chỗ nguyên liệu theo vòng đời đơn.",
     "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm sửa gần nhất (UTC)."})
 DESCRIPTIONS["menu_item_images"] = ("Ảnh món đã chuẩn hóa (WebP 512×512, không metadata).", {
     "item_id": "Món sở hữu ảnh; PK/FK.", "image_data": "Nội dung WebP sau chuẩn hóa.",
@@ -250,11 +259,96 @@ DESCRIPTIONS["menu_orders"] = ("Đơn POS đồ ăn/thức uống của khách �
     "status": "`NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED`.", "handled_by": "Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW.",
     "payment_method": "`CASH` / `TRANSFER` khi đã thanh toán; NULL trước đó.",
     "paid_at": "Thời điểm thanh toán tại quầy (UTC).", "paid_by": "Nhân viên xác nhận thanh toán.",
+    "cancel_reason": "Lý do hủy đơn; giữ được cả với đơn cũ chưa có ảnh chụp công thức.",
     "created_at": "Thời điểm đặt (UTC).", "updated_at": "Thời điểm cập nhật trạng thái (UTC)."})
 DESCRIPTIONS["menu_order_items"] = ("Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.", {
     "order_id": "Yêu cầu gọi món.", "item_id": "Món được gọi.",
     "item_name": "Tên món tại thời điểm đặt.", "unit_price": "Đơn giá tại thời điểm đặt (VND).",
     "quantity": "Số lượng 1–20."})
+
+# ----- Kho, công thức, kiểm kê và thông báo đơn -----------------------------------
+DESCRIPTIONS["inventory_ingredients"] = (
+    "Nguyên liệu tồn kho theo từng cửa hàng; lượng khả dụng bằng tồn thực tế trừ lượng đã giữ chỗ.",
+    {
+        "id": "Khóa chính.",
+        "store_id": "Cửa hàng sở hữu nguyên liệu; cùng `id` tạo khóa tham chiếu ghép cho sổ kho.",
+        "code": "Mã nguyên liệu duy nhất trong cửa hàng.",
+        "name": "Tên nguyên liệu.",
+        "unit": "Đơn vị nguyên tử: `g`, `ml` hoặc `each` (cái).",
+        "on_hand": "Lượng thực tế đang có, không âm.",
+        "reserved": "Lượng đã giữ cho đơn chưa tiêu thụ/hủy; không vượt `on_hand`.",
+        "reorder_point": "Ngưỡng cảnh báo sắp hết.",
+        "is_active": "FALSE = ngừng nhập/dùng mới nhưng vẫn giữ lịch sử kho.",
+    },
+)
+DESCRIPTIONS["menu_item_recipes"] = (
+    "Công thức hiện hành của món có theo dõi kho.",
+    {
+        "item_id": "Món dùng nguyên liệu; phần thứ nhất của khóa chính.",
+        "ingredient_id": "Nguyên liệu; phần thứ hai của khóa chính.",
+        "quantity_per_unit": "Lượng nguyên liệu cần cho một đơn vị món, phải lớn hơn 0.",
+    },
+)
+DESCRIPTIONS["menu_order_recipe_snapshots"] = (
+    "Ảnh chụp nhu cầu nguyên liệu của từng dòng đơn, giúp đổi công thức sau này không làm sai giữ/xuất kho cũ.",
+    {
+        "order_id": "Đơn chứa dòng món; thuộc khóa chính và FK ghép tới `menu_order_items`.",
+        "item_id": "Món trong đơn; thuộc khóa chính và FK ghép tới `menu_order_items`.",
+        "ingredient_id": "Nguyên liệu đã được chụp cho dòng món.",
+        "quantity": "Tổng lượng nguyên liệu cần cho số lượng món đã đặt, phải lớn hơn 0.",
+    },
+)
+DESCRIPTIONS["inventory_movements"] = (
+    "Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh.",
+    {
+        "id": "Khóa chính.",
+        "store_id": "Cửa hàng phát sinh; cùng `ingredient_id` bảo đảm nguyên liệu đúng cửa hàng.",
+        "ingredient_id": "Nguyên liệu bị thay đổi.",
+        "order_id": "Đơn POS liên quan; NULL với nhập/kiểm kê độc lập.",
+        "employee_id": "Nhân viên thực hiện hoặc phê duyệt; NULL với tác vụ hệ thống.",
+        "account_id": "Tài khoản khách liên quan; NULL nếu không gắn khách.",
+        "kind": "`RECEIVE` / `RESERVE` / `RELEASE` / `CONSUME` / `WASTE` / `RETURN` / `ADJUST` / `ISSUE`.",
+        "quantity": "Độ lớn biến động theo đơn vị nguyên liệu, luôn dương.",
+        "on_hand_delta": "Biến động có dấu áp vào tồn thực tế.",
+        "reserved_delta": "Biến động có dấu áp vào lượng giữ chỗ.",
+        "idempotency_key": "Khóa duy nhất chống ghi trùng khi retry.",
+        "reference_code": "Mã chứng từ/nguồn nghiệp vụ để đối soát.",
+        "note": "Ghi chú nghiệp vụ, không chứa bí mật.",
+        "created_at": "Thời điểm ghi sổ (UTC).",
+    },
+)
+DESCRIPTIONS["inventory_counts"] = (
+    "Phiếu kiểm kê đề xuất; người khác có thẩm quyền phải phê duyệt trước khi tạo điều chỉnh kho.",
+    {
+        "id": "Khóa chính.",
+        "store_id": "Cửa hàng kiểm kê; cùng `ingredient_id` khóa đúng nguyên liệu.",
+        "ingredient_id": "Nguyên liệu được kiểm kê.",
+        "request_id": "Khóa yêu cầu duy nhất để chống tạo phiếu trùng.",
+        "expected_on_hand": "Tồn thực tế hệ thống tại lúc đề xuất.",
+        "expected_reserved": "Lượng giữ chỗ hệ thống tại lúc đề xuất.",
+        "expected_movement_id": "Mốc sổ kho gần nhất dùng phát hiện dữ liệu đã thay đổi trước khi duyệt.",
+        "counted_on_hand": "Lượng thực đếm do người đề xuất nhập.",
+        "proposed_by": "Nhân viên đề xuất kiểm kê.",
+        "decided_by": "Nhân viên khác phê duyệt/từ chối; NULL khi đang chờ.",
+        "status": "`PENDING` / `APPROVED` / `REJECTED`.",
+        "reason": "Lý do kiểm kê hoặc giải trình chênh lệch.",
+        "created_at": "Thời điểm đề xuất (UTC).",
+        "decided_at": "Thời điểm quyết định (UTC); NULL khi PENDING.",
+    },
+)
+DESCRIPTIONS["customer_notification_events"] = (
+    "Sổ sự kiện thông báo bền vững cho khách theo vòng đời đơn; khóa sự kiện chống phát trùng.",
+    {
+        "id": "Khóa chính.",
+        "notification_key": "Khóa idempotency duy nhất, phân biệt hoa/thường.",
+        "account_id": "Tài khoản khách nhận thông báo.",
+        "store_id": "Cửa hàng phát sinh thông báo.",
+        "kind": "Loại sự kiện vòng đời đơn, ví dụ tiếp nhận, chuẩn bị, phục vụ, thanh toán hoặc hết món.",
+        "code": "Mã đối tượng hiển thị cho khách, thường là mã đơn.",
+        "amount": "Số tiền liên quan để hiển thị; 0 nếu sự kiện không có tiền.",
+        "created_at": "Thời điểm tạo sự kiện (UTC).",
+    },
+)
 
 # ----- Đợt 2: voucher và phần thưởng ---------------------------------------------
 DESCRIPTIONS["reward_catalog"] = ("Danh mục phần thưởng; không có loại nào quy đổi tiền mặt.", {
@@ -450,7 +544,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: `sql/001_initial_schema.sql` + `sql/002_indexes.sql` + `sql/003_p1_management_wallet.sql` + `sql/004_customer_notifications.sql` + `sql/005_customer_phase2.sql` + `sql/006_customer_membership_avatar.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/015_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")
@@ -462,16 +556,17 @@ def build_markdown(conn: Any) -> str:
     w("")
     w("## 2. Quan hệ và cardinality")
     w("")
-    w("Đọc từ khóa ngoại: phía cha là `1` khi cột FK `NOT NULL`, `0..1` khi cho phép NULL;")
-    w("phía con là `0..1` khi cột FK có UNIQUE, ngược lại `0..n`.")
+    w("Đọc từ khóa ngoại: phía cha là `1` khi mọi cột FK `NOT NULL`, `0..1` khi có cột cho phép NULL;")
+    w("phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.")
     w("")
     w("| Cha | | Con | Khóa ngoại | Ý nghĩa |")
     w("|---|:---:|---|---|---|")
     for fk in sorted(fks, key=lambda k: (TABLES.index(k["ref_table"]), TABLES.index(k["t"]), k["name"])):
         col = fk["cols"]
-        parent = "0..1" if nullable[(fk["t"], col)] else "1"
+        fk_columns = col.split(",")
+        parent = "0..1" if any(nullable[(fk["t"], item)] for item in fk_columns) else "1"
         child = "0..1" if (fk["t"], col) in unique_sets else "0..n"
-        meaning = DESCRIPTIONS[fk["t"]][1][col]
+        meaning = "; ".join(DESCRIPTIONS[fk["t"]][1][item] for item in fk_columns)
         w(f"| `{fk['ref_table']}` | {parent} — {child} | `{fk['t']}` | `{fk['t']}.{col}` → `{fk['ref_table']}.{fk['ref_cols']}` | {_cell(meaning)} |")
     w("")
     w("## 3. Chi tiết từng bảng")
