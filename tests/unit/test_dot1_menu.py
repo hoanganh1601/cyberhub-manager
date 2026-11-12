@@ -4,6 +4,7 @@ Dữ liệu demo: `lethibinh` đang có phiên ACTIVE trên máy 2 của cơ s�
 """
 
 from datetime import date, datetime, timezone
+from uuid import uuid4
 
 import pytest
 
@@ -13,7 +14,9 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
+from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.menu import MAX_OPEN_ORDERS, MenuChangeField, MenuOrderStatus, MenuPage
+from cyberhub_manager.domain.p1 import Permission, ROLE_PERMISSIONS
 from cyberhub_manager.services.menu_service import NEED_ACTIVE_SESSION
 from cyberhub_manager.services.mocks.clock import MockClock
 from cyberhub_manager.services.mocks.factory import build_mock_services
@@ -206,11 +209,130 @@ def test_staff_sees_menu_but_cannot_manage_it(ctx):
     item = data["items"][0]
 
     assert data["can_manage"] is False
+    assert data["can_prepare"] is True
+    assert data["can_collect_payment"] is True
     with pytest.raises(PermissionDeniedError):
         menu.save_item(staff, item.id, category_id=item.category_id, name=item.name, description="",
                        price=1_000, sort_order=0, is_visible=True, is_available=True)
     with pytest.raises(PermissionDeniedError):
         menu.save_category(staff, None, page="FOOD", name="Mới", sort_order=0, is_active=True)
+
+
+def test_staff_inventory_overview_hides_recipes(ctx):
+    class Inventory:
+        def __init__(self):
+            self.recipe_reads = 0
+
+        def list_ingredients(self, conn, store_id):
+            return [{"id": 1, "available": 5}]
+
+        def list_counts(self, conn, store_id):
+            return []
+
+        def item_tracking(self, conn, store_id):
+            return [{"item_id": 1, "is_stock_tracked": True}]
+
+        def get_recipe(self, conn, item_id):
+            self.recipe_reads += 1
+            return [{"ingredient_id": 1, "quantity": 2}]
+
+    inventory = Inventory()
+    ctx["menu"]._inventory = inventory
+
+    staff_view = ctx["menu"].inventory_overview(ctx["staff"])
+    assert staff_view["actor_id"] == ctx["staff"].employee_id
+    assert staff_view["ingredients"] == [{"id": 1, "available": 5}]
+    assert staff_view["can_manage"] is False
+    assert staff_view["can_configure"] is False
+    assert staff_view["can_receive"] is False
+    assert staff_view["can_count"] is True
+    assert staff_view["recipes"] == []
+    assert staff_view["tracking"] == {}
+    assert inventory.recipe_reads == 0
+
+    manager_view = ctx["menu"].inventory_overview(ctx["manager"])
+    assert manager_view["actor_id"] == ctx["manager"].employee_id
+    assert manager_view["can_manage"] is True
+    assert manager_view["can_configure"] is True
+    assert manager_view["can_receive"] is True
+    assert manager_view["can_issue"] is True
+    assert manager_view["can_approve"] is True
+    assert manager_view["recipes"]
+    assert inventory.recipe_reads > 0
+
+
+@pytest.mark.parametrize(
+    "permission,operation",
+    [
+        (Permission.INVENTORY_CONFIGURE, "add"),
+        (Permission.INVENTORY_CONFIGURE, "recipe"),
+        (Permission.INVENTORY_RECEIVE, "receive"),
+    ],
+)
+def test_inventory_writes_require_their_specific_permission(ctx, monkeypatch,
+                                                             permission, operation):
+    menu, manager = ctx["menu"], ctx["manager"]
+    monkeypatch.setitem(
+        ROLE_PERMISSIONS, Role.MANAGER,
+        ROLE_PERMISSIONS[Role.MANAGER] - {permission},
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        if operation == "add":
+            menu.add_ingredient(manager, name="Đường", unit="g")
+        elif operation == "recipe":
+            menu.set_item_recipe(manager, 1, parts=[{"ingredient_id": 1,
+                                                     "quantity_per_unit": 1}])
+        else:
+            menu.receive_ingredient(manager, 1, quantity=1,
+                                    reference_code="RC-1", request_id=str(uuid4()))
+
+
+def test_inventory_overview_reports_independent_capabilities(ctx, monkeypatch):
+    monkeypatch.setitem(
+        ROLE_PERMISSIONS, Role.MANAGER,
+        ROLE_PERMISSIONS[Role.MANAGER] - {Permission.INVENTORY_RECEIVE},
+    )
+    view = ctx["menu"].inventory_overview(ctx["manager"])
+
+    assert view["can_configure"] is True
+    assert view["can_receive"] is False
+    assert view["can_manage"] is False
+
+
+def test_inventory_count_and_manual_movement_permissions(ctx):
+    menu = ctx["menu"]
+    request_id = str(uuid4())
+    with pytest.raises(PermissionDeniedError):
+        menu.move_ingredient(ctx["staff"], 1, kind="ISSUE", quantity=1,
+                             reference_code="ISS-1", request_id=request_id,
+                             note="Hỏng trong kho")
+    with pytest.raises(PermissionDeniedError):
+        menu.decide_inventory_count(ctx["staff"], 1, approve=True)
+    with pytest.raises(ConflictError):
+        menu.propose_inventory_count(ctx["staff"], 1, counted_on_hand=1,
+                                     reason="Kiểm kê cuối ca", request_id=request_id)
+
+
+def test_menu_overview_reports_independent_pos_capabilities(ctx, monkeypatch):
+    monkeypatch.setitem(
+        ROLE_PERMISSIONS, Role.STAFF,
+        ROLE_PERMISSIONS[Role.STAFF] - {Permission.POS_PREPARE_ORDERS},
+    )
+    view = ctx["menu"].manage_menu(ctx["staff"])
+
+    assert view["can_prepare"] is False
+    assert view["can_serve"] is True
+    assert view["can_collect_payment"] is True
+
+
+def test_menu_overview_requires_view_permission(ctx, monkeypatch):
+    monkeypatch.setitem(
+        ROLE_PERMISSIONS, Role.STAFF,
+        ROLE_PERMISSIONS[Role.STAFF] - {Permission.POS_VIEW_ORDERS},
+    )
+    with pytest.raises(PermissionDeniedError):
+        ctx["menu"].manage_menu(ctx["staff"])
 
 
 def test_price_change_is_recorded_in_history_and_audit(ctx):
@@ -273,6 +395,96 @@ def test_pos_order_moves_through_preparing_served_and_paid(ctx):
         menu.pay_order(ctx["manager"], order.id, "TRANSFER")
 
 
+def test_order_lifecycle_creates_idempotent_customer_notifications(ctx):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+    menu.finish_order(ctx["staff"], order.id, "PREPARING")
+    menu.finish_order(ctx["staff"], order.id, "SERVED")
+    menu.pay_order(ctx["staff"], order.id, "CASH")
+
+    notices = ctx["bundle"].portal.notifications(ctx["player"])
+    lifecycle = [
+        notice for notice in notices["items"]
+        if notice["key"].startswith(f"menu-order:{order.id}:")
+    ]
+    assert {notice["kind"] for notice in lifecycle} == {
+        "MENU_ORDER_NEW",
+        "MENU_ORDER_PREPARING",
+        "MENU_ORDER_SERVED",
+        "MENU_ORDER_PAID",
+    }
+    assert len({notice["key"] for notice in lifecycle}) == 4
+    assert all(not notice["read"] for notice in lifecycle)
+
+    key = next(notice["key"] for notice in lifecycle if notice["kind"] == "MENU_ORDER_PAID")
+    ctx["bundle"].portal.mark_notifications_read(ctx["player"], [key])
+    refreshed = ctx["bundle"].portal.notifications(ctx["player"])["items"]
+    assert next(notice for notice in refreshed if notice["key"] == key)["read"] is True
+
+
+def test_cancelled_order_creates_warning_notification(ctx):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+    menu.finish_order(ctx["staff"], order.id, "CANCELLED", reason="Khách đổi ý")
+
+    notice = next(
+        item for item in ctx["bundle"].portal.notifications(ctx["player"])["items"]
+        if item["key"] == f"menu-order:{order.id}:CANCELLED"
+    )
+    assert notice["kind"] == "MENU_ORDER_CANCELLED"
+    assert notice["severity"] == "warning"
+
+
+def test_order_notification_repository_is_idempotent(ctx):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+    repository = menu._repo
+
+    with repository.transaction() as conn:
+        repository.record_order_notification(
+            conn, order, MenuOrderStatus.NEW, order.created_at,
+        )
+
+    matching = [
+        event for event in ctx["bundle"].portal._repo.order_notifications
+        if event["notification_key"] == f"menu-order:{order.id}:NEW"
+    ]
+    assert len(matching) == 1
+
+
+def test_cancel_preparing_requires_reason(ctx):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+    menu.finish_order(ctx["staff"], order.id, "PREPARING")
+
+    with pytest.raises(ValidationError) as exc:
+        menu.finish_order(ctx["staff"], order.id, "CANCELLED")
+    assert "reason" in exc.value.field_errors
+    assert menu.list_orders(ctx["staff"], "PREPARING")[0].id == order.id
+
+    cancelled = menu.finish_order(
+        ctx["staff"], order.id, "CANCELLED", reason="Khách đổi ý",
+    )
+    assert cancelled.status is MenuOrderStatus.CANCELLED
+    assert cancelled.cancel_reason == "Khách đổi ý"
+
+
+def test_cancel_reason_only_applies_to_cancellation(ctx):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+
+    preparing = menu.finish_order(ctx["staff"], order.id, "PREPARING", reason="Bỏ qua")
+    assert preparing.cancel_reason is None
+
+    cancelled = menu.finish_order(ctx["staff"], order.id, "CANCELLED", reason="  Khách đổi ý  ")
+    assert cancelled.cancel_reason == "Khách đổi ý"
+
+
 def test_pos_order_cannot_pay_before_served_or_cancel_after_served(ctx):
     menu = ctx["menu"]
     item = find(menu.portal_menu(ctx["player"]), "Mì xào trứng")
@@ -282,6 +494,45 @@ def test_pos_order_cannot_pay_before_served_or_cancel_after_served(ctx):
     menu.finish_order(ctx["staff"], order.id, "SERVED")
     with pytest.raises(ConflictError):
         menu.finish_order(ctx["manager"], order.id, "CANCELLED")
+
+
+@pytest.mark.parametrize(
+    "status,permission",
+    [
+        ("PREPARING", Permission.POS_PREPARE_ORDERS),
+        ("SERVED", Permission.POS_SERVE_ORDERS),
+        ("CANCELLED", Permission.POS_CANCEL_ORDERS),
+    ],
+)
+def test_pos_status_change_requires_its_own_permission(ctx, monkeypatch, status, permission):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Coca")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+    monkeypatch.setitem(
+        ROLE_PERMISSIONS, Role.STAFF, ROLE_PERMISSIONS[Role.STAFF] - {permission}
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        menu.finish_order(ctx["staff"], order.id, status)
+
+    assert menu._repo.get_order(None, order.id).status == MenuOrderStatus.NEW
+
+
+def test_pos_payment_requires_collect_permission(ctx, monkeypatch):
+    menu = ctx["menu"]
+    item = find(menu.portal_menu(ctx["player"]), "Coca")
+    order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
+    menu.finish_order(ctx["staff"], order.id, "SERVED")
+    monkeypatch.setitem(
+        ROLE_PERMISSIONS,
+        Role.STAFF,
+        ROLE_PERMISSIONS[Role.STAFF] - {Permission.POS_COLLECT_PAYMENT},
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        menu.pay_order(ctx["staff"], order.id, "CASH")
+
+    assert menu._repo.get_order(None, order.id).status == MenuOrderStatus.SERVED
 
 
 def test_failed_save_rolls_back_menu_changes(ctx, monkeypatch):

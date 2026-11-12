@@ -283,7 +283,7 @@ def test_invalid_later_file_does_not_return_partial_corpus(corpus):
 
 def test_loader_reads_only_approved_committed_corpus():
     documents = KnowledgeDocumentLoader().load(DEFAULT_KNOWLEDGE_ROOT)
-    assert len(documents) == 12
+    assert len(documents) == 13
     assert all(document.status == "APPROVED" for document in documents)
     assert {document.source for document in documents}.isdisjoint({
         "shared/role-policy.md", "manager/revenue-policy.md",

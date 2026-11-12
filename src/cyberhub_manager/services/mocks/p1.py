@@ -37,6 +37,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
         self.auth_versions = {}
         self.room_types = {}
         self.avatars={}
+        self.order_notifications = []
 
     @contextmanager
     def transaction(self):
@@ -58,6 +59,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.data.customer_password_hashes,
                     self.avatars,
                     self.data.loyalty_settings,
+                    self.order_notifications,
                 )
             )
             try:
@@ -79,6 +81,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.data.customer_password_hashes,
                     self.avatars,
                     self.data.loyalty_settings,
+                    self.order_notifications,
                 ) = snapshot
                 raise
 

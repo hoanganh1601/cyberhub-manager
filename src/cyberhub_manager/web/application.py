@@ -966,6 +966,59 @@ def create_app(config: dict | None = None) -> Flask:
     def menu_manage():
         return reply(g.services.menu.manage_menu(g.actor))
 
+    @app.get("/api/inventory")
+    def inventory_overview():
+        return reply(g.services.menu.inventory_overview(g.actor))
+
+    @app.post("/api/inventory/ingredients")
+    def inventory_ingredient_create():
+        data = body()
+        return reply(g.services.menu.add_ingredient(
+            g.actor, name=data.get("name"), unit=data.get("unit"),
+            reorder_point=data.get("reorder_point", 0),
+        ), 201)
+
+    @app.post("/api/inventory/ingredients/<int:ingredient_id>/receipts")
+    def inventory_ingredient_receive(ingredient_id):
+        data = body()
+        return reply(g.services.menu.receive_ingredient(
+            g.actor, ingredient_id, quantity=data.get("quantity"),
+            reference_code=data.get("reference_code"),
+            request_id=data.get("request_id"), note=data.get("note", ""),
+        ))
+
+    @app.post("/api/inventory/ingredients/<int:ingredient_id>/movements")
+    def inventory_ingredient_move(ingredient_id):
+        data = body()
+        return reply(g.services.menu.move_ingredient(
+            g.actor, ingredient_id, kind=data.get("kind"), quantity=data.get("quantity"),
+            reference_code=data.get("reference_code"), request_id=data.get("request_id"),
+            note=data.get("note", ""),
+        ))
+
+    @app.post("/api/inventory/ingredients/<int:ingredient_id>/counts")
+    def inventory_count_propose(ingredient_id):
+        data = body()
+        return reply(g.services.menu.propose_inventory_count(
+            g.actor, ingredient_id, counted_on_hand=data.get("counted_on_hand"),
+            reason=data.get("reason"), request_id=data.get("request_id"),
+        ), 201)
+
+    @app.post("/api/inventory/counts/<int:count_id>/decision")
+    def inventory_count_decide(count_id):
+        data = body()
+        return reply(g.services.menu.decide_inventory_count(
+            g.actor, count_id, approve=data.get("approve"),
+        ))
+
+    @app.put("/api/inventory/items/<int:item_id>/recipe")
+    def inventory_item_recipe(item_id):
+        data = body()
+        return reply(g.services.menu.set_item_recipe(
+            g.actor, item_id, parts=data.get("parts"),
+            track_stock=data.get("track_stock", True),
+        ))
+
     @app.route("/api/menu/categories", methods=["POST"])
     @app.route("/api/menu/categories/<int:category_id>", methods=["PATCH"])
     def menu_category_save(category_id=None):
@@ -1024,7 +1077,10 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.post("/api/menu/orders/<int:order_id>/status")
     def menu_order_status(order_id):
-        return reply(g.services.menu.finish_order(g.actor, order_id, body().get("status")))
+        payload = body()
+        return reply(g.services.menu.finish_order(
+            g.actor, order_id, payload.get("status"), reason=payload.get("reason"),
+        ))
 
     @app.post("/api/menu/orders/<int:order_id>/payment")
     def menu_order_payment(order_id):

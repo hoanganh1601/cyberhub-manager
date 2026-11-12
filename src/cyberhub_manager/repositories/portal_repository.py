@@ -236,7 +236,15 @@ class PortalRepositoryMixin:
             "ORDER BY created_at DESC,id DESC LIMIT 50",
             (principal.customer_id, *params[1:]),
         )
-        return transactions, invoices
+        menu_orders = _rows(
+            conn,
+            "SELECT id,notification_key,kind,code,amount,created_at "
+            "FROM customer_notification_events WHERE account_id=%s "
+            "AND created_at >= %s AND created_at <= %s "
+            "ORDER BY created_at DESC,id DESC LIMIT 50",
+            params,
+        )
+        return transactions, invoices, menu_orders
 
     def portal_read_keys(self, conn, principal, keys):
         if not keys:

@@ -257,7 +257,16 @@ class MemoryPortalRepositoryMixin:
                     :50
                 ]
             )
-        return tuple(groups)
+        menu_orders = [
+            dict(event)
+            for event in self.order_notifications
+            if event["account_id"] == principal.account_id
+            and since <= event["created_at"] <= now
+        ]
+        menu_orders.sort(
+            key=lambda event: (event["created_at"], event["id"]), reverse=True,
+        )
+        return (*groups, menu_orders[:50])
 
     def portal_read_keys(self, conn, principal, keys):
         return {

@@ -209,9 +209,11 @@ class PortalExperienceMixin:
             )
 
     def _notifications(self, conn, principal, now):
-        transactions, invoices = self._repo.portal_events(
+        events = self._repo.portal_events(
             conn, principal, now - timedelta(days=30), now
         )
+        transactions, invoices, *extra_groups = events
+        menu_orders = extra_groups[0] if extra_groups else []
         items = [
             {**r, "key": f"tx:{r['id']}", "severity": "success"} for r in transactions
         ]
@@ -222,6 +224,18 @@ class PortalExperienceMixin:
                 "severity": "warning" if r["kind"] == "VOID" else "info",
             }
             for r in invoices
+        ]
+        items += [
+            {
+                **r,
+                "key": r["notification_key"],
+                "severity": (
+                    "warning" if r["kind"] == "MENU_ORDER_CANCELLED"
+                    else "success" if r["kind"] in ("MENU_ORDER_SERVED", "MENU_ORDER_PAID")
+                    else "info"
+                ),
+            }
+            for r in menu_orders
         ]
         stores = [s for s in self._repo.list_stores(conn) if s.status == "ACTIVE"]
         # All active, effective offers across locations; one notification per policy revision.

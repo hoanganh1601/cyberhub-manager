@@ -76,11 +76,36 @@ def test_staff_handles_menu_but_cannot_edit_items(app):
     item = data["items"][0]
 
     assert data["can_manage"] is False
+    assert data["can_set_availability"] is True
+    assert all(data[key] is True for key in (
+        "can_prepare", "can_serve", "can_cancel", "can_collect_payment",
+    ))
     assert c.get("/api/menu/orders").status_code == 200
     edit = c.patch(f"/api/menu/items/{item['id']}", json={**item, "price": 1000}, headers=headers)
     assert edit.status_code == 403
     toggle = c.post(f"/api/menu/items/{item['id']}/availability", json={"available": False}, headers=headers)
     assert toggle.status_code == 200 and toggle.json["is_available"] is False
+
+
+def test_inventory_api_rechecks_role_and_csrf(app):
+    staff = app.test_client()
+    staff_headers = sign_in(staff, "nhanvien01")
+    overview = staff.get("/api/inventory")
+    assert overview.status_code == 200
+    assert overview.json["can_count"] is True
+    assert overview.json["can_approve"] is False
+    assert overview.json["can_issue"] is False
+
+    decision = "/api/inventory/counts/1/decision"
+    assert staff.post(decision, json={"approve": True}).status_code == 403
+    assert staff.post(decision, json={"approve": True}, headers=staff_headers).status_code == 403
+
+    manager = app.test_client()
+    sign_in(manager, "quanly01")
+    manager_overview = manager.get("/api/inventory")
+    assert manager_overview.status_code == 200
+    assert manager_overview.json["can_approve"] is True
+    assert manager_overview.json["can_issue"] is True
 
 
 def test_staff_can_advance_and_pay_menu_order(app):
