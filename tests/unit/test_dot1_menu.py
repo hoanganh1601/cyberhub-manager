@@ -46,6 +46,66 @@ def find(menu_data, name):
     return next(i for i in items_of(menu_data) if i.name == name)
 
 
+def test_hold_warning_and_expiry_are_idempotent_and_leave_preparing_alone():
+    clock = MockClock(NOW)
+    bundle = build_mock_services(p1=True, clock=clock)
+    customer = bundle.portal.login("lethibinh", DEMO_PASSWORD)
+    manager = bundle.auth.login("quanly01", DEMO_PASSWORD)
+    item = find(bundle.menu.portal_menu(customer), "Coca")
+    expiring = bundle.menu.place_order(customer, [{"item_id": item.id, "quantity": 1}])
+    preparing = bundle.menu.place_order(customer, [{"item_id": item.id, "quantity": 1}])
+    bundle.menu.finish_order(manager, preparing.id, "PREPARING")
+    clock.advance(minutes=13)
+    assert bundle.menu.maintain_holds() == {"warned": 1, "expired": 0}
+    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0}
+    clock.advance(minutes=2)
+    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 1}
+    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0}
+    assert bundle.menu._repo.get_order(None, expiring.id).cancel_reason == "AUTO_EXPIRED"
+    assert bundle.menu._repo.get_order(None, preparing.id).status == MenuOrderStatus.PREPARING
+
+
+def test_served_cancellation_and_paid_refund_need_separate_manager_approval():
+    clock = MockClock(NOW)
+    bundle = build_mock_services(p1=True, clock=clock)
+    player = bundle.portal.login("lethibinh", DEMO_PASSWORD)
+    staff = bundle.auth.login("nhanvien01", DEMO_PASSWORD)
+    manager = bundle.auth.login("quanly01", DEMO_PASSWORD)
+    admin = bundle.auth.login("admin01", DEMO_PASSWORD)
+    item = find(bundle.menu.portal_menu(player), "Coca")
+    served = bundle.menu.place_order(player, [{"item_id": item.id, "quantity": 1}])
+    bundle.menu.finish_order(staff, served.id, "SERVED")
+    request = bundle.menu.request_reversal(staff, served.id, reason="Khách không dùng món",
+                                          disposition="WASTE")
+    with pytest.raises(PermissionDeniedError):
+        bundle.menu.decide_reversal(staff, served.id, approve=True)
+    result = bundle.menu.decide_reversal(manager, served.id, approve=True)
+    assert result["status"] == "APPROVED" and result["refund_amount"] == 0
+    assert bundle.menu._repo.get_order(None, served.id).status == MenuOrderStatus.CANCELLED
+    with pytest.raises(ConflictError):
+        bundle.menu.decide_reversal(admin, served.id, approve=True)
+
+    paid = bundle.menu.place_order(player, [{"item_id": item.id, "quantity": 2}])
+    bundle.menu.finish_order(staff, paid.id, "SERVED")
+    bundle.menu.pay_order(staff, paid.id, "CASH")
+    before = bundle.menu.paid_revenue(manager, NOW.date(), NOW.date())
+    bundle.menu.request_reversal(manager, paid.id, reason="Hoàn toàn bộ đơn",
+                                 disposition="RESTOCK")
+    with pytest.raises(PermissionDeniedError):
+        bundle.menu.decide_reversal(manager, paid.id, approve=True, refund_confirmed=True,
+                                     refund_method="CASH")
+    with pytest.raises(ValidationError):
+        bundle.menu.decide_reversal(admin, paid.id, approve=True)
+    result = bundle.menu.decide_reversal(admin, paid.id, approve=True,
+                                         refund_confirmed=True, refund_method="CASH")
+    assert result["refund_amount"] == 2 * item.price - paid.discount_amount
+    assert bundle.menu._repo.get_order(None, paid.id).status == MenuOrderStatus.REFUNDED
+    after = bundle.menu.paid_revenue(manager, NOW.date(), NOW.date())
+    assert before["days"][0]["revenue"] == 2 * item.price - paid.discount_amount
+    assert after["days"][0]["revenue"] == 0
+    assert after["days"][0]["refund_count"] == 1
+
+
 def test_paid_pos_revenue_uses_payment_day_in_vietnam():
     clock = MockClock(NOW)
     bundle = build_mock_services(p1=True, clock=clock)
@@ -62,7 +122,8 @@ def test_paid_pos_revenue_uses_payment_day_in_vietnam():
     assert bundle.menu.paid_revenue(manager, date(2026, 10, 18), date(2026, 10, 18))["days"] == []
     report = bundle.menu.paid_revenue(manager, date(2026, 10, 19), date(2026, 10, 19))
     assert report["days"] == [{"date": date(2026, 10, 19), "order_count": 1,
-                               "revenue": 2 * coca.price}]
+                               "revenue": 2 * coca.price - order.discount_amount,
+                               "refund_count": 0}]
     assert report["top_items"][0]["quantity"] == 2
 
 

@@ -36,9 +36,7 @@ Demo bộ nhớ không mô phỏng sổ kho.
 
 `PAID` và `CANCELLED` là trạng thái cuối. Đơn `SERVED` không được hủy trong luồng P0/POS
 hiện tại; hoàn tiền hoặc trả món sau phục vụ cần một nghiệp vụ đảo riêng, có phê duyệt
-và sổ ghi nhận. Một đơn `NEW` chưa xử lý giữ nguyên chỗ cho tới khi nhân viên hủy;
-cần hiển thị cảnh báo đơn chờ quá lâu. Chính sách tự hủy theo thời gian sẽ được chốt
-khi có cơ chế gửi thông báo và tác vụ nền, tránh tự ý hủy đơn khách chưa được báo.
+và sổ ghi nhận. Đơn `NEW` mới có thời hạn giữ tồn và worker xử lý như mục 7.
 Lý do hủy được lưu trên đơn kể cả khi món chưa theo dõi kho; hủy sau chuẩn bị bắt buộc
 có lý do, còn hủy trước chuẩn bị có thể để trống.
 
@@ -70,21 +68,24 @@ có lý do, còn hủy trước chuẩn bị có thể để trống.
 
 ## 4. Quyền và phạm vi
 
-P0/P1 hiện chỉ có `STAFF`, `MANAGER`, `ADMIN`. Tiếp tục dùng ba role này, nhưng kiểm
+P0/P1 ban đầu có `STAFF`, `MANAGER`, `ADMIN`; nay thêm `KITCHEN` và `INVENTORY` nhưng kiểm
 tra **từng quyền tại backend** bằng actor ACTIVE đọc lại từ DB. Mọi thao tác chỉ trong
 cửa hàng được phân công; `ADMIN` muốn thao tác cửa hàng khác phải chọn cửa hàng rõ
 ràng và hệ thống kiểm tra quyền. Việc ẩn nút chỉ là hỗ trợ giao diện.
 
-| Thao tác hiện có | STAFF | MANAGER | ADMIN |
-|---|:---:|:---:|:---:|
-| Xem đơn, chuẩn bị, phục vụ, hủy đơn chưa phục vụ, thu tiền | ✓ | ✓ | ✓ |
-| Xem tồn khả dụng và cảnh báo hết nguyên liệu | ✓ | ✓ | ✓ |
-| Tạo nguyên liệu và sửa công thức |  | ✓ | ✓ |
-| Nhập kho |  | ✓ | ✓ |
-| Đề xuất kiểm kê | ✓ | ✓ | ✓ |
-| Xuất/trả thủ công và duyệt kiểm kê người khác |  | ✓ | ✓ |
-| Xem báo cáo doanh thu POS |  | ✓ | ✓ |
-| Quản lý nhiều cửa hàng và phân quyền |  |  | ✓ |
+| Thao tác | STAFF | KITCHEN | INVENTORY | MANAGER | ADMIN |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Xem đơn | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Chuẩn bị và phục vụ | ✓ | ✓ |  | ✓ | ✓ |
+| Hủy đơn trước phục vụ và thu tiền | ✓ |  |  | ✓ | ✓ |
+| Đề xuất hủy/hoàn sau phục vụ | ✓ |  |  | ✓ | ✓ |
+| Duyệt đề xuất của người khác |  |  |  | ✓ | ✓ |
+| Xem tồn khả dụng | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Tạo nguyên liệu và sửa công thức |  |  | ✓ | ✓ | ✓ |
+| Nhập/xuất kho |  |  | ✓ | ✓ | ✓ |
+| Đề xuất kiểm kê | ✓ |  | ✓ | ✓ | ✓ |
+| Duyệt kiểm kê của người khác |  |  |  | ✓ | ✓ |
+| Quản lý khuyến mãi POS |  |  |  | ✓ | ✓ |
 
 STAFF có quyền gửi phiếu kiểm kê; MANAGER/ADMIN có quyền xuất/trả kho và duyệt
 phiếu của người khác. Ngưỡng cảnh báo được cấu hình lúc tạo nguyên liệu.
@@ -95,10 +96,8 @@ Kho dùng `INVENTORY_VIEW` để xem, `INVENTORY_CONFIGURE` để tạo nguyên 
 và sửa công thức, `INVENTORY_RECEIVE` để nhập kho, `INVENTORY_ISSUE` để xuất/trả,
 `INVENTORY_COUNT` để đề xuất và `INVENTORY_APPROVE` để duyệt. UI chỉ hiện thao tác
 tương ứng với quyền mà service trả về; service luôn kiểm tra actor ACTIVE và store.
-Khi thật sự có người bếp hoặc thủ kho làm việc riêng, thêm
-`KITCHEN`/`INVENTORY` bằng migration
-role, cấp từng quyền rõ ràng và test backend; không gán hai role này cho tài
-khoản hiện tại trước.
+`KITCHEN` và `INVENTORY` chỉ được quản trị viên tạo/gán; các tài khoản cũ giữ
+nguyên role sau migration.
 
 ## 5. Thông báo và khuyến mãi liên quan
 
@@ -108,12 +107,11 @@ khoản hiện tại trước.
   sổ sự kiện sau commit; lỗi hiển thị hoặc đánh dấu đã đọc không làm rollback POS.
   Số tiền hiển thị là tiền thực trả sau giảm giá. Dispatcher email/push bên ngoài
   (nếu bổ sung) phải đọc sổ này và tự retry, không gửi trực tiếp trong transaction.
-- Nếu thiếu hàng lúc khách đặt, trả lỗi ngay cho khách. Nếu thiếu do dữ liệu cũ hoặc
-  điều chỉnh bất thường, nhân viên phải hủy hoặc xử lý thay món và thông báo khách;
-  không chuyển đơn sang `PREPARING` với tồn âm.
-- Voucher, combo và mua tặng phải chốt giá, công thức, số lượng tặng và điều kiện
-  ở thời điểm nhận đơn; chỉ ghi doanh thu khi `PAID`. Quy tắc cộng gộp ưu đãi sẽ
-  được đặc tả riêng trước khi triển khai khuyến mãi món.
+- Nếu món bị tắt/hết lúc đặt, khách nhận lỗi ngay và có một sự kiện cảnh báo riêng
+  sau khi giao dịch đặt bị từ chối. Nếu thiếu nguyên liệu, giao dịch đặt bị rollback
+  và không được giữ tồn âm.
+- Giá ưu đãi được chụp tại lúc nhận đơn. Một đơn chỉ dùng ưu đãi có số tiền giảm
+  lớn nhất; voucher có giá trị cao hơn mới thay thế ưu đãi đó.
 
 ## 6. Tiêu chí nghiệm thu hoàn chỉnh
 
@@ -128,3 +126,68 @@ Kiểm thử lõi hiện có kiểm tra snapshot, thiếu hàng, giải phóng, 
 Các tiêu chí thông báo và thao tác xuyên cửa hàng cần kiểm thử khi triển khai
 các luồng tương ứng. Kiểm kê cần chạy integration test trên MySQL đã áp dụng
 `013_inventory.sql` và `014_inventory_counting.sql`.
+
+## 7. Role riêng và thời hạn giữ tồn
+
+Migration `016_pos_roles.sql` cho phép `KITCHEN` và `INVENTORY`. `KITCHEN` chỉ xem,
+chuẩn bị, phục vụ đơn và xem tồn; `INVENTORY` xem đơn, cấu hình, nhập, xuất và đề xuất
+kiểm kê nhưng không duyệt phiếu, không thu tiền POS. Quyền của `MANAGER` và `ADMIN`
+vẫn liệt kê tường minh trong `domain/p1.py`; thêm quyền mới không tự động cấp cho
+role nào. Chỉ `ADMIN` được tạo tài khoản role chuyên trách.
+
+Migration `017_pos_hold_timeout.sql` thêm `reservation_expires_at` cho đơn mới.
+`CYBERHUB_POS_HOLD_MINUTES` nhận giá trị 5–120, mặc định 15 phút. Đơn cũ có giá trị
+`NULL` được giữ nguyên, không tự hủy. Chạy worker riêng:
+
+```powershell
+python -m scripts.run_pos_maintenance --interval 30
+```
+
+Worker tạo cảnh báo tối đa một lần trong 2 phút trước hạn. Khi quá hạn, worker chỉ
+hủy đơn còn `NEW`, giải phóng lượng giữ trong cùng transaction và phát thông báo
+cho khách. Đơn `PREPARING` không bị tác động. Có thể chạy `--once` để kiểm tra
+một lượt; chạy lại sau lỗi không giải phóng kho hai lần. Demo không mô phỏng sổ kho;
+nghiệm thu số dư và sổ biến động cần MySQL.
+
+## 8. Hủy/hoàn toàn bộ đơn sau phục vụ
+
+Migration `018_pos_reversals.sql` ghi một yêu cầu hủy/hoàn cho mỗi đơn đã `SERVED`
+hoặc `PAID`. Người đề xuất phải nhập lý do và chọn `RESTOCK` hoặc `WASTE`.
+`MANAGER`/`ADMIN` khác người đề xuất quyết định. Đơn chưa thanh toán chuyển sang
+`CANCELLED`; đơn đã thanh toán chỉ chuyển `REFUNDED` sau khi quản lý xác nhận đã
+hoàn tiền mặt hoặc chuyển khoản (chuyển khoản cần mã giao dịch). Không có lệnh
+chuyển tiền tự động. Số tiền hoàn là toàn bộ số đã thu sau ưu đãi/voucher; voucher đã dùng
+không được phát lại tự động. Phiên bản này chưa hỗ trợ hoàn từng món.
+
+Khi duyệt, số lượng nhập trả/hao hụt lấy từ **snapshot công thức của đơn**, trong
+cùng transaction với quyết định, đổi trạng thái, audit và thông báo khách. Doanh thu
+POS giữ khoản thu tại ngày thanh toán và ghi khoản âm vào ngày duyệt hoàn tiền;
+đơn hoàn không còn tính trong danh sách món bán chạy. Mỗi đơn chỉ có một yêu cầu
+hủy/hoàn; yêu cầu bị từ chối là kết thúc, cần quy trình quản lý riêng nếu muốn mở lại.
+
+## 9. Khuyến mãi POS và thông báo trong web
+
+Migration `019_pos_promotions.sql` tạo quy tắc theo cơ sở và bảng `menu_order_pricing`.
+Quản lý sửa ở **Menu đồ ăn → Khuyến mãi POS**. Ba quy tắc demo đang bật:
+giảm 5.000đ mỗi Coca khi đang chơi, mua 3 Coca trả 2, GOLD/PLATINUM giảm 10%.
+Đây chỉ là dữ liệu demo; MySQL bắt đầu không có khuyến mãi, quản lý tự tạo trên UI.
+Quy tắc không cộng dồn: chọn giảm nhiều tiền nhất; nếu hòa, ưu tiên mua 3 trả 2,
+rồi giảm nước, rồi giảm theo hạng. Voucher chỉ thay thế nếu giảm **nhiều hơn**;
+voucher kém hơn được giữ lại cho đơn khác. Sổ giá lưu dòng món, giá từng món,
+hạng thành viên, quy tắc và tổng trước/sau giảm. Sửa quy tắc không đổi giá đơn cũ.
+
+Thông báo trong web dùng `customer_notification_events` như sổ sự kiện ghi trong
+transaction nghiệp vụ với khóa chống trùng. Portal tải lại mỗi 30 giây; đây là
+kênh thông báo được bật ở giai đoạn này. Chưa có worker gửi email/push vì chưa
+cấu hình kênh ngoài web. Khi thêm kênh ngoài web, cần worker riêng đọc sổ sự kiện,
+retry có giới hạn và khóa idempotency; không gọi nhà cung cấp trong transaction POS.
+Khách thấy các mốc mới, chuẩn bị, phục vụ, thanh toán, hủy/hoàn, sắp hết hạn giữ và
+thông báo món vừa hết khi đặt.
+
+## 10. Chạy và nghiệm thu
+
+Áp dụng migration `016`–`019` bằng `python scripts/init_db.py` trên MySQL trước
+khi bật chế độ MySQL. Sau đó chạy web và worker giữ tồn ở hai terminal riêng.
+Demo hiển thị nhãn "Demo: sổ kho chưa được mô phỏng"; mọi nghiệm thu số dư,
+release và bút toán kho dùng MySQL. Không dùng kết quả tồn kho demo để xác nhận
+nghiệp vụ thực tế.

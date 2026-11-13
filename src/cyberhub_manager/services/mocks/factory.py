@@ -1,6 +1,7 @@
 """Factory tạo ServiceBundle mock cho UI, gallery và test."""
 
 from __future__ import annotations
+from contextlib import contextmanager
 
 from cyberhub_manager.services.contracts import ServiceBundle
 
@@ -106,8 +107,12 @@ def build_mock_services(
     voucher_repo = MemoryVoucherRepository(data, repo, clock=clock.now)
     voucher_repo.seed_demo()
     menu_repo.voucher_repo = voucher_repo
+    @contextmanager
+    def food_voucher_transaction():
+        with menu_repo.transaction() as conn, voucher_repo.transaction():
+            yield conn
     vouchers = VoucherService(repo=voucher_repo,p1_repo=repo,menu_repo=menu_repo,
-                              transaction_factory=voucher_repo.transaction,clock=clock.now)
+                              transaction_factory=food_voucher_transaction,clock=clock.now)
     # Đợt 3: vòng quay + ví xu, transaction bọc voucher để đổi xu và phát voucher cùng rollback.
     from .game import MemoryGameRepository
     from cyberhub_manager.services.game_service import GameService

@@ -15,7 +15,20 @@ Object.assign(copy, {
   dot1StatusPREPARING: ["Đang chuẩn bị", "Preparing"],
   dot1StatusSERVED: ["Đã phục vụ", "Served"],
   dot1StatusPAID: ["Đã thanh toán", "Paid"],
+  dot1StatusREFUNDED: ["Đã hoàn tiền", "Refunded"],
+  posRequestReversal: ["Đề xuất hủy/hoàn", "Request cancellation/refund"],
+  posPendingReversals: ["Yêu cầu hủy/hoàn chờ duyệt", "Pending cancellations/refunds"],
+  posApproveReversal: ["Duyệt", "Approve"],
+  posRejectReversal: ["Từ chối", "Reject"],
+  posDisposition: ["Xử lý nguyên liệu", "Ingredient handling"],
+  posReason: ["Lý do bắt buộc", "Required reason"],
+  posRestock: ["Nhập trả kho", "Return to stock"],
+  posWaste: ["Ghi hao hụt", "Record waste"],
+  posRefundConfirmed: ["Tôi đã hoàn tiền cho khách", "I have returned the money"],
+  posRefundReference: ["Mã giao dịch hoàn tiền", "Refund transaction reference"],
   dot1StatusCANCELLED: ["Đã hủy", "Cancelled"],
+  dot1HoldUntil: ["Giữ tồn đến", "Stock held until"],
+  dot1ExpiredAutomatically: ["Tự hủy do hết thời gian giữ", "Automatically cancelled when hold expired"],
   dot1StartPreparing: ["Bắt đầu chuẩn bị", "Start preparing"],
   dot1Catalog: ["Danh mục món", "Menu items"],
   dot1NewCategory: ["Nhóm món", "Category"],
@@ -25,7 +38,7 @@ Object.assign(copy, {
   dot1Served: ["Đã phục vụ", "Served"],
   dot1Pay: ["Thanh toán", "Pay"],
   dot1PaymentMethod: ["Phương thức thanh toán", "Payment method"],
-  dot1Discount: ["Giảm từ voucher", "Voucher discount"],
+  dot1Discount: ["Ưu đãi / voucher", "Promotion / voucher"],
   dot1AmountDue: ["Cần thu", "Amount due"],
   dot1Cash: ["Tiền mặt", "Cash"],
   dot1Transfer: ["Chuyển khoản", "Transfer"],
@@ -66,6 +79,7 @@ Object.assign(copy, {
   invTrack: ["Quản lý tồn theo công thức", "Track stock by recipe"],
   invEmpty: ["Chưa có nguyên liệu", "No ingredients yet"],
   invLow: ["Sắp hết", "Low stock"],
+  invDemoNotice: ["Demo: sổ kho chưa được mô phỏng. Kiểm thử tồn kho trên MySQL.", "Demo: stock ledger is not simulated. Validate inventory with MySQL."],
   invCancelReason: ["Lý do hủy sau khi chuẩn bị", "Reason for cancelling after preparation"],
   invIssue: ["Xuất kho", "Issue stock"],
   invReturn: ["Trả kho", "Return stock"],
@@ -78,18 +92,34 @@ Object.assign(copy, {
   invCountStale: ["Tồn đã thay đổi thì phải kiểm kê lại trước khi duyệt.", "Recount if stock has changed before approval."],
   invConfirmApprove: ["Duyệt chênh lệch kiểm kê và cập nhật tồn kho?", "Approve the count difference and update stock?"],
   invConfirmReject: ["Từ chối phiếu kiểm kê này?", "Reject this stock count?"],
+  posPromotions: ["Khuyến mãi POS", "POS promotions"],
+  posPromoCode: ["Mã ưu đãi", "Promotion code"],
+  posPromoKind: ["Quy tắc", "Rule"],
+  posPromoValue: ["Giá trị (VND hoặc %)", "Value (VND or %)"],
+  posPromoItem: ["Món áp dụng", "Eligible item"],
+  posPromoTier: ["Hạng tối thiểu", "Minimum tier"],
+  posPromoStarts: ["Bắt đầu", "Starts"],
+  posPromoEnds: ["Kết thúc", "Ends"],
+  posPromoNew: ["Thêm ưu đãi", "Add promotion"],
+  posPromoBOGO: ["Mua 3 trả 2", "Buy 3 pay 2"],
+  posPromoPLAY_DRINK: ["Giảm nước khi đang chơi", "Play and drink"],
+  posPromoTIER_PERCENT: ["Giảm theo hạng", "Tier discount"],
 });
 
 let dot1AdminTimer = null;
 
 async function loadMenuAdmin(seq) {
-  const [menu, orders, inventory] = await Promise.all([
+  const [menu, orders, inventory, reversals, promotions] = await Promise.all([
     api("/menu"), api("/menu/orders?status=ALL"), api("/inventory"),
+    ["STAFF", "MANAGER", "ADMIN"].includes(state.actor.role) ? api("/menu/reversals") : Promise.resolve([]),
+    ["MANAGER", "ADMIN"].includes(state.actor.role) ? api("/menu/promotions") : Promise.resolve([]),
   ]);
   if (seq !== state.seq || state.page !== "menu") return false;
   state.menuAdmin = menu;
   state.menuOrders = orders;
   state.menuInventory = inventory;
+  state.menuReversals = reversals;
+  state.menuPromotions = promotions;
   return true;
 }
 
@@ -101,13 +131,25 @@ function menuAdminPage() {
     : "";
   const filter = state.menuOrderFilter || "ALL";
   const visible = filter === "ALL" ? orders : orders.filter(o => o.status === filter);
-  return pageHead(extra) + `<div class="dot1-admin">
+  return pageHead(extra) + `${state.mode === "demo" ? `<div class="notice info">${t("invDemoNotice")}</div>` : ""}<div class="dot1-admin">
       <section class="panel"><header class="panel-heading"><h3>${icon("bell")} ${t("dot1Queue")}</h3><span class="badge amber">${visible.length}</span></header>
-        <div class="dot1-order-filters">${["ALL","NEW","PREPARING","SERVED","PAID","CANCELLED"].map(s => `<button class="filter-btn ${filter === s ? "active" : ""}" data-menuadmin="order-filter" data-status="${s}">${t(s === "ALL" ? "dot1AllOrders" : "dot1Status" + s)} <span>${s === "ALL" ? orders.length : orders.filter(o => o.status === s).length}</span></button>`).join("")}</div>
+        <div class="dot1-order-filters">${["ALL","NEW","PREPARING","SERVED","PAID","REFUNDED","CANCELLED"].map(s => `<button class="filter-btn ${filter === s ? "active" : ""}" data-menuadmin="order-filter" data-status="${s}">${t(s === "ALL" ? "dot1AllOrders" : "dot1Status" + s)} <span>${s === "ALL" ? orders.length : orders.filter(o => o.status === s).length}</span></button>`).join("")}</div>
         ${visible.length ? visible.map(dot1OrderCard).join("") : empty("dot1NoOrders")}</section>
+      ${state.menuReversals?.length ? `<section class="panel"><header class="panel-heading"><h3>${t("posPendingReversals")}</h3></header>${state.menuReversals.map(r => `<article class="dot1-order"><strong>${esc(orders.find(o=>o.id===r.order_id)?.code || String(r.order_id))}</strong><p>${esc(r.reason)} · ${t(r.disposition === "RESTOCK" ? "posRestock" : "posWaste")}</p>${isManager() && r.requested_by !== state.actor.employee_id ? `<div class="actions"><button class="btn small primary" data-menuadmin="approve-reversal" data-id="${r.order_id}">${t("posApproveReversal")}</button><button class="btn small" data-menuadmin="reject-reversal" data-id="${r.order_id}">${t("posRejectReversal")}</button></div>` : ""}</article>`).join("")}</section>` : ""}
       <section class="panel"><header class="panel-heading"><h3>${icon("utensils")} ${t("dot1Catalog")}</h3></header>${dot1CatalogTable(d)}</section>
+      ${d.can_manage ? dot1PromotionPanel() : ""}
       ${state.menuInventory?.enabled ? dot1InventoryPanel(state.menuInventory) : ""}
     </div>`;
+}
+
+function dot1PromotionPanel() {
+  const promos = state.menuPromotions || [];
+  return `<section class="panel"><header class="panel-heading"><h3>${t("posPromotions")}</h3><button class="btn small primary" data-menuadmin="promotion">${t("posPromoNew")}</button></header>
+    ${promos.length ? promos.map(p => `<article class="dot1-order"><strong>${esc(p.code)}</strong> · ${t("posPromo"+p.kind)}
+      <span class="badge">${p.is_active ? t("dot1Active") : t("dot1Hidden")}</span>
+      <p>${p.kind === "TIER_PERCENT" ? `${esc(p.minimum_tier)} · ${p.value}%` : `${esc(state.menuAdmin.items.find(i=>i.id===p.item_id)?.name || p.item_id)} · ${p.kind === "BOGO" ? t("posPromoBOGO") : money(p.value)}`}
+      · ${dt(p.starts_at)} → ${dt(p.ends_at)}</p><button class="btn small" data-menuadmin="promotion" data-id="${p.id}">${t("edit")}</button></article>`).join("") : empty()}
+    </section>`;
 }
 
 function dot1InventoryPanel(inventory) {
@@ -150,9 +192,12 @@ function dot1OrderCard(order) {
   return `<article class="dot1-order"><header><span><strong>${esc(order.machine_code)}</strong> · ${esc(order.customer_name)}</span><small>${dt(order.created_at)}</small></header>
       <div class="dot1-order-meta">${status}${order.payment_method ? `<span>${t("dot1" + (order.payment_method === "CASH" ? "Cash" : "Transfer"))}</span>` : ""}</div>
       <ul>${order.lines.map((l) => `<li>${l.quantity} × ${esc(l.item_name)} — ${money(l.unit_price * l.quantity)}</li>`).join("")}</ul>
+      ${order.status === "NEW" && order.reservation_expires_at ? `<p class="note">${t("dot1HoldUntil")}: ${dt(order.reservation_expires_at)}</p>` : ""}
+      ${order.cancel_reason === "AUTO_EXPIRED" ? `<p class="note">${t("dot1ExpiredAutomatically")}</p>` : ""}
       ${order.note ? `<p class="note">“${esc(order.note)}”</p>` : ""}
       <div class="actions"><span class="spacer">${t("dot1Total")}: <b>${money(order.total_amount)}</b>${order.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}<br>${t("dot1AmountDue")}: <b>${money(order.total_amount - order.discount_amount)}</b>` : ""}</span>
         ${capabilities.can_cancel && ["NEW","PREPARING"].includes(order.status) ? `<button class="btn small" data-menuadmin="cancel-order" data-id="${order.id}">${t("dot1Cancel")}</button>` : ""}
+        ${["STAFF","MANAGER","ADMIN"].includes(state.actor.role) && ["SERVED","PAID"].includes(order.status) && !(state.menuReversals || []).some(r=>r.order_id===order.id) ? `<button class="btn small" data-menuadmin="request-reversal" data-id="${order.id}">${t("posRequestReversal")}</button>` : ""}
         ${action}</div>
     </article>`;
 }
@@ -218,6 +263,40 @@ const dot1Input = (name, label, value, type = "text", attrs = "") =>
   `<label><span>${t(label)}</span><input class="input" name="${name}" type="${type}" value="${esc(value ?? "")}" ${attrs}><span class="field-error" data-error="${name}"></span></label>`;
 const dot1Check = (name, label, checked) =>
   `<label class="dot1-check"><input type="checkbox" name="${name}" ${checked ? "checked" : ""}><span>${t(label)}</span></label>`;
+
+function dot1PromotionForm(id) {
+  const promo = (state.menuPromotions || []).find(p => p.id === Number(id));
+  const localValue = (date) => {
+    const value = new Date(date);
+    return new Date(value.getTime() - value.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  const now = Date.now();
+  const option = (value, label, selected) => `<option value="${value}" ${selected ? "selected" : ""}>${label}</option>`;
+  dot1Dialog("posPromotions", `<div class="form-grid">
+    ${dot1Input("code", "posPromoCode", promo?.code || "", "text", 'maxlength="30" required')}
+    <label><span>${t("posPromoKind")}</span><select class="input" name="kind">${["PLAY_DRINK","BOGO","TIER_PERCENT"].map(k=>option(k,t("posPromo"+k),promo?.kind===k)).join("")}</select></label>
+    <label><span>${t("posPromoItem")}</span><select class="input" name="item_id">${option("","—",!promo?.item_id)}${state.menuAdmin.items.map(i=>option(i.id,esc(i.name),promo?.item_id===i.id)).join("")}</select></label>
+    ${dot1Input("value", "posPromoValue", promo?.value ?? 5000, "number", 'min="1" step="1" required')}
+    <label><span>${t("posPromoTier")}</span><select class="input" name="minimum_tier">${option("","—",!promo?.minimum_tier)}${["BRONZE","SILVER","GOLD","PLATINUM"].map(k=>option(k,k,promo?.minimum_tier===k)).join("")}</select></label>
+    ${dot1Input("starts_at", "posPromoStarts", localValue(promo?.starts_at || now), "datetime-local", "required")}
+    ${dot1Input("ends_at", "posPromoEnds", localValue(promo?.ends_at || now + 365*86400000), "datetime-local", "required")}
+    ${dot1Check("is_active", "dot1Active", promo ? promo.is_active : true)}
+    <p class="dot1-tip">${t("posPromoBOGO")}: ${t("posPromoValue")} = 1. ${t("posPromoTIER_PERCENT")}: %.</p>
+  </div>`, async (form) => {
+    const kind = form.elements.kind.value;
+    await api(promo ? `/menu/promotions/${promo.id}` : "/menu/promotions", {
+      method: promo ? "PATCH" : "POST", body: {
+        code: form.elements.code.value, kind,
+        item_id: kind === "TIER_PERCENT" ? null : Number(form.elements.item_id.value) || null,
+        value: Number(form.elements.value.value),
+        minimum_tier: kind === "TIER_PERCENT" ? form.elements.minimum_tier.value || null : null,
+        starts_at: new Date(form.elements.starts_at.value).toISOString(),
+        ends_at: new Date(form.elements.ends_at.value).toISOString(),
+        is_active: form.elements.is_active.checked,
+      }
+    });
+  });
+}
 
 function dot1CategoryForm(id) {
   const c = id ? state.menuAdmin.categories.find((x) => x.id === Number(id)) : null;
@@ -388,6 +467,7 @@ document.addEventListener("click", async (event) => {
   if (state.page !== "menu" || !state.menuAdmin) return;
   try {
     if (action === "category" && state.menuAdmin.can_manage) dot1CategoryForm(id);
+    if (action === "promotion" && state.menuAdmin.can_manage) dot1PromotionForm(id);
     if (action === "ingredient" && state.menuInventory?.can_configure) dot1IngredientForm();
     if (action === "receive" && state.menuInventory?.can_receive) dot1ReceiveForm(id);
     if (action === "issue" && state.menuInventory?.can_issue) dot1MovementForm(id, "ISSUE");
@@ -435,6 +515,24 @@ document.addEventListener("click", async (event) => {
       dot1Dialog("dot1Pay", `<div class="form-grid"><label><span>${t("dot1PaymentMethod")}</span><select class="input" name="method"><option value="CASH">${t("dot1Cash")}</option><option value="TRANSFER">${t("dot1Transfer")}</option></select></label></div><div class="notice info">${t("dot1Total")}: ${money(order?.total_amount || 0)}${order?.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}` : ""}<br>${t("dot1AmountDue")}: <strong>${money((order?.total_amount || 0) - (order?.discount_amount || 0))}</strong></div>`, async (form) => {
         await api(`/menu/orders/${id}/payment`, { method: "POST", body: { method: form.elements.method.value } });
       }, "dot1Pay");
+    }
+    if (action === "request-reversal" && ["STAFF","MANAGER","ADMIN"].includes(state.actor.role)) {
+      dot1Dialog("posRequestReversal", `<div class="form-grid">${dot1Input("reason", "posReason", "", "text", 'minlength="5" maxlength="255" required')}<label><span>${t("posDisposition")}</span><select class="input" name="disposition"><option value="WASTE">${t("posWaste")}</option><option value="RESTOCK">${t("posRestock")}</option></select></label></div>`, async (form) => {
+        await api(`/menu/orders/${id}/reversal`, {method:"POST", body:{reason:form.elements.reason.value, disposition:form.elements.disposition.value}});
+      }, "posRequestReversal");
+    }
+    if (action === "reject-reversal" && isManager()) {
+      if (!confirm(t("posRejectReversal"))) return;
+      button.disabled = true;
+      await api(`/menu/orders/${id}/reversal/decision`, {method:"POST", body:{approve:false}});
+      await loadPage(true);
+    }
+    if (action === "approve-reversal" && isManager()) {
+      const order = (state.menuOrders || []).find(item => item.id === Number(id));
+      const refund = order?.status === "PAID";
+      dot1Dialog("posApproveReversal", refund ? `<div class="notice info">${t("dot1AmountDue")}: ${money(order.total_amount-order.discount_amount)}</div><div class="form-grid">${dot1Check("refund_confirmed","posRefundConfirmed",false)}<label><span>${t("dot1PaymentMethod")}</span><select class="input" name="refund_method"><option value="CASH">${t("dot1Cash")}</option><option value="TRANSFER">${t("dot1Transfer")}</option></select></label>${dot1Input("refund_reference","posRefundReference","","text",'maxlength="100"')}</div>` : `<p>${t("posDisposition")}: ${t((state.menuReversals||[]).find(r=>r.order_id===Number(id))?.disposition === "RESTOCK" ? "posRestock" : "posWaste")}</p>`, async (form) => {
+        await api(`/menu/orders/${id}/reversal/decision`, {method:"POST", body:{approve:true, refund_confirmed:refund ? form.elements.refund_confirmed.checked : false, refund_method:refund ? form.elements.refund_method.value : null, refund_reference:refund ? form.elements.refund_reference.value : null}});
+      }, "posApproveReversal");
     }
   } catch (error) {
     button.disabled = false;

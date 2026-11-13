@@ -22,6 +22,7 @@ class MenuOrderStatus(StrEnum):
     SERVED = "SERVED"
     PAID = "PAID"
     CANCELLED = "CANCELLED"
+    REFUNDED = "REFUNDED"
 
 
 class MenuPaymentMethod(StrEnum):
@@ -113,7 +114,9 @@ class MenuOrder:
     paid_at: datetime | None = None
     paid_by: int | None = None
     discount_amount: int = 0
+    promotion_code: str | None = None
     cancel_reason: str | None = None
+    reservation_expires_at: datetime | None = None
 
 
 def order_total(lines: tuple[MenuOrderLine, ...] | list[MenuOrderLine]) -> int:

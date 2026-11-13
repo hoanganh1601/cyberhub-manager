@@ -244,7 +244,7 @@ class ManagementService:
             raise ValidationError(
                 field_errors={"username": "Tên đăng nhập không hợp lệ"}
             )
-        choice(role, "role", ("ADMIN", "MANAGER", "STAFF"))
+        choice(role, "role", tuple(str(value) for value in Role))
         choice(status, "status", ("ACTIVE", "INACTIVE", "LOCKED"))
         if employee_id is None or password:
             if (

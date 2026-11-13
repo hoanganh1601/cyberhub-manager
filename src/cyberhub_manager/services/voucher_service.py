@@ -56,6 +56,7 @@ REJECT_MESSAGES = {
     "ORDER_INVALID": "Yêu cầu gọi món không thuộc khách này, khác cơ sở hoặc đã hủy",
     "ORDER_HAS_VOUCHER": "Yêu cầu gọi món này đã áp một voucher khác",
     "MIN_ORDER": "Chưa đạt giá trị đơn tối thiểu",
+    "PROMOTION_BETTER": "Ưu đãi hiện tại tốt hơn hoặc bằng voucher; giữ voucher cho đơn khác",
 }
 
 
@@ -292,7 +293,7 @@ class VoucherService:
             if voucher.reward_type in FOOD_TYPES:
                 orders = [
                     o for o in self._menu.account_orders(conn, voucher.account_id, 10)
-                    if o.store_id == current.store_id and o.status != MenuOrderStatus.CANCELLED
+                    if o.store_id == current.store_id and o.status not in (MenuOrderStatus.CANCELLED, MenuOrderStatus.REFUNDED)
                 ]
             return dict(
                 voucher=self._view(voucher, now, self._store_names(conn)),
@@ -351,13 +352,15 @@ class VoucherService:
                 order is None
                 or order.account_id != voucher.account_id
                 or order.store_id != current.store_id
-                or order.status in (MenuOrderStatus.CANCELLED, MenuOrderStatus.PAID)
+                or order.status in (MenuOrderStatus.CANCELLED, MenuOrderStatus.PAID, MenuOrderStatus.REFUNDED)
             ):
                 return "ORDER_INVALID"
             if self._repo.order_has_voucher(conn, order.id):
                 return "ORDER_HAS_VOUCHER"
             if order.total_amount < voucher.min_order_amount:
                 return "MIN_ORDER"
+            if min(voucher.value, order.total_amount) <= order.discount_amount:
+                return "PROMOTION_BETTER"
         return None
 
     def _apply(self, conn, current, voucher, order_id):
@@ -378,6 +381,8 @@ class VoucherService:
         if not self._repo.mark_used(conn, voucher.id, employee_id=current.employee_id, store_id=current.store_id,
                                     order_id=order_id if voucher.reward_type in FOOD_TYPES else None, used_at=now):
             raise ConflictError(REJECT_MESSAGES["USED"])
+        if voucher.reward_type in FOOD_TYPES:
+            self._menu.apply_voucher_pricing(conn, order, voucher.code, discount)
         self._repo.insert_event(conn, voucher_id=voucher.id, action=VoucherAction.REDEEM,
                                 employee_id=current.employee_id, store_id=current.store_id,
                                 reason=f"order={order_id}" if order_id else "")

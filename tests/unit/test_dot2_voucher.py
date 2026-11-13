@@ -139,6 +139,17 @@ def test_food_voucher_needs_eligible_order_and_applies_once(ctx):
     assert ctx["svc"].redeem(ctx["staff"], "CHDEMO0005", binh.customer_id, small.id).discount == 10_000
 
 
+def test_food_voucher_does_not_stack_with_better_pos_promotion(ctx):
+    binh = ctx["binh"]
+    menu = ctx["bundle"].menu.portal_menu(binh)
+    coca = next(i for page in menu["pages"] for group in page["categories"]
+                for i in group["items"] if i.name == "Coca")
+    order = ctx["bundle"].menu.place_order(binh, [{"item_id": coca.id, "quantity": 6}])
+    assert order.discount_amount == 30_000
+    rejects(ctx, "CHDEMO0005", binh, "PROMOTION_BETTER", order.id)
+    assert ctx["bundle"].menu._repo.get_order(None, order.id).discount_amount == 30_000
+
+
 def test_food_voucher_cannot_use_another_customers_order(ctx):
     bundle = ctx["bundle"]
     menu = bundle.menu.portal_menu(ctx["binh"])

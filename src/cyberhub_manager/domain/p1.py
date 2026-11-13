@@ -25,6 +25,8 @@ class Permission(StrEnum):
     POS_SERVE_ORDERS = "pos_serve_orders"
     POS_CANCEL_ORDERS = "pos_cancel_orders"
     POS_COLLECT_PAYMENT = "pos_collect_payment"
+    POS_REQUEST_REVERSAL = "pos_request_reversal"
+    POS_APPROVE_REVERSAL = "pos_approve_reversal"
     INVENTORY_VIEW = "inventory_view"
     INVENTORY_CONFIGURE = "inventory_configure"
     INVENTORY_RECEIVE = "inventory_receive"
@@ -43,6 +45,7 @@ _STAFF_PERMISSIONS = frozenset({
     Permission.POS_SERVE_ORDERS,
     Permission.POS_CANCEL_ORDERS,
     Permission.POS_COLLECT_PAYMENT,
+    Permission.POS_REQUEST_REVERSAL,
     Permission.INVENTORY_VIEW,
     Permission.INVENTORY_COUNT,
 })
@@ -57,9 +60,15 @@ _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
     Permission.INVENTORY_RECEIVE,
     Permission.INVENTORY_ISSUE,
     Permission.INVENTORY_APPROVE,
+    Permission.POS_APPROVE_REVERSAL,
 })
 ROLE_PERMISSIONS = {
     Role.STAFF: _STAFF_PERMISSIONS,
+    Role.KITCHEN: frozenset({Permission.POS_VIEW_ORDERS, Permission.POS_PREPARE_ORDERS,
+                             Permission.POS_SERVE_ORDERS, Permission.INVENTORY_VIEW}),
+    Role.INVENTORY: frozenset({Permission.POS_VIEW_ORDERS, Permission.INVENTORY_VIEW,
+                               Permission.INVENTORY_CONFIGURE, Permission.INVENTORY_RECEIVE,
+                               Permission.INVENTORY_ISSUE, Permission.INVENTORY_COUNT}),
     Role.MANAGER: _MANAGER_PERMISSIONS,
     Role.ADMIN: _MANAGER_PERMISSIONS | frozenset({
         Permission.MANAGE_STORES,
