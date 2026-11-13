@@ -14,7 +14,8 @@ Quy tắc:
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+import os
 from uuid import uuid4
 from uuid import UUID
 
@@ -39,6 +40,8 @@ from cyberhub_manager.domain.menu import (
     MenuPage,
 )
 from cyberhub_manager.domain.p1 import CustomerSession, Permission, can
+from cyberhub_manager.domain.loyalty import TIERS
+from .pos_pricing import price_order
 
 from .p1_runtime import errors, retry_on_transient
 
@@ -129,6 +132,10 @@ class MenuService:
         self._transaction = transaction_factory
         self._actor_provider = actor_provider
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        hold = int(os.getenv("CYBERHUB_POS_HOLD_MINUTES", "15"))
+        if not 5 <= hold <= 120:
+            raise ValueError("CYBERHUB_POS_HOLD_MINUTES must be between 5 and 120")
+        self._hold_duration = timedelta(minutes=hold)
 
     def _errors(self):
         return errors(self._memory)
@@ -230,8 +237,22 @@ class MenuService:
                 orders=self._repo.account_orders(conn, customer.account_id, 5),
             )
 
-    @retry_on_transient
     def place_order(self, principal, lines, note=""):
+        try:
+            return self._place_order(principal, lines, note)
+        except ConflictError as exc:
+            if str(exc).startswith((ITEM_UNAVAILABLE, "Không đủ nguyên liệu:",
+                                    "Tồn khả dụng vừa thay đổi")):
+                with self._errors(), self._transaction() as conn:
+                    customer = self._customer(conn, principal)
+                    session = self._repo.active_session(conn, customer.customer_id)
+                    if session is not None:
+                        self._repo.record_unavailable_notification(conn, customer.account_id,
+                            session["store_id"], self._clock())
+            raise
+
+    @retry_on_transient
+    def _place_order(self, principal, lines, note=""):
         """Tạo yêu cầu gọi món; giá và trạng thái món lấy từ database."""
         if not isinstance(lines, list) or not 1 <= len(lines) <= MAX_ORDER_LINES:
             raise ValidationError(field_errors={"lines": f"Chọn từ 1 đến {MAX_ORDER_LINES} món"})
@@ -271,6 +292,10 @@ class MenuService:
             if unavailable:
                 message = f"{ITEM_UNAVAILABLE}: {', '.join(unavailable)}"
                 raise ConflictError(message, field_errors={"lines": message})
+            member = self._p1.loyalty_summary(conn, customer.customer_id)
+            pricing = price_order(order_lines,
+                self._repo.active_promotions(conn, session["store_id"], self._clock()),
+                member["tier"] if member["enabled"] else "BRONZE")
             code = new_order_code()
             order_id = self._repo.insert_order(
                 conn,
@@ -281,7 +306,9 @@ class MenuService:
                 machine_id=session["machine_id"],
                 note=note.strip(),
                 lines=order_lines,
+                expires_at=self._clock() + self._hold_duration,
             )
+            self._repo.save_order_pricing(conn, order_id, pricing)
             if self._inventory is not None:
                 self._inventory.reserve_order(
                     conn, order_id, session["store_id"], customer.account_id, order_lines
@@ -325,6 +352,48 @@ class MenuService:
                 categories=menu["categories"],
                 items=menu["items"],
             )
+
+    def list_promotions(self, actor):
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_MENU)
+            return self._repo.list_promotions(conn, current.store_id)
+
+    @retry_on_transient
+    def save_promotion(self, actor, *, promotion_id=None, code, kind, item_id=None,
+                       value, minimum_tier=None, starts_at, ends_at, is_active):
+        code = _text(code, "code", 3, 30).upper()
+        if not all(c.isascii() and (c.isalnum() or c in "_-") for c in code):
+            raise ValidationError(field_errors={"code": "Chỉ dùng chữ, số, _ và -"})
+        if kind not in ("BOGO", "PLAY_DRINK", "TIER_PERCENT"):
+            raise ValidationError(field_errors={"kind": "Loại ưu đãi không hợp lệ"})
+        if type(value) is not int or not 1 <= value <= (100 if kind == "TIER_PERCENT" else 1_000_000):
+            raise ValidationError(field_errors={"value": "Giá trị ưu đãi không hợp lệ"})
+        if kind == "BOGO" and value != 1:
+            raise ValidationError(field_errors={"value": "Mua 3 trả 2 dùng giá trị 1"})
+        if kind == "TIER_PERCENT":
+            if minimum_tier not in TIERS or item_id is not None:
+                raise ValidationError(field_errors={"minimum_tier": "Chọn hạng hợp lệ"})
+        elif minimum_tier is not None or not _positive_id(item_id):
+            raise ValidationError(field_errors={"item_id": "Chọn món áp dụng"})
+        if (not isinstance(starts_at, datetime) or not isinstance(ends_at, datetime)
+                or starts_at.tzinfo is None or ends_at.tzinfo is None
+                or starts_at >= ends_at):
+            raise ValidationError(field_errors={"starts_at": "Khoảng thời gian không hợp lệ"})
+        is_active = _flag(is_active, "is_active")
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_MENU)
+            if item_id is not None:
+                item = self._item_in_store(conn, item_id, current.store_id)
+                if kind == "PLAY_DRINK" and self._category_in_store(
+                        conn, item.category_id, current.store_id).page is not MenuPage.DRINK:
+                    raise ValidationError(field_errors={"item_id": "Chọn món thuộc nhóm đồ uống"})
+            existing = self._repo.get_promotion(conn, promotion_id) if promotion_id is not None else None
+            if promotion_id is not None and (existing is None or existing["store_id"] != current.store_id):
+                raise NotFoundError("Không tìm thấy ưu đãi")
+            promo_id = self._repo.save_promotion(conn, current.store_id, promotion_id,
+                code, kind, item_id, value, minimum_tier, starts_at, ends_at, is_active)
+            self._p1.audit(conn, current, "POS_PROMOTION_SAVE", promo_id)
+            return self._repo.get_promotion(conn, promo_id)
 
     def inventory_overview(self, actor):
         """Read stock for the actor's store; memory demo has no stock ledger."""
@@ -667,6 +736,35 @@ class MenuService:
             current = self._actor(conn, actor, Permission.MANAGE_MENU)
             return self._repo.paid_order_report(conn, current.store_id, start, before)
 
+    def maintain_holds(self, *, now=None, limit=100):
+        """Trusted worker entry point; retries are safe and never cancel PREPARING."""
+        if type(limit) is not int or not 1 <= limit <= 500:
+            raise ValueError("limit must be 1..500")
+        now = now or self._clock()
+        if now.tzinfo is None:
+            raise ValueError("now must include timezone")
+        warned = expired = 0
+        with self._errors(), self._transaction() as conn:
+            candidates = self._repo.pending_holds(conn, now + timedelta(minutes=2), limit)
+        for order_id in candidates:
+            with self._errors(), self._transaction() as conn:
+                order = self._repo.get_order(conn, order_id, lock=True)
+                if order is None or order.status is not MenuOrderStatus.NEW or order.reservation_expires_at is None:
+                    continue
+                if order.reservation_expires_at <= now:
+                    if not self._repo.finish_order(conn, order.id, MenuOrderStatus.CANCELLED,
+                                                   None, reason="AUTO_EXPIRED"):
+                        continue
+                    if self._inventory is not None:
+                        self._inventory.transition_order(conn, order, MenuOrderStatus.CANCELLED,
+                                                         None, reason="AUTO_EXPIRED")
+                    updated = self._repo.get_order(conn, order.id)
+                    self._repo.record_order_notification(conn, updated, MenuOrderStatus.CANCELLED, now)
+                    expired += 1
+                elif order.reservation_expires_at <= now + timedelta(minutes=2):
+                    warned += int(self._repo.record_hold_warning(conn, order, now))
+        return dict(warned=warned, expired=expired)
+
     @retry_on_transient
     def finish_order(self, actor, order_id, status, *, reason=None):
         try:
@@ -725,3 +823,78 @@ class MenuService:
                 conn, updated, MenuOrderStatus.PAID, updated.paid_at,
             )
             return updated
+
+    @retry_on_transient
+    def request_reversal(self, actor, order_id, *, reason, disposition):
+        reason = _text(reason, "reason", 5, 255)
+        if disposition not in ("RESTOCK", "WASTE"):
+            raise ValidationError(field_errors={"disposition": "Chọn nhập trả hoặc hao hụt"})
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.POS_REQUEST_REVERSAL)
+            order = self._repo.get_order(conn, order_id, lock=True) if _positive_id(order_id) else None
+            if order is None or order.store_id != current.store_id:
+                raise NotFoundError(ORDER_NOT_FOUND)
+            if order.status not in (MenuOrderStatus.SERVED, MenuOrderStatus.PAID):
+                raise ConflictError("Chỉ được đề xuất hủy/hoàn đơn đã phục vụ")
+            if self._repo.get_reversal(conn, order.id):
+                raise ConflictError("Đơn này đã có yêu cầu hủy/hoàn")
+            reversal_id = self._repo.request_reversal(conn, order, current.employee_id,
+                                                      reason, disposition)
+            if not reversal_id:
+                raise ConflictError("Đơn này đã có yêu cầu hủy/hoàn")
+            self._p1.audit(conn, current, "POS_REVERSAL_REQUEST", order.id)
+            return self._repo.get_reversal(conn, order.id)
+
+    def list_reversals(self, actor, status="PENDING"):
+        if status not in ("PENDING", "APPROVED", "REJECTED"):
+            raise ValidationError(field_errors={"status": "Trạng thái không hợp lệ"})
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.POS_REQUEST_REVERSAL)
+            return self._repo.list_reversals(conn, current.store_id, status)
+
+    @retry_on_transient
+    def decide_reversal(self, actor, order_id, *, approve, refund_confirmed=False,
+                        refund_method=None, refund_reference=None):
+        if type(approve) is not bool or type(refund_confirmed) is not bool:
+            raise ValidationError("Quyết định không hợp lệ")
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.POS_APPROVE_REVERSAL)
+            order = self._repo.get_order(conn, order_id, lock=True) if _positive_id(order_id) else None
+            if order is None or order.store_id != current.store_id:
+                raise NotFoundError(ORDER_NOT_FOUND)
+            request = self._repo.get_reversal(conn, order.id, lock=True)
+            if request is None or request["status"] != "PENDING":
+                raise ConflictError("Không có yêu cầu đang chờ duyệt")
+            if request["requested_by"] == current.employee_id:
+                raise PermissionDeniedError("Người đề xuất không được tự duyệt")
+            if order.status not in (MenuOrderStatus.SERVED, MenuOrderStatus.PAID):
+                raise ConflictError("Trạng thái đơn đã thay đổi")
+            amount = max(0, order.total_amount - order.discount_amount) if order.status is MenuOrderStatus.PAID else 0
+            if approve and amount:
+                if not refund_confirmed or refund_method not in ("CASH", "TRANSFER"):
+                    raise ValidationError(field_errors={"refund_confirmed": "Xác nhận đã hoàn tiền và chọn phương thức"})
+                if refund_method == "TRANSFER":
+                    refund_reference = _text(refund_reference, "refund_reference", 3, 100)
+                else:
+                    refund_reference = None
+            else:
+                refund_method = refund_reference = None
+            now = self._clock()
+            if not self._repo.decide_reversal(conn, request["id"], current.employee_id,
+                                               now, approve, amount if approve else 0,
+                                               refund_method, refund_reference):
+                raise ConflictError("Yêu cầu đã được xử lý")
+            if approve:
+                target = (MenuOrderStatus.REFUNDED if order.status is MenuOrderStatus.PAID
+                          else MenuOrderStatus.CANCELLED)
+                if not self._repo.set_reversed_status(conn, order, target, current.employee_id,
+                                                      request["reason"]):
+                    raise ConflictError("Trạng thái đơn đã thay đổi")
+                if self._inventory is not None:
+                    self._inventory.reverse_served_order(conn, order, current.employee_id,
+                        restock=request["disposition"] == "RESTOCK", reason=request["reason"])
+                updated = self._repo.get_order(conn, order.id)
+                self._repo.record_order_notification(conn, updated, target, now)
+            self._p1.audit(conn, current,
+                           "POS_REVERSAL_APPROVED" if approve else "POS_REVERSAL_REJECTED", order.id)
+            return self._repo.get_reversal(conn, order.id)

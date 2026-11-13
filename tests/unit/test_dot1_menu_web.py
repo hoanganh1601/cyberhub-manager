@@ -61,6 +61,8 @@ def test_sold_out_item_order_returns_conflict(app):
 
     assert result.status_code == 409
     assert "lines" in result.json["error"]["field_errors"]
+    notices = c.get("/api/portal/notifications").json["items"]
+    assert any(n["kind"] == "MENU_ITEM_UNAVAILABLE" for n in notices)
 
 
 def test_customer_cannot_use_staff_menu_api(app):
@@ -175,6 +177,33 @@ def test_food_voucher_reduces_paid_revenue(app):
     assert client.post("/api/vouchers/redeem",
                        json={"code": "CHDEMO0005", "customer_id": customer.customer_id,
                              "order_id": order.id}, headers=headers).status_code == 409
+
+
+def test_manager_approves_other_employee_full_refund(app):
+    client = app.test_client()
+    headers = sign_in(client, "quanly01")
+    with client.session_transaction() as session:
+        workspace = app.extensions["cyberhub_demo"].get(session["workspace"])
+    staff = workspace.services.auth.login("nhanvien01", "demo123")
+    customer = workspace.services.portal.login("lethibinh", "demo123")
+    item = next(i for p in workspace.services.menu.portal_menu(customer)["pages"]
+                for category in p["categories"] for i in category["items"] if i.is_available)
+    order = workspace.services.menu.place_order(customer, [{"item_id": item.id, "quantity": 1}])
+    workspace.services.menu.finish_order(staff, order.id, "SERVED")
+    workspace.services.menu.pay_order(staff, order.id, "CASH")
+    workspace.services.menu.request_reversal(staff, order.id,
+        reason="Khách trả toàn bộ đơn", disposition="WASTE")
+    assert client.post(f"/api/menu/orders/{order.id}/reversal/decision",
+        json={"approve": True}, headers=headers).status_code == 422
+    approved = client.post(f"/api/menu/orders/{order.id}/reversal/decision",
+        json={"approve": True, "refund_confirmed": True,
+              "refund_method": "CASH"}, headers=headers)
+    assert approved.status_code == 200, approved.json
+    assert approved.json["refund_amount"] == item.price
+    assert client.get("/api/menu/orders?status=REFUNDED").json[0]["id"] == order.id
+    assert client.post(f"/api/menu/orders/{order.id}/reversal/decision",
+        json={"approve": True, "refund_confirmed": True,
+              "refund_method": "CASH"}, headers=headers).status_code == 409
 
 
 def test_manager_creates_item_and_history_is_kept(app):

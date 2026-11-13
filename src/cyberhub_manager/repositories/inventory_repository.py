@@ -369,3 +369,23 @@ class InventoryRepository:
                          kind=kind, quantity=quantity, on_hand_delta=on_hand_sign * quantity,
                          reserved_delta=reserved_sign * quantity,
                          note=reason if kind == "WASTE" else None)
+
+    def reverse_served_order(self, conn, order, employee_id, *, restock, reason):
+        """Reverse consumed recipe snapshots; never infer from current recipes."""
+        snapshots = rows(conn,
+            "SELECT ingredient_id,SUM(quantity) AS quantity FROM menu_order_recipe_snapshots"
+            " WHERE order_id=%s GROUP BY ingredient_id ORDER BY ingredient_id", (order.id,))
+        locked = self._lock_ingredients(conn, [r["ingredient_id"] for r in snapshots])
+        for part in snapshots:
+            ingredient_id = int(part["ingredient_id"])
+            quantity = int(part["quantity"])
+            if locked[ingredient_id]["store_id"] != order.store_id:
+                raise ConflictError("Nguyên liệu không thuộc cửa hàng của đơn")
+            if restock and execute(conn,
+                "UPDATE inventory_ingredients SET on_hand=on_hand+%s WHERE id=%s AND store_id=%s",
+                (quantity, ingredient_id, order.store_id)) != 1:
+                raise ConflictError("Không thể nhập trả nguyên liệu")
+            self._record(conn, store_id=order.store_id, ingredient_id=ingredient_id,
+                         order_id=order.id, employee_id=employee_id, account_id=None,
+                         kind="RETURN" if restock else "WASTE", quantity=quantity,
+                         on_hand_delta=quantity if restock else 0, reserved_delta=0, note=reason)

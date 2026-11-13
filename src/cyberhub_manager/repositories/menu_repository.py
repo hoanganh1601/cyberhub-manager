@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import timezone
+import json
+from uuid import uuid4
 from typing import Any
 
 from cyberhub_manager.domain.menu import (
@@ -28,7 +30,7 @@ _ITEM_SELECT = """
 _ORDER_SELECT = """
     SELECT o.id, o.code, o.store_id, o.account_id, c.full_name AS customer_name,
            m.code AS machine_code, o.status, o.total_amount, o.note, o.created_at, o.handled_by,
-           o.payment_method, o.paid_at, o.paid_by, o.cancel_reason
+           o.payment_method, o.paid_at, o.paid_by, o.cancel_reason, o.reservation_expires_at
     FROM menu_orders AS o
     JOIN accounts AS a ON a.id = o.account_id
     JOIN customers AS c ON c.id = a.customer_id
@@ -217,14 +219,14 @@ class MenuRepository:
         return int(result[0]["total"])
 
     def insert_order(self, conn: Any, *, code, store_id, account_id, session_id, machine_id, note,
-                     lines: list[MenuOrderLine]) -> int:
+                     lines: list[MenuOrderLine], expires_at=None) -> int:
         order_id = int(
             execute(
                 conn,
-                "INSERT INTO menu_orders (code, store_id, account_id, session_id, machine_id, note, total_amount)"
-                " VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                "INSERT INTO menu_orders (code, store_id, account_id, session_id, machine_id, note, total_amount, reservation_expires_at)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                 (code, store_id, account_id, session_id, machine_id, note,
-                 sum(line.amount for line in lines)),
+                 sum(line.amount for line in lines), _db_time(expires_at)),
             )
         )
         for line in lines:
@@ -235,6 +237,67 @@ class MenuRepository:
                 (order_id, line.item_id, line.item_name, line.unit_price, line.quantity),
             )
         return order_id
+
+    def list_promotions(self, conn, store_id):
+        return rows(conn, "SELECT id,store_id,code,kind,item_id,value,minimum_tier,"
+                    "starts_at,ends_at,is_active FROM menu_promotions"
+                    " WHERE store_id=%s ORDER BY id DESC", (store_id,))
+
+    def active_promotions(self, conn, store_id, now):
+        return rows(conn, "SELECT id,store_id,code,kind,item_id,value,minimum_tier,"
+                    "starts_at,ends_at,is_active FROM menu_promotions"
+                    " WHERE store_id=%s AND is_active=1 AND starts_at<=%s AND ends_at>%s"
+                    " ORDER BY id", (store_id, _db_time(now), _db_time(now)))
+
+    def get_promotion(self, conn, promotion_id):
+        found = rows(conn, "SELECT id,store_id,code,kind,item_id,value,minimum_tier,"
+                     "starts_at,ends_at,is_active FROM menu_promotions WHERE id=%s", (promotion_id,))
+        return found[0] if found else None
+
+    def save_promotion(self, conn, store_id, promotion_id, code, kind, item_id,
+                       value, minimum_tier, starts_at, ends_at, is_active):
+        values = (code, kind, item_id, value, minimum_tier, _db_time(starts_at),
+                  _db_time(ends_at), is_active)
+        if promotion_id is None:
+            return int(execute(conn, "INSERT INTO menu_promotions"
+                " (store_id,code,kind,item_id,value,minimum_tier,starts_at,ends_at,is_active)"
+                " VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)", (store_id, *values)))
+        execute(conn, "UPDATE menu_promotions SET code=%s,kind=%s,item_id=%s,value=%s,"
+                "minimum_tier=%s,starts_at=%s,ends_at=%s,is_active=%s"
+                " WHERE id=%s AND store_id=%s", (*values, promotion_id, store_id))
+        return promotion_id
+
+    def save_order_pricing(self, conn, order_id, pricing):
+        execute(conn, "INSERT INTO menu_order_pricing"
+                " (order_id,promotion_id,promotion_code,promotion_kind,discount_amount,final_amount,snapshot_json)"
+                " VALUES(%s,%s,%s,%s,%s,%s,%s)",
+                (order_id, pricing["promotion_id"], pricing["promotion_code"],
+                 pricing["promotion_kind"], pricing["discount_amount"],
+                 pricing["final_amount"], json.dumps(pricing["snapshot"], default=str, ensure_ascii=False)))
+
+    def apply_voucher_pricing(self, conn, order, voucher_code, discount):
+        found = rows(conn, "SELECT snapshot_json FROM menu_order_pricing WHERE order_id=%s FOR UPDATE", (order.id,))
+        if found:
+            snapshot = found[0]["snapshot_json"]
+            if isinstance(snapshot, str):
+                snapshot = json.loads(snapshot)
+        else:
+            snapshot = {"gross_amount": order.total_amount,
+                        "lines": [dict(item_id=l.item_id, name=l.item_name,
+                                       unit_price=l.unit_price, quantity=l.quantity) for l in order.lines],
+                        "rule": None}
+        snapshot["voucher"] = {"code": voucher_code, "discount_amount": discount}
+        snapshot["applied_source"] = "VOUCHER"
+        snapshot["effective_discount_amount"] = discount
+        snapshot["final_amount"] = max(0, order.total_amount-discount)
+        encoded = json.dumps(snapshot, default=str, ensure_ascii=False)
+        if found:
+            execute(conn, "UPDATE menu_order_pricing SET final_amount=%s,snapshot_json=%s WHERE order_id=%s",
+                    (snapshot["final_amount"], encoded, order.id))
+        else:
+            execute(conn, "INSERT INTO menu_order_pricing"
+                    " (order_id,discount_amount,final_amount,snapshot_json) VALUES(%s,0,%s,%s)",
+                    (order.id, snapshot["final_amount"], encoded))
 
     def _orders(self, conn: Any, where: str, params: tuple) -> list[MenuOrder]:
         heads = rows(conn, _ORDER_SELECT + where, params)
@@ -258,6 +321,10 @@ class MenuRepository:
                   f" WHERE status = 'USED' AND used_order_id IN ({placeholders})", tuple(ids)
         )
         discounts = {int(r["used_order_id"]): int(r["value"]) for r in discount_rows}
+        price_rows = rows(conn,
+            "SELECT order_id,promotion_code,discount_amount FROM menu_order_pricing"
+            f" WHERE order_id IN ({placeholders})", tuple(ids))
+        pricing = {int(r["order_id"]): r for r in price_rows}
         return [
             MenuOrder(
                 id=int(h["id"]),
@@ -275,8 +342,14 @@ class MenuRepository:
                 payment_method=None if h["payment_method"] is None else MenuPaymentMethod(h["payment_method"]),
                 paid_at=_utc(h["paid_at"]),
                 paid_by=None if h["paid_by"] is None else int(h["paid_by"]),
-                discount_amount=min(int(h["total_amount"]), discounts.get(int(h["id"]), 0)),
+                discount_amount=min(int(h["total_amount"]), max(
+                    discounts.get(int(h["id"]), 0),
+                    int(pricing.get(int(h["id"]), {}).get("discount_amount", 0)))),
+                promotion_code=(pricing.get(int(h["id"]), {}).get("promotion_code")
+                                if discounts.get(int(h["id"]), 0) <= int(pricing.get(int(h["id"]), {}).get("discount_amount", 0))
+                                else None),
                 cancel_reason=h["cancel_reason"],
+                reservation_expires_at=_utc(h["reservation_expires_at"]),
             )
             for h in heads
         ]
@@ -298,6 +371,27 @@ class MenuRepository:
     def get_order(self, conn: Any, order_id: int, *, lock: bool = False) -> MenuOrder | None:
         result = self._orders(conn, " WHERE o.id = %s" + (" FOR UPDATE" if lock else ""), (order_id,))
         return result[0] if result else None
+
+    def pending_holds(self, conn: Any, before_utc, limit=100) -> list[int]:
+        return [int(r["id"]) for r in rows(conn,
+            "SELECT id FROM menu_orders WHERE status='NEW' AND reservation_expires_at IS NOT NULL"
+            " AND reservation_expires_at <= %s ORDER BY reservation_expires_at,id LIMIT %s",
+            (_db_time(before_utc), limit))]
+
+    def record_hold_warning(self, conn: Any, order: MenuOrder, created_at) -> bool:
+        return bool(execute(conn,
+            "INSERT IGNORE INTO customer_notification_events"
+            " (notification_key,account_id,store_id,kind,code,amount,created_at)"
+            " VALUES(%s,%s,%s,'MENU_ORDER_EXPIRING',%s,%s,%s)",
+            (f"menu-order:{order.id}:EXPIRING", order.account_id, order.store_id,
+             order.code, max(0, order.total_amount - order.discount_amount), _db_time(created_at))))
+
+    def record_unavailable_notification(self, conn, account_id, store_id, created_at):
+        execute(conn, "INSERT INTO customer_notification_events"
+            " (notification_key,account_id,store_id,kind,code,amount,created_at)"
+            " VALUES(%s,%s,%s,'MENU_ITEM_UNAVAILABLE',%s,0,%s)",
+            (f"menu-item-unavailable:{uuid4().hex}", account_id, store_id,
+             "MENU", _db_time(created_at)))
 
     def record_order_notification(
         self,
@@ -350,17 +444,60 @@ class MenuRepository:
             (method.value, paid_at, employee_id, employee_id, order_id),
         ))
 
+    def get_reversal(self, conn, order_id, *, lock=False):
+        found = rows(conn, "SELECT id,order_id,store_id,requested_by,reason,disposition,status,"
+                     "refund_amount,refund_method,refund_reference,decided_by,decided_at"
+                     " FROM pos_order_reversals WHERE order_id=%s"
+                     + (" FOR UPDATE" if lock else ""), (order_id,))
+        return found[0] if found else None
+
+    def list_reversals(self, conn, store_id, status="PENDING"):
+        return rows(conn,
+            "SELECT id,order_id,store_id,requested_by,reason,disposition,status,refund_amount,"
+            "refund_method,refund_reference,decided_by,decided_at FROM pos_order_reversals"
+            " WHERE store_id=%s AND status=%s ORDER BY id DESC LIMIT 100", (store_id, status))
+
+    def request_reversal(self, conn, order, actor_id, reason, disposition):
+        return int(execute(conn,
+            "INSERT INTO pos_order_reversals (order_id,store_id,requested_by,reason,disposition)"
+            " VALUES(%s,%s,%s,%s,%s)",
+            (order.id, order.store_id, actor_id, reason, disposition)))
+
+    def decide_reversal(self, conn, reversal_id, actor_id, now, approved, refund_amount,
+                        refund_method=None, refund_reference=None):
+        return bool(execute(conn,
+            "UPDATE pos_order_reversals SET status=%s,decided_by=%s,decided_at=%s,"
+            "refund_amount=%s,refund_method=%s,refund_reference=%s"
+            " WHERE id=%s AND status='PENDING'",
+            ("APPROVED" if approved else "REJECTED", actor_id, _db_time(now),
+             refund_amount if approved else 0, refund_method, refund_reference, reversal_id)))
+
+    def set_reversed_status(self, conn, order, target, employee_id, reason):
+        return bool(execute(conn,
+            "UPDATE menu_orders SET status=%s,handled_by=%s,cancel_reason=%s WHERE id=%s AND status=%s",
+            (target.value, employee_id, reason, order.id, order.status.value)))
+
     def paid_order_report(self, conn: Any, store_id: int, start_utc, before_utc):
         """Paid POS revenue by Vietnam date, net of redeemed food vouchers."""
         bounds = (store_id, start_utc.replace(tzinfo=None), before_utc.replace(tzinfo=None))
         days = rows(conn, """
             SELECT DATE(DATE_ADD(o.paid_at, INTERVAL 7 HOUR)) AS local_day,
                    COUNT(*) AS order_count,
-                   SUM(o.total_amount - LEAST(o.total_amount, COALESCE(v.value, 0))) AS revenue
+                   SUM(o.total_amount - LEAST(o.total_amount,
+                       GREATEST(COALESCE(v.value, 0), COALESCE(mp.discount_amount, 0)))) AS revenue
             FROM menu_orders AS o
             LEFT JOIN customer_vouchers AS v ON v.used_order_id = o.id AND v.status = 'USED'
-            WHERE o.store_id = %s AND o.status = 'PAID'
+            LEFT JOIN menu_order_pricing AS mp ON mp.order_id = o.id
+            WHERE o.store_id = %s AND o.status IN ('PAID','REFUNDED')
               AND o.paid_at >= %s AND o.paid_at < %s
+            GROUP BY local_day ORDER BY local_day
+        """, bounds)
+        refunds = rows(conn, """
+            SELECT DATE(DATE_ADD(decided_at, INTERVAL 7 HOUR)) AS local_day,
+                   COUNT(*) AS refund_count, SUM(refund_amount) AS refund_total
+            FROM pos_order_reversals
+            WHERE store_id=%s AND status='APPROVED' AND refund_amount>0
+              AND decided_at >= %s AND decided_at < %s
             GROUP BY local_day ORDER BY local_day
         """, bounds)
         top = rows(conn, """
@@ -373,7 +510,14 @@ class MenuRepository:
             GROUP BY l.item_id, i.name
             ORDER BY quantity DESC, name, l.item_id LIMIT 5
         """, bounds)
-        return dict(days=[dict(date=d["local_day"], order_count=int(d["order_count"]),
-                               revenue=int(d["revenue"])) for d in days],
+        by_day = {d["local_day"]: dict(date=d["local_day"], order_count=int(d["order_count"]),
+                                     revenue=int(d["revenue"]), refund_count=0) for d in days}
+        for refunded in refunds:
+            day = by_day.setdefault(refunded["local_day"],
+                                    dict(date=refunded["local_day"], order_count=0,
+                                         revenue=0, refund_count=0))
+            day["revenue"] -= int(refunded["refund_total"])
+            day["refund_count"] = int(refunded["refund_count"])
+        return dict(days=[by_day[day] for day in sorted(by_day)],
                     top_items=[dict(item_id=int(i["item_id"]), name=i["name"],
                                     quantity=int(i["quantity"])) for i in top])

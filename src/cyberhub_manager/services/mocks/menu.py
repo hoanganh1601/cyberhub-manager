@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from cyberhub_manager.domain.menu import (
     MenuCategory,
@@ -71,20 +72,25 @@ class MemoryMenuRepository:
         self.images: dict[int, bytes] = {}
         self.changes: list[MenuItemChange] = []
         self.orders: dict[int, MenuOrder] = {}
+        self.promotions: dict[int, dict] = {}
+        self.order_pricing: dict[int, dict] = {}
+        self.reversals: dict[int, dict] = {}
         self.voucher_repo = None
-        self._ids = {"category": 0, "item": 0, "order": 0}
+        self._ids = {"category": 0, "item": 0, "order": 0, "reversal": 0, "promotion": 0}
 
     # ----- Transaction ---------------------------------------------------------
     @contextmanager
     def transaction(self):
         with self.p1.transaction() as conn:
             snapshot = deepcopy(
-                (self.categories, self.items, self.images, self.changes, self.orders, self._ids)
+                (self.categories, self.items, self.images, self.changes, self.orders,
+                 self.promotions, self.order_pricing, self.reversals, self._ids)
             )
             try:
                 yield conn
             except Exception:
-                (self.categories, self.items, self.images, self.changes, self.orders, self._ids) = snapshot
+                (self.categories, self.items, self.images, self.changes, self.orders,
+                 self.promotions, self.order_pricing, self.reversals, self._ids) = snapshot
                 raise
 
     def _next(self, kind: str) -> int:
@@ -105,6 +111,15 @@ class MemoryMenuRepository:
                             description=description, price=price, sort_order=group * 100 + position * 10,
                             is_visible=True, is_available=available,
                         )
+            now = self.clock()
+            by_name = {item.name: item.id for item in self.items.values() if item.store_id == store_id}
+            for code, kind, item_id, value, tier in (
+                ("DEMO_NUOC_5000", "PLAY_DRINK", by_name["Coca"], 5000, None),
+                ("DEMO_MUA3_TRA2", "BOGO", by_name["Coca"], 1, None),
+                ("DEMO_VIP_10", "TIER_PERCENT", None, 10, "GOLD"),
+            ):
+                self.save_promotion(None, store_id, None, code, kind, item_id, value,
+                                    tier, now-timedelta(days=1), now+timedelta(days=365), True)
 
     def seed_pos_orders(self) -> None:
         """Populate one employee demo workspace with orders in every POS state."""
@@ -235,14 +250,48 @@ class MemoryMenuRepository:
     def count_open_orders(self, conn, account_id):
         return sum(1 for o in self.orders.values() if o.account_id == account_id and o.status in (MenuOrderStatus.NEW, MenuOrderStatus.PREPARING))
 
-    def insert_order(self, conn, *, code, store_id, account_id, session_id, machine_id, note, lines):
+    def insert_order(self, conn, *, code, store_id, account_id, session_id, machine_id, note, lines, expires_at=None):
         order_id = self._next("order")
         customer = next(c for c in self.data.customers.values() if c.account.id == account_id)
         self.orders[order_id] = MenuOrder(
             order_id, code, store_id, account_id, customer.full_name, self.data.machines[machine_id].code,
-            MenuOrderStatus.NEW, sum(line.amount for line in lines), note, tuple(lines), self.clock(), None,
+            MenuOrderStatus.NEW, sum(line.amount for line in lines), note, tuple(lines), self.clock(),
+            reservation_expires_at=expires_at,
         )
         return order_id
+
+    def list_promotions(self, conn, store_id):
+        return [dict(p) for p in self.promotions.values() if p["store_id"] == store_id]
+
+    def active_promotions(self, conn, store_id, now):
+        return [p for p in self.list_promotions(conn, store_id)
+                if p["is_active"] and p["starts_at"] <= now < p["ends_at"]]
+
+    def get_promotion(self, conn, promotion_id):
+        value = self.promotions.get(promotion_id)
+        return dict(value) if value else None
+
+    def save_promotion(self, conn, store_id, promotion_id, code, kind, item_id,
+                       value, minimum_tier, starts_at, ends_at, is_active):
+        if promotion_id is None:
+            promotion_id = self._next("promotion")
+        self.promotions[promotion_id] = dict(id=promotion_id, store_id=store_id,
+            code=code, kind=kind, item_id=item_id, value=value,
+            minimum_tier=minimum_tier, starts_at=starts_at, ends_at=ends_at,
+            is_active=is_active)
+        return promotion_id
+
+    def save_order_pricing(self, conn, order_id, pricing):
+        self.order_pricing[order_id] = deepcopy(pricing)
+
+    def apply_voucher_pricing(self, conn, order, voucher_code, discount):
+        pricing = self.order_pricing.setdefault(order.id, dict(discount_amount=0,
+            promotion_code=None, snapshot={"gross_amount": order.total_amount}))
+        pricing["final_amount"] = max(0, order.total_amount-discount)
+        pricing["snapshot"]["voucher"] = {"code": voucher_code, "discount_amount": discount}
+        pricing["snapshot"]["applied_source"] = "VOUCHER"
+        pricing["snapshot"]["effective_discount_amount"] = discount
+        pricing["snapshot"]["final_amount"] = pricing["final_amount"]
 
     def list_orders(self, conn, store_id, status, limit=100):
         found = [o for o in self.orders.values() if o.store_id == store_id and (status is None or o.status == status)]
@@ -260,6 +309,30 @@ class MemoryMenuRepository:
     def get_order(self, conn, order_id, *, lock=False):
         order = self.orders.get(order_id)
         return self._with_discount(order) if order else None
+
+    def pending_holds(self, conn, before_utc, limit=100):
+        found = (o for o in self.orders.values() if o.status == MenuOrderStatus.NEW
+                 and o.reservation_expires_at is not None
+                 and o.reservation_expires_at <= before_utc)
+        return [o.id for o in sorted(found, key=lambda o: (o.reservation_expires_at, o.id))[:limit]]
+
+    def record_hold_warning(self, conn, order, created_at):
+        key = f"menu-order:{order.id}:EXPIRING"
+        if any(event["notification_key"] == key for event in self.p1.order_notifications):
+            return False
+        self.p1.order_notifications.append(dict(
+            id=len(self.p1.order_notifications) + 1, notification_key=key,
+            account_id=order.account_id, store_id=order.store_id,
+            kind="MENU_ORDER_EXPIRING", code=order.code,
+            amount=max(0, order.total_amount - order.discount_amount), created_at=created_at))
+        return True
+
+    def record_unavailable_notification(self, conn, account_id, store_id, created_at):
+        self.p1.order_notifications.append(dict(
+            id=len(self.p1.order_notifications)+1,
+            notification_key=f"menu-item-unavailable:{uuid4().hex}",
+            account_id=account_id, store_id=store_id, kind="MENU_ITEM_UNAVAILABLE",
+            code="MENU", amount=0, created_at=created_at))
 
     def record_order_notification(self, conn, order, status, created_at):
         key = f"menu-order:{order.id}:{status.value}"
@@ -284,7 +357,10 @@ class MemoryMenuRepository:
             discount = sum(min(order.total_amount, v["value"])
                            for v in self.voucher_repo.vouchers.values()
                            if v["used_order_id"] == order.id and v["status"] == "USED")
-        return replace(order, discount_amount=min(discount, order.total_amount))
+        pricing = self.order_pricing.get(order.id, {})
+        promotion_discount = pricing.get("discount_amount", 0)
+        return replace(order, discount_amount=min(max(discount, promotion_discount), order.total_amount),
+                       promotion_code=pricing.get("promotion_code") if discount <= promotion_discount else None)
 
     def finish_order(self, conn, order_id, status, employee_id, *, reason=None):
         order = self.orders.get(order_id)
@@ -309,24 +385,73 @@ class MemoryMenuRepository:
                                         handled_by=employee_id)
         return True
 
+    def get_reversal(self, conn, order_id, *, lock=False):
+        value = self.reversals.get(order_id)
+        return dict(value) if value else None
+
+    def list_reversals(self, conn, store_id, status="PENDING"):
+        return [dict(r) for r in sorted(self.reversals.values(), key=lambda r: -r["id"])
+                if r["store_id"] == store_id and r["status"] == status][:100]
+
+    def request_reversal(self, conn, order, actor_id, reason, disposition):
+        if order.id in self.reversals:
+            return 0
+        reversal_id = self._next("reversal")
+        self.reversals[order.id] = dict(id=reversal_id, order_id=order.id,
+            store_id=order.store_id, requested_by=actor_id, reason=reason,
+            disposition=disposition, status="PENDING", refund_amount=0,
+            refund_method=None, refund_reference=None, decided_by=None, decided_at=None)
+        return reversal_id
+
+    def decide_reversal(self, conn, reversal_id, actor_id, now, approved, refund_amount,
+                        refund_method=None, refund_reference=None):
+        row = next((r for r in self.reversals.values() if r["id"] == reversal_id), None)
+        if row is None or row["status"] != "PENDING":
+            return False
+        row.update(status="APPROVED" if approved else "REJECTED",
+                   decided_by=actor_id, decided_at=now,
+                   refund_amount=refund_amount if approved else 0,
+                   refund_method=refund_method, refund_reference=refund_reference)
+        return True
+
+    def set_reversed_status(self, conn, order, target, employee_id, reason):
+        current = self.orders.get(order.id)
+        if current is None or current.status != order.status:
+            return False
+        self.orders[order.id] = replace(current, status=target, handled_by=employee_id,
+                                        cancel_reason=reason)
+        return True
+
     def paid_order_report(self, conn, store_id, start_utc, before_utc):
         from cyberhub_manager.services.mocks.store import local_date
 
         daily = {}
         best = {}
         for order in self.orders.values():
-            if (order.store_id != store_id or order.status != MenuOrderStatus.PAID
+            if (order.store_id != store_id or order.status not in (MenuOrderStatus.PAID, MenuOrderStatus.REFUNDED)
                     or order.paid_at is None or not start_utc <= order.paid_at < before_utc):
                 continue
             discount = self._with_discount(order).discount_amount
             day = local_date(order.paid_at)
-            entry = daily.setdefault(day, {"date": day, "order_count": 0, "revenue": 0})
+            entry = daily.setdefault(day, {"date": day, "order_count": 0, "revenue": 0,
+                                           "refund_count": 0})
             entry["order_count"] += 1
             entry["revenue"] += max(0, order.total_amount - discount)
-            for line in order.lines:
-                current_item = self.items.get(line.item_id)
-                key = (line.item_id, current_item.name if current_item else line.item_name)
-                best[key] = best.get(key, 0) + line.quantity
+            if order.status is MenuOrderStatus.PAID:
+                for line in order.lines:
+                    current_item = self.items.get(line.item_id)
+                    key = (line.item_id, current_item.name if current_item else line.item_name)
+                    best[key] = best.get(key, 0) + line.quantity
+        for reversal in self.reversals.values():
+            if (reversal["store_id"] != store_id or reversal["status"] != "APPROVED"
+                    or not reversal["refund_amount"] or reversal["decided_at"] is None
+                    or not start_utc <= reversal["decided_at"] < before_utc):
+                continue
+            day = local_date(reversal["decided_at"])
+            entry = daily.setdefault(day, {"date": day, "order_count": 0, "revenue": 0,
+                                           "refund_count": 0})
+            entry["revenue"] -= reversal["refund_amount"]
+            entry["refund_count"] += 1
         top = [dict(item_id=item_id, name=name, quantity=quantity)
                for (item_id, name), quantity in best.items()]
         top.sort(key=lambda item: (-item["quantity"], item["name"], item["item_id"]))

@@ -56,9 +56,8 @@ async function loadCustomerPhase2(ui,stores){
   return data;
 }
 function customerPortalRefreshDelay(ui){
-  if(ui.tab!=="availability")return 30000;
-  const cached=ui.availabilityCache[ui.availabilityStore];
-  return cached&&cached.fetchedAt+300000>Date.now()?Math.max(1000,cached.fetchedAt+300000-Date.now()):300000;
+  // Status notifications must refresh promptly even while availability is open.
+  return 30000;
 }
 function customerPhase2Page(){
   if(portalUI.tab==='member')return customerMemberPage();

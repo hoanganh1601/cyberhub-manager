@@ -922,13 +922,14 @@ def create_app(config: dict | None = None) -> Flask:
         pos = g.services.menu.paid_revenue(g.actor, start, end)
         by_day = {item.date: dict(date=item.date, invoice_count=item.invoice_count,
                                   machine_revenue=item.revenue, menu_order_count=0,
-                                  menu_revenue=0, revenue=item.revenue) for item in days}
+                                  menu_revenue=0, refund_count=0, revenue=item.revenue) for item in days}
         for item in pos["days"]:
             day = by_day.setdefault(item["date"], dict(date=item["date"], invoice_count=0,
                                     machine_revenue=0, menu_order_count=0,
-                                    menu_revenue=0, revenue=0))
+                                    menu_revenue=0, refund_count=0, revenue=0))
             day["menu_order_count"] = item["order_count"]
             day["menu_revenue"] = item["revenue"]
+            day["refund_count"] = item["refund_count"]
             day["revenue"] += item["revenue"]
         combined = [by_day[day] for day in sorted(by_day)]
         return reply(
@@ -939,6 +940,7 @@ def create_app(config: dict | None = None) -> Flask:
                 machine_revenue=sum(item.revenue for item in days),
                 menu_revenue=sum(item["revenue"] for item in pos["days"]),
                 menu_order_count=sum(item["order_count"] for item in pos["days"]),
+                refund_count=sum(item["refund_count"] for item in pos["days"]),
                 top_menu_items=pos["top_items"],
                 total_revenue=sum(item["revenue"] for item in combined),
                 invoice_count=sum(item.invoice_count for item in days),
@@ -1075,6 +1077,24 @@ def create_app(config: dict | None = None) -> Flask:
     def menu_orders():
         return reply(g.services.menu.list_orders(g.actor, request.args.get("status", "NEW")))
 
+    @app.get("/api/menu/promotions")
+    def menu_promotions():
+        return reply(g.services.menu.list_promotions(g.actor))
+
+    @app.route("/api/menu/promotions", methods=["POST"])
+    @app.route("/api/menu/promotions/<int:promotion_id>", methods=["PATCH"])
+    def menu_promotion_save(promotion_id=None):
+        data = body()
+        try:
+            starts_at = datetime.fromisoformat(data.get("starts_at", ""))
+            ends_at = datetime.fromisoformat(data.get("ends_at", ""))
+        except (TypeError, ValueError):
+            raise ValidationError(field_errors={"starts_at": "Nhập thời gian hợp lệ có múi giờ"}) from None
+        return reply(g.services.menu.save_promotion(g.actor, promotion_id=promotion_id,
+            code=data.get("code"), kind=data.get("kind"), item_id=data.get("item_id"),
+            value=data.get("value"), minimum_tier=data.get("minimum_tier"),
+            starts_at=starts_at, ends_at=ends_at, is_active=data.get("is_active")))
+
     @app.post("/api/menu/orders/<int:order_id>/status")
     def menu_order_status(order_id):
         payload = body()
@@ -1085,6 +1105,25 @@ def create_app(config: dict | None = None) -> Flask:
     @app.post("/api/menu/orders/<int:order_id>/payment")
     def menu_order_payment(order_id):
         return reply(g.services.menu.pay_order(g.actor, order_id, body().get("method")))
+
+    @app.post("/api/menu/orders/<int:order_id>/reversal")
+    def menu_order_reversal_request(order_id):
+        data = body()
+        return reply(g.services.menu.request_reversal(
+            g.actor, order_id, reason=data.get("reason"), disposition=data.get("disposition")))
+
+    @app.get("/api/menu/reversals")
+    def menu_order_reversals():
+        return reply(g.services.menu.list_reversals(g.actor, request.args.get("status", "PENDING")))
+
+    @app.post("/api/menu/orders/<int:order_id>/reversal/decision")
+    def menu_order_reversal_decision(order_id):
+        data = body()
+        return reply(g.services.menu.decide_reversal(
+            g.actor, order_id, approve=data.get("approve"),
+            refund_confirmed=data.get("refund_confirmed", False),
+            refund_method=data.get("refund_method"),
+            refund_reference=data.get("refund_reference")))
 
     # ----- Đợt 2: voucher và phần thưởng ------------------------------------------
     @app.get("/api/portal/vouchers")

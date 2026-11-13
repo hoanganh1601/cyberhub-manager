@@ -230,7 +230,7 @@ class PortalExperienceMixin:
                 **r,
                 "key": r["notification_key"],
                 "severity": (
-                    "warning" if r["kind"] == "MENU_ORDER_CANCELLED"
+                    "warning" if r["kind"] in ("MENU_ORDER_CANCELLED", "MENU_ORDER_EXPIRING", "MENU_ORDER_REFUNDED", "MENU_ITEM_UNAVAILABLE")
                     else "success" if r["kind"] in ("MENU_ORDER_SERVED", "MENU_ORDER_PAID")
                     else "info"
                 ),

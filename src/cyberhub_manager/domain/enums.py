@@ -6,6 +6,8 @@ class Role(StrEnum):
     ADMIN = "ADMIN"
     MANAGER = "MANAGER"
     STAFF = "STAFF"
+    KITCHEN = "KITCHEN"
+    INVENTORY = "INVENTORY"
 
 class StoreStatus(StrEnum):
     ACTIVE = "ACTIVE"

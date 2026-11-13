@@ -39,6 +39,8 @@ const copy = {
   enterHint: ["Nhấn Enter để đăng nhập", "Press Enter to sign in"],
   manager: ["QUẢN LÝ", "MANAGER"],
   staff: ["NHÂN VIÊN", "STAFF"],
+  kitchen: ["BẾP", "KITCHEN"],
+  inventory: ["THỦ KHO", "INVENTORY"],
   admin: ["QUẢN TRỊ", "ADMIN"],
   refresh: ["Làm mới", "Refresh"],
   loading: ["Đang tải dữ liệu…", "Loading data…"],
@@ -253,6 +255,7 @@ const copy = {
   total: ["Tổng cộng", "Total"],
   paidCount: ["Hóa đơn đã thanh toán", "Paid invoices"],
   paidMenuOrders: ["Đơn món đã thanh toán", "Paid food orders"],
+  refundedCount: ["Đơn món đã hoàn tiền", "Refunded food orders"],
   machineRevenue: ["Doanh thu giờ chơi", "Gaming revenue"],
   menuRevenue: ["Doanh thu đồ ăn, thức uống", "Food and drink revenue"],
   bestSellingItems: ["Món bán chạy", "Best-selling items"],
@@ -264,8 +267,8 @@ const copy = {
   revenueDaily: ["Doanh thu theo ngày", "Daily revenue"],
   summary: ["Tổng kết báo cáo", "Report summary"],
   reportNote: [
-    "Giờ chơi chỉ tính hóa đơn PAID; món ăn chỉ tính đơn PAID theo ngày thu tiền, đã trừ voucher đồ ăn. Không cộng lại tiền nạp ví.",
-    "Gaming uses PAID invoice usage; food uses PAID orders by payment date, net of food vouchers. Wallet top-ups are excluded.",
+    "Món ăn ghi doanh thu ngày thu tiền và trừ khoản hoàn vào ngày quản lý xác nhận; đã trừ voucher. Không cộng lại tiền nạp ví.",
+    "Food revenue follows payment date and refunds reduce revenue on the approval date; vouchers are deducted. Wallet top-ups are excluded.",
   ],
   reportScope: ["Phạm vi", "Scope"],
   currentStore: ["Cửa hàng hiện tại", "Current store"],
@@ -489,7 +492,7 @@ function renderLogin() {
       state.today = result.today;
       state.mode = result.mode;
       form.reset();
-      state.page = "dashboard";
+      state.page = ["KITCHEN", "INVENTORY"].includes(state.actor.role) ? "menu" : "dashboard";
       state.selected = null;
       renderShell();
       await loadPage();
@@ -515,9 +518,9 @@ function renderShell() {
     ...(isManager() ? [["revenue", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
-  ];
+  ].filter(([page]) => !["KITCHEN", "INVENTORY"].includes(state.actor.role) || page === "menu");
   $("#app").innerHTML =
-    `<div class="shell"><aside class="sidebar"><div class="brand-link"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub"><div class="brand-word">CyberHub <span class="cyan">•</span><small>MANAGER · WEB</small></div></div><nav class="nav" aria-label="CyberHub">${links.map(([key, symbol]) => `<button data-action="navigate" data-page="${key}" class="${state.page === key ? "active" : ""}" title="${t(key)}" ${state.page === key ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${t(key)}</span></button>`).join("")}</nav><div class="sidebar-foot"><span class="mode"><i class="dot"></i>${t("ready")}</span><div class="row between"><span>${state.mode === "demo" ? t("demo") : "MySQL"}</span><span>WEB · 1.0</span></div></div></aside><header class="topbar"><div class="store-chip">${icon("store")}${esc(state.actor.store_name)}</div><span class="top-time">${dt(new Date().toISOString())}</span><span class="spacer"></span>${langControl()}<div class="profile"><div class="name">${esc(state.actor.full_name)}<small>${t(state.actor.role === "STAFF" ? "staff" : state.actor.role === "ADMIN" ? "admin" : "manager")}</small></div><div class="avatar">${esc(initials(state.actor.full_name))}</div></div><button class="btn ghost small" data-action="logout" title="${t("logout")}" aria-label="${t("logout")}">${icon("logout")}</button></header><main id="workspace" class="main"></main></div>`;
+    `<div class="shell"><aside class="sidebar"><div class="brand-link"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub"><div class="brand-word">CyberHub <span class="cyan">•</span><small>MANAGER · WEB</small></div></div><nav class="nav" aria-label="CyberHub">${links.map(([key, symbol]) => `<button data-action="navigate" data-page="${key}" class="${state.page === key ? "active" : ""}" title="${t(key)}" ${state.page === key ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${t(key)}</span></button>`).join("")}</nav><div class="sidebar-foot"><span class="mode"><i class="dot"></i>${t("ready")}</span><div class="row between"><span>${state.mode === "demo" ? t("demo") : "MySQL"}</span><span>WEB · 1.0</span></div></div></aside><header class="topbar"><div class="store-chip">${icon("store")}${esc(state.actor.store_name)}</div><span class="top-time">${dt(new Date().toISOString())}</span><span class="spacer"></span>${langControl()}<div class="profile"><div class="name">${esc(state.actor.full_name)}<small>${t(state.actor.role.toLowerCase())}</small></div><div class="avatar">${esc(initials(state.actor.full_name))}</div></div><button class="btn ghost small" data-action="logout" title="${t("logout")}" aria-label="${t("logout")}">${icon("logout")}</button></header><main id="workspace" class="main"></main></div>`;
   clearInterval(refreshTimer);
   installP1Shell();
   refreshTimer = setInterval(() => {
@@ -791,7 +794,7 @@ function revenuePage() {
   return (
     pageHead() +
     dateToolbar() +
-    `<div class="metrics">${metric("totalRevenue", money(data.total_revenue), "cyan", "wallet")}${metric("machineRevenue", money(data.machine_revenue), "", "clock")}${metric("menuRevenue", money(data.menu_revenue), "green", "wallet")}${metric("paidMenuOrders", data.menu_order_count, "", "check")}${metric("paidCount", data.invoice_count, "", "invoice")}</div><div class="revenue-layout"><section class="panel"><header class="panel-heading"><h3>${icon("chart")} ${t("revenueDaily")}</h3><small>${esc(data.date_from)} → ${esc(data.date_to)}</small></header><div class="revenue-chart" role="img" aria-label="${t("revenueDaily")}">${buckets.map((d) => `<div class="bar-column"><div class="bar" style="height:${Math.max(1, (d.revenue / max) * 80)}%" title="${esc(d.date)}: ${money(d.revenue)}"><span>${d.revenue ? new Intl.NumberFormat(state.lang, { notation: "compact" }).format(d.revenue) : ""}</span></div><small>${d.date.slice(5).split("-").reverse().join("/")}</small></div>`).join("")}</div>${rows.length ? table(["createdAt", "machineRevenue", "menuRevenue", "totalRevenue"], rows.map((d) => `<tr><td>${esc(d.date)}</td><td class="money">${money(d.machine_revenue)}</td><td class="money">${money(d.menu_revenue)}</td><td class="money green">${money(d.revenue)}</td></tr>`).join("")) : empty()}${foot}</section><aside class="panel"><header class="panel-heading"><h3>${t("summary")}</h3></header><div class="mini-summary"><div class="key-values">${kv("reportScope", esc(state.actor.store_name))}${kv("from", esc(data.date_from))}${kv("to", esc(data.date_to))}${kv("paidCount", data.invoice_count)}${kv("paidMenuOrders", data.menu_order_count)}${kv("machineRevenue", money(data.machine_revenue))}${kv("menuRevenue", money(data.menu_revenue))}</div><div class="summary-total"><small>${t("totalRevenue")}</small><p class="money cyan" style="margin-top:8px">${money(data.total_revenue)}</p></div><h4>${t("bestSellingItems")}</h4>${data.top_menu_items.length ? `<div class="key-values">${data.top_menu_items.map((item) => `<div><span>${esc(item.name)}</span><span>${item.quantity} ${t("soldQuantity")}</span></div>`).join("")}</div>` : empty()}<div class="notice info">${t("reportNote")}</div><small>${t("localTimezone")}</small></div></aside></div>`
+    `<div class="metrics">${metric("totalRevenue", money(data.total_revenue), "cyan", "wallet")}${metric("machineRevenue", money(data.machine_revenue), "", "clock")}${metric("menuRevenue", money(data.menu_revenue), "green", "wallet")}${metric("paidMenuOrders", data.menu_order_count, "", "check")}${metric("paidCount", data.invoice_count, "", "invoice")}</div><div class="revenue-layout"><section class="panel"><header class="panel-heading"><h3>${icon("chart")} ${t("revenueDaily")}</h3><small>${esc(data.date_from)} → ${esc(data.date_to)}</small></header><div class="revenue-chart" role="img" aria-label="${t("revenueDaily")}">${buckets.map((d) => `<div class="bar-column"><div class="bar" style="height:${Math.max(1, (d.revenue / max) * 80)}%" title="${esc(d.date)}: ${money(d.revenue)}"><span>${d.revenue ? new Intl.NumberFormat(state.lang, { notation: "compact" }).format(d.revenue) : ""}</span></div><small>${d.date.slice(5).split("-").reverse().join("/")}</small></div>`).join("")}</div>${rows.length ? table(["createdAt", "machineRevenue", "menuRevenue", "totalRevenue"], rows.map((d) => `<tr><td>${esc(d.date)}</td><td class="money">${money(d.machine_revenue)}</td><td class="money">${money(d.menu_revenue)}</td><td class="money green">${money(d.revenue)}</td></tr>`).join("")) : empty()}${foot}</section><aside class="panel"><header class="panel-heading"><h3>${t("summary")}</h3></header><div class="mini-summary"><div class="key-values">${kv("reportScope", esc(state.actor.store_name))}${kv("from", esc(data.date_from))}${kv("to", esc(data.date_to))}${kv("paidCount", data.invoice_count)}${kv("paidMenuOrders", data.menu_order_count)}${kv("refundedCount", data.refund_count)}${kv("machineRevenue", money(data.machine_revenue))}${kv("menuRevenue", money(data.menu_revenue))}</div><div class="summary-total"><small>${t("totalRevenue")}</small><p class="money cyan" style="margin-top:8px">${money(data.total_revenue)}</p></div><h4>${t("bestSellingItems")}</h4>${data.top_menu_items.length ? `<div class="key-values">${data.top_menu_items.map((item) => `<div><span>${esc(item.name)}</span><span>${item.quantity} ${t("soldQuantity")}</span></div>`).join("")}</div>` : empty()}<div class="notice info">${t("reportNote")}</div><small>${t("localTimezone")}</small></div></aside></div>`
   );
 }
 function field(name, label, value = "", type = "text", extra = "") {
@@ -1244,6 +1247,7 @@ async function boot() {
     document.documentElement.lang = state.lang;
     if(state.customer) { await renderPortal(); return; }
     if (state.actor) {
+      if (["KITCHEN", "INVENTORY"].includes(state.actor.role)) state.page = "menu";
       renderShell();
       await loadPage();
     } else renderLogin();

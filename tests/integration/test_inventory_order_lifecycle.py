@@ -254,3 +254,22 @@ def test_count_proposal_retry_uses_original_request(stock_order):
 
     with pytest.raises(ConflictError):
         stock.propose_count(conn, **{**args, "counted_on_hand": 80})
+
+
+def test_approved_reversal_returns_snapshot_quantity_without_double_consume(stock_order):
+    conn, actor, menu, stock, _item_id, ingredient_id, create, balance = stock_order
+    order_id = create("reverse")
+    order = menu.get_order(conn, order_id, lock=True)
+    assert menu.finish_order(conn, order_id, MenuOrderStatus.SERVED, actor.employee_id)
+    stock.transition_order(conn, order, MenuOrderStatus.SERVED, actor.employee_id)
+    assert balance() == {"on_hand": 40, "reserved": 0}
+    served = menu.get_order(conn, order_id, lock=True)
+    stock.reverse_served_order(conn, served, actor.employee_id,
+                               restock=True, reason="Khách chưa dùng")
+    assert balance() == {"on_hand": 100, "reserved": 0}
+    assert rows(conn, "SELECT kind,on_hand_delta FROM inventory_movements"
+                " WHERE order_id=%s ORDER BY id", (order_id,)) == [
+                    {"kind": "RESERVE", "on_hand_delta": 0},
+                    {"kind": "CONSUME", "on_hand_delta": -60},
+                    {"kind": "RETURN", "on_hand_delta": 60},
+                ]

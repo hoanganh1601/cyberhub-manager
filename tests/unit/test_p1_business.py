@@ -216,6 +216,7 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
         Permission.POS_SERVE_ORDERS,
         Permission.POS_CANCEL_ORDERS,
         Permission.POS_COLLECT_PAYMENT,
+        Permission.POS_REQUEST_REVERSAL,
     }
     assert ROLE_PERMISSIONS[Role.STAFF] == pos | {
         Permission.OPERATE, Permission.EXPORT_INVOICE, Permission.INVENTORY_VIEW,
@@ -232,6 +233,7 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
         Permission.INVENTORY_RECEIVE,
         Permission.INVENTORY_ISSUE,
         Permission.INVENTORY_APPROVE,
+        Permission.POS_APPROVE_REVERSAL,
     }
     assert ROLE_PERMISSIONS[Role.ADMIN] == ROLE_PERMISSIONS[Role.MANAGER] | {
         Permission.MANAGE_STORES, Permission.SWITCH_STORE,
