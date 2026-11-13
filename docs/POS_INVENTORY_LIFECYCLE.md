@@ -112,6 +112,16 @@ nguyên role sau migration.
   và không được giữ tồn âm.
 - Giá ưu đãi được chụp tại lúc nhận đơn. Một đơn chỉ dùng ưu đãi có số tiền giảm
   lớn nhất; voucher có giá trị cao hơn mới thay thế ưu đãi đó.
+- Quản lý bật/tắt khuyến mãi bằng nút trên thẻ ưu đãi (migration `020_pos_promotion_history.sql`).
+  Ưu đãi đã quá ngày kết thúc không bật lại được; phải sửa ngày kết thúc. Ưu đãi chỉ dài tối đa
+  366 ngày, ngày kết thúc phải sau ngày bắt đầu, và ưu đãi đang bật phải kết thúc trong tương lai.
+  Giờ lưu UTC và trả về có múi giờ để trình duyệt hiển thị đúng.
+- Mỗi lần tạo, sửa, bật hoặc tắt ưu đãi ghi một dòng bất biến vào `menu_promotion_changes`
+  (người thực hiện, thời điểm, giá trị cũ và mới); lưu lại y nguyên thì không ghi. Sửa hay tắt ưu đãi
+  không đổi đơn đã đặt vì giá nằm trong bản chụp `menu_order_pricing`.
+- Trên thẻ ưu đãi, quản lý thấy tổng tiền đã giảm và số đơn đã dùng (đơn hủy/hoàn không tính).
+  Trong đơn, nhân viên thấy mã ưu đãi và số tiền giảm; khách thấy báo giá có số tiền giảm ngay trong giỏ
+  (`POST /api/portal/menu/quote`, không ghi dữ liệu). Khi đặt, máy chủ tính lại toàn bộ.
 
 ## 6. Tiêu chí nghiệm thu hoàn chỉnh
 

@@ -1095,6 +1095,19 @@ def create_app(config: dict | None = None) -> Flask:
             value=data.get("value"), minimum_tier=data.get("minimum_tier"),
             starts_at=starts_at, ends_at=ends_at, is_active=data.get("is_active")))
 
+    @app.post("/api/menu/promotions/<int:promotion_id>/active")
+    def menu_promotion_active(promotion_id):
+        return reply(g.services.menu.set_promotion_active(g.actor, promotion_id, body().get("is_active")))
+
+    @app.get("/api/menu/promotions/<int:promotion_id>/history")
+    def menu_promotion_history(promotion_id):
+        return reply(g.services.menu.promotion_history(g.actor, promotion_id))
+
+    @app.post("/api/portal/menu/quote")
+    def portal_menu_quote():
+        # Báo giá không ghi dữ liệu; khi đặt, máy chủ tính lại toàn bộ giá và ưu đãi.
+        return reply(g.services.menu.quote_order(g.customer, body().get("lines")))
+
     @app.post("/api/menu/orders/<int:order_id>/status")
     def menu_order_status(order_id):
         payload = body()

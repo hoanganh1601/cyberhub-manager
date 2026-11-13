@@ -104,6 +104,24 @@ Object.assign(copy, {
   posPromoBOGO: ["Mua 3 trả 2", "Buy 3 pay 2"],
   posPromoPLAY_DRINK: ["Giảm nước khi đang chơi", "Play and drink"],
   posPromoTIER_PERCENT: ["Giảm theo hạng", "Tier discount"],
+  posPromoStateACTIVE: ["Đang áp dụng", "Active"],
+  posPromoStateSCHEDULED: ["Chưa bắt đầu", "Scheduled"],
+  posPromoStateEXPIRED: ["Đã hết hạn", "Expired"],
+  posPromoStateOFF: ["Đang tắt", "Off"],
+  posPromoTurnOn: ["Bật", "Turn on"],
+  posPromoTurnOff: ["Tắt", "Turn off"],
+  posPromoExpiredHint: ["Đã quá ngày kết thúc: sửa ngày kết thúc để bật lại", "Past its end date: edit the end date to turn it back on"],
+  posPromoUsed: ["Đã giảm", "Discounted"],
+  posPromoOrders: ["đơn", "orders"],
+  posPromoNoUse: ["Chưa có đơn nào dùng ưu đãi này", "No orders have used this promotion yet"],
+  posPromoHistory: ["Lịch sử ưu đãi", "Promotion history"],
+  posPromoNoHistory: ["Chưa có thay đổi", "No changes yet"],
+  posPromoActCREATE: ["Tạo ưu đãi", "Created"],
+  posPromoActUPDATE: ["Sửa ưu đãi", "Edited"],
+  posPromoActENABLE: ["Bật ưu đãi", "Turned on"],
+  posPromoActDISABLE: ["Tắt ưu đãi", "Turned off"],
+  posPromoDateOrder: ["Ngày kết thúc phải sau ngày bắt đầu", "The end must be after the start"],
+  posPromoDateTip: ["Giờ theo múi giờ của trình duyệt. Ưu đãi dài tối đa 366 ngày; ưu đãi đang bật phải kết thúc trong tương lai.", "Times use your browser's time zone. A promotion lasts at most 366 days; an active one must end in the future."],
 });
 
 Object.assign(copy, {
@@ -237,14 +255,52 @@ function dot1StockPage() {
     ${dot1InventoryPanel(inv)}`;
 }
 
+const POS_PROMO_TONE = { ACTIVE: "green", SCHEDULED: "cyan", EXPIRED: "red", OFF: "" };
+const POS_PROMO_FIELD = { code: "posPromoCode", kind: "posPromoKind", item_id: "posPromoItem", value: "posPromoValue",
+  minimum_tier: "posPromoTier", starts_at: "posPromoStarts", ends_at: "posPromoEnds", is_active: "status" };
+
+function dot1PromotionRule(p) {
+  if (p.kind === "TIER_PERCENT") return `${esc(p.minimum_tier)} · ${p.value}%`;
+  const item = esc(state.menuAdmin.items.find((i) => i.id === p.item_id)?.name || p.item_id);
+  return `${item} · ${p.kind === "BOGO" ? t("posPromoBOGO") : money(p.value)}`;
+}
+
+function dot1PromotionCard(p) {
+  // Ưu đãi đã quá ngày kết thúc không bật lại được: phải sửa ngày kết thúc trước (backend cũng chặn).
+  const cannotEnable = !p.is_active && new Date(p.ends_at) <= new Date();
+  const toggle = `<button class="btn small ${p.is_active ? "" : "primary"}" data-menuadmin="promotion-toggle" data-id="${p.id}" data-active="${!p.is_active}" ${cannotEnable ? `disabled title="${t("posPromoExpiredHint")}"` : ""}>${t(p.is_active ? "posPromoTurnOff" : "posPromoTurnOn")}</button>`;
+  const usage = p.orders_count
+    ? `${t("posPromoUsed")}: <b>${money(p.discount_total)}</b> · ${p.orders_count} ${t("posPromoOrders")}`
+    : t("posPromoNoUse");
+  return `<article class="dot1-order dot1-promo ${p.state}">
+      <header><span><strong>${esc(p.code)}</strong> · ${t("posPromo" + p.kind)}</span><span class="badge ${POS_PROMO_TONE[p.state]}">${t("posPromoState" + p.state)}</span></header>
+      <p>${dot1PromotionRule(p)}</p>
+      <p>${dt(p.starts_at)} → ${dt(p.ends_at)}</p>
+      <p class="dot1-promo-usage">${usage}</p>
+      <div class="actions">${toggle}<button class="btn small" data-menuadmin="promotion" data-id="${p.id}">${t("edit")}</button><button class="btn small" data-menuadmin="promotion-history" data-id="${p.id}">${t("dot1History")}</button></div>
+    </article>`;
+}
+
 function dot1PromotionPanel() {
   const promos = state.menuPromotions || [];
   return `<section class="panel"><header class="panel-heading"><h3>${t("posPromotions")}</h3><button class="btn small primary" data-menuadmin="promotion">${t("posPromoNew")}</button></header>
-    ${promos.length ? promos.map(p => `<article class="dot1-order"><strong>${esc(p.code)}</strong> · ${t("posPromo"+p.kind)}
-      <span class="badge">${p.is_active ? t("dot1Active") : t("dot1Hidden")}</span>
-      <p>${p.kind === "TIER_PERCENT" ? `${esc(p.minimum_tier)} · ${p.value}%` : `${esc(state.menuAdmin.items.find(i=>i.id===p.item_id)?.name || p.item_id)} · ${p.kind === "BOGO" ? t("posPromoBOGO") : money(p.value)}`}
-      · ${dt(p.starts_at)} → ${dt(p.ends_at)}</p><button class="btn small" data-menuadmin="promotion" data-id="${p.id}">${t("edit")}</button></article>`).join("") : empty()}
+    ${promos.length ? promos.map(dot1PromotionCard).join("") : empty()}
     </section>`;
+}
+
+async function dot1PromotionHistoryDialog(id) {
+  const history = await api(`/menu/promotions/${id}/history`);
+  const itemName = (value) => state.menuAdmin.items.find((i) => i.id === value)?.name || value;
+  const show = (field, value) => value === null || value === undefined ? "—"
+    : field === "is_active" ? t(value ? "on" : "off")
+    : field === "kind" ? t("posPromo" + value)
+    : field === "item_id" ? esc(itemName(value))
+    : ["starts_at", "ends_at"].includes(field) ? dt(value)
+    : esc(String(value));
+  const entry = (h) => `<li><strong>${t("posPromoAct" + h.action)}</strong><br>${Object.entries(h.changes).map(([field, [before, after]]) =>
+    `<small>${t(POS_PROMO_FIELD[field] || field)}: ${h.action === "CREATE" ? show(field, after) : `${show(field, before)} → ${show(field, after)}`}</small>`).join("<br>")}
+    <br><small class="muted">${esc(h.employee_name)} · ${dt(h.created_at)}</small></li>`;
+  dot1Dialog("posPromoHistory", history.length ? `<ul class="dot1-history">${history.map(entry).join("")}</ul>` : empty("posPromoNoHistory"), null);
 }
 
 function dot1InventoryPanel(inventory) {
@@ -290,7 +346,7 @@ function dot1OrderCard(order) {
       ${order.status === "NEW" && order.reservation_expires_at ? `<p class="note">${t("dot1HoldUntil")}: ${dt(order.reservation_expires_at)}</p>` : ""}
       ${order.cancel_reason === "AUTO_EXPIRED" ? `<p class="note">${t("dot1ExpiredAutomatically")}</p>` : ""}
       ${order.note ? `<p class="note">“${esc(order.note)}”</p>` : ""}
-      <div class="actions"><span class="spacer">${t("dot1Total")}: <b>${money(order.total_amount)}</b>${order.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}<br>${t("dot1AmountDue")}: <b>${money(order.total_amount - order.discount_amount)}</b>` : ""}</span>
+      <div class="actions"><span class="spacer">${t("dot1Total")}: <b>${money(order.total_amount)}</b>${order.discount_amount ? `<br>${t("dot1Discount")}${order.promotion_code ? ` (${esc(order.promotion_code)})` : ""}: -${money(order.discount_amount)}<br>${t("dot1AmountDue")}: <b>${money(order.total_amount - order.discount_amount)}</b>` : ""}</span>
         ${capabilities.can_cancel && ["NEW","PREPARING"].includes(order.status) ? `<button class="btn small" data-menuadmin="cancel-order" data-id="${order.id}">${t("dot1Cancel")}</button>` : ""}
         ${["STAFF","MANAGER","ADMIN"].includes(state.actor.role) && ["SERVED","PAID"].includes(order.status) && !(state.menuReversals || []).some(r=>r.order_id===order.id) ? `<button class="btn small" data-menuadmin="request-reversal" data-id="${order.id}">${t("posRequestReversal")}</button>` : ""}
         ${action}</div>
@@ -377,8 +433,12 @@ function dot1PromotionForm(id) {
     ${dot1Input("ends_at", "posPromoEnds", localValue(promo?.ends_at || now + 365*86400000), "datetime-local", "required")}
     ${dot1Check("is_active", "dot1Active", promo ? promo.is_active : true)}
     <p class="dot1-tip">${t("posPromoBOGO")}: ${t("posPromoValue")} = 1. ${t("posPromoTIER_PERCENT")}: %.</p>
+    <p class="dot1-tip">${t("posPromoDateTip")}</p>
   </div>`, async (form) => {
     const kind = form.elements.kind.value;
+    if (!(new Date(form.elements.starts_at.value) < new Date(form.elements.ends_at.value))) {
+      throw Object.assign(new Error(t("posPromoDateOrder")), { field_errors: { ends_at: t("posPromoDateOrder") } });
+    }
     await api(promo ? `/menu/promotions/${promo.id}` : "/menu/promotions", {
       method: promo ? "PATCH" : "POST", body: {
         code: form.elements.code.value, kind,
@@ -563,6 +623,12 @@ document.addEventListener("click", async (event) => {
   try {
     if (action === "category" && state.menuAdmin.can_manage) dot1CategoryForm(id);
     if (action === "promotion" && state.menuAdmin.can_manage) dot1PromotionForm(id);
+    if (action === "promotion-history" && state.menuAdmin.can_manage) await dot1PromotionHistoryDialog(id);
+    if (action === "promotion-toggle" && state.menuAdmin.can_manage) {
+      button.disabled = true;
+      await api(`/menu/promotions/${id}/active`, { method: "POST", body: { is_active: button.dataset.active === "true" } });
+      await loadPage(true);
+    }
     if (action === "ingredient" && state.menuInventory?.can_configure) dot1IngredientForm();
     if (action === "receive" && state.menuInventory?.can_receive) dot1ReceiveForm(id);
     if (action === "issue" && state.menuInventory?.can_issue) dot1MovementForm(id, "ISSUE");
@@ -607,7 +673,7 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "pay-order" && state.menuAdmin.can_collect_payment) {
       const order = (state.menuOrders || []).find(item => item.id === Number(id));
-      dot1Dialog("dot1Pay", `<div class="form-grid"><label><span>${t("dot1PaymentMethod")}</span><select class="input" name="method"><option value="CASH">${t("dot1Cash")}</option><option value="TRANSFER">${t("dot1Transfer")}</option></select></label></div><div class="notice info">${t("dot1Total")}: ${money(order?.total_amount || 0)}${order?.discount_amount ? `<br>${t("dot1Discount")}: -${money(order.discount_amount)}` : ""}<br>${t("dot1AmountDue")}: <strong>${money((order?.total_amount || 0) - (order?.discount_amount || 0))}</strong></div>`, async (form) => {
+      dot1Dialog("dot1Pay", `<div class="form-grid"><label><span>${t("dot1PaymentMethod")}</span><select class="input" name="method"><option value="CASH">${t("dot1Cash")}</option><option value="TRANSFER">${t("dot1Transfer")}</option></select></label></div><div class="notice info">${t("dot1Total")}: ${money(order?.total_amount || 0)}${order?.discount_amount ? `<br>${t("dot1Discount")}${order.promotion_code ? ` (${esc(order.promotion_code)})` : ""}: -${money(order.discount_amount)}` : ""}<br>${t("dot1AmountDue")}: <strong>${money((order?.total_amount || 0) - (order?.discount_amount || 0))}</strong></div>`, async (form) => {
         await api(`/menu/orders/${id}/payment`, { method: "POST", body: { method: form.elements.method.value } });
       }, "dot1Pay");
     }

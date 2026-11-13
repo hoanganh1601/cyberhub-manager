@@ -55,6 +55,50 @@ TOO_MANY_OPEN = f"Bạn đang có {MAX_OPEN_ORDERS} yêu cầu chưa được ph
 ORDER_ALREADY_HANDLED = "Yêu cầu này đã được xử lý"
 DUPLICATE_NAME = "Tên đã tồn tại trong cơ sở này"
 
+PROMOTION_FIELDS = ("code", "kind", "item_id", "value", "minimum_tier", "starts_at", "ends_at", "is_active")
+MAX_PROMOTION_DAYS = 366
+PROMOTION_NOT_FOUND = "Không tìm thấy ưu đãi"
+PROMOTION_EXPIRED = "Thời gian kết thúc đã qua. Chọn ngày kết thúc trong tương lai hoặc tắt ưu đãi."
+
+
+def _aware(value):
+    """MySQL lưu giờ UTC và đọc ra không kèm múi giờ: gắn UTC để so sánh và hiển thị đúng."""
+    if isinstance(value, datetime) and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def _promotion_value(field, value):
+    """Giá trị ưu đãi dạng JSON ổn định để so sánh trước/sau và ghi lịch sử."""
+    if field in ("starts_at", "ends_at"):
+        return _aware(value).astimezone(timezone.utc).isoformat()
+    if field == "is_active":
+        return bool(value)
+    return value
+
+
+def _promotion_state(promo, now):
+    """OFF: đang tắt · SCHEDULED: chưa đến ngày bắt đầu · EXPIRED: đã hết hạn · ACTIVE: đang áp dụng."""
+    if not promo["is_active"]:
+        return "OFF"
+    if now < promo["starts_at"]:
+        return "SCHEDULED"
+    if now >= promo["ends_at"]:
+        return "EXPIRED"
+    return "ACTIVE"
+
+
+def _promotion_view(promo, now, usage=None):
+    view = dict(promo)
+    view["starts_at"] = _aware(promo["starts_at"])
+    view["ends_at"] = _aware(promo["ends_at"])
+    view["is_active"] = bool(promo["is_active"])
+    view["state"] = _promotion_state(view, now)
+    used = (usage or {}).get(view["id"], {})
+    view["orders_count"] = used.get("orders", 0)
+    view["discount_total"] = used.get("discount", 0)
+    return view
+
 
 def _positive_id(value: object) -> bool:
     return type(value) is int and value > 0
@@ -356,7 +400,88 @@ class MenuService:
     def list_promotions(self, actor):
         with self._errors(), self._transaction() as conn:
             current = self._actor(conn, actor, Permission.MANAGE_MENU)
-            return self._repo.list_promotions(conn, current.store_id)
+            now = self._clock()
+            usage = self._repo.promotion_usage(conn, current.store_id)
+            return [_promotion_view(p, now, usage) for p in self._repo.list_promotions(conn, current.store_id)]
+
+    def promotion_history(self, actor, promotion_id):
+        """Lịch sử tạo/sửa/bật/tắt của một ưu đãi (mới nhất trước)."""
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_MENU)
+            promo = self._repo.get_promotion(conn, promotion_id) if _positive_id(promotion_id) else None
+            if promo is None or promo["store_id"] != current.store_id:
+                raise NotFoundError(PROMOTION_NOT_FOUND)
+            return self._repo.promotion_changes(conn, promotion_id)
+
+    def _record_promotion_change(self, conn, actor, promotion_id, before, after):
+        if before is None:
+            action = "CREATE"
+            changes = {f: [None, _promotion_value(f, after[f])] for f in PROMOTION_FIELDS}
+        else:
+            changes = {f: [_promotion_value(f, before[f]), _promotion_value(f, after[f])]
+                       for f in PROMOTION_FIELDS
+                       if _promotion_value(f, before[f]) != _promotion_value(f, after[f])}
+            if not changes:
+                return  # lưu lại y nguyên: không tạo dòng lịch sử rỗng
+            action = ("ENABLE" if after["is_active"] else "DISABLE") if list(changes) == ["is_active"] else "UPDATE"
+        self._repo.record_promotion_change(conn, promotion_id, actor.employee_id, action, changes)
+
+    @retry_on_transient
+    def set_promotion_active(self, actor, promotion_id, is_active):
+        """Bật/tắt nhanh một ưu đãi. Không bật lại được ưu đãi đã quá ngày kết thúc."""
+        is_active = _flag(is_active, "is_active")
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_MENU)
+            before = self._repo.get_promotion(conn, promotion_id) if _positive_id(promotion_id) else None
+            if before is None or before["store_id"] != current.store_id:
+                raise NotFoundError(PROMOTION_NOT_FOUND)
+            if bool(before["is_active"]) != is_active:
+                if is_active and _aware(before["ends_at"]) <= self._clock():
+                    raise ValidationError(field_errors={"ends_at": PROMOTION_EXPIRED})
+                self._repo.set_promotion_active(conn, current.store_id, promotion_id, is_active)
+                after = self._repo.get_promotion(conn, promotion_id)
+                self._record_promotion_change(conn, current, promotion_id, before, after)
+                self._p1.audit(conn, current,
+                               "POS_PROMOTION_ENABLE" if is_active else "POS_PROMOTION_DISABLE", promotion_id)
+            return _promotion_view(self._repo.get_promotion(conn, promotion_id), self._clock())
+
+    def quote_order(self, principal, lines):
+        """Báo giá cho giỏ món của khách: cùng quy tắc ưu đãi như lúc đặt nhưng KHÔNG ghi gì.
+        Số tiền thật vẫn do máy chủ tính lại khi đặt; món hết/ẩn không được tính vào báo giá."""
+        if not isinstance(lines, list) or not 1 <= len(lines) <= MAX_ORDER_LINES:
+            raise ValidationError(field_errors={"lines": f"Chọn từ 1 đến {MAX_ORDER_LINES} món"})
+        requested: dict[int, int] = {}
+        for line in lines:
+            item_id = line.get("item_id") if isinstance(line, dict) else None
+            quantity = line.get("quantity") if isinstance(line, dict) else None
+            if not _positive_id(item_id) or type(quantity) is not int or not 1 <= quantity <= MAX_QUANTITY:
+                raise ValidationError(field_errors={"lines": f"Số lượng mỗi món từ 1 đến {MAX_QUANTITY}"})
+            if item_id in requested:
+                raise ValidationError(field_errors={"lines": "Mỗi món chỉ xuất hiện một lần"})
+            requested[item_id] = quantity
+        with self._errors(), self._transaction() as conn:
+            customer = self._customer(conn, principal)
+            session = self._repo.active_session(conn, customer.customer_id)
+            if session is None:
+                raise ValidationError(field_errors={"session": NEED_ACTIVE_SESSION})
+            active_categories = {c.id for c in self._repo.list_categories(conn, session["store_id"]) if c.is_active}
+            order_lines, unavailable = [], []
+            for item_id, quantity in requested.items():
+                item = self._repo.get_item(conn, item_id)
+                if item is None or item.store_id != session["store_id"]:
+                    raise NotFoundError(ITEM_NOT_FOUND)
+                if item.is_visible and item.is_available and item.category_id in active_categories:
+                    order_lines.append(MenuOrderLine(item.id, item.name, item.price, quantity))
+                else:
+                    unavailable.append(item.name)
+            member = self._p1.loyalty_summary(conn, customer.customer_id)
+            pricing = price_order(order_lines,
+                self._repo.active_promotions(conn, session["store_id"], self._clock()),
+                member["tier"] if member["enabled"] else "BRONZE")
+            return dict(gross_amount=pricing["snapshot"]["gross_amount"],
+                        discount_amount=pricing["discount_amount"], final_amount=pricing["final_amount"],
+                        promotion_code=pricing["promotion_code"], promotion_kind=pricing["promotion_kind"],
+                        unavailable=unavailable)
 
     @retry_on_transient
     def save_promotion(self, actor, *, promotion_id=None, code, kind, item_id=None,
@@ -379,7 +504,11 @@ class MenuService:
                 or starts_at.tzinfo is None or ends_at.tzinfo is None
                 or starts_at >= ends_at):
             raise ValidationError(field_errors={"starts_at": "Khoảng thời gian không hợp lệ"})
+        if ends_at - starts_at > timedelta(days=MAX_PROMOTION_DAYS):
+            raise ValidationError(field_errors={"ends_at": f"Ưu đãi kéo dài tối đa {MAX_PROMOTION_DAYS} ngày"})
         is_active = _flag(is_active, "is_active")
+        if is_active and ends_at <= self._clock():
+            raise ValidationError(field_errors={"ends_at": PROMOTION_EXPIRED})
         with self._errors(), self._transaction() as conn:
             current = self._actor(conn, actor, Permission.MANAGE_MENU)
             if item_id is not None:
@@ -392,8 +521,10 @@ class MenuService:
                 raise NotFoundError("Không tìm thấy ưu đãi")
             promo_id = self._repo.save_promotion(conn, current.store_id, promotion_id,
                 code, kind, item_id, value, minimum_tier, starts_at, ends_at, is_active)
+            after = self._repo.get_promotion(conn, promo_id)
+            self._record_promotion_change(conn, current, promo_id, existing, after)
             self._p1.audit(conn, current, "POS_PROMOTION_SAVE", promo_id)
-            return self._repo.get_promotion(conn, promo_id)
+            return _promotion_view(after, self._clock())
 
     def inventory_overview(self, actor):
         """Read stock for the actor's store; memory demo has no stock ledger."""

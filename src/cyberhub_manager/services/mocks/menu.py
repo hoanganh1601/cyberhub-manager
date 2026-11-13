@@ -75,6 +75,7 @@ class MemoryMenuRepository:
         self.promotions: dict[int, dict] = {}
         self.order_pricing: dict[int, dict] = {}
         self.reversals: dict[int, dict] = {}
+        self.promotion_log: list[dict] = []  # lịch sử thay đổi khuyến mãi
         self.voucher_repo = None
         self._ids = {"category": 0, "item": 0, "order": 0, "reversal": 0, "promotion": 0}
 
@@ -84,13 +85,15 @@ class MemoryMenuRepository:
         with self.p1.transaction() as conn:
             snapshot = deepcopy(
                 (self.categories, self.items, self.images, self.changes, self.orders,
-                 self.promotions, self.order_pricing, self.reversals, self._ids)
+                 self.promotions, self.order_pricing, self.reversals, self._ids,
+                 self.promotion_log)
             )
             try:
                 yield conn
             except Exception:
                 (self.categories, self.items, self.images, self.changes, self.orders,
-                 self.promotions, self.order_pricing, self.reversals, self._ids) = snapshot
+                 self.promotions, self.order_pricing, self.reversals, self._ids,
+                 self.promotion_log) = snapshot
                 raise
 
     def _next(self, kind: str) -> int:
@@ -280,6 +283,39 @@ class MemoryMenuRepository:
             minimum_tier=minimum_tier, starts_at=starts_at, ends_at=ends_at,
             is_active=is_active)
         return promotion_id
+
+    def set_promotion_active(self, conn, store_id, promotion_id, is_active):
+        promo = self.promotions.get(promotion_id)
+        if promo is not None and promo["store_id"] == store_id:
+            promo["is_active"] = is_active
+
+    def record_promotion_change(self, conn, promotion_id, employee_id, action, changes):
+        employee = self.data.employees.get(employee_id)
+        self.promotion_log.append(dict(
+            id=len(self.promotion_log) + 1, promotion_id=promotion_id, employee_id=employee_id,
+            employee_name=employee.full_name if employee else "", action=action,
+            changes=deepcopy(changes), created_at=self.clock()))
+
+    def promotion_changes(self, conn, promotion_id, limit=50):
+        found = [dict(h) for h in reversed(self.promotion_log) if h["promotion_id"] == promotion_id]
+        for h in found:
+            h.pop("promotion_id")
+        return found[:limit]
+
+    def promotion_usage(self, conn, store_id):
+        usage = {}
+        for order_id, pricing in self.order_pricing.items():
+            order = self.orders.get(order_id)
+            promotion_id = pricing.get("promotion_id")
+            if (order is None or order.store_id != store_id or promotion_id is None
+                    or not pricing.get("discount_amount")
+                    or order.status in (MenuOrderStatus.CANCELLED, MenuOrderStatus.REFUNDED)
+                    or pricing.get("snapshot", {}).get("applied_source") == "VOUCHER"):
+                continue
+            row = usage.setdefault(promotion_id, dict(orders=0, discount=0))
+            row["orders"] += 1
+            row["discount"] += int(pricing["discount_amount"])
+        return usage
 
     def save_order_pricing(self, conn, order_id, pricing):
         self.order_pricing[order_id] = deepcopy(pricing)
