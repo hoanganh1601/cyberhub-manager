@@ -162,3 +162,25 @@
 @media (max-width: 1100px) {
   .dot1-admin {grid-template-columns:1fr}
 }
+
+/* ----- Bếp và Thủ kho: giao diện riêng ------------------------------------------- */
+.dot1-kitchen {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.dot1-order.dot1-kitchen-card ul {font-size:16px;gap:6px}
+.dot1-order.dot1-kitchen-card .btn {min-width:190px;padding:11px 18px;font-size:14px}
+.dot1-order.dot1-kitchen-card.late {border-color:rgba(245,164,0,.65)}
+.dot1-order.dot1-kitchen-card.late header small {color:var(--amber);font-weight:700}
+.dot1-stock-metrics {grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width: 900px) {
+  .dot1-kitchen {grid-template-columns:1fr}
+  .dot1-stock-metrics {grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* ----- Khuyến mãi POS: thẻ ưu đãi và báo giá trong giỏ ------------------------------- */
+.dot1-promo header {align-items:center}
+.dot1-promo p {margin:2px 0;font-size:12px;color:var(--muted)}
+.dot1-promo .dot1-promo-usage {color:var(--text)}
+.dot1-promo .dot1-promo-usage b {color:var(--green)}
+.dot1-promo.EXPIRED,.dot1-promo.OFF {opacity:.78}
+.dot1-promo .actions {margin-top:8px}
+.dot1-discount {display:flex;justify-content:space-between;gap:10px;margin:8px 0 2px;font-size:13px;color:var(--green)}
+.dot1-total.dot1-final {border-top:0;padding-top:4px}

@@ -28,7 +28,7 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`menu_items`](#menu_items) | Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món. | 12 |
 | [`menu_item_images`](#menu_item_images) | Ảnh món đã chuẩn hóa (WebP 512×512, không metadata). | 4 |
 | [`menu_item_changes`](#menu_item_changes) | Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa. | 7 |
-| [`menu_orders`](#menu_orders) | Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi. | 16 |
+| [`menu_orders`](#menu_orders) | Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi. | 17 |
 | [`menu_order_items`](#menu_order_items) | Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt. | 5 |
 | [`inventory_ingredients`](#inventory_ingredients) | Nguyên liệu tồn kho theo từng cửa hàng; lượng khả dụng bằng tồn thực tế trừ lượng đã giữ chỗ. | 9 |
 | [`menu_item_recipes`](#menu_item_recipes) | Công thức hiện hành của món có theo dõi kho. | 3 |
@@ -181,7 +181,7 @@ Ràng buộc:
 - CHECK `chk_employees_code_not_blank`: `(char_length(trim(code)) > 0)`
 - CHECK `chk_employees_full_name_not_blank`: `(char_length(trim(full_name)) > 0)`
 - CHECK `chk_employees_password_hash_not_blank`: `(char_length(trim(password_hash)) > 0)`
-- CHECK `chk_employees_role`: `(role in ('ADMIN','MANAGER','STAFF'))`
+- CHECK `chk_employees_role`: `(role in ('ADMIN','MANAGER','STAFF','KITCHEN','INVENTORY'))`
 - CHECK `chk_employees_status`: `(status in ('ACTIVE','INACTIVE','LOCKED'))`
 - CHECK `chk_employees_username_length`: `(char_length(username) between 4 and 30)`
 
@@ -644,12 +644,13 @@ Index bổ sung (`002_indexes.sql`):
 | `machine_id` | `bigint unsigned` | Không | — | FK → `machines.id` | Máy giao món tới. |
 | `note` | `varchar(200)` | Không | `` | — | Ghi chú của khách (≤ 200 ký tự). |
 | `total_amount` | `bigint` | Không | — | — | Tổng tiền theo giá chụp lúc đặt (VND). |
-| `status` | `varchar(12)` | Không | `NEW` | — | `NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED`. |
+| `status` | `varchar(12)` | Không | `NEW` | — | `NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED` / `REFUNDED`. |
 | `handled_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW. |
 | `payment_method` | `varchar(10)` | Có | — | — | `CASH` / `TRANSFER` khi đã thanh toán; NULL trước đó. |
 | `paid_at` | `datetime` | Có | — | — | Thời điểm thanh toán tại quầy (UTC). |
 | `paid_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên xác nhận thanh toán. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đặt (UTC). |
+| `reservation_expires_at` | `datetime` | Có | — | — | Hạn giữ tồn kho của đơn NEW (UTC); worker tự hủy đơn quá hạn; NULL với đơn không còn giữ tồn. |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật trạng thái (UTC). |
 | `cancel_reason` | `varchar(255)` | Có | — | — | Lý do hủy đơn; giữ được cả với đơn cũ chưa có ảnh chụp công thức. |
 
@@ -663,14 +664,15 @@ Ràng buộc:
 - FOREIGN KEY `fk_menu_orders_paid_by` (`paid_by`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_menu_orders_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_menu_orders_store` (`store_id`) → `stores` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
-- CHECK `chk_menu_orders_handled`: `(((status = 'NEW') and (handled_by is null)) or ((status <> 'NEW') and (handled_by is not null)))`
-- CHECK `chk_menu_orders_payment`: `(((status = 'PAID') and (payment_method in ('CASH','TRANSFER')) and (paid_at is not null) and (paid_by is not null)) or ((status <> 'PAID') and (payment_method is null) and (paid_at is null) and (paid_by is null)))`
-- CHECK `chk_menu_orders_status`: `(status in ('NEW','PREPARING','SERVED','PAID','CANCELLED'))`
+- CHECK `chk_menu_orders_handled`: `(((status = 'NEW') and (handled_by is null)) or ((status = 'CANCELLED') and (handled_by is null) and (cancel_reason = 'AUTO_EXPIRED')) or ((status <> 'NEW') and (handled_by is not null)))`
+- CHECK `chk_menu_orders_payment`: `(((status in ('PAID','REFUNDED')) and (payment_method in ('CASH','TRANSFER')) and (paid_at is not null) and (paid_by is not null)) or ((status not in ('PAID','REFUNDED')) and (payment_method is null) and (paid_at is null) and (paid_by is null)))`
+- CHECK `chk_menu_orders_status`: `(status in ('NEW','PREPARING','SERVED','PAID','CANCELLED','REFUNDED'))`
 - CHECK `chk_menu_orders_total`: `(total_amount > 0)`
 
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_menu_orders_account` (`account_id, created_at`)
+- INDEX `idx_menu_orders_hold_expiry` (`status, reservation_expires_at, id`)
 - INDEX `idx_menu_orders_paid_at` (`store_id, paid_at`)
 - INDEX `idx_menu_orders_store_status` (`store_id, status, created_at`)
 

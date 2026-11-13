@@ -112,6 +112,16 @@ nguyên role sau migration.
   và không được giữ tồn âm.
 - Giá ưu đãi được chụp tại lúc nhận đơn. Một đơn chỉ dùng ưu đãi có số tiền giảm
   lớn nhất; voucher có giá trị cao hơn mới thay thế ưu đãi đó.
+- Quản lý bật/tắt khuyến mãi bằng nút trên thẻ ưu đãi (migration `020_pos_promotion_history.sql`).
+  Ưu đãi đã quá ngày kết thúc không bật lại được; phải sửa ngày kết thúc. Ưu đãi chỉ dài tối đa
+  366 ngày, ngày kết thúc phải sau ngày bắt đầu, và ưu đãi đang bật phải kết thúc trong tương lai.
+  Giờ lưu UTC và trả về có múi giờ để trình duyệt hiển thị đúng.
+- Mỗi lần tạo, sửa, bật hoặc tắt ưu đãi ghi một dòng bất biến vào `menu_promotion_changes`
+  (người thực hiện, thời điểm, giá trị cũ và mới); lưu lại y nguyên thì không ghi. Sửa hay tắt ưu đãi
+  không đổi đơn đã đặt vì giá nằm trong bản chụp `menu_order_pricing`.
+- Trên thẻ ưu đãi, quản lý thấy tổng tiền đã giảm và số đơn đã dùng (đơn hủy/hoàn không tính).
+  Trong đơn, nhân viên thấy mã ưu đãi và số tiền giảm; khách thấy báo giá có số tiền giảm ngay trong giỏ
+  (`POST /api/portal/menu/quote`, không ghi dữ liệu). Khi đặt, máy chủ tính lại toàn bộ.
 
 ## 6. Tiêu chí nghiệm thu hoàn chỉnh
 
@@ -146,8 +156,15 @@ python -m scripts.run_pos_maintenance --interval 30
 Worker tạo cảnh báo tối đa một lần trong 2 phút trước hạn. Khi quá hạn, worker chỉ
 hủy đơn còn `NEW`, giải phóng lượng giữ trong cùng transaction và phát thông báo
 cho khách. Đơn `PREPARING` không bị tác động. Có thể chạy `--once` để kiểm tra
-một lượt; chạy lại sau lỗi không giải phóng kho hai lần. Demo không mô phỏng sổ kho;
-nghiệm thu số dư và sổ biến động cần MySQL.
+một lượt (mã thoát 1 nếu lỗi); chạy lại sau lỗi không giải phóng kho hai lần. Demo không
+mô phỏng sổ kho; nghiệm thu số dư và sổ biến động cần MySQL.
+
+Độ bền của worker giữ tồn: mỗi đơn xử lý trong một transaction riêng, nên một đơn lỗi
+được rollback, ghi log kèm traceback và đếm vào `failed`; các đơn còn lại trong lô vẫn
+được xử lý, đơn lỗi sẽ được thử lại ở lượt sau. Mất kết nối MySQL thì dừng lượt đó. Sau
+lỗi, worker chờ `interval × 2^n` (tối đa 300 giây, hoặc `interval` nếu lớn hơn) rồi chạy
+lại và về nhịp bình thường khi một lượt thành công. `Ctrl+C`/`SIGTERM` dừng êm sau lượt
+đang chạy. Chỉ lượt có việc mới ghi log mức INFO (`warned`, `expired`, `failed`).
 
 ## 8. Hủy/hoàn toàn bộ đơn sau phục vụ
 
@@ -177,17 +194,48 @@ voucher kém hơn được giữ lại cho đơn khác. Sổ giá lưu dòng mó
 hạng thành viên, quy tắc và tổng trước/sau giảm. Sửa quy tắc không đổi giá đơn cũ.
 
 Thông báo trong web dùng `customer_notification_events` như sổ sự kiện ghi trong
-transaction nghiệp vụ với khóa chống trùng. Portal tải lại mỗi 30 giây; đây là
-kênh thông báo được bật ở giai đoạn này. Chưa có worker gửi email/push vì chưa
-cấu hình kênh ngoài web. Khi thêm kênh ngoài web, cần worker riêng đọc sổ sự kiện,
-retry có giới hạn và khóa idempotency; không gọi nhà cung cấp trong transaction POS.
+transaction nghiệp vụ với khóa chống trùng. Portal tải lại mỗi 10 giây; đây là
+kênh thông báo mặc định.
+
+Kênh ngoài web dùng worker riêng (migration `021_notification_deliveries.sql`):
+
+```powershell
+python -m scripts.run_notification_worker --interval 15
+```
+
+- Worker đọc sổ sự kiện, tạo một dòng gửi cho mỗi cặp (sự kiện, kênh) trong bảng
+  `notification_deliveries` rồi gửi. Sổ sự kiện không bị sửa; POS không biết worker tồn tại.
+- Mỗi lượt gồm ba bước độc lập: transaction ngắn "thuê" một lô (`FOR UPDATE SKIP LOCKED`, nên
+  chạy nhiều worker không gửi trùng), gọi kênh **ngoài mọi transaction và khóa**, rồi transaction
+  ngắn ghi từng kết quả. Một thông báo lỗi không chặn các thông báo khác.
+- Giao **ít nhất một lần**: nếu worker chết sau khi gửi mà trước khi ghi kết quả, dòng hết hạn thuê
+  (5 phút) và được gửi lại với cùng `idempotency_key` (`notification_key`, ví dụ `menu-order:12:SERVED`);
+  bên nhận phải loại trùng theo khóa này.
+- Retry có giới hạn: lỗi tạm (mạng, HTTP 408/425/429/5xx) chờ 30s, 60s, 120s... tối đa 1 giờ; sau
+  `--max-attempts` (mặc định 6) hoặc lỗi vĩnh viễn (HTTP 4xx khác) thì dòng chuyển `DEAD` và được giữ
+  lại để xem, `last_error` lưu lý do ngắn (không lưu nội dung có thể chứa bí mật).
+- Chỉ gửi sự kiện trong `--lookback-hours` gần nhất (mặc định 24) để bật kênh mới không xả cả lịch sử.
+- Kênh chọn bằng `CYBERHUB_NOTIFY_SINK`: `log` (mặc định, chỉ ghi log) hoặc `webhook` với
+  `CYBERHUB_NOTIFY_WEBHOOK_URL` (bắt buộc `https`, riêng `localhost` được dùng `http`; không đi theo
+  chuyển hướng) và tùy chọn `CYBERHUB_NOTIFY_WEBHOOK_SECRET`. Có secret thì mỗi yêu cầu kèm
+  `X-CyberHub-Timestamp` và `X-CyberHub-Signature: sha256=HMAC(secret, "<timestamp>.<body>")`. Nội dung
+  gửi chỉ có mã sự kiện, loại, mã đơn, số tiền, mã tài khoản/cơ sở và thời điểm; không có tên hay số
+  điện thoại khách.
+- Kiểm tra nhanh: `python -m scripts.run_notification_worker --once` rồi
+  `SELECT status, COUNT(*) FROM notification_deliveries GROUP BY status;`. Dòng `DEAD` cần người
+  vận hành xem `last_error`; muốn gửi lại, đặt `status='PENDING'`, `attempts=0` cho dòng đó.
 Khách thấy các mốc mới, chuẩn bị, phục vụ, thanh toán, hủy/hoàn, sắp hết hạn giữ và
 thông báo món vừa hết khi đặt.
 
 ## 10. Chạy và nghiệm thu
 
-Áp dụng migration `016`–`019` bằng `python scripts/init_db.py` trên MySQL trước
-khi bật chế độ MySQL. Sau đó chạy web và worker giữ tồn ở hai terminal riêng.
+Áp dụng migration `016`–`021` bằng `python scripts/init_db.py` trên MySQL trước
+khi bật chế độ MySQL. Sau đó chạy web và hai worker (`scripts.run_pos_maintenance`,
+`scripts.run_notification_worker`) ở các terminal riêng. Worker thông báo không bắt buộc
+nếu chỉ dùng thông báo trong web.
+
+Dữ liệu mẫu MySQL (`python scripts/seed_pos_demo.py`) và checklist nghiệm thu cho nhân viên, bếp, thủ kho
+và quản lý nằm ở [POS_ACCEPTANCE.md](POS_ACCEPTANCE.md).
 Demo hiển thị nhãn "Demo: sổ kho chưa được mô phỏng"; mọi nghiệm thu số dư,
 release và bút toán kho dùng MySQL. Không dùng kết quả tồn kho demo để xác nhận
 nghiệp vụ thực tế.

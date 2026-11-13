@@ -30,6 +30,9 @@ Object.assign(copy, {
   dot1Ordered: ["Đã gửi yêu cầu gọi món", "Your order has been sent"],
   dot1Recent: ["Yêu cầu gần đây", "Recent orders"],
   dot1Total: ["Tạm tính", "Subtotal"],
+  dot1QuoteDiscount: ["Ưu đãi", "Promotion"],
+  dot1ToPay: ["Thành tiền", "Total to pay"],
+  dot1QuoteNote: ["Ưu đãi do hệ thống tính; số tiền cuối cùng được xác nhận khi bạn đặt món.", "The promotion is calculated by the system; the final amount is confirmed when you order."],
   dot1Unit: ["Đơn vị: VND", "Prices in VND"],
   dot1ViewCart: ["Xem món đã chọn", "View order"],
   dot1Items: ["món", "items"],
@@ -122,6 +125,7 @@ function dot1Redraw() {
   dot1FlipBusy = false;
   root.innerHTML = dot1Body();
   wireMenu();
+  dot1ScheduleQuote();
 }
 
 function dot1CartLines() {
@@ -207,13 +211,13 @@ function dot1Cart(lines, total) {
   const ui = portalUI, d = ui.menu;
   const ready = d.can_order && lines.length && !ui.menuBusy;
   const recent = d.orders.length
-    ? `<div class="dot1-recent"><h3>${t("dot1Recent")}</h3><ul>${d.orders.map((o) => `<li><span>${esc(o.code)} · ${o.lines.reduce((n, l) => n + l.quantity, 0)} ${t("dot1Items")}</span><span>${money(o.total_amount)} <b class="dot1-status ${o.status}">${t("dot1St" + o.status)}</b></span></li>`).join("")}</ul></div>`
+    ? `<div class="dot1-recent"><h3>${t("dot1Recent")}</h3><ul>${d.orders.map((o) => `<li><span>${esc(o.code)} · ${o.lines.reduce((n, l) => n + l.quantity, 0)} ${t("dot1Items")}</span><span>${dot1OrderAmount(o)} <b class="dot1-status ${o.status}">${t("dot1St" + o.status)}</b></span></li>`).join("")}</ul></div>`
     : "";
   return `<aside class="pc-card dot1-cart" id="dot1-cart">
       <header><h2>${icon("cart")} ${t("dot1Cart")}</h2>${d.session ? `<span class="dot1-seat">${t("dot1Seat")} <b>${esc(d.session.machine_code)}</b></span>` : ""}</header>
       <div class="dot1-cart-grid">
         <div>${lines.length
-          ? `<ul class="dot1-lines">${lines.map((l) => `<li><span>${esc(l.item.name)} × ${l.qty}</span><strong>${money(l.item.price * l.qty)}</strong></li>`).join("")}</ul><div class="dot1-total"><span>${t("dot1Total")}</span><strong>${money(total)}</strong></div>`
+          ? `<ul class="dot1-lines">${lines.map((l) => `<li><span>${esc(l.item.name)} × ${l.qty}</span><strong>${money(l.item.price * l.qty)}</strong></li>`).join("")}</ul><div class="dot1-total"><span>${t("dot1Total")}</span><strong>${money(total)}</strong></div>${dot1QuoteRows(lines)}`
           : `<p class="muted">${t("dot1CartEmpty")}</p>`}</div>
         <div>
           <label class="pc-field"><span>${t("dot1Note")}</span><input class="input" id="dot1-note" maxlength="200" placeholder="${t("dot1NotePlaceholder")}" value="${esc(ui.menuNote)}" ${d.can_order ? "" : "disabled"}></label>
@@ -224,6 +228,54 @@ function dot1Cart(lines, total) {
       ${recent}
     </aside>`;
 }
+
+// ----- Báo giá: hiện ngay số tiền giảm trước khi đặt ------------------------------------
+// Báo giá chỉ để tham khảo (không ghi dữ liệu). Khi đặt, máy chủ tính lại toàn bộ giá và ưu đãi.
+let dot1QuoteTimer = null;
+let dot1QuoteSeq = 0;
+const dot1QuoteSig = (lines) => lines.map((l) => `${l.item.id}x${l.qty}`).sort().join(",");
+
+function dot1ScheduleQuote() {
+  const ui = portalUI;
+  if (!ui?.menu?.can_order) return;
+  const lines = dot1CartLines(), sig = dot1QuoteSig(lines);
+  clearTimeout(dot1QuoteTimer);
+  if (!lines.length || ui.menuQuote?.sig === sig) return;
+  dot1QuoteTimer = setTimeout(async () => {
+    const seq = ++dot1QuoteSeq;
+    try {
+      const data = await api("/portal/menu/quote", { method: "POST",
+        body: { lines: lines.map((l) => ({ item_id: l.item.id, quantity: l.qty })) } });
+      if (seq !== dot1QuoteSeq || ui !== portalUI) return;
+      ui.menuQuote = { sig, data };
+      // Đang gõ ghi chú thì không vẽ lại giỏ để khỏi mất con trỏ; lần vẽ sau sẽ có báo giá.
+      if (document.activeElement?.id !== "dot1-note") dot1RedrawCart();
+    } catch {
+      // Báo giá lỗi (mạng, món vừa hết...) thì bỏ qua: lúc đặt máy chủ vẫn tính và kiểm tra lại.
+    }
+  }, 250);
+}
+
+function dot1RedrawCart() {
+  const node = $("#dot1-cart");
+  if (!node || !portalUI?.menu) return;
+  const lines = dot1CartLines();
+  node.outerHTML = dot1Cart(lines, lines.reduce((sum, l) => sum + l.item.price * l.qty, 0));
+}
+
+function dot1QuoteRows(lines) {
+  const q = portalUI.menuQuote;
+  if (!q || q.sig !== dot1QuoteSig(lines) || !q.data.discount_amount) return "";
+  const rule = q.data.promotion_code ? ` (${esc(q.data.promotion_code)} · ${t("posPromo" + q.data.promotion_kind)})` : "";
+  return `<div class="dot1-discount"><span>${t("dot1QuoteDiscount")}${rule}</span><strong>-${money(q.data.discount_amount)}</strong></div>
+    <div class="dot1-total dot1-final"><span>${t("dot1ToPay")}</span><strong>${money(q.data.final_amount)}</strong></div>
+    <p class="dot1-hint">${t("dot1QuoteNote")}</p>`;
+}
+
+// Số tiền của một đơn đã đặt: có ưu đãi thì gạch giá gốc và ghi mã ưu đãi.
+const dot1OrderAmount = (o) => o.discount_amount
+  ? `<s class="muted">${money(o.total_amount)}</s> ${money(o.total_amount - o.discount_amount)}${o.promotion_code ? ` <small>(${esc(o.promotion_code)})</small>` : ""}`
+  : money(o.total_amount);
 
 // ----- Lật trang ---------------------------------------------------------------
 let dot1FlipToken = 0;

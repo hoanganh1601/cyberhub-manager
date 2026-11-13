@@ -267,6 +267,41 @@ class MenuRepository:
                 " WHERE id=%s AND store_id=%s", (*values, promotion_id, store_id))
         return promotion_id
 
+    def set_promotion_active(self, conn, store_id, promotion_id, is_active):
+        execute(conn, "UPDATE menu_promotions SET is_active=%s WHERE id=%s AND store_id=%s",
+                (is_active, promotion_id, store_id))
+
+    def record_promotion_change(self, conn, promotion_id, employee_id, action, changes):
+        """Ghi một dòng lịch sử; changes là {trường: [giá trị cũ, giá trị mới]}."""
+        execute(conn, "INSERT INTO menu_promotion_changes (promotion_id,employee_id,action,changes_json)"
+                " VALUES(%s,%s,%s,%s)",
+                (promotion_id, employee_id, action, json.dumps(changes, ensure_ascii=False)))
+
+    def promotion_changes(self, conn, promotion_id, limit=50):
+        result = []
+        for r in rows(conn, "SELECT h.id,h.employee_id,e.full_name AS employee_name,h.action,h.changes_json,"
+                      "h.created_at FROM menu_promotion_changes AS h JOIN employees AS e ON e.id=h.employee_id"
+                      " WHERE h.promotion_id=%s ORDER BY h.created_at DESC,h.id DESC LIMIT %s",
+                      (promotion_id, limit)):
+            changes = r["changes_json"]
+            if isinstance(changes, (str, bytes, bytearray)):
+                changes = json.loads(changes)
+            result.append(dict(id=int(r["id"]), employee_id=int(r["employee_id"]),
+                               employee_name=r["employee_name"], action=r["action"],
+                               changes=changes, created_at=_utc(r["created_at"])))
+        return result
+
+    def promotion_usage(self, conn, store_id):
+        """Số đơn và tổng tiền đã giảm theo từng ưu đãi (bỏ đơn hủy/hoàn; bỏ đơn mà voucher giảm nhiều hơn)."""
+        return {int(r["promotion_id"]): dict(orders=int(r["orders"]), discount=int(r["discount"]))
+                for r in rows(conn,
+                    "SELECT p.promotion_id, COUNT(*) AS orders, COALESCE(SUM(p.discount_amount),0) AS discount"
+                    " FROM menu_order_pricing AS p JOIN menu_orders AS o ON o.id=p.order_id"
+                    " WHERE o.store_id=%s AND p.promotion_id IS NOT NULL AND p.discount_amount>0"
+                    " AND o.status NOT IN ('CANCELLED','REFUNDED')"
+                    " AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p.snapshot_json,'$.applied_source')),'')<>'VOUCHER'"
+                    " GROUP BY p.promotion_id", (store_id,))}
+
     def save_order_pricing(self, conn, order_id, pricing):
         execute(conn, "INSERT INTO menu_order_pricing"
                 " (order_id,promotion_id,promotion_code,promotion_kind,discount_amount,final_amount,snapshot_json)"

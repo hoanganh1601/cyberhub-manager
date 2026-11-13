@@ -256,10 +256,11 @@ DESCRIPTIONS["menu_orders"] = ("Đơn POS đồ ăn/thức uống của khách �
     "store_id": "Cơ sở của máy đang dùng.", "account_id": "Tài khoản khách đặt món.",
     "session_id": "Phiên ACTIVE lúc đặt.", "machine_id": "Máy giao món tới.",
     "note": "Ghi chú của khách (≤ 200 ký tự).", "total_amount": "Tổng tiền theo giá chụp lúc đặt (VND).",
-    "status": "`NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED`.", "handled_by": "Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW.",
+    "status": "`NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED` / `REFUNDED`.", "handled_by": "Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW.",
     "payment_method": "`CASH` / `TRANSFER` khi đã thanh toán; NULL trước đó.",
     "paid_at": "Thời điểm thanh toán tại quầy (UTC).", "paid_by": "Nhân viên xác nhận thanh toán.",
     "cancel_reason": "Lý do hủy đơn; giữ được cả với đơn cũ chưa có ảnh chụp công thức.",
+    "reservation_expires_at": "Hạn giữ tồn kho của đơn NEW (UTC); worker tự hủy đơn quá hạn; NULL với đơn không còn giữ tồn.",
     "created_at": "Thời điểm đặt (UTC).", "updated_at": "Thời điểm cập nhật trạng thái (UTC)."})
 DESCRIPTIONS["menu_order_items"] = ("Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.", {
     "order_id": "Yêu cầu gọi món.", "item_id": "Món được gọi.",

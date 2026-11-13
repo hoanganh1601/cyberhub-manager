@@ -258,7 +258,7 @@ def test_count_proposal_retry_uses_original_request(stock_order):
 
 def test_approved_reversal_returns_snapshot_quantity_without_double_consume(stock_order):
     conn, actor, menu, stock, _item_id, ingredient_id, create, balance = stock_order
-    order_id = create("reverse")
+    order_id = create("r")  # mã đơn tối đa 20 ký tự: "ORD-STOCK-" + token 8 + "-" + nhãn
     order = menu.get_order(conn, order_id, lock=True)
     assert menu.finish_order(conn, order_id, MenuOrderStatus.SERVED, actor.employee_id)
     stock.transition_order(conn, order, MenuOrderStatus.SERVED, actor.employee_id)
