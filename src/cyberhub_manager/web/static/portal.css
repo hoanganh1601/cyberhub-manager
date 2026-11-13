@@ -355,3 +355,22 @@
 .pc-bell {position:relative}
 .pc-bell .pc-count {position:absolute;top:-6px;right:-6px;min-width:18px;padding:0 4px;line-height:18px;font-size:10px;
   border-radius:999px;color:#fff;background:var(--red);box-shadow:0 0 0 2px var(--bg)}
+
+/* Khách: bớt in đậm; chữ và khung lớn hơn, gần với màn đăng nhập (chỉ màn hình rộng) */
+.pc-workspace h2,.pc-workspace h3,.pc-workspace strong,.pc-workspace .money {font-weight:400}
+.pc-stat>strong,.p2-room-number,.pc-offer-percent,.p3-avatar {font-weight:700}
+@media(min-width:701px) {
+  .pc-workspace {font-size:15px;line-height:1.7}
+  .pc-workspace h2 {font-size:20px}
+  .pc-workspace h3 {font-size:16px}
+  .pc-workspace small,.pc-fine {font-size:13px}
+  .pc-card {padding:30px;border-radius:18px}
+  .pc-stat {padding:24px 26px}
+  .pc-stat-label {font-size:13px}
+  .pc-field {font-size:13px}
+  .pc-field input,.pc-field select {min-height:48px;font-size:15px}
+  .pc-workspace .btn {min-height:46px;padding:12px 18px;font-size:14px}
+  .pc-nav-button {font-size:14px;padding:18px 12px}
+  .pc-eyebrow,.pc-count {font-size:11px}
+  .pc-notice h3 {font-size:15px}
+}
