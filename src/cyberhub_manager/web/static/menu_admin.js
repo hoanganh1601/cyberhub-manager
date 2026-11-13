@@ -115,6 +115,7 @@ Object.assign(copy, {
   kqNoPreparing: ["Không có đơn đang chuẩn bị", "Nothing in preparation"],
   kqWaited: ["Đã chờ {n} phút", "Waiting {n} min"],
   kqJustNow: ["Vừa nhận", "Just received"],
+  kqNewOrder: ["Có đơn mới", "New order"],
   ivTitle: ["Kho nguyên liệu", "Ingredient stock"],
   ivSub: ["Tồn kho, cảnh báo sắp hết, nhập và xuất kho", "Stock levels, low-stock alerts, receiving and issuing"],
   ivKpiItems: ["Nguyên liệu đang dùng", "Active ingredients"],
@@ -160,6 +161,10 @@ async function loadMenuAdmin(seq) {
     ["MANAGER", "ADMIN"].includes(role) ? api("/menu/promotions") : Promise.resolve([]),
   ]);
   if (seq !== state.seq || state.page !== "menu") return false;
+  // Toast khi xuất hiện đơn mới (lần tải đầu không báo để khỏi báo lại đơn cũ).
+  const knownOrders = new Set((state.menuOrders || []).map((o) => o.id));
+  const arrived = state.menuOrders ? orders.filter((o) => o.status === "NEW" && !knownOrders.has(o.id)) : [];
+  if (arrived.length) toast(`${t("kqNewOrder")}: ${arrived.map((o) => o.machine_code).join(", ")}`);
   state.menuAdmin = menu;
   state.menuOrders = orders;
   state.menuInventory = inventory;

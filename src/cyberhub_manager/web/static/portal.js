@@ -158,10 +158,11 @@ async function renderCustomerPortal(silent=false) {
 
 function drawCustomerPortal() {
   const d=portalUI.data, n=portalUI.notices, tabs={home:"pcHome",offers:"pcOffers",history:"pcHistory",notifications:"pcNotifications",availability:"p2Availability",usage:"p2Usage",profile:"p2Profile",member:"p3Member",menu:"dot1Menu",vouchers:"dot2Vouchers",game:"dot3Game"};
-  document.title="CyberHub — "+t(tabs[portalUI.tab]);
+  document.title=pcUnreadPrefix()+"CyberHub — "+t(tabs[portalUI.tab]);
   $("#app").innerHTML=`<div class="customer-workspace pc-workspace">
     <header class="portal-header pc-header"><a href="/customer" aria-label="CyberHub"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub Manager"></a>
       <span class="pc-header-caption">${t("customerPortal")}</span><span class="spacer"></span>${langControl()}
+      ${pcBell()}
       <button class="btn pc-icon-button" data-portal="refresh" aria-label="${t("refresh")}">${icon("refresh")}</button>
       ${customerAccountMenu()}
     </header>

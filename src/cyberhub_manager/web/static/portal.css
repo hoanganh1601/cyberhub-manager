@@ -350,3 +350,8 @@
   .pc-pagination {font-size:11px;gap:8px}
   .pc-pagination>div {gap:8px}
 }
+
+/* Chuông thông báo ở header + badge số chưa đọc */
+.pc-bell {position:relative}
+.pc-bell .pc-count {position:absolute;top:-6px;right:-6px;min-width:18px;padding:0 4px;line-height:18px;font-size:10px;
+  border-radius:999px;color:#fff;background:var(--red);box-shadow:0 0 0 2px var(--bg)}
