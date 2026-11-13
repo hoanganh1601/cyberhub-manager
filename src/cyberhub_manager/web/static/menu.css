@@ -162,3 +162,15 @@
 @media (max-width: 1100px) {
   .dot1-admin {grid-template-columns:1fr}
 }
+
+/* ----- Bếp và Thủ kho: giao diện riêng ------------------------------------------- */
+.dot1-kitchen {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.dot1-order.dot1-kitchen-card ul {font-size:16px;gap:6px}
+.dot1-order.dot1-kitchen-card .btn {min-width:190px;padding:11px 18px;font-size:14px}
+.dot1-order.dot1-kitchen-card.late {border-color:rgba(245,164,0,.65)}
+.dot1-order.dot1-kitchen-card.late header small {color:var(--amber);font-weight:700}
+.dot1-stock-metrics {grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width: 900px) {
+  .dot1-kitchen {grid-template-columns:1fr}
+  .dot1-stock-metrics {grid-template-columns:repeat(2,minmax(0,1fr))}
+}

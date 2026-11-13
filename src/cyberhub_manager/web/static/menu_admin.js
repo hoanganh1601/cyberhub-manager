@@ -106,6 +106,41 @@ Object.assign(copy, {
   posPromoTIER_PERCENT: ["Giảm theo hạng", "Tier discount"],
 });
 
+Object.assign(copy, {
+  kqTitle: ["Hàng đợi bếp", "Kitchen queue"],
+  kqSub: ["Đơn khách gọi: nhận đơn, chuẩn bị và báo đã phục vụ", "Customer orders: start, prepare and mark served"],
+  kqWaiting: ["Chờ chuẩn bị", "Waiting"],
+  kqPreparing: ["Đang chuẩn bị", "Preparing"],
+  kqNoWaiting: ["Không có đơn đang chờ", "No orders waiting"],
+  kqNoPreparing: ["Không có đơn đang chuẩn bị", "Nothing in preparation"],
+  kqWaited: ["Đã chờ {n} phút", "Waiting {n} min"],
+  kqJustNow: ["Vừa nhận", "Just received"],
+  ivTitle: ["Kho nguyên liệu", "Ingredient stock"],
+  ivSub: ["Tồn kho, cảnh báo sắp hết, nhập và xuất kho", "Stock levels, low-stock alerts, receiving and issuing"],
+  ivKpiItems: ["Nguyên liệu đang dùng", "Active ingredients"],
+  ivKpiLow: ["Sắp hết", "Low stock"],
+  ivKpiOut: ["Hết hàng", "Out of stock"],
+  ivKpiReserved: ["Đang giữ cho đơn", "Reserved for orders"],
+  ivAlerts: ["Cảnh báo sắp hết", "Low-stock alerts"],
+  ivNoAlerts: ["Không có nguyên liệu nào sắp hết", "Nothing is running low"],
+});
+
+// Bếp và Thủ kho dùng chung route "menu" nhưng thấy tiêu đề riêng (sidebar, tiêu đề trang, tab trình duyệt).
+// Dùng getter nên không phải sửa app.js; có setter để script khác gán copy.menu vẫn không lỗi.
+const ROLE_PAGE_COPY = {
+  KITCHEN: { menu: copy.kqTitle, menuSub: copy.kqSub },
+  INVENTORY: { menu: copy.ivTitle, menuSub: copy.ivSub },
+};
+for (const key of ["menu", "menuSub"]) {
+  let generic = copy[key];
+  Object.defineProperty(copy, key, {
+    configurable: true,
+    enumerable: true,
+    get: () => ROLE_PAGE_COPY[state.actor?.role]?.[key] || generic,
+    set: (value) => { generic = value; },
+  });
+}
+
 let dot1AdminTimer = null;
 
 // Bếp chỉ cần đơn đang chờ và đang chuẩn bị.
@@ -152,6 +187,49 @@ function menuAdminPage() {
       ${d.can_manage ? dot1PromotionPanel() : ""}
       ${state.menuInventory?.enabled ? dot1InventoryPanel(state.menuInventory) : ""}
     </div>`;
+}
+
+// ----- Giao diện riêng cho Bếp ----------------------------------------------------------
+function dot1KitchenPage() {
+  const orders = (state.menuOrders || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const column = (titleKey, emptyKey, list, tone) => `<section class="panel"><header class="panel-heading"><h3>${t(titleKey)}</h3><span class="badge ${tone}">${list.length}</span></header>${list.length ? list.map(dot1KitchenCard).join("") : empty(emptyKey)}</section>`;
+  return pageHead() + `<div class="dot1-kitchen">${column("kqWaiting", "kqNoWaiting", orders.filter((o) => o.status === "NEW"), "amber")}${column("kqPreparing", "kqNoPreparing", orders.filter((o) => o.status === "PREPARING"), "cyan")}</div>`;
+}
+
+// Thẻ đơn của bếp: chỉ máy, món, ghi chú và đúng một nút; không hiện giá, thanh toán, hủy hay hoàn tiền.
+function dot1KitchenCard(order) {
+  const can = state.menuAdmin || {};
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000));
+  const action = order.status === "NEW" && can.can_prepare
+    ? `<button class="btn primary" data-menuadmin="prepare-order" data-id="${order.id}">${t("dot1StartPreparing")}</button>`
+    : order.status === "PREPARING" && can.can_serve
+      ? `<button class="btn primary" data-menuadmin="serve-order" data-id="${order.id}">${t("dot1Served")}</button>`
+      : "";
+  return `<article class="dot1-order dot1-kitchen-card ${minutes >= 10 ? "late" : ""}">
+      <header><span><strong>${esc(order.machine_code)}</strong> · ${esc(order.code)}</span><small>${minutes < 1 ? t("kqJustNow") : t("kqWaited").replace("{n}", minutes)}</small></header>
+      <ul>${order.lines.map((l) => `<li><b>${l.quantity}×</b> ${esc(l.item_name)}</li>`).join("")}</ul>
+      ${order.note ? `<p class="note">“${esc(order.note)}”</p>` : ""}
+      <div class="actions">${action}</div>
+    </article>`;
+}
+
+// ----- Giao diện riêng cho Thủ kho -----------------------------------------------------
+function dot1StockPage() {
+  const inv = state.menuInventory;
+  if (!inv?.enabled) return pageHead() + `<div class="notice info">${t("invDemoNotice")}</div>`;
+  const active = inv.ingredients.filter((i) => i.is_active);
+  const low = active.filter((i) => i.available <= i.reorder_point);
+  const out = active.filter((i) => i.available <= 0);
+  const reserved = active.reduce((sum, i) => sum + i.reserved, 0);
+  const alerts = low.length
+    ? table(["name", "invAvailable", "invReorder", ""], low.map((i) => `<tr>
+        <td><strong>${esc(i.name)}</strong><br><small>${esc(i.code)} · ${esc(i.unit)}</small></td>
+        <td class="${i.available <= 0 ? "red" : "amber"}">${i.available}</td><td>${i.reorder_point}</td>
+        <td>${inv.can_receive ? `<button class="btn small primary" data-menuadmin="receive" data-id="${i.id}">${t("invReceive")}</button>` : ""}</td></tr>`).join(""))
+    : empty("ivNoAlerts");
+  return pageHead() + `<div class="metrics dot1-stock-metrics">${metric("ivKpiItems", active.length, "cyan", "utensils")}${metric("ivKpiLow", low.length, low.length ? "amber" : "green", "alert")}${metric("ivKpiOut", out.length, out.length ? "red" : "green", "alert")}${metric("ivKpiReserved", reserved, "", "clock")}</div>
+    <section class="panel"><header class="panel-heading"><h3>${icon("alert")} ${t("ivAlerts")}</h3><span class="badge ${low.length ? "amber" : "green"}">${low.length}</span></header>${alerts}</section>
+    ${dot1InventoryPanel(inv)}`;
 }
 
 function dot1PromotionPanel() {
@@ -561,7 +639,7 @@ function wireMenuAdmin() {
     if (state.page !== "menu" || !state.actor) { clearInterval(dot1AdminTimer); return; }
     if (document.hidden || $("#dot1-dialog")?.open) return;
     loadPage(true);
-  }, 20000);
+  }, state.actor.role === "KITCHEN" ? 10000 : 20000); // bếp cần thấy đơn mới nhanh hơn
   for (const img of document.querySelectorAll("img.dot1-thumb")) {
     img.addEventListener("error", () => { const span = document.createElement("span"); span.className = "dot1-thumb"; span.textContent = "?"; img.replaceWith(span); }, { once: true });
   }
