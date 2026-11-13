@@ -56,11 +56,11 @@ def test_hold_warning_and_expiry_are_idempotent_and_leave_preparing_alone():
     preparing = bundle.menu.place_order(customer, [{"item_id": item.id, "quantity": 1}])
     bundle.menu.finish_order(manager, preparing.id, "PREPARING")
     clock.advance(minutes=13)
-    assert bundle.menu.maintain_holds() == {"warned": 1, "expired": 0}
-    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0}
+    assert bundle.menu.maintain_holds() == {"warned": 1, "expired": 0, "failed": 0}
+    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0, "failed": 0}
     clock.advance(minutes=2)
-    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 1}
-    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0}
+    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 1, "failed": 0}
+    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0, "failed": 0}
     assert bundle.menu._repo.get_order(None, expiring.id).cancel_reason == "AUTO_EXPIRED"
     assert bundle.menu._repo.get_order(None, preparing.id).status == MenuOrderStatus.PREPARING
 

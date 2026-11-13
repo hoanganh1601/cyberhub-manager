@@ -15,6 +15,7 @@ Quy tắc:
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import logging
 import os
 from uuid import uuid4
 from uuid import UUID
@@ -23,6 +24,7 @@ from cyberhub_manager.domain.exceptions import (
     ConflictError,
     NotFoundError,
     PermissionDeniedError,
+    ServiceUnavailableError,
     ValidationError,
 )
 from cyberhub_manager.domain.menu import (
@@ -44,6 +46,8 @@ from cyberhub_manager.domain.loyalty import TIERS
 from .pos_pricing import price_order
 
 from .p1_runtime import errors, retry_on_transient
+
+logger = logging.getLogger(__name__)
 
 ITEM_NOT_FOUND = "Không tìm thấy món"
 CATEGORY_NOT_FOUND = "Không tìm thấy nhóm món"
@@ -874,27 +878,41 @@ class MenuService:
         now = now or self._clock()
         if now.tzinfo is None:
             raise ValueError("now must include timezone")
-        warned = expired = 0
+        warned = expired = failed = 0
         with self._errors(), self._transaction() as conn:
             candidates = self._repo.pending_holds(conn, now + timedelta(minutes=2), limit)
         for order_id in candidates:
-            with self._errors(), self._transaction() as conn:
-                order = self._repo.get_order(conn, order_id, lock=True)
-                if order is None or order.status is not MenuOrderStatus.NEW or order.reservation_expires_at is None:
-                    continue
-                if order.reservation_expires_at <= now:
-                    if not self._repo.finish_order(conn, order.id, MenuOrderStatus.CANCELLED,
-                                                   None, reason="AUTO_EXPIRED"):
-                        continue
-                    if self._inventory is not None:
-                        self._inventory.transition_order(conn, order, MenuOrderStatus.CANCELLED,
-                                                         None, reason="AUTO_EXPIRED")
-                    updated = self._repo.get_order(conn, order.id)
-                    self._repo.record_order_notification(conn, updated, MenuOrderStatus.CANCELLED, now)
-                    expired += 1
-                elif order.reservation_expires_at <= now + timedelta(minutes=2):
-                    warned += int(self._repo.record_hold_warning(conn, order, now))
-        return dict(warned=warned, expired=expired)
+            # Mỗi đơn một transaction: đơn lỗi được rollback riêng, không chặn các đơn còn lại trong lô.
+            try:
+                with self._errors(), self._transaction() as conn:
+                    outcome = self._maintain_hold(conn, order_id, now)
+            except ServiceUnavailableError:
+                raise  # MySQL không khả dụng: dừng lượt, worker sẽ chờ rồi thử lại
+            except Exception:
+                logger.exception("POS hold maintenance failed for order %s; it will be retried", order_id)
+                failed += 1
+                continue
+            warned += outcome == "warned"
+            expired += outcome == "expired"
+        return dict(warned=warned, expired=expired, failed=failed)
+
+    def _maintain_hold(self, conn, order_id, now):
+        order = self._repo.get_order(conn, order_id, lock=True)
+        if order is None or order.status is not MenuOrderStatus.NEW or order.reservation_expires_at is None:
+            return None
+        if order.reservation_expires_at <= now:
+            if not self._repo.finish_order(conn, order.id, MenuOrderStatus.CANCELLED,
+                                           None, reason="AUTO_EXPIRED"):
+                return None
+            if self._inventory is not None:
+                self._inventory.transition_order(conn, order, MenuOrderStatus.CANCELLED,
+                                                 None, reason="AUTO_EXPIRED")
+            updated = self._repo.get_order(conn, order.id)
+            self._repo.record_order_notification(conn, updated, MenuOrderStatus.CANCELLED, now)
+            return "expired"
+        if order.reservation_expires_at <= now + timedelta(minutes=2):
+            return "warned" if self._repo.record_hold_warning(conn, order, now) else None
+        return None
 
     @retry_on_transient
     def finish_order(self, actor, order_id, status, *, reason=None):
