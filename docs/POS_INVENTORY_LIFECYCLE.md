@@ -233,6 +233,9 @@ thông báo món vừa hết khi đặt.
 khi bật chế độ MySQL. Sau đó chạy web và hai worker (`scripts.run_pos_maintenance`,
 `scripts.run_notification_worker`) ở các terminal riêng. Worker thông báo không bắt buộc
 nếu chỉ dùng thông báo trong web.
+
+Dữ liệu mẫu MySQL (`python scripts/seed_pos_demo.py`) và checklist nghiệm thu cho nhân viên, bếp, thủ kho
+và quản lý nằm ở [POS_ACCEPTANCE.md](POS_ACCEPTANCE.md).
 Demo hiển thị nhãn "Demo: sổ kho chưa được mô phỏng"; mọi nghiệm thu số dư,
 release và bút toán kho dùng MySQL. Không dùng kết quả tồn kho demo để xác nhận
 nghiệp vụ thực tế.
