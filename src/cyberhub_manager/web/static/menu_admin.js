@@ -108,11 +108,21 @@ Object.assign(copy, {
 
 let dot1AdminTimer = null;
 
+// Bếp chỉ cần đơn đang chờ và đang chuẩn bị.
+async function dot1KitchenOrders() {
+  const [waiting, preparing] = await Promise.all([api("/menu/orders?status=NEW"), api("/menu/orders?status=PREPARING")]);
+  return [...waiting, ...preparing];
+}
+
 async function loadMenuAdmin(seq) {
+  const role = state.actor.role, kitchen = role === "KITCHEN", stock = role === "INVENTORY";
+  // Mỗi vai trò chỉ tải dữ liệu của chính mình: Bếp không tải kho/hoàn hủy/khuyến mãi, Thủ kho không tải đơn.
   const [menu, orders, inventory, reversals, promotions] = await Promise.all([
-    api("/menu"), api("/menu/orders?status=ALL"), api("/inventory"),
-    ["STAFF", "MANAGER", "ADMIN"].includes(state.actor.role) ? api("/menu/reversals") : Promise.resolve([]),
-    ["MANAGER", "ADMIN"].includes(state.actor.role) ? api("/menu/promotions") : Promise.resolve([]),
+    api("/menu"),
+    stock ? Promise.resolve([]) : kitchen ? dot1KitchenOrders() : api("/menu/orders?status=ALL"),
+    kitchen ? Promise.resolve(null) : api("/inventory"),
+    ["STAFF", "MANAGER", "ADMIN"].includes(role) ? api("/menu/reversals") : Promise.resolve([]),
+    ["MANAGER", "ADMIN"].includes(role) ? api("/menu/promotions") : Promise.resolve([]),
   ]);
   if (seq !== state.seq || state.page !== "menu") return false;
   state.menuAdmin = menu;
@@ -126,6 +136,8 @@ async function loadMenuAdmin(seq) {
 function menuAdminPage() {
   const d = state.menuAdmin, orders = state.menuOrders || [];
   if (!d) return pageHead() + loading();
+  if (state.actor.role === "KITCHEN") return dot1KitchenPage();
+  if (state.actor.role === "INVENTORY") return dot1StockPage();
   const extra = d.can_manage
     ? `<button class="btn small" data-menuadmin="category">${icon("plus")}${t("dot1NewCategory")}</button><button class="btn primary small" data-menuadmin="item">${icon("plus")}${t("dot1NewItem")}</button>`
     : "";
