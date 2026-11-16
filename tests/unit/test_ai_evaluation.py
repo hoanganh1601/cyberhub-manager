@@ -52,8 +52,10 @@ def test_lexical_invalid_query_rejected(value):
 
 def test_committed_evaluation_has_all_roles_languages_and_refusal_cases():
     cases = load_questions(QUESTIONS)
-    assert len(cases) == 29
-    assert {case.role for case in cases} == {"STAFF", "MANAGER", "ADMIN", "CUSTOMER"}
+    assert len(cases) == 35
+    assert {case.role for case in cases} == {
+        "CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN"
+    }
     assert {case.language for case in cases} == {"vi", "en"}
     assert any(case.expected_source is None for case in cases)
     assert len({case.case_id for case in cases}) == len(cases)
@@ -61,7 +63,7 @@ def test_committed_evaluation_has_all_roles_languages_and_refusal_cases():
 
 def test_baseline_exposes_threshold_misses_and_does_not_claim_llm_accuracy():
     report = evaluate(load_questions(QUESTIONS))
-    assert report["document_count"] == 13 and report["chunk_count"] == 66
+    assert report["document_count"] == 19 and report["chunk_count"] == 89
     assert report["semantic_llm_evaluated"] is False
     assert report["permission_leaks"] == 0
     assert report["citation_coverage_of_answered"] == 1.0

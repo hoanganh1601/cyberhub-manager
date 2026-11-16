@@ -261,6 +261,27 @@ def test_create_customer_stores_hash_not_password():
     assert db.accounts[customer.id]["password_hash"] == f"hashed:{PASSWORD}"
 
 
+def test_public_registration_does_not_require_an_employee_actor():
+    actor = make_actor()
+    db = FakeDatabase([actor])
+    service = CustomerService(
+        customer_repo=FakeCustomerRepository(db),
+        account_repo=FakeAccountRepository(db),
+        auth_repo=FakeAuthRepository(db),
+        actor_provider=lambda: None,
+        transaction_factory=db.transaction,
+    )
+
+    customer = service.register_customer(
+        "Khách tự đăng ký", "0900000099", "khach.tudangky", PASSWORD
+    )
+
+    assert customer.account.balance == 0
+    assert customer.status == CustomerStatus.ACTIVE
+    assert customer.account.status == AccountStatus.ACTIVE
+    assert db.accounts[customer.id]["password_hash"] == f"hashed:{PASSWORD}"
+
+
 def test_create_customer_reports_every_invalid_field_before_database():
     service, db = build_service()
 

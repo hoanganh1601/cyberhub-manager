@@ -4,13 +4,13 @@ from cyberhub_manager.domain.loyalty import LoyaltySettings, membership
 
 
 def rows(conn, sql, params=()):
-    from .p1_repository import rows as query
+    from .sql import rows as query
 
     return query(conn, sql, params)
 
 
 def execute(conn, sql, params=()):
-    from .p1_repository import execute as command
+    from .sql import execute as command
 
     return command(conn, sql, params)
 

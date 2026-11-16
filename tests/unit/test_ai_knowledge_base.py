@@ -69,7 +69,8 @@ def test_document_metadata_and_review_sources_are_valid(path):
     if folder == "customer":
         assert document.audience == ("CUSTOMER",)
     elif folder == "staff":
-        assert document.audience == ("STAFF", "MANAGER", "ADMIN")
+        assert set(document.audience) <= {"STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN"}
+        assert "ADMIN" in document.audience
     elif folder == "manager":
         assert document.audience == ("MANAGER", "ADMIN")
     elif folder == "admin":
@@ -85,4 +86,4 @@ def test_document_ids_are_unique_and_every_audience_has_approved_knowledge():
         role for document in documents if document.status == "APPROVED"
         for role in document.audience
     }
-    assert approved_audiences == {"CUSTOMER", "STAFF", "MANAGER", "ADMIN"}
+    assert approved_audiences == {"CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN"}

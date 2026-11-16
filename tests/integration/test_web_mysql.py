@@ -40,6 +40,7 @@ def mysql_web(test_scenario):
             "TESTING": True,
             "WEB_MODE": "mysql",
             "SECRET_KEY": "isolated-web-integration-secret-32-characters",
+                "ASSISTANT_ENABLED": False,
         }
     )
     try:
@@ -70,6 +71,13 @@ def mysql_web(test_scenario):
                 # Đợt 0: xem doanh thu ghi management_audit (FK RESTRICT tới employees).
                 cursor.execute(
                     "DELETE FROM management_audit WHERE store_id = %s", (records.store_id,)
+                )
+                cursor.execute(
+                    "DELETE e FROM cash_shift_entries e JOIN cash_shifts s ON s.id = e.shift_id "
+                    "WHERE s.store_id = %s", (records.store_id,)
+                )
+                cursor.execute(
+                    "DELETE FROM cash_shifts WHERE store_id = %s", (records.store_id,)
                 )
                 cursor.execute(
                     "DELETE FROM employees WHERE store_id = %s", (records.store_id,)
@@ -117,6 +125,9 @@ def test_mysql_web_customer_wallet_session_invoice_and_revenue(mysql_web):
 
     def post(path, payload):
         return c.post(path, json=payload, headers={"X-CSRF-Token": csrf})
+
+    opened = post("/api/shifts/open", {"opening_cash": 0})
+    assert opened.status_code == 201, opened.json
 
     result = post(
         "/api/customers",

@@ -7,9 +7,9 @@ audience:
   - MANAGER
   - ADMIN
 status: APPROVED
-version: 3
+version: 4
 language: vi
-updated_at: 2026-11-10
+updated_at: 2026-11-15
 tags:
   - faq
   - availability
@@ -47,11 +47,14 @@ Trợ lý tài liệu chỉ giải thích chính sách đã được duyệt. Mu
 hóa đơn hoặc ưu đãi cá nhân đang có, khách mở các màn tương ứng sau khi đăng nhập.
 Trợ lý không được yêu cầu khách cung cấp mật khẩu, mã phiên hoặc bí mật hệ thống.
 
-## Menu đồ ăn, game nhận xu và AI giao dịch đã có chưa?
+## Menu đồ ăn, game nhận xu và AI giao dịch hoạt động thế nào?
 
-Menu sách lật, voucher, game và quảng cáo nhận thưởng thuộc kế hoạch bàn giao,
-chưa được mô tả là tính năng đang hoạt động trong kho này. Đợt 5A chỉ xây trợ lý
-đọc tài liệu; AI không tự nạp tiền, thanh toán hoặc cấp voucher.
+Menu đặt món, voucher, Game Center và quảng cáo nhận thưởng đã có trong cổng khách.
+Game Center hiện có vòng quay, Cyber 2048, Snake Arena và Puzzle ký ức; Bubble Blast
+và Candy Match là vị trí tài trợ chưa mở. Hoàn thành mini-game chỉ mở quyền yêu cầu
+một lượt thưởng; backend tự chọn số xu và áp hạn mức. Khách dùng xu để đổi voucher
+trong cửa hàng phần thưởng. Trợ lý AI chỉ giải thích hoặc phân tích dữ liệu đã được
+phân quyền; không tự đặt món, nạp tiền, thanh toán, quay thưởng hay cấp voucher.
 
 ## Nguồn đối chiếu
 
@@ -59,3 +62,4 @@ chưa được mô tả là tính năng đang hoạt động trong kho này. Đ�
 - `docs/CUSTOMER_PORTAL_PHASE1.md`
 - `docs/CUSTOMER_PORTAL_PHASE2.md`
 - `docs/HANDOVER_BUSINESS_DISCUSSION.md`
+- `docs/GAME_CENTER_PHASE6.md`

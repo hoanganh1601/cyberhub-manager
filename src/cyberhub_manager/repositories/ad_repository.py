@@ -13,7 +13,7 @@ from cyberhub_manager.domain.ad import (
     AdSettings,
     AdStatus,
 )
-from cyberhub_manager.repositories.p1_repository import execute, rows
+from cyberhub_manager.repositories.sql import execute, rows
 
 
 def _utc(value):

@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from flask import Blueprint, current_app, g, jsonify, request, session
 
-from cyberhub_manager.ai.errors import InvalidQuestionError
+from cyberhub_manager.ai.errors import InvalidQuestionError, ProviderRateLimitError
 from cyberhub_manager.ai.models import AIAccessContext
 from cyberhub_manager.ai.policy_store import (
     AssistantLimits, AssistantQuotaExceeded, SQLiteAssistantPolicyStore,
@@ -36,10 +36,16 @@ def register_assistant(app) -> None:
         if any(resolved.is_relative_to(root) for root in public_roots):
             raise ValueError("assistant audit file must be outside web and asset directories")
         store = SQLiteAssistantPolicyStore(path, limits=app.config.get("ASSISTANT_LIMITS", AssistantLimits()))
-        service = factory(store)
-        if not isinstance(service, RAGAssistantService) or service._audit is not store:
-            raise ValueError("assistant factory must return RAGAssistantService using the supplied audit sink")
-        app.extensions["cyberhub_assistant"] = (service, store)
+        try:
+            service = factory(store)
+        except ProviderRateLimitError:
+            app.extensions["cyberhub_assistant"] = (None, store)
+            app.config["ASSISTANT_BOOT_FAILURE"] = "PROVIDER_RATE_LIMITED"
+            app.logger.warning("Assistant startup deferred because provider quota is exhausted")
+        else:
+            if not isinstance(service, RAGAssistantService) or service._audit is not store:
+                raise ValueError("assistant factory must return RAGAssistantService using the supplied audit sink")
+            app.extensions["cyberhub_assistant"] = (service, store)
     app.register_blueprint(_blueprint)
 
 
@@ -83,6 +89,13 @@ def messages():
     extension = current_app.extensions.get("cyberhub_assistant")
     if extension is None:
         return _error("ASSISTANT_DISABLED", "Trợ lý chưa được bật.", "The assistant is not enabled.", 503, request_id)
+    if current_app.config.get("ASSISTANT_BOOT_FAILURE") == "PROVIDER_RATE_LIMITED":
+        response, status = _error("ASSISTANT_QUOTA_EXCEEDED",
+            "Gemini quota đang hết. Web vẫn hoạt động; chatbot sẽ khôi phục khi quota có lại.",
+            "Gemini quota is exhausted. The web app is running; the assistant will return when quota is restored.",
+            429, request_id)
+        response.headers["Retry-After"] = "3600"
+        return response, status
     data = request.get_json(silent=True)
     if not isinstance(data, dict) or set(data) - {
         "question", "language", "conversation_id", "mode", "days", "store_id",
@@ -122,7 +135,9 @@ def messages():
         response.headers["Retry-After"] = str(exc.retry_after)
         return response, status
     except Exception:
-        current_app.logger.error("Assistant admission failed; request_id=%s", request_id)
+        current_app.logger.error(
+            "Assistant admission failed; request_id=%s", request_id, exc_info=True
+        )
         return _unavailable(request_id)
     try:
         # Demo mutations use a workspace lock. Model inference must not hold it
@@ -153,6 +168,11 @@ def messages():
             raise
         except Exception:
             store.suppress(request_id)
+            current_app.logger.error(
+                "Assistant identity revalidation failed; request_id=%s",
+                request_id,
+                exc_info=True,
+            )
             return _unavailable(request_id)
         result = store.result(request_id)
         if result in {None, "ACCEPTED"}:
@@ -175,7 +195,9 @@ def messages():
         raise
     except Exception:
         # No provider exception, raw question or prompt in HTTP/log output.
-        current_app.logger.error("Assistant request failed; request_id=%s", request_id)
+        current_app.logger.error(
+            "Assistant request failed; request_id=%s", request_id, exc_info=True
+        )
         return _unavailable(request_id)
     return jsonify(
         answer=answer.answer, grounded=answer.grounded,

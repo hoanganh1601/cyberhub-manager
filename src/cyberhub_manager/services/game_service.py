@@ -26,6 +26,7 @@ from cyberhub_manager.domain.exceptions import (
 )
 from cyberhub_manager.domain.game import (
     DEFAULT_GAME,
+    GAME_CENTER_CATALOG,
     MAX_PRIZES,
     MIN_PRIZES,
     SUSPICIOUS_LIMIT,
@@ -106,6 +107,7 @@ class GameService:
             stores = {s.id: s.name for s in self._p1.list_stores(conn)}
             playable = game.is_active and not wallet.is_locked
             return dict(
+                catalog=[dict(entry) for entry in GAME_CENTER_CATALOG],
                 game=dict(name=game.name, is_active=game.is_active, daily_limit=game.daily_limit,
                           min_interval_seconds=game.min_interval_seconds,
                           prizes=[dict(index=p.sort_order, label=p.label, coins=p.coins) for p in game.prizes]),

@@ -138,17 +138,17 @@ class AccountRepository:
     def credit_bonus(self, conn, account_id, amount):
         if type(amount) is not int or amount <= 0:
             raise ValueError("Bonus must be a positive integer")
-        from .p1_repository import execute
+        from .sql import execute
         return bool(execute(conn,"UPDATE accounts SET balance=balance+%s,bonus_balance=bonus_balance+%s WHERE id=%s",(amount,amount,account_id)))
 
     def insert_bonus_transaction(self, conn, *, code, account_id, employee_id, amount, store_id, promotion_id):
-        from .p1_repository import execute
+        from .sql import execute
         return execute(conn,"INSERT INTO account_transactions(code,account_id,employee_id,store_id,promotion_id,type,amount,method) "
                        "VALUES(%s,%s,%s,%s,%s,'PROMOTION',%s,'PROMOTION')",
                        (code,account_id,employee_id,store_id,promotion_id,amount))
 
     def tag_transaction_store(self, conn, transaction_id, store_id):
-        from .p1_repository import execute
+        from .sql import execute
         execute(conn,"UPDATE account_transactions SET store_id=%s WHERE id=%s",(store_id,transaction_id))
 
     def insert_top_up_transaction(

@@ -37,6 +37,19 @@ def test_spin_ignores_client_supplied_result_and_requires_csrf(app):
     assert c.get("/api/portal/game").json["wallet"]["balance"] == result.json["coins"]
 
 
+def test_portal_publishes_server_controlled_game_center_catalog(app):
+    c = app.test_client()
+    sign_in(c, "nguyenvanan", "customer")
+
+    catalog = c.get("/api/portal/game").json["catalog"]
+    by_code = {game["code"]: game for game in catalog}
+
+    assert {"wheel", "2048", "snake", "memory", "bubble", "candy"} <= set(by_code)
+    assert by_code["2048"]["active"] is True
+    assert by_code["bubble"]["sponsored"] is True
+    assert by_code["bubble"]["active"] is False
+
+
 def test_second_spin_too_fast_conflicts(app):
     c = app.test_client()
     headers = sign_in(c, "nguyenvanan", "customer")

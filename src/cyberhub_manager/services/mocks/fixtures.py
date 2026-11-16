@@ -40,6 +40,8 @@ DEMO_ACCOUNTS: tuple[tuple[str, Role], ...] = (
     ("quanly01", Role.MANAGER),
     ("nhanvien01", Role.STAFF),
     ("nhanvien02", Role.STAFF),
+    ("bep01", Role.KITCHEN),
+    ("thukho01", Role.INVENTORY),
 )
 
 DEFAULT_HOURLY_RATE = 10_000
@@ -54,7 +56,8 @@ def seed_empty(data: MockDataStore, now: datetime) -> None:
 
 def seed_success(data: MockDataStore, now: datetime) -> None:
     builder = _FixtureBuilder(data, now)
-    store_id, (manager, staff1, staff2) = builder.add_store_and_employees()
+    store_id, employee_ids = builder.add_store_and_employees()
+    manager, staff1, staff2 = employee_ids[:3]
 
     machines = {
         number: builder.add_machine(store_id, number)
@@ -122,7 +125,7 @@ class _FixtureBuilder:
             hour=hour, minute=minute, second=0, microsecond=0
         )
 
-    def add_store_and_employees(self) -> tuple[int, tuple[int, int, int]]:
+    def add_store_and_employees(self) -> tuple[int, tuple[int, ...]]:
         data = self._data
         store_id = data.next_id("store")
         created_at = self._now - timedelta(days=30)
@@ -137,7 +140,7 @@ class _FixtureBuilder:
         )
         self._store_id = store_id
 
-        names = ("Trần Minh Quân", "Nguyễn Thu Hà", "Phạm Đức Long")
+        names = ("Trần Minh Quân", "Nguyễn Thu Hà", "Phạm Đức Long", "Bếp demo", "Thủ kho demo")
         employee_ids = []
         for full_name, (username, role) in zip(names, DEMO_ACCOUNTS):
             employee_id = data.next_id("employee")

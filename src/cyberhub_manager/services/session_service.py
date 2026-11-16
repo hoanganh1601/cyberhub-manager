@@ -56,7 +56,7 @@ from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
-from cyberhub_manager.services.wallet_service import new_transaction_code
+from cyberhub_manager.domain.identifiers import new_transaction_code
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
@@ -241,6 +241,7 @@ class SessionService:
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
         clock: Callable[[], datetime] = _utc_now,
+        shift_service=None,
     ) -> None:
         self._machines = machine_repo or MachineRepository()
         self._sessions = session_repo or SessionRepository()
@@ -252,6 +253,7 @@ class SessionService:
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
         self._clock = clock
+        self._shifts = shift_service
 
     def preview_open(
         self,
@@ -395,6 +397,12 @@ class SessionService:
                 )
                 account.credit(settlement_amount)
                 self._accounts.tag_transaction_store(conn,settlement_id,current.store_id)
+                if self._shifts is not None:
+                    self._shifts.record_system_entry(
+                        conn, current, kind="RECEIPT", payment_method=method.value,
+                        amount=settlement_amount, source_type="SESSION_SETTLEMENT",
+                        source_id=settlement_id, note="Thu tiền bù phiên máy",
+                    )
             if not self._accounts.debit_balance(conn, account.id, cost):
                 raise ConflictError(BALANCE_CHANGED)
             account.debit(cost)

@@ -48,7 +48,7 @@ function gameAdminPage() {
     ? table(["dot2When", "dot2Customer", "dot3Prize", "dot3Coins", ""], d.recent.map((r) => `<tr><td>${dt(r.created_at)}</td><td>${esc(r.customer_name)}</td><td>${esc(r.prize_label)}</td><td>${r.coins}</td>
         <td>${d.can_manage ? `<button class="btn ghost small" data-gameadmin="lock" data-id="${r.account_id}">${t("dot3Lock")}</button>` : ""}</td></tr>`).join(""))
     : empty("dot3NoHistory");
-  return pageHead(d.can_configure ? `<button class="btn primary small" data-gameadmin="config">${t("dot3EditConfig")}</button>` : "") + `
+  return `<div class="game-admin-page">${pageHead(d.can_configure ? `<button class="btn primary small" data-gameadmin="config">${t("dot3EditConfig")}</button>` : "") + `
     <div class="metrics">${metric("dot3Sessions", s.sessions, "cyan", "wheel")}${metric("dot3Players", s.players, "", "users")}${metric("dot3Awarded", s.coins_awarded, "green", "coin")}${metric("dot3Spent", s.coins_redeemed, "", "coin")}${metric("dot3VoucherCount", s.vouchers, "", "ticket")}</div>
     <div class="dot3-admin">
       <section class="panel"><header class="panel-heading"><h3>${icon("wheel")} ${t("dot3Config")} · ${esc(game.name)}</h3>${badge(game.is_active ? "ACTIVE" : "INACTIVE")}</header>
@@ -57,7 +57,7 @@ function gameAdminPage() {
         <p class="notice info">${t("dot3AutoLockNote").replace("{n}", d.suspicious_limit)}</p></section>
       <section class="panel"><header class="panel-heading"><h3>${icon("shield")} ${t("dot3LockedWallets")}</h3><span class="badge red">${d.locked.length}</span></header>${locked}</section>
     </div>
-    <section class="panel"><header class="panel-heading"><h3>${icon("clock")} ${t("dot3Recent")}</h3></header>${recent}</section>`;
+    <section class="panel"><header class="panel-heading"><h3>${icon("clock")} ${t("dot3Recent")}</h3></header>${recent}</section>`}</div>`;
 }
 
 function dot3ConfigForm() {

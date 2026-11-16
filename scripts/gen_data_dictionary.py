@@ -93,6 +93,9 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "password_hash": "Mật khẩu đã băm bcrypt; không bao giờ trả ra UI/DTO.",
             "role": "`ADMIN` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác.",
             "status": "`ACTIVE` / `INACTIVE` / `LOCKED`. Chỉ ACTIVE đăng nhập được.",
+            "auth_version": "Phiên bản xác thực; tăng khi đổi/đặt lại mật khẩu để thu hồi phiên cũ.",
+            "must_change_password": "TRUE khi tài khoản đang dùng mật khẩu tạm và phải đổi trước khi thao tác.",
+            "password_changed_at": "Thời điểm đổi hoặc đặt lại mật khẩu gần nhất (UTC), có thể NULL với dữ liệu cũ.",
             "created_at": "Thời điểm tạo (UTC).",
             "updated_at": "Thời điểm sửa gần nhất (UTC).",
         },
@@ -260,6 +263,7 @@ DESCRIPTIONS["menu_orders"] = ("Đơn POS đồ ăn/thức uống của khách �
     "payment_method": "`CASH` / `TRANSFER` khi đã thanh toán; NULL trước đó.",
     "paid_at": "Thời điểm thanh toán tại quầy (UTC).", "paid_by": "Nhân viên xác nhận thanh toán.",
     "cancel_reason": "Lý do hủy đơn; giữ được cả với đơn cũ chưa có ảnh chụp công thức.",
+    "reservation_expires_at": "Hạn giữ tồn cho đơn mới (UTC); tác vụ timeout dùng để giải phóng idempotent.",
     "created_at": "Thời điểm đặt (UTC).", "updated_at": "Thời điểm cập nhật trạng thái (UTC)."})
 DESCRIPTIONS["menu_order_items"] = ("Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.", {
     "order_id": "Yêu cầu gọi món.", "item_id": "Món được gọi.",
@@ -544,7 +548,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: các migration `sql/001_*.sql` đến `sql/015_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/020_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")

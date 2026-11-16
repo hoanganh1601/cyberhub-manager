@@ -3,10 +3,23 @@
 from collections import defaultdict
 
 from cyberhub_manager.domain.exceptions import ConflictError
-from cyberhub_manager.repositories.p1_repository import execute, rows
+from cyberhub_manager.repositories.sql import execute, rows
 
 
 class InventoryRepository:
+    def list_movements(self, conn, store_id, limit=50):
+        return rows(
+            conn,
+            "SELECT m.id,m.ingredient_id,i.name AS ingredient_name,i.unit,m.kind,"
+            " m.quantity,m.on_hand_delta,m.reserved_delta,m.reference_code,m.note,"
+            " m.created_at,e.full_name AS employee_name"
+            " FROM inventory_movements m"
+            " JOIN inventory_ingredients i ON i.id=m.ingredient_id"
+            " LEFT JOIN employees e ON e.id=m.employee_id"
+            " WHERE m.store_id=%s ORDER BY m.created_at DESC,m.id DESC LIMIT %s",
+            (store_id, limit),
+        )
+
     def list_counts(self, conn, store_id):
         return rows(
             conn,

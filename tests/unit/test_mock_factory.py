@@ -50,7 +50,13 @@ PC01, PC05, PC09 = 1, 5, 9
 OPERATION_CALLS: dict[str, Callable[[ServiceBundle, MockClock], object]] = {
     "preview_top_up": lambda b,c: b.wallet.preview_top_up(1,100000,manager(b).employee_id),
     "login": lambda b, c: b.auth.login("quanly01", DEMO_PASSWORD),
+    "change_password": lambda b, c: b.auth.change_password(
+        manager(b), DEMO_PASSWORD, "Permanent!2026"
+    ),
     "create_customer": lambda b, c: b.customers.create_customer(
+        "Đỗ Thị Hoa", "0987654321", "dothihoa", "matkhau1"
+    ),
+    "register_customer": lambda b, c: b.customers.register_customer(
         "Đỗ Thị Hoa", "0987654321", "dothihoa", "matkhau1"
     ),
     "get_customer": lambda b, c: b.customers.get_customer(1),

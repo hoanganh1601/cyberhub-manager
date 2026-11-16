@@ -96,6 +96,8 @@ class MockDataStore:
         self.employees: dict[int, Employee] = {}
         self.employee_passwords: dict[str, str] = {}
         self.employee_password_hashes = {}
+        self.employee_auth_versions = {}
+        self.employee_must_change_password = {}
         self.customer_password_hashes = {}
         self.promotions = {}
         self.invoice_bonus = {}
@@ -260,6 +262,8 @@ class MockDataStore:
             store_code=store.code,
             store_name=store.name,
             role=employee.role,
+            auth_version=self.employee_auth_versions.get(employee.id, 0),
+            credential_update_required=self.employee_must_change_password.get(employee.id, False),
         )
 
     def to_customer_summary(self, customer: Customer) -> CustomerSummary:

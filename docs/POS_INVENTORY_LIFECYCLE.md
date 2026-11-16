@@ -75,7 +75,7 @@ ràng và hệ thống kiểm tra quyền. Việc ẩn nút chỉ là hỗ trợ
 
 | Thao tác | STAFF | KITCHEN | INVENTORY | MANAGER | ADMIN |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Xem đơn | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Xem đơn | ✓ | ✓ |  | ✓ | ✓ |
 | Chuẩn bị và phục vụ | ✓ | ✓ |  | ✓ | ✓ |
 | Hủy đơn trước phục vụ và thu tiền | ✓ |  |  | ✓ | ✓ |
 | Đề xuất hủy/hoàn sau phục vụ | ✓ |  |  | ✓ | ✓ |
@@ -130,8 +130,10 @@ các luồng tương ứng. Kiểm kê cần chạy integration test trên MySQL
 ## 7. Role riêng và thời hạn giữ tồn
 
 Migration `016_pos_roles.sql` cho phép `KITCHEN` và `INVENTORY`. `KITCHEN` chỉ xem,
-chuẩn bị, phục vụ đơn và xem tồn; `INVENTORY` xem đơn, cấu hình, nhập, xuất và đề xuất
-kiểm kê nhưng không duyệt phiếu, không thu tiền POS. Quyền của `MANAGER` và `ADMIN`
+chuẩn bị, phục vụ đơn và xem tồn. `INVENTORY` có không gian **Kho nguyên liệu** riêng để
+cấu hình nguyên liệu/công thức, nhập, xuất, xem sổ biến động và đề xuất kiểm kê; role này
+không được xem hoặc xử lý đơn POS, không duyệt phiếu và không thu tiền. Quyền của
+`MANAGER` và `ADMIN`
 vẫn liệt kê tường minh trong `domain/p1.py`; thêm quyền mới không tự động cấp cho
 role nào. Chỉ `ADMIN` được tạo tài khoản role chuyên trách.
 

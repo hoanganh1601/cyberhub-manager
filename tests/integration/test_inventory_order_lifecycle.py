@@ -53,7 +53,7 @@ def stock_order(db_conn, test_scenario):
     def create(suffix="1", quantity=2):
         line = MenuOrderLine(item_id, "Nước kho", 10_000, quantity)
         order_id = menu.insert_order(
-            db_conn, code=f"ORD-STOCK-{scenario.token}-{suffix}",
+            db_conn, code=f"O-{scenario.token}-{suffix[:8]}",
             store_id=scenario.store_id, account_id=scenario.account_id,
             session_id=session_id, machine_id=scenario.machine_id, note="", lines=[line],
         )

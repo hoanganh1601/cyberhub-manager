@@ -23,7 +23,7 @@ from cyberhub_manager.services.wallet_service import WalletService
 
 # Mỗi thao tác ghi nằm trọn trong một transaction nên chạy lại an toàn sau deadlock.
 WRITES = {
-    CustomerService: ("create_customer", "update_customer", "set_customer_status"),
+    CustomerService: ("create_customer", "register_customer", "update_customer", "set_customer_status"),
     WalletService: ("top_up",),
     MachineService: ("create_machine", "update_machine", "set_maintenance", "archive_machine"),
     SessionService: ("open_session", "complete_checkout"),

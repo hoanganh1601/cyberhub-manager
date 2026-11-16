@@ -9,8 +9,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any
-from uuid import uuid4
 from datetime import datetime, timezone
+from cyberhub_manager.domain.identifiers import (
+    TRANSACTION_CODE_HEX_LENGTH,
+    TRANSACTION_CODE_PREFIX,
+    new_transaction_code,
+)
 from cyberhub_manager.domain.p1 import quote_top_up
 from cyberhub_manager.domain.loyalty import personalized
 from cyberhub_manager.repositories.p1_repository import P1Repository
@@ -39,16 +43,11 @@ MAX_TOP_UP_AMOUNT = 100_000_000
 TOP_UP_METHODS = frozenset({PaymentMethod.CASH, PaymentMethod.TRANSFER})
 
 # "TX-" + 17 ký tự hex = 20 ký tự, vừa cột account_transactions.code VARCHAR(20).
-TRANSACTION_CODE_PREFIX = "TX-"
-TRANSACTION_CODE_HEX_LENGTH = 17
 
 
 # Trả phiên đăng nhập hiện tại; None nghĩa là chưa đăng nhập.
 ActorProvider = Callable[[], EmployeeSession | None]
 
-
-def new_transaction_code() -> str:
-    return TRANSACTION_CODE_PREFIX + uuid4().hex[:TRANSACTION_CODE_HEX_LENGTH]
 
 def _is_positive_id(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
@@ -96,6 +95,7 @@ class WalletService:
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
         promotion_repo=None,
         clock=None,
+        shift_service=None,
     ) -> None:
         self._customers = customer_repo or CustomerRepository()
         self._accounts = account_repo or AccountRepository()
@@ -105,6 +105,7 @@ class WalletService:
         self._transaction = transaction_factory
         self._promotions = promotion_repo or P1Repository()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._shifts = shift_service
 
     def preview_top_up(self, customer_id, amount, employee_id):
         with translate_db_errors(), self._transaction() as conn:
@@ -164,6 +165,12 @@ class WalletService:
                     conn, account.id, transaction_id
                 )
                 self._accounts.tag_transaction_store(conn,transaction_id,actor.store_id)
+                if self._shifts is not None:
+                    self._shifts.record_system_entry(
+                        conn, actor, kind="RECEIPT", payment_method=method.value,
+                        amount=amount, source_type="TOP_UP", source_id=transaction_id,
+                        note="Nạp tiền tài khoản khách hàng",
+                    )
                 if quote.bonus_amount:
                     if not self._accounts.credit_bonus(conn,account.id,quote.bonus_amount):
                         raise NotFoundError()

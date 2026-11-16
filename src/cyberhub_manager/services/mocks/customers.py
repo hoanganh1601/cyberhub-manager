@@ -23,6 +23,11 @@ _USERNAME_TAKEN = "Tên đăng nhập đã được sử dụng"
 
 
 class MockCustomerService(MockServiceBase):
+    def register_customer(
+        self, full_name: str, phone: str, username: str, password: str
+    ) -> Customer:
+        return self.create_customer(full_name, phone, username, password)
+
     def create_customer(
         self,
         full_name: str,

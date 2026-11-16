@@ -246,15 +246,19 @@ class ManagementService:
             )
         choice(role, "role", tuple(str(value) for value in Role))
         choice(status, "status", ("ACTIVE", "INACTIVE", "LOCKED"))
-        if employee_id is None or password:
+        if employee_id is not None and password:
+            raise ValidationError(
+                field_errors={"password": "Dùng chức năng đặt lại mật khẩu riêng"}
+            )
+        if employee_id is None:
             if (
                 not isinstance(password, str)
-                or len(password) < 6
+                or len(password) < 8
                 or len(password.encode()) > 72
             ):
                 raise ValidationError(
                     field_errors={
-                        "password": "Mật khẩu tối thiểu 6 ký tự, tối đa 72 byte"
+                        "password": "Mật khẩu tối thiểu 8 ký tự, tối đa 72 byte"
                     }
                 )
         password_hash = hash_password(password) if password else None
@@ -312,6 +316,38 @@ class ManagementService:
             )
             self._repo.audit(conn, actor, "EMPLOYEE_SAVE", result.id)
             return result
+
+    @retry_on_transient
+    def reset_employee_password(self, actor, employee_id, temporary_password):
+        if type(employee_id) is not int or employee_id <= 0:
+            raise ValidationError(field_errors={"employee_id": "Tài khoản không hợp lệ"})
+        if (
+            not isinstance(temporary_password, str)
+            or len(temporary_password) < 8
+            or len(temporary_password.encode()) > 72
+        ):
+            raise ValidationError(
+                field_errors={"temporary_password": "Mật khẩu tạm phải từ 8 ký tự và tối đa 72 byte"}
+            )
+        with self._errors(), self._transaction() as conn:
+            actor = self._actor(conn, actor, Permission.MANAGE_EMPLOYEES)
+            if actor.role != Role.ADMIN:
+                raise PermissionDeniedError()
+            if employee_id == actor.employee_id:
+                raise ConflictError("Hãy dùng chức năng đổi mật khẩu cho tài khoản của chính bạn")
+            target = next(
+                (employee for employee in self._repo.list_employees(conn, lock=True) if employee.id == employee_id),
+                None,
+            )
+            if target is None:
+                raise NotFoundError()
+            self._repo.reset_employee_password(
+                conn, employee_id, hash_password(temporary_password)
+            )
+            self._repo.audit(conn, actor, "EMPLOYEE_PASSWORD_RESET", employee_id)
+            return next(
+                employee for employee in self._repo.list_employees(conn) if employee.id == employee_id
+            )
 
     def list_promotions(self, actor):
         with self._errors(), self._transaction() as conn:

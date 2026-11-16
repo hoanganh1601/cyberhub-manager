@@ -36,6 +36,8 @@ STATUS = {
     "ADMIN": "Quản trị viên",
     "MANAGER": "Quản lý",
     "STAFF": "Nhân viên",
+    "KITCHEN": "Nhân viên bếp",
+    "INVENTORY": "Thủ kho",
 }
 
 

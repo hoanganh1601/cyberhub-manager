@@ -1022,6 +1022,33 @@ td small {
 .empty strong {
   color: #d5e0ef;
 }
+.procurement-page {
+  min-width: 0;
+}
+.procurement-page .page-head {
+  margin-bottom: 18px;
+}
+.procurement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+.procurement-grid > .panel {
+  min-height: 0;
+}
+.procurement-grid .panel-heading {
+  min-height: 52px;
+  padding: 14px 18px;
+}
+.procurement-grid .empty {
+  min-height: 120px;
+  padding: 18px;
+}
+.procurement-grid .empty .icon {
+  width: 24px;
+  height: 24px;
+}
 .loading {
   min-height: 250px;
   display: flex;
@@ -1509,6 +1536,12 @@ dialog::backdrop {
   * {
     animation-duration: 0.01ms !important;
     transition: none !important;
+  }
+}
+@media (max-width: 900px) {
+  .procurement-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 }
 .store-chip[role=button] {cursor:pointer;outline-offset:5px}

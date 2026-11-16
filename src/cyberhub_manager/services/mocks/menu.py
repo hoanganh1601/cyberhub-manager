@@ -75,6 +75,7 @@ class MemoryMenuRepository:
         self.promotions: dict[int, dict] = {}
         self.order_pricing: dict[int, dict] = {}
         self.reversals: dict[int, dict] = {}
+        self.inventory_repo = None
         self.voucher_repo = None
         self._ids = {"category": 0, "item": 0, "order": 0, "reversal": 0, "promotion": 0}
 
@@ -86,11 +87,16 @@ class MemoryMenuRepository:
                 (self.categories, self.items, self.images, self.changes, self.orders,
                  self.promotions, self.order_pricing, self.reversals, self._ids)
             )
+            inventory_snapshot = (
+                self.inventory_repo.snapshot_state() if self.inventory_repo is not None else None
+            )
             try:
                 yield conn
             except Exception:
                 (self.categories, self.items, self.images, self.changes, self.orders,
                  self.promotions, self.order_pricing, self.reversals, self._ids) = snapshot
+                if self.inventory_repo is not None:
+                    self.inventory_repo.restore_state(inventory_snapshot)
                 raise
 
     def _next(self, kind: str) -> int:

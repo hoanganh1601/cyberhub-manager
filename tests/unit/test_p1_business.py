@@ -149,22 +149,53 @@ def test_overlap_rejected_but_adjacent_policy_allowed(bundle):
 
 def test_management_audit_failure_rolls_back_password_and_employee(bundle, monkeypatch):
     manager = bundle.auth.login("admin01", "demo123")
+    target = bundle.auth.login("nhanvien01", "demo123")
 
     def fail(*args):
         raise RuntimeError("audit unavailable")
 
     monkeypatch.setattr(bundle.management._repo, "audit", fail)
     with pytest.raises(RuntimeError):
-        bundle.management.save_employee(
-            manager,
-            manager.employee_id,
-            1,
-            manager.full_name,
-            "renamed",
-            "ADMIN",
-            password="updated123",
+        bundle.management.reset_employee_password(
+            manager, target.employee_id, "Temporary!2026"
         )
-    assert bundle.auth.login("admin01", "demo123").employee_id == manager.employee_id
+    assert bundle.auth.login("nhanvien01", "demo123").employee_id == target.employee_id
+
+
+def test_admin_password_reset_supports_every_role_and_forces_change(bundle):
+    admin = bundle.auth.login("admin01", "demo123")
+    targets = [
+        bundle.auth.login("quanly01", "demo123"),
+        bundle.auth.login("nhanvien01", "demo123"),
+        bundle.auth.login("bep01", "demo123"),
+        bundle.auth.login("thukho01", "demo123"),
+    ]
+    second_admin = bundle.management.save_employee(
+        admin, None, 1, "Second Admin", "admin02", "ADMIN", password="AdminPass!2026"
+    )
+    targets.append(bundle.auth.login("admin02", "AdminPass!2026"))
+
+    for index, target in enumerate(targets):
+        temporary = f"Temporary!{index}2026"
+        reset = bundle.management.reset_employee_password(admin, target.employee_id, temporary)
+        assert reset.credential_update_required
+        with pytest.raises(PermissionDeniedError):
+            bundle.management.validate_actor(target)
+        signed_in = bundle.auth.login(target.username, temporary)
+        assert signed_in.credential_update_required
+        updated = bundle.auth.change_password(signed_in, temporary, f"Permanent!{index}2026")
+        assert not updated.credential_update_required
+
+    actions = [entry[2] for entry in bundle.management._repo.data.management_audit]
+    assert actions.count("EMPLOYEE_PASSWORD_RESET") == len(targets)
+    assert actions.count("EMPLOYEE_PASSWORD_CHANGE") == len(targets)
+
+
+def test_manager_cannot_reset_employee_password(bundle):
+    manager = bundle.auth.login("quanly01", "demo123")
+    staff = bundle.auth.login("nhanvien01", "demo123")
+    with pytest.raises(PermissionDeniedError):
+        bundle.management.reset_employee_password(manager, staff.employee_id, "Temporary!2026")
 
 
 def test_portal_only_own_data_and_revokes_on_lock(bundle):
@@ -221,6 +252,9 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
     assert ROLE_PERMISSIONS[Role.STAFF] == pos | {
         Permission.OPERATE, Permission.EXPORT_INVOICE, Permission.INVENTORY_VIEW,
         Permission.INVENTORY_COUNT,
+        Permission.SHIFT_VIEW, Permission.SHIFT_OPERATE,
+        Permission.MAINTENANCE_VIEW, Permission.MAINTENANCE_REPORT,
+        Permission.MAINTENANCE_UPDATE,
     }
     assert ROLE_PERMISSIONS[Role.MANAGER] == ROLE_PERMISSIONS[Role.STAFF] | {
         Permission.MANAGE_MACHINES,
@@ -234,6 +268,14 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
         Permission.INVENTORY_ISSUE,
         Permission.INVENTORY_APPROVE,
         Permission.POS_APPROVE_REVERSAL,
+        Permission.SHIFT_REVIEW,
+        Permission.MAINTENANCE_MANAGE,
+        Permission.PROCUREMENT_VIEW,
+        Permission.PROCUREMENT_REQUEST,
+        Permission.PROCUREMENT_APPROVE,
+        Permission.PROCUREMENT_RECEIVE,
+        Permission.PROCUREMENT_PAY,
+        Permission.PROCUREMENT_MANAGE_SUPPLIERS,
     }
     assert ROLE_PERMISSIONS[Role.ADMIN] == ROLE_PERMISSIONS[Role.MANAGER] | {
         Permission.MANAGE_STORES, Permission.SWITCH_STORE,

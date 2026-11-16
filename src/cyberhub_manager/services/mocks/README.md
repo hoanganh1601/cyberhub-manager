@@ -1,4 +1,17 @@
-# Mock services — LI-02
+# In-memory demo adapters — LI-02
+
+## Ranh giới cấu trúc
+
+Package này chỉ phục vụ demo và kiểm thử, không được dùng trong MySQL runtime.
+Các thành phần được công bố qua ba namespace rõ trách nhiệm:
+
+- `application_services.py`: service double triển khai contract của tầng service.
+- `repositories.py`: repository adapter chạy trong bộ nhớ.
+- `demo_data.py`: fixture, scenario và data store dùng riêng cho demo.
+- `factory.py`: composition root duy nhất ghép các thành phần trên thành `ServiceBundle`.
+
+Các module theo tính năng (`menu.py`, `inventory.py`, `voucher.py`, ...) là chi tiết
+triển khai phía sau các namespace này. Code runtime không import trực tiếp chúng.
 
 Bộ service giả chạy hoàn toàn trong bộ nhớ, cùng chữ ký với `services/contracts.py`,
 để dựng UI/gallery/Login khi chưa có MySQL hoặc service thật.
@@ -34,6 +47,8 @@ machines = services.machines.list_machines(actor.store_id)
 | `quanly01` | `demo123` | MANAGER |
 | `nhanvien01` | `demo123` | STAFF |
 | `nhanvien02` | `demo123` | STAFF |
+| `bep01` | `demo123` | KITCHEN |
+| `thukho01` | `demo123` | INVENTORY |
 
 Username được trim, password không trim. Sai thông tin luôn báo
 `AuthenticationError` với nội dung "Tên đăng nhập hoặc mật khẩu không đúng".

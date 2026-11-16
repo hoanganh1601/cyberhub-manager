@@ -110,6 +110,19 @@ def test_inventory_api_rechecks_role_and_csrf(app):
     assert manager_overview.json["can_issue"] is True
 
 
+def test_inventory_specialist_sees_stock_but_not_customer_orders(app):
+    client = app.test_client()
+    sign_in(client, "thukho01")
+
+    inventory = client.get("/api/inventory")
+    assert inventory.status_code == 200
+    assert inventory.json["enabled"] is True
+    assert inventory.json["ingredients"]
+    assert inventory.json["movements"]
+    assert client.get("/api/menu").status_code == 403
+    assert client.get("/api/menu/orders?status=ALL").status_code == 403
+
+
 def test_staff_can_advance_and_pay_menu_order(app):
     staff = app.test_client()
     staff_headers = sign_in(staff, "nhanvien01")

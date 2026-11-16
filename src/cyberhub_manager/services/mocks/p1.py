@@ -47,6 +47,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.data.stores,
                     self.data.employees,
                     self.data.employee_password_hashes,
+                    self.data.employee_auth_versions,
+                    self.data.employee_must_change_password,
                     self.data.promotions,
                     self.data.management_audit,
                     self.data._last_ids,
@@ -69,6 +71,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.data.stores,
                     self.data.employees,
                     self.data.employee_password_hashes,
+                    self.data.employee_auth_versions,
+                    self.data.employee_must_change_password,
                     self.data.promotions,
                     self.data.management_audit,
                     self.data._last_ids,
@@ -91,6 +95,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
             employee is None
             or employee.status != EmployeeStatus.ACTIVE
             or employee.role != actor.role
+            or self.data.employee_auth_versions.get(employee.id, 0) != actor.auth_version
         ):
             raise PermissionDeniedError()
         target = self.store(None, actor.store_id)
@@ -151,6 +156,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                 e.username,
                 str(e.role),
                 str(e.status),
+                self.data.employee_must_change_password.get(e.id, False),
             )
             for e in self.data.employees.values()
             if store_id is None or e.store_id == store_id
@@ -171,6 +177,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
         )
         if password_hash:
             self.data.employee_password_hashes[employee_id] = password_hash
+            if old is None:
+                self.data.employee_must_change_password[employee_id] = True
         if old:
             if (
                 employee_id not in self.data.employee_password_hashes
@@ -181,6 +189,12 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                 )
             self.data.employee_passwords.pop(old.username, None)
         return next(e for e in self.list_employees(conn) if e.id == employee_id)
+
+    def reset_employee_password(self, conn, employee_id, password_hash):
+        self.data.employee_password_hashes[employee_id] = password_hash
+        self.data.employee_passwords.pop(self.data.employees[employee_id].username, None)
+        self.data.employee_auth_versions[employee_id] = self.data.employee_auth_versions.get(employee_id, 0) + 1
+        self.data.employee_must_change_password[employee_id] = True
 
     def list_promotions(self, conn, store_id=None, lock=False):
         return [

@@ -4,9 +4,9 @@ title: Chính sách điểm và hạng thành viên
 audience:
   - CUSTOMER
 status: APPROVED
-version: 1
+version: 2
 language: vi
-updated_at: 2026-11-09
+updated_at: 2026-11-15
 tags:
   - loyalty
   - points
@@ -49,11 +49,16 @@ Tạm dừng tích điểm mới không xóa điểm cũ, chi tiêu hợp lệ v
 
 ## Điểm có đổi tiền hay hết hạn không?
 
-Hiện điểm không phải tiền ví, không đổi tiền mặt, chưa có thao tác tiêu điểm
-hoặc thời hạn điểm/hạng. Xem hoặc nhận ưu đãi không tự trừ điểm.
-Chưa có quy tắc đổi xu game thành điểm trong hệ thống đang vận hành.
+Điểm không phải tiền ví, không đổi tiền mặt và hiện không có thời hạn điểm/hạng.
+Xem ưu đãi không tự trừ điểm. Xu game cũng là đơn vị riêng, không phải điểm thành
+viên và không chuyển thẳng thành tiền hoặc điểm. Khách có thể dùng xu đổi một
+voucher loại `MEMBER_POINTS` nếu phần thưởng đó đang hoạt động; điểm chỉ được cộng
+khi voucher được xác nhận sử dụng theo nghiệp vụ voucher. Giá xu và số điểm nằm
+trong ảnh chụp danh mục tại thời điểm xem, không phải tỷ lệ quy đổi cố định.
 
 ## Nguồn đối chiếu
 
 - `docs/CUSTOMER_PORTAL_PHASE3.md` — Chính sách được người dùng phê duyệt
 - `src/cyberhub_manager/domain/loyalty.py`
+- `src/cyberhub_manager/services/game_service.py`
+- `src/cyberhub_manager/services/voucher_service.py`

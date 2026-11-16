@@ -129,6 +129,28 @@ class CustomerService:
         username: str,
         password: str,
     ) -> Customer:
+        return self._create_customer(full_name, phone, username, password, require_actor=True)
+
+    @retry_on_transient
+    def register_customer(
+        self,
+        full_name: str,
+        phone: str,
+        username: str,
+        password: str,
+    ) -> Customer:
+        """Create a zero-balance customer account without employee privileges."""
+        return self._create_customer(full_name, phone, username, password, require_actor=False)
+
+    def _create_customer(
+        self,
+        full_name: str,
+        phone: str,
+        username: str,
+        password: str,
+        *,
+        require_actor: bool,
+    ) -> Customer:
         full_name = _clean(full_name)
         phone = _clean(phone)
         username = _clean(username)
@@ -145,7 +167,8 @@ class CustomerService:
 
         with self._database() as conn:
             # Customer và account cùng một transaction: lỗi ở account thì rollback cả customer.
-            self._require_actor(conn)
+            if require_actor:
+                self._require_actor(conn)
             customer_id = self._customers.create(
                 conn,
                 code=_new_code(CUSTOMER_CODE_PREFIX),

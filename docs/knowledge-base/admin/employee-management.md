@@ -4,9 +4,9 @@ title: Quản trị tài khoản nhân viên
 audience:
   - ADMIN
 status: APPROVED
-version: 1
+version: 2
 language: vi
-updated_at: 2026-11-09
+updated_at: 2026-11-15
 tags:
   - employee
   - administration
@@ -17,9 +17,19 @@ tags:
 ## Tạo và sửa tài khoản
 
 Admin quản lý nhân viên toàn hệ thống, gán cơ sở đang hoạt động và vai trò
-STAFF/MANAGER/ADMIN. Username không trùng; mật khẩu mới ít nhất 6 ký tự,
-tối đa 72 byte UTF-8 và được băm. Khi sửa, để trống mật khẩu giữ giá trị hiện tại.
+STAFF, KITCHEN, INVENTORY, MANAGER hoặc ADMIN. Username không trùng; mật khẩu
+khi tạo mới ít nhất 8 ký tự, tối đa 72 byte UTF-8 và được băm. Form sửa hồ sơ
+không nhận mật khẩu; thay đổi mật khẩu phải dùng chức năng riêng.
 Không nhập hoặc nhờ AI lưu mật khẩu vào hội thoại.
+
+## Đặt lại và đổi mật khẩu
+
+Admin có thể đặt mật khẩu tạm thời dài 8 ký tự đến 72 byte cho tài khoản khác ở
+mọi role. Admin không được đặt lại chính mình bằng luồng này; tài khoản hiện tại
+dùng chức năng đổi mật khẩu và phải nhập mật khẩu đang dùng. Sau khi Admin đặt lại,
+hệ thống chỉ lưu hash, đặt cờ bắt buộc đổi mật khẩu và ghi audit
+`EMPLOYEE_PASSWORD_RESET`; không hiển thị hoặc khôi phục mật khẩu cũ. Người dùng
+đăng nhập bằng mật khẩu tạm phải đổi sang mật khẩu mới trước khi dùng chức năng khác.
 
 ## Hạn chế bắt buộc
 
@@ -44,3 +54,4 @@ Trợ lý không tự tạo, khóa hoặc nâng quyền tài khoản.
 - `src/cyberhub_manager/services/management_service.py` — save_employee
 - `src/cyberhub_manager/services/access.py`
 - `docs/P1_DESKTOP_WEB.md` — Phân quyền
+- `docs/EMPLOYEE_PASSWORD_RESET.md` — Luồng mật khẩu tạm và audit
