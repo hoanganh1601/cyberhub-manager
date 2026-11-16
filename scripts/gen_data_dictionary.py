@@ -67,6 +67,16 @@ TABLES = (
     "ad_settings",
     "ad_creatives",
     "ad_reward_events",
+    # Đợt thương mại — đối tác, game/ads ngoài và đối soát doanh thu
+    "commercial_partners",
+    "commercial_contracts",
+    "commercial_campaigns",
+    "commercial_placements",
+    "commercial_play_sessions",
+    "commercial_events",
+    "commercial_reward_grants",
+    "commercial_settlements",
+    "commercial_settlement_lines",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -437,6 +447,87 @@ DESCRIPTIONS["machine_room_types"]=("Phân loại máy theo phòng thường/VIP
     "room_type":"STANDARD = phòng thường, VIP = phòng VIP; không suy đoán từ giá giờ hoặc tên máy."
 })
 
+# ----- Đối tác game và quảng cáo ---------------------------------------------------
+DESCRIPTIONS["commercial_partners"] = ("Đối tác cung cấp game hoặc mạng quảng cáo.", {
+    "id": "Khóa chính.", "code": "Mã đối tác, duy nhất.", "name": "Tên pháp lý hoặc tên giao dịch.",
+    "partner_type": "`GAME` / `AD_NETWORK` / `BOTH`.",
+    "status": "`ACTIVE` / `SUSPENDED` / `TERMINATED`.",
+    "callback_secret_ref": "Tham chiếu bí mật xác minh callback; không lưu secret thô trong bảng.",
+    "contact_name": "Người liên hệ.", "contact_email": "Email liên hệ.",
+    "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm cập nhật (UTC).",
+})
+DESCRIPTIONS["commercial_contracts"] = ("Hợp đồng thương mại có maker-checker và mô hình tính doanh thu.", {
+    "id": "Khóa chính.", "partner_id": "Đối tác ký hợp đồng.", "code": "Mã hợp đồng, duy nhất.",
+    "status": "`DRAFT` / `ACTIVE` / `SUSPENDED` / `EXPIRED` / `TERMINATED`.",
+    "revenue_model": "`CPM` / `CPC` / `CPA` / `FIXED`.",
+    "rate_amount": "Đơn giá nguyên theo VND; CPM tính trên 1.000 impression.",
+    "currency": "Tiền tệ; P1 chỉ hỗ trợ `VND`.", "starts_on": "Ngày bắt đầu hiệu lực.",
+    "ends_on": "Ngày kết thúc hiệu lực.", "created_by": "Nhân viên lập hợp đồng.",
+    "approved_by": "Người duyệt; phải khác người lập theo service.", "approved_at": "Thời điểm duyệt (UTC).",
+    "created_at": "Thời điểm tạo (UTC).",
+})
+DESCRIPTIONS["commercial_campaigns"] = ("Chiến dịch game/quảng cáo thuộc một hợp đồng đã duyệt.", {
+    "id": "Khóa chính.", "contract_id": "Hợp đồng chi phối chiến dịch.", "code": "Mã chiến dịch, duy nhất.",
+    "name": "Tên chiến dịch.", "kind": "`AD` / `GAME`.",
+    "status": "`DRAFT` / `ACTIVE` / `PAUSED` / `ENDED`; `ENDED` là trạng thái cuối.",
+    "starts_at": "Thời điểm bắt đầu (UTC).", "ends_at": "Thời điểm kết thúc (UTC).",
+    "budget_amount": "Ngân sách giám sát vận hành; không tự ý cắt tiền đối soát.",
+    "reward_type": "`NONE` / `COINS` / `VOUCHER` / `EXTRA_SPIN`.",
+    "reward_amount": "Số lượng phần thưởng chụp tại chiến dịch.", "created_by": "Nhân viên tạo.",
+    "created_at": "Thời điểm tạo (UTC).",
+})
+DESCRIPTIONS["commercial_placements"] = ("Vị trí phát game/quảng cáo, có thể giới hạn theo cửa hàng.", {
+    "id": "Khóa chính.", "campaign_id": "Chiến dịch sở hữu vị trí.",
+    "store_id": "Cửa hàng áp dụng; NULL = toàn hệ thống.", "code": "Mã vị trí, duy nhất.",
+    "placement_type": "`AD` / `GAME`.", "surface": "`PORTAL_BANNER` / `REWARDED_AD` / `GAME_CENTER`.",
+    "embed_url": "URL HTTPS của game ngoài.", "allowed_origin": "Origin HTTPS được phép gửi thông điệp.",
+    "sandbox_policy": "Chính sách iframe sandbox đã được allowlist ở backend.",
+    "legacy_game_id": "Game nội bộ cũ nếu vị trí ánh xạ vào game có sẵn.",
+    "legacy_ad_creative_id": "Nội dung quảng cáo nội bộ cũ nếu có.",
+    "status": "`ACTIVE` / `INACTIVE`.", "created_at": "Thời điểm tạo (UTC).",
+})
+DESCRIPTIONS["commercial_play_sessions"] = ("Phiên chơi ngoài có token một lần và hạn sử dụng.", {
+    "id": "Khóa chính.", "placement_id": "Vị trí game được mở.", "account_id": "Tài khoản khách chơi.",
+    "token_hash": "SHA-256 của token; không lưu token thô.",
+    "status": "`ISSUED` / `COMPLETED` / `EXPIRED` / `REJECTED`.",
+    "reward_type": "Loại thưởng chụp tại lúc phát hành.", "reward_amount": "Số lượng thưởng chụp.",
+    "issued_at": "Thời điểm phát hành (UTC).", "expires_at": "Hạn token (UTC).",
+    "completed_at": "Thời điểm hoàn tất đã xác minh (UTC).",
+})
+DESCRIPTIONS["commercial_events"] = ("Sổ sự kiện impression/start/complete/click, chống ghi trùng.", {
+    "id": "Khóa chính.", "placement_id": "Vị trí phát sinh sự kiện.", "campaign_id": "Chiến dịch được chụp.",
+    "play_session_id": "Phiên chơi liên quan; có thể NULL.", "account_id": "Tài khoản liên quan; có thể NULL.",
+    "event_type": "`IMPRESSION` / `START` / `COMPLETE` / `CLICK`.",
+    "event_key": "Khóa idempotency nội bộ, duy nhất.",
+    "provider_event_id": "Mã sự kiện phía đối tác, duy nhất nếu có.",
+    "verification_method": "`CLIENT` / `SERVER` / `SSV`; COMPLETE không được dùng CLIENT.",
+    "accepted": "TRUE nếu hợp lệ để thống kê/đối soát.", "occurred_at": "Thời điểm xảy ra (UTC).",
+    "verified_at": "Thời điểm server xác minh (UTC).", "payload_digest": "SHA-256 payload đã xác minh.",
+    "created_at": "Thời điểm ghi nhận (UTC).",
+})
+DESCRIPTIONS["commercial_reward_grants"] = ("Outbox phần thưởng; callback không được cộng xu/phát voucher trực tiếp.", {
+    "id": "Khóa chính.", "event_id": "COMPLETE event đã xác minh; duy nhất.",
+    "account_id": "Tài khoản nhận thưởng.", "reward_type": "`COINS` / `VOUCHER` / `EXTRA_SPIN`.",
+    "reward_amount": "Số lượng thưởng.", "status": "`PENDING` / `APPLIED` / `FAILED`.",
+    "attempts": "Số lần worker thử áp dụng.", "created_at": "Thời điểm tạo (UTC).",
+    "applied_at": "Thời điểm áp dụng thành công (UTC).", "failure_reason": "Lý do thất bại cuối cùng.",
+})
+DESCRIPTIONS["commercial_settlements"] = ("Kỳ đối soát doanh thu có maker-checker.", {
+    "id": "Khóa chính.", "contract_id": "Hợp đồng được đối soát.",
+    "period_start": "Ngày đầu kỳ.", "period_end": "Ngày cuối kỳ.",
+    "gross_amount": "Doanh thu gộp tính từ snapshot sự kiện.", "adjustment_amount": "Điều chỉnh có dấu.",
+    "adjustment_reason": "Lý do bắt buộc khi điều chỉnh khác 0.", "net_amount": "Doanh thu ròng = gộp + điều chỉnh.",
+    "status": "`DRAFT` / `APPROVED` / `PAID` / `VOID`.", "generated_by": "Nhân viên tạo kỳ.",
+    "reviewed_by": "Người duyệt, phải khác người tạo theo service.", "reviewed_at": "Thời điểm duyệt (UTC).",
+    "paid_at": "Thời điểm ghi nhận đã thanh toán (UTC).", "created_at": "Thời điểm tạo (UTC).",
+})
+DESCRIPTIONS["commercial_settlement_lines"] = ("Dòng snapshot đối soát theo vị trí và loại sự kiện.", {
+    "settlement_id": "Kỳ đối soát.", "placement_id": "Vị trí được tính tiền.",
+    "event_type": "`IMPRESSION` / `CLICK` / `COMPLETE` / `FIXED`.",
+    "units": "Số đơn vị hợp lệ.", "unit_rate": "Đơn giá VND chụp từ hợp đồng.",
+    "amount": "Thành tiền của dòng.",
+})
+
 _KIND_ORDER = {"PRIMARY KEY": 0, "UNIQUE": 1, "FOREIGN KEY": 2, "CHECK": 3}
 
 
@@ -548,7 +639,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: các migration `sql/001_*.sql` đến `sql/020_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/024_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")

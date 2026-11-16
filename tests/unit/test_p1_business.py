@@ -276,9 +276,13 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
         Permission.PROCUREMENT_RECEIVE,
         Permission.PROCUREMENT_PAY,
         Permission.PROCUREMENT_MANAGE_SUPPLIERS,
+        Permission.COMMERCIAL_VIEW,
     }
     assert ROLE_PERMISSIONS[Role.ADMIN] == ROLE_PERMISSIONS[Role.MANAGER] | {
-        Permission.MANAGE_STORES, Permission.SWITCH_STORE,
+        Permission.MANAGE_STORES,
+        Permission.SWITCH_STORE,
+        Permission.COMMERCIAL_MANAGE,
+        Permission.COMMERCIAL_RECONCILE,
     }
     assert can(Role.STAFF, Permission.INVENTORY_COUNT)
     assert not can(Role.STAFF, Permission.INVENTORY_ISSUE)

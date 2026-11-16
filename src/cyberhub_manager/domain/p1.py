@@ -46,6 +46,9 @@ class Permission(StrEnum):
     PROCUREMENT_RECEIVE = "procurement_receive"
     PROCUREMENT_PAY = "procurement_pay"
     PROCUREMENT_MANAGE_SUPPLIERS = "procurement_manage_suppliers"
+    COMMERCIAL_VIEW = "commercial_view"
+    COMMERCIAL_MANAGE = "commercial_manage"
+    COMMERCIAL_RECONCILE = "commercial_reconcile"
 
 
 # Grant every capability deliberately. A new Permission must not silently become
@@ -87,6 +90,7 @@ _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
     Permission.PROCUREMENT_RECEIVE,
     Permission.PROCUREMENT_PAY,
     Permission.PROCUREMENT_MANAGE_SUPPLIERS,
+    Permission.COMMERCIAL_VIEW,
 })
 ROLE_PERMISSIONS = {
     Role.STAFF: _STAFF_PERMISSIONS,
@@ -103,6 +107,8 @@ ROLE_PERMISSIONS = {
     Role.ADMIN: _MANAGER_PERMISSIONS | frozenset({
         Permission.MANAGE_STORES,
         Permission.SWITCH_STORE,
+        Permission.COMMERCIAL_MANAGE,
+        Permission.COMMERCIAL_RECONCILE,
     }),
 }
 

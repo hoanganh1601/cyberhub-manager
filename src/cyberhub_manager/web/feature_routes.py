@@ -4,7 +4,7 @@ from datetime import datetime
 
 from flask import Response, g, request
 
-from cyberhub_manager.domain.exceptions import ValidationError
+from cyberhub_manager.domain.exceptions import ServiceUnavailableError, ValidationError
 
 
 def register_feature_routes(
@@ -27,6 +27,22 @@ def register_feature_routes(
             raise ValidationError(
                 field_errors={name: "Số nguyên không hợp lệ"}
             ) from None
+
+    def feature_service(name):
+        """Return an optional feature service with a stable application error.
+
+        The in-memory demo bundle intentionally does not implement every P1
+        integration.  A missing commercial adapter must therefore produce the
+        same 503 contract as the other MySQL-only business modules instead of
+        leaking an ``AttributeError`` from the route.
+        """
+
+        value = getattr(g.services, name, None)
+        if value is None:
+            raise ServiceUnavailableError(
+                "Nghiệp vụ này cần chạy ở chế độ MySQL"
+            )
+        return value
 
     # ----- Đợt 1: menu đồ ăn/đồ uống ----------------------------------------------
     # Kiểu dữ liệu (int/bool) được MenuService kiểm tra; route chỉ chuyển giá trị thô.
@@ -351,3 +367,61 @@ def register_feature_routes(
             request.args.get("token", "")[:64], request.args.get("txn", "")[:100], request.args.get("sig", "")[:128]
         )
         return reply(dict(ok=True, reward_type=result["reward_type"], reward_amount=result["reward_amount"]))
+
+    @app.post("/api/portal/commercial/games/<string:placement_code>/launch")
+    def commercial_game_launch(placement_code):
+        return reply(feature_service("commercial").launch_external_game(
+            g.customer, placement_code, body().get("store_id")), 201)
+
+    @app.post("/api/portal/commercial/events")
+    def commercial_client_event():
+        data = body()
+        return reply(feature_service("commercial").record_client_event(
+            g.customer, data.get("placement_code"), data.get("store_id"),
+            data.get("event_type"), data.get("event_key")))
+
+    @app.post("/commercial/callback/game")
+    def commercial_game_callback():
+        # Public SSV endpoint: no session/CSRF. HMAC is verified by the service;
+        # iframe JavaScript cannot generate a COMPLETE event or a reward grant.
+        if real_services is None:
+            return error("NOT_AVAILABLE", "Không hỗ trợ ở chế độ demo", "Not available in demo mode", 404)
+        data = request.get_json(silent=True) or {}
+        commercial = getattr(real_services, "commercial", None)
+        if commercial is None:
+            return error("NOT_AVAILABLE", "Dịch vụ chưa được cấu hình", "Service is not configured", 503)
+        result = commercial.verify_game_callback(
+            str(data.get("token", ""))[:100],
+            str(data.get("provider_event_id", ""))[:100],
+            data.get("outcome"),
+            request.headers.get("X-CyberHub-Signature", "")[:128],
+        )
+        return reply(dict(ok=True, **result))
+
+    @app.post("/commercial/callback/event")
+    def commercial_partner_event_callback():
+        """Public signed endpoint for verified impression/start/click events."""
+
+        if real_services is None:
+            return error(
+                "NOT_AVAILABLE",
+                "Không hỗ trợ ở chế độ demo",
+                "Not available in demo mode",
+                404,
+            )
+        commercial = getattr(real_services, "commercial", None)
+        if commercial is None:
+            return error(
+                "NOT_AVAILABLE",
+                "Dịch vụ chưa được cấu hình",
+                "Service is not configured",
+                503,
+            )
+        data = request.get_json(silent=True) or {}
+        result = commercial.verify_partner_event_callback(
+            str(data.get("placement_code", ""))[:32],
+            str(data.get("provider_event_id", ""))[:100],
+            data.get("event_type"),
+            request.headers.get("X-CyberHub-Signature", "")[:128],
+        )
+        return reply(dict(ok=True, **result))

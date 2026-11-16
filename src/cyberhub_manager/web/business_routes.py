@@ -99,3 +99,45 @@ def register_business_routes(app, *, reply, body):
     def procurement_pay(payable_id):
         return reply(service("procurement").pay_payable(
             g.actor, payable_id, body().get("method")))
+
+    @app.get("/api/commercial")
+    def commercial_overview():
+        return reply(service("commercial").overview(g.actor))
+
+    @app.route("/api/commercial/partners", methods=["POST"])
+    @app.route("/api/commercial/partners/<int:partner_id>", methods=["PATCH"])
+    def commercial_partner(partner_id=None):
+        return reply(service("commercial").save_partner(g.actor, partner_id, **body()))
+
+    @app.post("/api/commercial/contracts")
+    def commercial_contract():
+        return reply(service("commercial").create_contract(g.actor, **body()), 201)
+
+    @app.post("/api/commercial/contracts/<int:contract_id>/activate")
+    def commercial_contract_activate(contract_id):
+        return reply(service("commercial").activate_contract(g.actor, contract_id))
+
+    @app.post("/api/commercial/campaigns")
+    def commercial_campaign():
+        return reply(service("commercial").create_campaign(g.actor, **body()), 201)
+
+    @app.post("/api/commercial/campaigns/<int:campaign_id>/status")
+    def commercial_campaign_status(campaign_id):
+        return reply(service("commercial").set_campaign_status(
+            g.actor, campaign_id, body().get("status")))
+
+    @app.post("/api/commercial/placements")
+    def commercial_placement():
+        return reply(service("commercial").create_placement(g.actor, **body()), 201)
+
+    @app.post("/api/commercial/settlements")
+    def commercial_settlement():
+        data = body()
+        return reply(service("commercial").generate_settlement(
+            g.actor, data.get("contract_id"), data.get("period_start"),
+            data.get("period_end"), data.get("adjustment_amount", 0),
+            data.get("adjustment_reason")), 201)
+
+    @app.post("/api/commercial/settlements/<int:settlement_id>/approve")
+    def commercial_settlement_approve(settlement_id):
+        return reply(service("commercial").approve_settlement(g.actor, settlement_id))

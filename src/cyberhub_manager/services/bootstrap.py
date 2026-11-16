@@ -33,6 +33,7 @@ def create_service_bundle(
     from .cash_shift_service import CashShiftService
     from .maintenance_service import MaintenanceService
     from .procurement_service import ProcurementService
+    from .commercial_service import CommercialService
 
     shifts = CashShiftService()
 
@@ -53,4 +54,5 @@ def create_service_bundle(
         shifts=shifts,
         maintenance=MaintenanceService(),
         procurement=ProcurementService(shifts=shifts),
+        commercial=CommercialService(),
     )

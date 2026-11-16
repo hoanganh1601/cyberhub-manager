@@ -36,8 +36,12 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
                       "inventory_counts", "customer_notification_events",
                   "reward_catalog", "customer_vouchers", "voucher_events", "loyalty_point_grants",
                   "games", "game_prizes", "game_wallets", "game_sessions", "game_coin_ledger",
-                  "ad_settings", "ad_creatives", "ad_reward_events"):
+                  "ad_settings", "ad_creatives", "ad_reward_events",
+                  "commercial_partners", "commercial_contracts", "commercial_campaigns",
+                  "commercial_placements", "commercial_play_sessions", "commercial_events",
+                  "commercial_reward_grants", "commercial_settlements",
+                  "commercial_settlement_lines"):
         assert f"### {table}" in content
-    # 59 khóa ngoại trước kho + 14 khóa ngoại của kho, kiểm kê và thông báo đơn.
-    assert content.count(" — 0..") == 73
+    # 73 khóa ngoại đến migration 020 + 22 khóa ngoại của migration 024.
+    assert content.count(" — 0..") == 95
     assert "password_hash" in content and "bcrypt" in content

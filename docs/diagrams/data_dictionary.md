@@ -3,7 +3,7 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: các migration `sql/001_*.sql` đến `sql/020_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+Nguồn: các migration `sql/001_*.sql` đến `sql/024_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
 tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.
 
 ## 1. Danh sách bảng
@@ -48,6 +48,15 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`ad_settings`](#ad_settings) | Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất). | 7 |
 | [`ad_creatives`](#ad_creatives) | Nội dung quảng cáo nội bộ do CyberHub tự soạn. | 8 |
 | [`ad_reward_events`](#ad_reward_events) | Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game. | 15 |
+| [`commercial_partners`](#commercial_partners) | Đối tác cung cấp game hoặc mạng quảng cáo. | 10 |
+| [`commercial_contracts`](#commercial_contracts) | Hợp đồng thương mại có maker-checker và mô hình tính doanh thu. | 13 |
+| [`commercial_campaigns`](#commercial_campaigns) | Chiến dịch game/quảng cáo thuộc một hợp đồng đã duyệt. | 13 |
+| [`commercial_placements`](#commercial_placements) | Vị trí phát game/quảng cáo, có thể giới hạn theo cửa hàng. | 13 |
+| [`commercial_play_sessions`](#commercial_play_sessions) | Phiên chơi ngoài có token một lần và hạn sử dụng. | 10 |
+| [`commercial_events`](#commercial_events) | Sổ sự kiện impression/start/complete/click, chống ghi trùng. | 14 |
+| [`commercial_reward_grants`](#commercial_reward_grants) | Outbox phần thưởng; callback không được cộng xu/phát voucher trực tiếp. | 10 |
+| [`commercial_settlements`](#commercial_settlements) | Kỳ đối soát doanh thu có maker-checker. | 14 |
+| [`commercial_settlement_lines`](#commercial_settlement_lines) | Dòng snapshot đối soát theo vị trí và loại sự kiện. | 6 |
 
 ## 2. Quan hệ và cardinality
 
@@ -71,6 +80,7 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.store_id` → `stores.id` | Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở. |
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_store_id` → `stores.id` | Cơ sở nơi dùng. |
 | `stores` | 0..1 — 0..n | `voucher_events` | `voucher_events.store_id` → `stores.id` | Cơ sở phát sinh. |
+| `stores` | 0..1 — 0..n | `commercial_placements` | `commercial_placements.store_id` → `stores.id` | Cửa hàng áp dụng; NULL = toàn hệ thống. |
 | `employees` | 0..1 — 0..n | `usage_sessions` | `usage_sessions.closed_by` → `employees.id` | Nhân viên checkout; NULL khi phiên đang chạy. |
 | `employees` | 1 — 0..n | `usage_sessions` | `usage_sessions.opened_by` → `employees.id` | Nhân viên mở phiên. |
 | `employees` | 1 — 0..n | `account_transactions` | `account_transactions.employee_id` → `employees.id` | Nhân viên thực hiện. |
@@ -86,6 +96,11 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_by` → `employees.id` | Nhân viên xác nhận. |
 | `employees` | 0..1 — 0..n | `voucher_events` | `voucher_events.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 1 — 0..n | `loyalty_point_grants` | `loyalty_point_grants.employee_id` → `employees.id` | Nhân viên xác nhận. |
+| `employees` | 0..1 — 0..n | `commercial_contracts` | `commercial_contracts.approved_by` → `employees.id` | Người duyệt; phải khác người lập theo service. |
+| `employees` | 1 — 0..n | `commercial_contracts` | `commercial_contracts.created_by` → `employees.id` | Nhân viên lập hợp đồng. |
+| `employees` | 1 — 0..n | `commercial_campaigns` | `commercial_campaigns.created_by` → `employees.id` | Nhân viên tạo. |
+| `employees` | 1 — 0..n | `commercial_settlements` | `commercial_settlements.generated_by` → `employees.id` | Nhân viên tạo kỳ. |
+| `employees` | 0..1 — 0..n | `commercial_settlements` | `commercial_settlements.reviewed_by` → `employees.id` | Người duyệt, phải khác người tạo theo service. |
 | `customers` | 1 — 0..1 | `accounts` | `accounts.customer_id` → `customers.id` | Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản. |
 | `customers` | 1 — 0..n | `usage_sessions` | `usage_sessions.customer_id` → `customers.id` | Khách dùng máy. |
 | `customers` | 1 — 0..n | `invoices` | `invoices.customer_id` → `customers.id` | Khách (lưu thẳng để báo cáo không phải đi qua phiên). |
@@ -102,6 +117,9 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `accounts` | 1 — 0..n | `game_sessions` | `game_sessions.account_id` → `accounts.id` | Tài khoản chơi. |
 | `accounts` | 1 — 0..n | `game_coin_ledger` | `game_coin_ledger.account_id` → `accounts.id` | Tài khoản. |
 | `accounts` | 1 — 0..n | `ad_reward_events` | `ad_reward_events.account_id` → `accounts.id` | Tài khoản xem. |
+| `accounts` | 1 — 0..n | `commercial_play_sessions` | `commercial_play_sessions.account_id` → `accounts.id` | Tài khoản khách chơi. |
+| `accounts` | 0..1 — 0..n | `commercial_events` | `commercial_events.account_id` → `accounts.id` | Tài khoản liên quan; có thể NULL. |
+| `accounts` | 1 — 0..n | `commercial_reward_grants` | `commercial_reward_grants.account_id` → `accounts.id` | Tài khoản nhận thưởng. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `machines` | 1 — 0..n | `menu_orders` | `menu_orders.machine_id` → `machines.id` | Máy giao món tới. |
@@ -128,7 +146,20 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `customer_vouchers` | 0..1 — 0..n | `game_coin_ledger` | `game_coin_ledger.voucher_id` → `customer_vouchers.id` | Voucher nhận được khi đổi xu. |
 | `games` | 1 — 0..n | `game_prizes` | `game_prizes.game_id` → `games.id` | Game sở hữu ô thưởng. |
 | `games` | 1 — 0..n | `game_sessions` | `game_sessions.game_id` → `games.id` | Game. |
+| `games` | 0..1 — 0..n | `commercial_placements` | `commercial_placements.legacy_game_id` → `games.id` | Game nội bộ cũ nếu vị trí ánh xạ vào game có sẵn. |
 | `ad_creatives` | 0..1 — 0..n | `ad_reward_events` | `ad_reward_events.creative_id` → `ad_creatives.id` | Nội dung đã phát. |
+| `ad_creatives` | 0..1 — 0..n | `commercial_placements` | `commercial_placements.legacy_ad_creative_id` → `ad_creatives.id` | Nội dung quảng cáo nội bộ cũ nếu có. |
+| `commercial_partners` | 1 — 0..n | `commercial_contracts` | `commercial_contracts.partner_id` → `commercial_partners.id` | Đối tác ký hợp đồng. |
+| `commercial_contracts` | 1 — 0..n | `commercial_campaigns` | `commercial_campaigns.contract_id` → `commercial_contracts.id` | Hợp đồng chi phối chiến dịch. |
+| `commercial_contracts` | 1 — 0..n | `commercial_settlements` | `commercial_settlements.contract_id` → `commercial_contracts.id` | Hợp đồng được đối soát. |
+| `commercial_campaigns` | 1 — 0..n | `commercial_placements` | `commercial_placements.campaign_id` → `commercial_campaigns.id` | Chiến dịch sở hữu vị trí. |
+| `commercial_campaigns` | 1 — 0..n | `commercial_events` | `commercial_events.campaign_id` → `commercial_campaigns.id` | Chiến dịch được chụp. |
+| `commercial_placements` | 1 — 0..n | `commercial_play_sessions` | `commercial_play_sessions.placement_id` → `commercial_placements.id` | Vị trí game được mở. |
+| `commercial_placements` | 1 — 0..n | `commercial_events` | `commercial_events.placement_id` → `commercial_placements.id` | Vị trí phát sinh sự kiện. |
+| `commercial_placements` | 1 — 0..n | `commercial_settlement_lines` | `commercial_settlement_lines.placement_id` → `commercial_placements.id` | Vị trí được tính tiền. |
+| `commercial_play_sessions` | 0..1 — 0..n | `commercial_events` | `commercial_events.play_session_id` → `commercial_play_sessions.id` | Phiên chơi liên quan; có thể NULL. |
+| `commercial_events` | 1 — 0..1 | `commercial_reward_grants` | `commercial_reward_grants.event_id` → `commercial_events.id` | COMPLETE event đã xác minh; duy nhất. |
+| `commercial_settlements` | 1 — 0..n | `commercial_settlement_lines` | `commercial_settlement_lines.settlement_id` → `commercial_settlements.id` | Kỳ đối soát. |
 
 ## 3. Chi tiết từng bảng
 
@@ -1194,3 +1225,281 @@ Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_ad_reward_events_account_day` (`account_id, played_on, status`)
 - INDEX `idx_ad_reward_events_day` (`played_on`)
+
+### commercial_partners
+
+Đối tác cung cấp game hoặc mạng quảng cáo.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(24)` | Không | — | UK | Mã đối tác, duy nhất. |
+| `name` | `varchar(120)` | Không | — | — | Tên pháp lý hoặc tên giao dịch. |
+| `partner_type` | `varchar(12)` | Không | — | — | `GAME` / `AD_NETWORK` / `BOTH`. |
+| `status` | `varchar(12)` | Không | `ACTIVE` | — | `ACTIVE` / `SUSPENDED` / `TERMINATED`. |
+| `callback_secret_ref` | `varchar(80)` | Có | — | — | Tham chiếu bí mật xác minh callback; không lưu secret thô trong bảng. |
+| `contact_name` | `varchar(100)` | Có | — | — | Người liên hệ. |
+| `contact_email` | `varchar(120)` | Có | — | — | Email liên hệ. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm cập nhật (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_partners_code` (`code`)
+- CHECK `chk_commercial_partners_status`: `(status in ('ACTIVE','SUSPENDED','TERMINATED'))`
+- CHECK `chk_commercial_partners_type`: `(partner_type in ('GAME','AD_NETWORK','BOTH'))`
+
+### commercial_contracts
+
+Hợp đồng thương mại có maker-checker và mô hình tính doanh thu.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `partner_id` | `bigint unsigned` | Không | — | FK → `commercial_partners.id` | Đối tác ký hợp đồng. |
+| `code` | `varchar(24)` | Không | — | UK | Mã hợp đồng, duy nhất. |
+| `status` | `varchar(12)` | Không | `DRAFT` | — | `DRAFT` / `ACTIVE` / `SUSPENDED` / `EXPIRED` / `TERMINATED`. |
+| `revenue_model` | `varchar(8)` | Không | — | — | `CPM` / `CPC` / `CPA` / `FIXED`. |
+| `rate_amount` | `bigint unsigned` | Không | — | — | Đơn giá nguyên theo VND; CPM tính trên 1.000 impression. |
+| `currency` | `char(3)` | Không | `VND` | — | Tiền tệ; P1 chỉ hỗ trợ `VND`. |
+| `starts_on` | `date` | Không | — | — | Ngày bắt đầu hiệu lực. |
+| `ends_on` | `date` | Không | — | — | Ngày kết thúc hiệu lực. |
+| `created_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên lập hợp đồng. |
+| `approved_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Người duyệt; phải khác người lập theo service. |
+| `approved_at` | `datetime` | Có | — | — | Thời điểm duyệt (UTC). |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_contracts_code` (`code`)
+- FOREIGN KEY `fk_commercial_contracts_approver` (`approved_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_contracts_creator` (`created_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_contracts_partner` (`partner_id`) → `commercial_partners` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_contracts_approval`: `(((status = 'DRAFT') and (approved_by is null) and (approved_at is null)) or ((status <> 'DRAFT') and (approved_by is not null) and (approved_at is not null)))`
+- CHECK `chk_commercial_contracts_currency`: `(currency = 'VND')`
+- CHECK `chk_commercial_contracts_model`: `(revenue_model in ('CPM','CPC','CPA','FIXED'))`
+- CHECK `chk_commercial_contracts_period`: `(ends_on >= starts_on)`
+- CHECK `chk_commercial_contracts_status`: `(status in ('DRAFT','ACTIVE','SUSPENDED','EXPIRED','TERMINATED'))`
+
+### commercial_campaigns
+
+Chiến dịch game/quảng cáo thuộc một hợp đồng đã duyệt.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `contract_id` | `bigint unsigned` | Không | — | FK → `commercial_contracts.id` | Hợp đồng chi phối chiến dịch. |
+| `code` | `varchar(24)` | Không | — | UK | Mã chiến dịch, duy nhất. |
+| `name` | `varchar(120)` | Không | — | — | Tên chiến dịch. |
+| `kind` | `varchar(8)` | Không | — | — | `AD` / `GAME`. |
+| `status` | `varchar(10)` | Không | `DRAFT` | — | `DRAFT` / `ACTIVE` / `PAUSED` / `ENDED`; `ENDED` là trạng thái cuối. |
+| `starts_at` | `datetime` | Không | — | — | Thời điểm bắt đầu (UTC). |
+| `ends_at` | `datetime` | Không | — | — | Thời điểm kết thúc (UTC). |
+| `budget_amount` | `bigint unsigned` | Có | — | — | Ngân sách giám sát vận hành; không tự ý cắt tiền đối soát. |
+| `reward_type` | `varchar(12)` | Không | `NONE` | — | `NONE` / `COINS` / `VOUCHER` / `EXTRA_SPIN`. |
+| `reward_amount` | `int unsigned` | Không | `0` | — | Số lượng phần thưởng chụp tại chiến dịch. |
+| `created_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên tạo. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_campaigns_code` (`code`)
+- FOREIGN KEY `fk_commercial_campaigns_contract` (`contract_id`) → `commercial_contracts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_campaigns_creator` (`created_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_campaigns_kind`: `(kind in ('AD','GAME'))`
+- CHECK `chk_commercial_campaigns_period`: `(ends_at > starts_at)`
+- CHECK `chk_commercial_campaigns_reward`: `(((reward_type = 'NONE') and (reward_amount = 0)) or ((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0)))`
+- CHECK `chk_commercial_campaigns_status`: `(status in ('DRAFT','ACTIVE','PAUSED','ENDED'))`
+
+### commercial_placements
+
+Vị trí phát game/quảng cáo, có thể giới hạn theo cửa hàng.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `campaign_id` | `bigint unsigned` | Không | — | FK → `commercial_campaigns.id` | Chiến dịch sở hữu vị trí. |
+| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cửa hàng áp dụng; NULL = toàn hệ thống. |
+| `code` | `varchar(32)` | Không | — | UK | Mã vị trí, duy nhất. |
+| `placement_type` | `varchar(8)` | Không | — | — | `AD` / `GAME`. |
+| `surface` | `varchar(24)` | Không | — | — | `PORTAL_BANNER` / `REWARDED_AD` / `GAME_CENTER`. |
+| `embed_url` | `varchar(500)` | Có | — | — | URL HTTPS của game ngoài. |
+| `allowed_origin` | `varchar(255)` | Có | — | — | Origin HTTPS được phép gửi thông điệp. |
+| `sandbox_policy` | `varchar(120)` | Không | `allow-scripts allow-pointer-lock` | — | Chính sách iframe sandbox đã được allowlist ở backend. |
+| `legacy_game_id` | `bigint unsigned` | Có | — | FK → `games.id` | Game nội bộ cũ nếu vị trí ánh xạ vào game có sẵn. |
+| `legacy_ad_creative_id` | `bigint unsigned` | Có | — | FK → `ad_creatives.id` | Nội dung quảng cáo nội bộ cũ nếu có. |
+| `status` | `varchar(10)` | Không | `ACTIVE` | — | `ACTIVE` / `INACTIVE`. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_placements_code` (`code`)
+- FOREIGN KEY `fk_commercial_placements_ad` (`legacy_ad_creative_id`) → `ad_creatives` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_placements_campaign` (`campaign_id`) → `commercial_campaigns` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_placements_game` (`legacy_game_id`) → `games` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_placements_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_placements_embed`: `(((placement_type = 'GAME') and (embed_url is not null) and (allowed_origin is not null)) or (placement_type = 'AD'))`
+- CHECK `chk_commercial_placements_status`: `(status in ('ACTIVE','INACTIVE'))`
+- CHECK `chk_commercial_placements_surface`: `(surface in ('PORTAL_BANNER','REWARDED_AD','GAME_CENTER'))`
+- CHECK `chk_commercial_placements_type`: `(placement_type in ('AD','GAME'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_commercial_placements_store` (`store_id, status`)
+
+### commercial_play_sessions
+
+Phiên chơi ngoài có token một lần và hạn sử dụng.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `placement_id` | `bigint unsigned` | Không | — | FK → `commercial_placements.id` | Vị trí game được mở. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản khách chơi. |
+| `token_hash` | `char(64)` | Không | — | UK | SHA-256 của token; không lưu token thô. |
+| `status` | `varchar(10)` | Không | `ISSUED` | — | `ISSUED` / `COMPLETED` / `EXPIRED` / `REJECTED`. |
+| `reward_type` | `varchar(12)` | Không | — | — | Loại thưởng chụp tại lúc phát hành. |
+| `reward_amount` | `int unsigned` | Không | — | — | Số lượng thưởng chụp. |
+| `issued_at` | `datetime` | Không | — | — | Thời điểm phát hành (UTC). |
+| `expires_at` | `datetime` | Không | — | — | Hạn token (UTC). |
+| `completed_at` | `datetime` | Có | — | — | Thời điểm hoàn tất đã xác minh (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_play_sessions_token` (`token_hash`)
+- FOREIGN KEY `fk_commercial_play_sessions_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_play_sessions_placement` (`placement_id`) → `commercial_placements` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_play_sessions_period`: `(expires_at > issued_at)`
+- CHECK `chk_commercial_play_sessions_reward`: `(((reward_type = 'NONE') and (reward_amount = 0)) or ((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0)))`
+- CHECK `chk_commercial_play_sessions_status`: `(status in ('ISSUED','COMPLETED','EXPIRED','REJECTED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_commercial_play_sessions_account` (`account_id, status, issued_at`)
+
+### commercial_events
+
+Sổ sự kiện impression/start/complete/click, chống ghi trùng.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `placement_id` | `bigint unsigned` | Không | — | FK → `commercial_placements.id` | Vị trí phát sinh sự kiện. |
+| `campaign_id` | `bigint unsigned` | Không | — | FK → `commercial_campaigns.id` | Chiến dịch được chụp. |
+| `play_session_id` | `bigint unsigned` | Có | — | FK → `commercial_play_sessions.id` | Phiên chơi liên quan; có thể NULL. |
+| `account_id` | `bigint unsigned` | Có | — | FK → `accounts.id` | Tài khoản liên quan; có thể NULL. |
+| `event_type` | `varchar(10)` | Không | — | — | `IMPRESSION` / `START` / `COMPLETE` / `CLICK`. |
+| `event_key` | `varchar(80)` | Không | — | UK | Khóa idempotency nội bộ, duy nhất. |
+| `provider_event_id` | `varchar(100)` | Có | — | UK | Mã sự kiện phía đối tác, duy nhất nếu có. |
+| `verification_method` | `varchar(8)` | Không | — | — | `CLIENT` / `SERVER` / `SSV`; COMPLETE không được dùng CLIENT. |
+| `accepted` | `tinyint(1)` | Không | `1` | — | TRUE nếu hợp lệ để thống kê/đối soát. |
+| `occurred_at` | `datetime` | Không | — | — | Thời điểm xảy ra (UTC). |
+| `verified_at` | `datetime` | Có | — | — | Thời điểm server xác minh (UTC). |
+| `payload_digest` | `char(64)` | Có | — | — | SHA-256 payload đã xác minh. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm ghi nhận (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_events_key` (`event_key`)
+- UNIQUE `uq_commercial_events_provider` (`provider_event_id`)
+- FOREIGN KEY `fk_commercial_events_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_events_campaign` (`campaign_id`) → `commercial_campaigns` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_events_placement` (`placement_id`) → `commercial_placements` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_events_session` (`play_session_id`) → `commercial_play_sessions` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_events_complete`: `((event_type <> 'COMPLETE') or (verification_method in ('SERVER','SSV')))`
+- CHECK `chk_commercial_events_type`: `(event_type in ('IMPRESSION','START','COMPLETE','CLICK'))`
+- CHECK `chk_commercial_events_verification`: `(verification_method in ('CLIENT','SERVER','SSV'))`
+- CHECK `chk_commercial_events_verified`: `(((verification_method = 'CLIENT') and (verified_at is null)) or ((verification_method in ('SERVER','SSV')) and (verified_at is not null)))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_commercial_events_campaign` (`campaign_id, event_type, accepted, occurred_at`)
+
+### commercial_reward_grants
+
+Outbox phần thưởng; callback không được cộng xu/phát voucher trực tiếp.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `event_id` | `bigint unsigned` | Không | — | UK, FK → `commercial_events.id` | COMPLETE event đã xác minh; duy nhất. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản nhận thưởng. |
+| `reward_type` | `varchar(12)` | Không | — | — | `COINS` / `VOUCHER` / `EXTRA_SPIN`. |
+| `reward_amount` | `int unsigned` | Không | — | — | Số lượng thưởng. |
+| `status` | `varchar(10)` | Không | `PENDING` | — | `PENDING` / `APPLIED` / `FAILED`. |
+| `attempts` | `int unsigned` | Không | `0` | — | Số lần worker thử áp dụng. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+| `applied_at` | `datetime` | Có | — | — | Thời điểm áp dụng thành công (UTC). |
+| `failure_reason` | `varchar(255)` | Có | — | — | Lý do thất bại cuối cùng. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_reward_grants_event` (`event_id`)
+- FOREIGN KEY `fk_commercial_reward_grants_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_reward_grants_event` (`event_id`) → `commercial_events` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_reward_grants_reward`: `((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0))`
+- CHECK `chk_commercial_reward_grants_status`: `(status in ('PENDING','APPLIED','FAILED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_commercial_reward_grants_pending` (`status, created_at`)
+
+### commercial_settlements
+
+Kỳ đối soát doanh thu có maker-checker.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `contract_id` | `bigint unsigned` | Không | — | FK → `commercial_contracts.id` | Hợp đồng được đối soát. |
+| `period_start` | `date` | Không | — | — | Ngày đầu kỳ. |
+| `period_end` | `date` | Không | — | — | Ngày cuối kỳ. |
+| `gross_amount` | `bigint unsigned` | Không | — | — | Doanh thu gộp tính từ snapshot sự kiện. |
+| `adjustment_amount` | `bigint` | Không | `0` | — | Điều chỉnh có dấu. |
+| `adjustment_reason` | `varchar(255)` | Có | — | — | Lý do bắt buộc khi điều chỉnh khác 0. |
+| `net_amount` | `bigint unsigned` | Không | — | — | Doanh thu ròng = gộp + điều chỉnh. |
+| `status` | `varchar(10)` | Không | `DRAFT` | — | `DRAFT` / `APPROVED` / `PAID` / `VOID`. |
+| `generated_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên tạo kỳ. |
+| `reviewed_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Người duyệt, phải khác người tạo theo service. |
+| `reviewed_at` | `datetime` | Có | — | — | Thời điểm duyệt (UTC). |
+| `paid_at` | `datetime` | Có | — | — | Thời điểm ghi nhận đã thanh toán (UTC). |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_commercial_settlements_period` (`contract_id,period_start,period_end`)
+- FOREIGN KEY `fk_commercial_settlements_contract` (`contract_id`) → `commercial_contracts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_settlements_generator` (`generated_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_settlements_reviewer` (`reviewed_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_settlements_adjustment`: `(((adjustment_amount = 0) and (adjustment_reason is null)) or ((adjustment_amount <> 0) and (char_length(trim(adjustment_reason)) >= 5)))`
+- CHECK `chk_commercial_settlements_amount`: `(net_amount = (gross_amount + adjustment_amount))`
+- CHECK `chk_commercial_settlements_period`: `(period_end >= period_start)`
+- CHECK `chk_commercial_settlements_status`: `(status in ('DRAFT','APPROVED','PAID','VOID'))`
+
+### commercial_settlement_lines
+
+Dòng snapshot đối soát theo vị trí và loại sự kiện.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `settlement_id` | `bigint unsigned` | Không | — | PK, FK → `commercial_settlements.id` | Kỳ đối soát. |
+| `placement_id` | `bigint unsigned` | Không | — | PK, FK → `commercial_placements.id` | Vị trí được tính tiền. |
+| `event_type` | `varchar(10)` | Không | — | PK | `IMPRESSION` / `CLICK` / `COMPLETE` / `FIXED`. |
+| `units` | `bigint unsigned` | Không | — | — | Số đơn vị hợp lệ. |
+| `unit_rate` | `bigint unsigned` | Không | — | — | Đơn giá VND chụp từ hợp đồng. |
+| `amount` | `bigint unsigned` | Không | — | — | Thành tiền của dòng. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`settlement_id,placement_id,event_type`)
+- FOREIGN KEY `fk_commercial_settlement_lines_placement` (`placement_id`) → `commercial_placements` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_commercial_settlement_lines_settlement` (`settlement_id`) → `commercial_settlements` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_commercial_settlement_lines_event`: `(event_type in ('IMPRESSION','CLICK','COMPLETE','FIXED'))`
