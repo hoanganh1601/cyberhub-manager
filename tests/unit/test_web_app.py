@@ -14,7 +14,14 @@ from cyberhub_manager.web import create_app
 @pytest.fixture
 def app():
     return create_app(
-        {"TESTING": True, "WEB_MODE": "demo", "SECRET_KEY": "test-secret-for-web-only"}
+        {
+            "TESTING": True,
+            "WEB_MODE": "demo",
+            "SECRET_KEY": "test-secret-for-web-only",
+            "LOGIN_RATE_LIMIT_ENABLED": True,
+            "LOGIN_RATE_LIMIT_ATTEMPTS": 10,
+            "LOGIN_RATE_LIMIT_WINDOW_SECONDS": 600,
+        }
     )
 
 
@@ -50,7 +57,7 @@ def test_web_starts_without_tk_or_display():
     code = """
 import sys
 from cyberhub_manager.web import create_app
-app = create_app({'WEB_MODE': 'demo'})
+app = create_app({'WEB_MODE': 'demo', 'ASSISTANT_ENABLED': False})
 assert app.test_client().get('/').status_code == 200
 assert 'tkinter' not in sys.modules
 assert 'customtkinter' not in sys.modules
@@ -70,6 +77,7 @@ def test_index_assets_health_and_response_headers(app):
     client = app.test_client()
     assert client.get("/").status_code == 200
     assert client.get("/static/app.js").status_code == 200
+    assert client.get("/static/operations_admin.js").status_code == 200
     assert client.get("/static/app.css").status_code == 200
     assert client.get("/assets/cyberhub_logo_dark.png").mimetype == "image/png"
     assert client.get("/assets/fonts/Inter-400.ttf").status_code == 200
@@ -88,6 +96,9 @@ def test_index_assets_health_and_response_headers(app):
         "/api/customers/1",
         "/api/invoices",
         "/api/revenue",
+        "/api/shifts",
+        "/api/maintenance",
+        "/api/procurement",
     ],
 )
 def test_requires_login(app, path):
@@ -125,6 +136,27 @@ def test_login_error_and_rate_limiting(app):
     result = post(c, "/api/login", token, {"username": "quanly01", "password": "wrong"})
     assert result.status_code == 429
     assert result.headers["Retry-After"] == "600"
+
+
+def test_login_rate_limit_can_be_disabled_for_local_manual_testing():
+    local_app = create_app(
+        {
+            "TESTING": True,
+            "WEB_MODE": "demo",
+            "SECRET_KEY": "test-secret-for-web-only",
+            "LOGIN_RATE_LIMIT_ENABLED": False,
+        }
+    )
+    client = local_app.test_client()
+    token = bootstrap(client)
+    for _ in range(12):
+        result = post(
+            client,
+            "/api/login",
+            token,
+            {"username": "quanly01", "password": "wrong"},
+        )
+        assert result.status_code == 401
 
 
 def test_unicode_wrong_password_returns_authentication_error(app):
@@ -184,6 +216,13 @@ def test_manager_reads_revenue(app):
     c = app.test_client()
     login(c, "quanly01")
     assert c.get("/api/revenue").status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/api/shifts", "/api/maintenance", "/api/procurement"])
+def test_mysql_only_operations_fail_closed_in_demo(app, path):
+    c = app.test_client()
+    login(c, "quanly01")
+    assert c.get(path).status_code == 503
 
 
 @pytest.mark.parametrize("value", [True, 1.5, "50000", [], {}, -1, 0, 100_000_001])

@@ -15,6 +15,23 @@ SUSPICIOUS_LIMIT = 10  # số lần bị chặn trong ngày trước khi tự kh
 MAX_PRIZES = 12
 MIN_PRIZES = 2
 
+# Danh mục Game Center do backend công bố. Engine của game nội bộ chạy trên trình duyệt,
+# nhưng quyền hoạt động/tài trợ và phần thưởng luôn do backend kiểm soát.
+GAME_CENTER_CATALOG = (
+    dict(code="wheel", name="Vòng quay may mắn", active=True, featured=True,
+         sponsored=False, reward_mode="SERVER_DRAW"),
+    dict(code="2048", name="Cyber 2048", active=True, featured=True,
+         sponsored=False, reward_mode="SERVER_DRAW"),
+    dict(code="snake", name="Snake Arena", active=True, featured=False,
+         sponsored=False, reward_mode="SERVER_DRAW"),
+    dict(code="memory", name="Puzzle ký ức", active=True, featured=False,
+         sponsored=False, reward_mode="SERVER_DRAW"),
+    dict(code="bubble", name="Bubble Blast", active=False, featured=False,
+         sponsored=True, reward_mode="SERVER_DRAW"),
+    dict(code="candy", name="Candy Match", active=False, featured=False,
+         sponsored=True, reward_mode="SERVER_DRAW"),
+)
+
 
 class LedgerReason(StrEnum):
     PLAY = "PLAY"

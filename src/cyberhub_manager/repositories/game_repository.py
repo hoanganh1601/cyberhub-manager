@@ -13,7 +13,7 @@ from cyberhub_manager.domain.game import (
     GameWallet,
     LedgerReason,
 )
-from cyberhub_manager.repositories.p1_repository import execute, rows
+from cyberhub_manager.repositories.sql import execute, rows
 
 
 def _utc(value):

@@ -4,6 +4,7 @@
 
 Object.assign(paths, {
   utensils: '<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 3c-2.2 0-3 2.5-3 5.5V13h3v8"/>',
+  warehouse: '<path d="M3 10 12 4l9 6v10H3V10Zm4 10v-6h10v6M7 14h10M9 17h6"/>',
 });
 Object.assign(copy, {
   menu: ["Menu đồ ăn", "Food menu"],
@@ -65,6 +66,21 @@ Object.assign(copy, {
   dot1ConfirmCancel: ["Hủy yêu cầu gọi món này?", "Cancel this order?"],
   dot1SortTip: ["Thứ tự cùng hàng trăm nằm chung một nhóm nhỏ trên bảng menu (vd. 0–99 là nhóm đầu, 100–199 có vạch ngăn bên trên).", "Items with the same hundreds in display order share a sub-group on the menu board (e.g. 0–99, then 100–199 below a divider)."],
   invTitle: ["Kho nguyên liệu", "Ingredient stock"],
+  warehouse: ["Kho nguyên liệu", "Inventory"],
+  warehouseSub: ["Nhập, xuất, kiểm kê và theo dõi biến động nguyên liệu của cơ sở", "Receive, issue, count and audit this store's ingredients"],
+  invTotalKinds: ["Loại nguyên liệu", "Ingredients"],
+  invLowKinds: ["Sắp hết", "Low stock"],
+  invReservedTotal: ["Đang giữ cho đơn", "Reserved for orders"],
+  invPendingCounts: ["Chờ duyệt kiểm kê", "Pending counts"],
+  invLedger: ["Lịch sử biến động kho", "Stock movement history"],
+  invMovement: ["Nghiệp vụ", "Movement"],
+  invDelta: ["Biến động", "Change"],
+  invTime: ["Thời gian", "Time"],
+  invNoMovements: ["Chưa có biến động kho", "No stock movements yet"],
+  invKindRECEIVE: ["Nhập kho", "Receipt"], invKindISSUE: ["Xuất kho", "Issue"],
+  invKindRETURN: ["Trả kho", "Return"], invKindRESERVE: ["Giữ cho đơn", "Reserve"],
+  invKindRELEASE: ["Giải phóng giữ", "Release"], invKindCONSUME: ["Xuất dùng", "Consume"],
+  invKindWASTE: ["Hao hụt", "Waste"], invKindADJUST: ["Điều chỉnh", "Adjustment"],
   invAdd: ["Thêm nguyên liệu", "Add ingredient"],
   invReceive: ["Nhập kho", "Receive stock"],
   invRecipe: ["Công thức", "Recipe"],
@@ -79,7 +95,7 @@ Object.assign(copy, {
   invTrack: ["Quản lý tồn theo công thức", "Track stock by recipe"],
   invEmpty: ["Chưa có nguyên liệu", "No ingredients yet"],
   invLow: ["Sắp hết", "Low stock"],
-  invDemoNotice: ["Demo: sổ kho chưa được mô phỏng. Kiểm thử tồn kho trên MySQL.", "Demo: stock ledger is not simulated. Validate inventory with MySQL."],
+  invDemoNotice: ["Demo: dữ liệu và sổ kho được mô phỏng trong bộ nhớ; nghiệm thu đồng thời và lưu trữ lâu dài dùng MySQL.", "Demo: stock and its ledger are simulated in memory; use MySQL for concurrency acceptance and persistence."],
   invCancelReason: ["Lý do hủy sau khi chuẩn bị", "Reason for cancelling after preparation"],
   invIssue: ["Xuất kho", "Issue stock"],
   invReturn: ["Trả kho", "Return stock"],
@@ -121,6 +137,29 @@ async function loadMenuAdmin(seq) {
   state.menuReversals = reversals;
   state.menuPromotions = promotions;
   return true;
+}
+
+async function loadInventoryAdmin(seq) {
+  const inventory = await api("/inventory");
+  if (seq !== state.seq || state.page !== "warehouse") return false;
+  state.menuInventory = inventory;
+  return true;
+}
+
+function inventoryAdminPage() {
+  const inventory = state.menuInventory;
+  if (!inventory) return pageHead() + loading();
+  const low = inventory.ingredients.filter(i => i.available <= i.reorder_point).length;
+  const reserved = inventory.ingredients.reduce((sum, i) => sum + i.reserved, 0);
+  const pending = (inventory.counts || []).filter(c => c.status === "PENDING").length;
+  const metrics = `<div class="metrics inventory-metrics">
+    ${metric("invTotalKinds", inventory.ingredients.length, "cyan", "warehouse")}
+    ${metric("invLowKinds", low, low ? "amber" : "green", "alert")}
+    ${metric("invReservedTotal", reserved, "", "clock")}
+    ${metric("invPendingCounts", pending, pending ? "amber" : "green", "check")}
+  </div>`;
+  return pageHead() + (state.mode === "demo" ? `<div class="notice info">${t("invDemoNotice")}</div>` : "")
+    + metrics + `<div class="warehouse-layout">${dot1InventoryPanel(inventory)}${dot1MovementPanel(inventory)}</div>`;
 }
 
 function menuAdminPage() {
@@ -167,7 +206,7 @@ function dot1InventoryPanel(inventory) {
     </div></td>
   </tr>`).join("");
   const recipeButtons = inventory.can_configure
-    ? state.menuAdmin.items.map((item) => `<button class="btn small" data-menuadmin="recipe" data-id="${item.id}">${t("invRecipe")}: ${esc(item.name)}</button>`).join(" ") : "";
+    ? (inventory.items || []).map((item) => `<button class="btn small" data-menuadmin="recipe" data-id="${item.id}">${t("invRecipe")}: ${esc(item.name)}</button>`).join(" ") : "";
   const byId = new Map(inventory.ingredients.map((i) => [i.id, i]));
   const pending = (inventory.counts || []).filter((c) => c.status === "PENDING");
   const countRows = pending.map((c) => `<tr><td>${esc(byId.get(c.ingredient_id)?.name || c.ingredient_id)}</td>
@@ -177,6 +216,17 @@ function dot1InventoryPanel(inventory) {
     ${rows ? table(["name", "invOnHand", "invReserved", "invAvailable", "invReorder", ""], rows) : empty("invEmpty")}
     ${countRows ? `<h4>${t("invCountRequests")}</h4>${table(["name", "invCounted", "invReason", ""], countRows)}<p class="dot1-tip">${t("invCountStale")}</p>` : ""}
     <div class="actions">${recipeButtons}</div></section>`;
+}
+
+function dot1MovementPanel(inventory) {
+  const rows = (inventory.movements || []).map(m => `<tr>
+    <td>${dt(m.created_at)}</td><td><strong>${esc(m.ingredient_name)}</strong><br><small>${esc(m.unit)}</small></td>
+    <td><span class="badge">${t("invKind" + m.kind)}</span></td>
+    <td>${m.on_hand_delta > 0 ? "+" : ""}${m.on_hand_delta}${m.reserved_delta ? ` · giữ ${m.reserved_delta > 0 ? "+" : ""}${m.reserved_delta}` : ""}</td>
+    <td>${esc(m.reference_code || "—")}<br><small>${esc(m.note || "")}</small></td>
+  </tr>`).join("");
+  return `<section class="panel"><header class="panel-heading"><h3>${t("invLedger")}</h3></header>
+    ${rows ? table(["invTime", "name", "invMovement", "invDelta", "invReference"], rows) : empty("invNoMovements")}</section>`;
 }
 
 function dot1OrderCard(order) {
@@ -387,7 +437,7 @@ function dot1RequestId() {
 
 function dot1RecipeForm(id) {
   const inventory = state.menuInventory;
-  const item = state.menuAdmin.items.find((i) => i.id === Number(id));
+  const item = (inventory.items || []).find((i) => i.id === Number(id));
   if (!item) return;
   const parts = inventory.recipes.find((r) => r.item_id === item.id)?.parts || [];
   const quantities = new Map(parts.map((p) => [p.ingredient_id, p.quantity_per_unit]));
@@ -464,7 +514,9 @@ document.addEventListener("click", async (event) => {
   if (!button || button.disabled) return;
   const action = button.dataset.menuadmin, id = button.dataset.id;
   if (action === "close") { $("#dot1-dialog")?.close(); return; }
-  if (state.page !== "menu" || !state.menuAdmin) return;
+  if (!["menu", "warehouse"].includes(state.page)) return;
+  if (state.page === "menu" && !state.menuAdmin) return;
+  if (state.page === "warehouse" && !state.menuInventory) return;
   try {
     if (action === "category" && state.menuAdmin.can_manage) dot1CategoryForm(id);
     if (action === "promotion" && state.menuAdmin.can_manage) dot1PromotionForm(id);
@@ -546,7 +598,7 @@ document.addEventListener("click", async (event) => {
 function wireMenuAdmin() {
   clearInterval(dot1AdminTimer);
   dot1AdminTimer = setInterval(() => {
-    if (state.page !== "menu" || !state.actor) { clearInterval(dot1AdminTimer); return; }
+    if (!["menu", "warehouse"].includes(state.page) || !state.actor) { clearInterval(dot1AdminTimer); return; }
     if (document.hidden || $("#dot1-dialog")?.open) return;
     loadPage(true);
   }, 20000);

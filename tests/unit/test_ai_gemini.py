@@ -232,7 +232,7 @@ def test_runtime_defaults_to_api_provider_without_starting_model_processes(tmp_p
     monkeypatch.setenv("CYBERHUB_ASSISTANT_ENABLED", "true")
     monkeypatch.delenv("CYBERHUB_ASSISTANT_PROVIDER", raising=False)
     monkeypatch.setenv("CYBERHUB_ASSISTANT_AUDIT_PATH", str(tmp_path / "audit.sqlite3"))
-    app = create_app({"TESTING": True, "WEB_MODE": "demo"})
+    app = create_app({"TESTING": True, "WEB_MODE": "demo", "ASSISTANT_FROM_ENV": True})
     service, _ = app.extensions["cyberhub_assistant"]
     assert isinstance(service._llm, GeminiLLMProvider)
     assert any(method == "batchEmbedContents" for _, method, _ in transport.calls)
@@ -276,7 +276,7 @@ def cloud_app(tmp_path):
         retriever.rebuild([KnowledgeDocument(
             document_id=role.lower(), title=role, content=QUOTE,
             source=f"shared/{role.lower()}.md", audience=(role,), status="APPROVED", version=1,
-        ) for role in ("CUSTOMER", "STAFF", "MANAGER", "ADMIN")])
+        ) for role in ("CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN")])
         return RAGAssistantService(retriever, GeminiLLMProvider(transport), audit=sink)
     app = create_app({"TESTING": True, "WEB_MODE": "demo", "ASSISTANT_ENABLED": True,
                       "ASSISTANT_SERVICE_FACTORY": factory,
@@ -295,6 +295,7 @@ def cloud_login(app, username="nguyenvanan", kind="customer"):
 
 @pytest.mark.parametrize("username,kind,role", [
     ("nguyenvanan", "customer", "CUSTOMER"), ("nhanvien01", "employee", "STAFF"),
+    ("bep01", "employee", "KITCHEN"), ("thukho01", "employee", "INVENTORY"),
     ("quanly01", "employee", "MANAGER"), ("admin01", "employee", "ADMIN"),
 ])
 def test_gemini_http_pipeline_returns_only_role_authorized_citations(cloud_app, username, kind, role):

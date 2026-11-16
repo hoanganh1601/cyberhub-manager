@@ -30,6 +30,18 @@ DEMO_EMPLOYEES = (
         "demo.staff02",
         "STAFF",
     ),
+    (
+        "DEMO_EMP_04",
+        "Nhân viên bếp demo",
+        "demo.kitchen",
+        "KITCHEN",
+    ),
+    (
+        "DEMO_EMP_05",
+        "Nhân viên thủ kho demo",
+        "demo.inventory",
+        "INVENTORY",
+    ),
 )
 
 DEMO_CUSTOMER_COUNT = 5
@@ -304,8 +316,8 @@ def run_seed(expected_database: str | None = None) -> None:
         )
         confirmation = getpass("Confirm demo password: ")
 
-        if not demo_password:
-            raise ValueError("Demo password must not be empty.")
+        if len(demo_password) < 8 or len(demo_password.encode()) > 72:
+            raise ValueError("Demo password must be 8 characters or more and at most 72 UTF-8 bytes.")
 
         if demo_password != confirmation:
             raise ValueError("Demo passwords do not match.")

@@ -94,6 +94,41 @@ def test_profile_changes_require_csrf_and_correct_current_password(app):
     assert client.get("/api/portal/profile").json["full_name"] == "Nguyễn Văn An"
 
 
+def test_customer_can_register_and_change_own_password(app):
+    client = app.test_client()
+    token = client.get("/api/session").json["csrf_token"]
+    data = dict(
+        full_name="Khách tự đăng ký",
+        phone="0900000099",
+        username="khach.tudangky",
+        password="Register123",
+        confirmation="Register123",
+        balance=999_999,
+        role="ADMIN",
+    )
+    assert client.post("/api/register", json=data).status_code == 403
+    registered = client.post(
+        "/api/register", json=data, headers={"X-CSRF-Token": token}
+    )
+    assert registered.status_code == 201, registered.json
+    assert registered.json["customer"]["username"] == "khach.tudangky"
+    snapshot = client.get("/api/portal/snapshot")
+    assert snapshot.status_code == 200
+    assert snapshot.json["wallet"]["balance"] == 0
+
+    changed = client.post(
+        "/api/portal/password",
+        json=dict(
+            current_password="Register123",
+            new_password="Changed123",
+            confirmation="Changed123",
+        ),
+        headers={"X-CSRF-Token": registered.json["csrf_token"]},
+    )
+    assert changed.status_code == 200, changed.json
+    assert client.get("/api/portal/profile").status_code == 200
+
+
 def test_room_classification_roles_and_occupied_machine(app):
     client = app.test_client()
     headers = login(client, "admin01", "employee")

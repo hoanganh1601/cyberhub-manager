@@ -77,7 +77,10 @@ _FAILURES: dict[MockScenario, dict[str, Callable[[], ApplicationError]]] = {
 }
 
 AFFECTED_OPERATIONS: dict[MockScenario, frozenset[str]] = {
-    scenario: frozenset(failures) for scenario, failures in _FAILURES.items()
+    scenario: frozenset(
+        set(failures) | ({"register_customer"} if "create_customer" in failures else set())
+    )
+    for scenario, failures in _FAILURES.items()
 }
 
 

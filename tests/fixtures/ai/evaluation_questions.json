@@ -27,5 +27,11 @@
   {"case_id":"outside-quantum","question":"Mô tả phương trình trường lượng tử hấp dẫn.","role":"ADMIN","language":"vi","expected_source":null,"expected_keywords":[]},
   {"case_id":"staff-admin-config","question":"Thay đổi mốc Bạc Vàng Kim cương cấu hình thành viên toàn hệ thống.","role":"STAFF","language":"vi","expected_source":null,"expected_keywords":[]},
   {"case_id":"customer-employee-admin","question":"Cách gán nhân viên vai trò STAFF MANAGER ADMIN và thay đổi cơ sở.","role":"CUSTOMER","language":"vi","expected_source":null,"expected_keywords":[]},
-  {"case_id":"draft-revenue-policy","question":"Công thức đối soát doanh thu báo cáo cơ sở và quyền xem doanh thu MANAGER.","role":"MANAGER","language":"vi","expected_source":null,"expected_keywords":[]}
+  {"case_id":"draft-revenue-policy","question":"Công thức đối soát doanh thu báo cáo cơ sở và quyền xem doanh thu MANAGER.","role":"MANAGER","language":"vi","expected_source":null,"expected_keywords":[]},
+  {"case_id":"customer-game-coins","question":"Khách dùng xu game để đổi voucher MEMBER_POINTS như thế nào?","role":"CUSTOMER","language":"vi","expected_source":"customer/game-center.md","expected_keywords":["voucher"]},
+  {"case_id":"customer-game-cash","question":"Xu game có đổi trực tiếp thành tiền mặt không?","role":"CUSTOMER","language":"vi","expected_source":"customer/game-center.md","expected_keywords":["không đổi"]},
+  {"case_id":"kitchen-permissions","question":"KITCHEN chuyển đơn NEW sang PREPARING rồi SERVED như thế nào?","role":"KITCHEN","language":"vi","expected_source":"staff/kitchen-operation.md","expected_keywords":["PREPARING"]},
+  {"case_id":"inventory-permissions","question":"Thủ kho có được xem đơn gọi món và tự duyệt kiểm kê không?","role":"INVENTORY","language":"vi","expected_source":"staff/inventory-operation.md","expected_keywords":["không được xem"]},
+  {"case_id":"inventory-stale-count","question":"Nếu tồn kho thay đổi sau khi đề xuất kiểm kê thì xử lý thế nào?","role":"INVENTORY","language":"vi","expected_source":"staff/inventory-operation.md","expected_keywords":["kiểm kê lại"]},
+  {"case_id":"admin-reset-password","question":"Admin đặt lại mật khẩu tạm cho nhân viên và hệ thống lưu mật khẩu thế nào?","role":"ADMIN","language":"vi","expected_source":"admin/employee-password-reset.md","expected_keywords":["hash"]}
 ]

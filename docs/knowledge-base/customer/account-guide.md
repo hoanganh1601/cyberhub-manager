@@ -4,9 +4,9 @@ title: Hướng dẫn tài khoản, hồ sơ và ảnh đại diện
 audience:
   - CUSTOMER
 status: APPROVED
-version: 1
+version: 2
 language: vi
-updated_at: 2026-11-09
+updated_at: 2026-11-15
 tags:
   - profile
   - avatar
@@ -14,6 +14,15 @@ tags:
 ---
 
 # Hướng dẫn tài khoản, hồ sơ và ảnh đại diện
+
+## Tự đăng ký tài khoản
+
+Tại cổng khách hàng, khách có thể chọn tạo tài khoản và nhập họ tên, số điện thoại,
+username, mật khẩu cùng xác nhận mật khẩu. Họ tên dài 2–100 ký tự; điện thoại gồm
+10 chữ số, bắt đầu bằng 0; username phải đúng định dạng và không trùng. Mật khẩu
+khách hàng tối thiểu 6 ký tự, tối đa 72 byte UTF-8. Tài khoản mới có số dư 0 VND;
+việc nạp tiền được nhân viên xác nhận tại quầy. Tạo hồ sơ khách và tài khoản nằm
+trong cùng giao dịch, nên lỗi một phần không để lại hồ sơ rời.
 
 ## Mở hồ sơ
 
@@ -50,3 +59,4 @@ qua các lần đăng nhập; không dùng số liệu mẫu để kết luận 
 
 - `docs/CUSTOMER_PORTAL_PHASE2.md` — Hồ sơ và mật khẩu
 - `docs/CUSTOMER_PORTAL_PHASE3.md` — Avatar và hồ sơ
+- `src/cyberhub_manager/services/customer_service.py` — Đăng ký và xác thực dữ liệu

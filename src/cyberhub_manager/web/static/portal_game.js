@@ -8,8 +8,8 @@ Object.assign(paths, {
   coin: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 9.5h3.5a1.5 1.5 0 0 1 0 3h-2a1.5 1.5 0 0 0 0 3h3.5"/>',
 });
 Object.assign(copy, {
-  dot3Game: ["Vòng quay", "Lucky wheel"],
-  dot3GameSub: ["Quay mỗi ngày để nhận xu, đổi xu lấy voucher. Xu không phải tiền và không quy đổi tiền mặt.", "Spin daily for coins and swap coins for vouchers. Coins are not money and have no cash value."],
+  dot3Game: ["Trò chơi", "Games"],
+  dot3GameSub: ["Mini-game, quảng cáo nhận thưởng và cửa hàng đổi xu. Xu không phải tiền và không quy đổi tiền mặt.", "Mini-games, rewarded ads and the coin reward shop. Coins are not money and have no cash value."],
   dot3Spin: ["Quay", "Spin"],
   dot3Spinning: ["Đang quay…", "Spinning…"],
   dot3SpinsLeft: ["Lượt còn lại hôm nay", "Spins left today"],
@@ -106,8 +106,9 @@ function dot3Body() {
   const ledger = d.ledger.length
     ? `<ul class="dot3-list">${d.ledger.map((e) => `<li><span>${t("dot3Reason" + e.reason)}</span><b class="${e.delta > 0 ? "green" : "red"}">${e.delta > 0 ? "+" : ""}${e.delta}</b></li>`).join("")}</ul>`
     : `<p class="muted">${t("dot3NoHistory")}</p>`;
-  return `<div class="dot3-layout">
-      <section class="pc-card dot3-stage">
+  const gameCenter = typeof dot3MiniHub === "function" ? dot3MiniHub(d) : "";
+  return `${gameCenter}<div class="dot3-layout">
+      <section class="pc-card dot3-stage" id="dot3-wheel-stage">
         ${dot3Wheel(d.game.prizes, ui.wheelRotation)}
         <div class="dot3-controls">
           <div class="dot3-stat"><small>${t("dot3SpinsLeft")}</small><strong>${d.spins_left}/${d.game.daily_limit + (d.bonus_spins || 0)}</strong></div>

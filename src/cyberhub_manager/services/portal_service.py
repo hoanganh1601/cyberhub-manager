@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 
 class PortalService(PortalExperienceMixin, PortalPhase2Mixin,PortalMembershipMixin):
-    def __init__(self, repo=None, transaction_factory=None, clock=None):
+    def __init__(self, repo=None, transaction_factory=None, clock=None, invoice_query=None):
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._memory = hasattr(repo, "resolve_actor")
         if transaction_factory is None:
@@ -23,6 +23,11 @@ class PortalService(PortalExperienceMixin, PortalPhase2Mixin,PortalMembershipMix
 
             transaction_factory = transaction
         self._repo = repo or P1Repository()
+        if invoice_query is None and repo is None:
+            from .customer_invoice_query import CustomerInvoiceQuery
+
+            invoice_query = CustomerInvoiceQuery()
+        self._invoice_query = invoice_query
         self._transaction = transaction_factory
 
     def _errors(self):
@@ -63,6 +68,7 @@ class PortalService(PortalExperienceMixin, PortalPhase2Mixin,PortalMembershipMix
         ):
             raise PermissionDeniedError()
         with self._errors(), self._transaction() as conn:
-            return self._repo.customer_invoice(
-                conn, self._principal(conn, principal), invoice_id
-            )
+            current = self._principal(conn, principal)
+            if self._invoice_query is not None:
+                return self._invoice_query.get(conn, current, invoice_id)
+            return self._repo.customer_invoice(conn, current, invoice_id)

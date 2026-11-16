@@ -1,5 +1,38 @@
 # 2. Khung code và hợp đồng module
 
+> **Trạng thái hiện tại:** tài liệu này ban đầu là skeleton MVP. Hệ thống hiện đã
+> có cả desktop CustomTkinter, Flask web, cổng khách hàng, POS/kho, voucher,
+> trò chơi, quảng cáo và trợ lý AI. Khi phần mô tả MVP bên dưới mâu thuẫn với
+> code đang chạy, code và migration hiện tại là nguồn sự thật. Không được xóa
+> tính năng mới chỉ vì chúng chưa xuất hiện trong yêu cầu MVP cũ.
+
+## 2.0. Kiến trúc đang triển khai
+
+```text
+CustomTkinter UI ─┐
+Flask Web ────────┼─> Services ─> Repositories ─> Database/MySQL
+                  └─> AI service (chỉ đọc ngữ cảnh nghiệp vụ được cấp quyền)
+```
+
+- `web` và `ui` là adapter trình bày; không import repository/database trực tiếp.
+- `services/bootstrap.py` là composition root dùng chung cho desktop và web.
+- `services/identity_service.py` xác thực lại principal từ session web.
+- `repositories/sql.py` chứa cursor helper; repository không commit/rollback.
+- `database/transaction.py` là transaction boundary chuẩn.
+- `web/config.py`, `web/demo.py`, `web/serialization.py` tách cấu hình, demo
+  workspace và JSON projection khỏi application factory.
+- `web/operations_routes.py` và `web/feature_routes.py` chứa route theo nhóm
+  nghiệp vụ; `web/application.py` chỉ giữ factory, security hook, session và auth.
+- `domain/models.py`, `MenuService` và `P1Repository` là facade tương thích;
+  implementation đã tách theo bounded context/capability. Xem
+  `docs/ARCHITECTURE_REFACTOR.md`.
+- `ai/` là bounded context riêng, không được tự thay đổi số dư hoặc dữ liệu vận hành.
+- Role hiện có: `ADMIN`, `MANAGER`, `STAFF`, `KITCHEN`, `INVENTORY`;
+  quyền chi tiết cho ca/két, bảo trì và mua hàng nằm trong `domain/p1.py`.
+- `web/business_routes.py` chứa API ca/két, sự cố và mua hàng; ba service
+  và repository tương ứng không trộn logic vào POS/kho cũ.
+- Migration được chạy theo thứ tự trong `sql/`; không giới hạn ở `001–002`.
+
 Tài liệu này quy định cấu trúc mà nhóm sẽ tạo. Hiện chưa có implementation để tránh làm thay phần của các thành viên.
 
 Repository đã có sẵn các file placeholder chứa owner/task nhưng chưa có logic. Git theo dõi được toàn bộ cây thư mục; thành viên thay nội dung placeholder khi bắt đầu Linear issue tương ứng. Các thư mục Python có thêm `__init__.py` dù cây bên dưới lược bớt để dễ đọc.
@@ -125,7 +158,7 @@ Chiều import bắt buộc: `ui -> services -> repositories -> database`; `doma
 
 | Enum | Giá trị |
 |---|---|
-| `Role` | `ADMIN`, `MANAGER`, `STAFF` |
+| `Role` | `ADMIN`, `MANAGER`, `STAFF`, `KITCHEN`, `INVENTORY` |
 | `StoreStatus` | `ACTIVE`, `INACTIVE` |
 | `EmployeeStatus` | `ACTIVE`, `INACTIVE`, `LOCKED` |
 | `CustomerStatus` | `ACTIVE`, `INACTIVE` |
@@ -166,13 +199,11 @@ Tên dưới đây phải chốt trước khi Linh và Ngát làm song song. Có
 | `ReportService` | `get_invoice` | invoice_id | `InvoiceDetail` | `NotFoundError` |
 
 Quy ước output: service trả dataclass/DTO, không trả raw MySQL cursor row/dictionary, tuple không tên hoặc widget.
-Tên Protocol dùng chung gồm `AuthServiceProtocol`,
-`CustomerServiceProtocol`, `WalletServiceProtocol`,
-`MachineServiceProtocol`, `SessionServiceProtocol` và
-`ReportServiceProtocol`.
-
-`ServiceBundle` chứa sáu trường `auth`, `customers`, `wallet`,
-`machines`, `sessions` và `reports`.
+Các Protocol trong `services/contracts.py` mô tả service lõi và các capability
+web. `ServiceBundle` hiện chứa `auth`, `customers`, `wallet`, `machines`,
+`sessions`, `reports`, `identity`, `management`, `portal`, `menu`, `vouchers`,
+`games` và `ads`. Trường optional cho phép desktop hoặc demo chỉ nạp capability
+cần thiết mà không để view tự tạo service concrete.
 
 `preview_open` trả `can_open=False` khi khách chỉ thiếu số dư.
 `open_session` kiểm tra lại và có thể phát sinh

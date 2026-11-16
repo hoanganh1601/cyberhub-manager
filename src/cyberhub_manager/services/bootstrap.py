@@ -29,18 +29,28 @@ def create_service_bundle(
     from .voucher_service import VoucherService
     from .game_service import GameService
     from .ad_service import AdService
+    from .identity_service import IdentityService
+    from .cash_shift_service import CashShiftService
+    from .maintenance_service import MaintenanceService
+    from .procurement_service import ProcurementService
+
+    shifts = CashShiftService()
 
     return ServiceBundle(
         auth=AuthService(),
         customers=CustomerService(actor_provider=actor_provider),
-        wallet=WalletService(actor_provider=actor_provider),
+        wallet=WalletService(actor_provider=actor_provider, shift_service=shifts),
         machines=MachineService(actor_provider=actor_provider),
-        sessions=SessionService(actor_provider=actor_provider),
+        sessions=SessionService(actor_provider=actor_provider, shift_service=shifts),
         reports=ReportService(actor_provider=actor_provider),
+        identity=IdentityService(),
         management=ManagementService(actor_provider=actor_provider),
         portal=PortalService(),
-        menu=MenuService(actor_provider=actor_provider),
+        menu=MenuService(actor_provider=actor_provider, shift_service=shifts),
         vouchers=(vouchers := VoucherService(actor_provider=actor_provider)),
         games=GameService(vouchers=vouchers, actor_provider=actor_provider),
         ads=AdService(vouchers=vouchers, actor_provider=actor_provider),
+        shifts=shifts,
+        maintenance=MaintenanceService(),
+        procurement=ProcurementService(shifts=shifts),
     )

@@ -28,6 +28,8 @@ class EmployeeSession:
     store_code: str
     store_name: str
     role: Role
+    auth_version: int = 0
+    credential_update_required: bool = False
 
 
 @dataclass(frozen=True)

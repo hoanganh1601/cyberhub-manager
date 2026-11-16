@@ -492,7 +492,9 @@ function renderLogin() {
       state.today = result.today;
       state.mode = result.mode;
       form.reset();
-      state.page = ["KITCHEN", "INVENTORY"].includes(state.actor.role) ? "menu" : "dashboard";
+      if(state.actor.credential_update_required){renderRequiredPasswordChange();return;}
+      state.page = state.actor.role === "KITCHEN" ? "menu"
+        : state.actor.role === "INVENTORY" ? "warehouse" : "dashboard";
       state.selected = null;
       renderShell();
       await loadPage();
@@ -511,14 +513,19 @@ function renderShell() {
     ["customers", "users"],
     ...(isManager() ? [["machines", "monitor"]] : []),
     ["invoices", "invoice"],
+    ...(state.mode === "mysql" && ["STAFF","MANAGER","ADMIN"].includes(state.actor.role) ? [["shifts", "wallet"]] : []),
+    ...(state.mode === "mysql" ? [["maintenanceOps", "wrench"]] : []),
     ["menu", "utensils"],
+    ...(["INVENTORY", "MANAGER", "ADMIN"].includes(state.actor.role) ? [["warehouse", "warehouse"]] : []),
+    ...(state.mode === "mysql" && ["INVENTORY","MANAGER","ADMIN"].includes(state.actor.role) ? [["procurement", "invoice"]] : []),
     ["vouchers", "ticket"],
     ["games", "wheel"],
     ["ads", "monitor"],
     ...(isManager() ? [["revenue", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
-  ].filter(([page]) => !["KITCHEN", "INVENTORY"].includes(state.actor.role) || page === "menu");
+  ].filter(([page]) => state.actor.role === "KITCHEN" ? ["menu","maintenanceOps"].includes(page)
+    : state.actor.role === "INVENTORY" ? ["warehouse","procurement","maintenanceOps"].includes(page) : true);
   $("#app").innerHTML =
     `<div class="shell"><aside class="sidebar"><div class="brand-link"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub"><div class="brand-word">CyberHub <span class="cyan">•</span><small>MANAGER · WEB</small></div></div><nav class="nav" aria-label="CyberHub">${links.map(([key, symbol]) => `<button data-action="navigate" data-page="${key}" class="${state.page === key ? "active" : ""}" title="${t(key)}" ${state.page === key ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${t(key)}</span></button>`).join("")}</nav><div class="sidebar-foot"><span class="mode"><i class="dot"></i>${t("ready")}</span><div class="row between"><span>${state.mode === "demo" ? t("demo") : "MySQL"}</span><span>WEB · 1.0</span></div></div></aside><header class="topbar"><div class="store-chip">${icon("store")}${esc(state.actor.store_name)}</div><span class="top-time">${dt(new Date().toISOString())}</span><span class="spacer"></span>${langControl()}<div class="profile"><div class="name">${esc(state.actor.full_name)}<small>${t(state.actor.role.toLowerCase())}</small></div><div class="avatar">${esc(initials(state.actor.full_name))}</div></div><button class="btn ghost small" data-action="logout" title="${t("logout")}" aria-label="${t("logout")}">${icon("logout")}</button></header><main id="workspace" class="main"></main></div>`;
   clearInterval(refreshTimer);
@@ -561,6 +568,10 @@ async function loadPage(silent = false) {
       if (await loadMenuAdmin(seq)) renderPage();
       return;
     }
+    if (page === "warehouse") {
+      if (await loadInventoryAdmin(seq)) renderPage();
+      return;
+    }
     if (page === "vouchers") {
       // Đợt 2: tra cứu/xác nhận voucher, danh mục phần thưởng, nhật ký.
       if (await loadVoucherAdmin(seq)) renderPage();
@@ -574,6 +585,10 @@ async function loadPage(silent = false) {
     if (page === "ads") {
       // Đợt 4: thống kê và cấu hình quảng cáo nhận thưởng.
       if (await loadAdAdmin(seq)) renderPage();
+      return;
+    }
+    if (["shifts","maintenanceOps","procurement"].includes(page)) {
+      if (await loadBusinessAdmin(page, seq)) renderPage();
       return;
     }
     if (["employees","promotions","stores"].includes(page)) {
@@ -632,16 +647,18 @@ function renderPage() {
   else if (state.page === "invoices") html = invoicesPage();
   else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
   else if (state.page === "menu") html = menuAdminPage();
+  else if (state.page === "warehouse") html = inventoryAdminPage();
   else if (state.page === "vouchers") html = voucherAdminPage();
   else if (state.page === "games") html = gameAdminPage();
   else if (state.page === "ads") html = adAdminPage();
+  else if (["shifts","maintenanceOps","procurement"].includes(state.page)) html = businessAdminPage();
   else if (state.page === "revenue" && isManager()) html = revenuePage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
   installRoomManagement();
   installLoyaltyManagement();
-  if (state.page === "menu") wireMenuAdmin();
+  if (state.page === "menu" || state.page === "warehouse") wireMenuAdmin();
   if (focus) {
     const node = document.getElementById(focus);
     if (node) {
@@ -1008,7 +1025,18 @@ async function submitModal(event) {
     return;
   }
   if (context.action === "topup" && !form.elements.received.checked) return;
-  if(context.action === "management" || context.action === "switch-store") { await submitManagement(context,values); return; }
+  if(["management","switch-store","reset-password"].includes(context.action)) { await submitManagement(context,values); return; }
+  if(context.action === "business") { await submitBusinessModal(context, values); return; }
+  if(context.action==="customer-register"){
+    if(values.password!==values.confirmation){formError({message:t("mismatch"),field_errors:{confirmation:t("mismatch")}});return;}
+    busyModal(true);
+    try{
+      const result=await api("/register",{method:"POST",body:values});
+      state.actor=null;state.customer=result.customer;state.today=result.today;state.mode=result.mode;
+      busyModal(false);closeModal();await renderPortal();toast(t("registerSuccess"));
+    }catch(error){busyModal(false);formError(error);}
+    return;
+  }
   if (
     context.action === "checkout" &&
     context.preview.settlement_required > 0 &&
@@ -1247,7 +1275,9 @@ async function boot() {
     document.documentElement.lang = state.lang;
     if(state.customer) { await renderPortal(); return; }
     if (state.actor) {
-      if (["KITCHEN", "INVENTORY"].includes(state.actor.role)) state.page = "menu";
+      if(state.actor.credential_update_required){renderRequiredPasswordChange();return;}
+      if (state.actor.role === "KITCHEN") state.page = "menu";
+      if (state.actor.role === "INVENTORY") state.page = "warehouse";
       renderShell();
       await loadPage();
     } else renderLogin();
@@ -1256,6 +1286,17 @@ async function boot() {
       `<div class="boot">${icon("alert")}<h1>${t("bootError")}</h1><p>${esc(error.message)}</p><button class="btn primary" id="boot-retry">${t("retry")}</button></div>`;
     $("#boot-retry").onclick = boot;
   }
+}
+function renderRequiredPasswordChange(){
+  clearInterval(refreshTimer);
+  $("#app").innerHTML=`<main class="login"><section class="brand-panel"><img class="logo" src="/assets/cyberhub_logo_dark.png" alt="CyberHub Manager"><h1>CyberHub <span class="cyan">Manager</span></h1></section><section class="login-panel"><form id="employee-password-form" class="login-form"><div><h1>${t("changePassword")}</h1><p class="subtitle">${t("passwordChangeRequired")}</p></div>${field("current_password","currentPassword","","password")}${field("new_password","newPassword","","password")}${field("confirm_password","confirmPassword","","password")}<div id="password-change-error" class="error-box" role="alert"></div><button class="btn primary full" type="submit">${t("changePassword")}${icon("arrow")}</button><button class="btn full" type="button" data-action="logout">${t("logout")}</button></form></section></main>`;
+  $("#employee-password-form").addEventListener("submit",async event=>{
+    event.preventDefault();const form=event.currentTarget,button=$("button[type=submit]",form),values=Object.fromEntries(new FormData(form));
+    if(values.new_password!==values.confirm_password){$("#password-change-error").textContent=t("mismatch");return;}
+    button.disabled=true;
+    try{const result=await api("/employee/password",{method:"POST",body:values});state.actor=result.actor;renderShell();await loadPage();toast(t("success"));}
+    catch(error){$("#password-change-error").textContent=error.message;button.disabled=false;}
+  });
 }
 // All deferred extensions must finish loading before the first API response renders UI.
 document.addEventListener("DOMContentLoaded",boot,{once:true});

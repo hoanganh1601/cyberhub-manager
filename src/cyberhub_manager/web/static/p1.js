@@ -24,7 +24,16 @@ Object.assign(copy, {
   created:["Thời gian","Time"], policyName:["Tên chính sách","Policy name"], scope:["Phạm vi","Scope"],
   period:["Thời gian áp dụng","Validity"], newPassword:["Mật khẩu mới (để trống để giữ nguyên)","New password (leave blank to keep)"],
   manageNote:["Mọi thay đổi được kiểm tra quyền và lưu lịch sử quản trị.","Changes are authorized and recorded in the administration audit."],
-  demoAccounts:["Admin: admin01 · Quản lý: quanly01 · Nhân viên: nhanvien01","Admin: admin01 · Manager: quanly01 · Staff: nhanvien01"],
+  demoAccounts:["Admin: admin01 · Quản lý: quanly01 · Bếp: bep01 · Thủ kho: thukho01","Admin: admin01 · Manager: quanly01 · Kitchen: bep01 · Inventory: thukho01"],
+  resetPassword:["Đặt lại mật khẩu","Reset password"], temporaryPassword:["Mật khẩu tạm","Temporary password"],
+  confirmPassword:["Xác nhận mật khẩu","Confirm password"], currentPassword:["Mật khẩu hiện tại","Current password"],
+  changePassword:["Đổi mật khẩu","Change password"], passwordChangeRequired:["Bạn đang dùng mật khẩu tạm. Hãy đổi mật khẩu trước khi tiếp tục.","You are using a temporary password. Change it before continuing."],
+  passwordResetNote:["Tất cả phiên cũ sẽ hết hiệu lực. Người dùng phải đổi mật khẩu tạm ở lần đăng nhập kế tiếp.","All existing sessions will be revoked. The user must change the temporary password at the next sign-in."],
+  passwordResetDone:["Đã đặt lại mật khẩu và thu hồi các phiên cũ.","Password reset and old sessions revoked."],
+  passwordPending:["Chờ đổi mật khẩu","Password change required"], generateTemporary:["Tạo mật khẩu tạm","Generate temporary password"],
+  registerAccount:["Đăng ký tài khoản","Create account"], registerTitle:["Tạo tài khoản khách hàng","Create customer account"],
+  registerSub:["Tài khoản mới có số dư 0đ. Bạn có thể nạp tiền tại quầy sau khi đăng ký.","New accounts start with a zero balance. You can top up at the counter after registration."],
+  registerSuccess:["Đăng ký thành công","Account created"], confirmation:["Xác nhận mật khẩu","Confirm password"],
 });
 const managementKinds = ["employees","promotions","stores"];
 const customerRoute = () => document.body.dataset.customerPortal === "true";
@@ -34,6 +43,7 @@ function installP1Login() {
   link.href=customerRoute()?"/":"/customer";link.textContent=t(customerRoute()?"staffLink":"customerLink");form.append(link);
   if(!customerRoute()) return;
   $(".login-top .eyebrow").textContent=t("customerPortal");$(".subtitle",form).textContent=t("customerSub");
+  const register=document.createElement("button");register.type="button";register.className="btn full";register.dataset.p1="register";register.textContent=t("registerAccount");form.insertBefore(register,link);
   const demo=$(".demo-note",form);if(demo)demo.textContent=t("demo")+" · nguyenvanan / demo123";
   form.addEventListener("submit",async event=>{
     event.preventDefault();event.stopImmediatePropagation();
@@ -42,6 +52,13 @@ function installP1Login() {
       state.customer=data.customer;state.actor=null;await renderPortal();
     }catch(error){$("#login-error").textContent=error.message;button.disabled=false;}
   },true);
+}
+function showCustomerRegistration(){
+  modal("registerTitle","registerSub",`<div class="form-grid">${field("full_name","fullName","")}${field("phone","phone","")}${field("username","username","")}${field("password","password","","password")}${field("confirmation","confirmation","","password")}</div><div class="notice info">${t("registerSub")}</div>`,"customer-register",{},"registerAccount");
+  $("[name=full_name]",$("#modal")).setAttribute("autocomplete","name");
+  $("[name=phone]",$("#modal")).setAttribute("autocomplete","tel");
+  $("[name=username]",$("#modal")).setAttribute("autocomplete","username");
+  for(const input of $("#modal").querySelectorAll('[type="password"]'))input.setAttribute("autocomplete","new-password");
 }
 function installP1Shell() {
   if(state.actor.role!=="ADMIN")return;
@@ -58,9 +75,10 @@ function managementPage(){
   const storeName=id=>(state.stores||[]).find(s=>s.id===id)?.code||t("global");
   const headings=kind==="employees"?["fullName","username","role","store","status"]:kind==="stores"?["code","name","address","status"]:["policyName","minimum_amount","bonus_percent","period","scope","status"];
   const rows=items.map(item=>{
-    const vals=kind==="employees"?[esc(item.full_name),esc(item.username),t(item.role.toLowerCase()),esc(storeName(item.store_id)),badge(item.status)]:kind==="stores"?[esc(item.code),esc(item.name),esc(item.address),badge(item.status)]:[`${esc(item.name)}<br><small>${esc(item.code)}</small>`,money(item.minimum_amount),item.bonus_percent+"%",`${dt(item.starts_at)}<br>${dt(item.ends_at)}`,esc(storeName(item.store_id)),t(item.is_active?"on":"off")];
+    const vals=kind==="employees"?[esc(item.full_name),esc(item.username),t(item.role.toLowerCase()),esc(storeName(item.store_id)),`${badge(item.status)}${item.credential_update_required?`<small class="amber">${t("passwordPending")}</small>`:""}`]:kind==="stores"?[esc(item.code),esc(item.name),esc(item.address),badge(item.status)]:[`${esc(item.name)}<br><small>${esc(item.code)}</small>`,money(item.minimum_amount),item.bonus_percent+"%",`${dt(item.starts_at)}<br>${dt(item.ends_at)}`,esc(storeName(item.store_id)),t(item.is_active?"on":"off")];
     const editable=state.actor.role==="ADMIN" || kind==="employees"&&item.role==="STAFF" || kind==="promotions"&&item.store_id===state.actor.store_id;
-    return `<tr>${vals.map(v=>`<td>${v}</td>`).join("")}<td><button class="btn small" data-p1="edit" data-id="${item.id}" ${editable?"":"disabled"}>${icon("edit")}${t("edit")}</button></td></tr>`;
+    const reset=kind==="employees"&&state.actor.role==="ADMIN"&&item.id!==state.actor.employee_id?`<button class="btn small" data-p1="reset-password" data-id="${item.id}">${icon("lock")}${t("resetPassword")}</button>`:"";
+    return `<tr>${vals.map(v=>`<td>${v}</td>`).join("")}<td><div class="actions"><button class="btn small" data-p1="edit" data-id="${item.id}" ${editable?"":"disabled"}>${icon("edit")}${t("edit")}</button>${reset}</div></td></tr>`;
   }).join("");
   return pageHead(`<button class="btn primary" data-p1="new">${icon("plus")}${t("addNew")}</button>`)+
     `<section class="metrics">${metric("total",String(all.length),"cyan","chart")}${metric("active",String(all.filter(x=>x.status?x.status==="ACTIVE":x.is_active).length),"green","check")}</section><div class="toolbar"><input id="local-search" class="input search" value="${esc(state.keyword)}" placeholder="${t("search")}"><span class="spacer"></span><small>${t("manageNote")}</small></div><section class="panel">${items.length?table([...headings,"actions"],rows):empty()}</section>`;
@@ -72,10 +90,9 @@ function showManagement(item=null){
   const status=()=>selectField("status","status",["ACTIVE","INACTIVE",...(kind==="employees"?["LOCKED"]:[])].map(v=>[v,t(statusKey(v))]),item?.status||"ACTIVE");
   let content;
   if(kind==="stores") content=field("code","code",item?.code||"")+field("name","name",item?.name||"")+field("address","address",item?.address||"")+status();
-  else if(kind==="employees")content=field("full_name","fullName",item?.full_name||"")+field("username","username",item?.username||"")+selectField("store_id","store",stores,item?.store_id||state.actor.store_id)+selectField("role","role",(admin?["ADMIN","MANAGER","STAFF","KITCHEN","INVENTORY"]:["STAFF"]).map(v=>[v,t(v.toLowerCase())]),item?.role||"STAFF")+status()+field("password",item?"newPassword":"password","","password");
+  else if(kind==="employees")content=field("full_name","fullName",item?.full_name||"")+field("username","username",item?.username||"")+selectField("store_id","store",stores,item?.store_id||state.actor.store_id)+selectField("role","role",(admin?["ADMIN","MANAGER","STAFF","KITCHEN","INVENTORY"]:["STAFF"]).map(v=>[v,t(v.toLowerCase())]),item?.role||"STAFF")+status()+(item?"":field("password","password","","password"));
   else content=field("code","code",item?.code||"")+field("name","policyName",item?.name||"")+selectField("store_id","scope",admin?[["",t("global")],...stores]:stores,item?item.store_id??"":state.actor.store_id)+field("minimum_amount","minimum_amount",item?.minimum_amount||100000,"number")+field("bonus_percent","bonus_percent",item?.bonus_percent??5,"number")+selectField("is_active","is_active",[["true",t("on")],["false",t("off")]],String(item?.is_active??true))+field("starts_at","starts_at",vietnamInput(item?.starts_at||Date.now()-60000),"datetime-local")+field("ends_at","ends_at",vietnamInput(item?.ends_at||Date.now()+30*86400000),"datetime-local");
   modal(kind,`${kind}Sub`,`<div class="form-grid">${content}</div><div class="notice info">${t(kind==="promotions"?"bonusNote":"manageNote")}</div>`,"management",{kind,id:item?.id},"save");
-  if(item&&kind==="employees") $("[name=password]",$("#modal")).required=false;
   if(kind==="promotions")$("[name=bonus_percent]",$("#modal")).min="0";
   if(kind==='promotions')installPromotionAudience(item);
 }
@@ -87,6 +104,10 @@ async function showStoreSwitch(){
 async function submitManagement(context,values){
   busyModal(true);
   try{
+    if(context.action==="reset-password"){
+      await api(`/employees/${context.id}/reset-password`,{method:"POST",body:values});
+      state.busy=false;closeModal();await loadPage();toast(t("passwordResetDone"));return;
+    }
     if(context.action==="switch-store"){
       state.actor=(await api("/store/switch",{method:"POST",body:{store_id:Number(values.store_id)}})).actor;
       state.selected=null;state.detail=null;state.items=[];state.machines=[];state.filter="all";state.keyword="";state.tablePage=1;state.seq++;
@@ -107,6 +128,16 @@ async function submitManagement(context,values){
     await api(`/${context.kind}${context.id?`/${context.id}`:""}`,{method:context.id?"PATCH":"POST",body:values});
     state.busy=false;closeModal();await loadPage();toast(t("success"));
   }catch(error){busyModal(false);formError(error);}
+}
+function showPasswordReset(item){
+  modal("resetPassword","",`<div class="form-card"><strong>${esc(item.full_name)}</strong><p>${esc(item.username)} · ${t(item.role.toLowerCase())}</p></div><div class="form-grid">${field("temporary_password","temporaryPassword","","password")}${field("confirm_password","confirmPassword","","password")}</div><button class="btn small" type="button" data-p1="generate-temp">${icon("lock")}${t("generateTemporary")}</button><div class="notice info">${t("passwordResetNote")}</div>`,"reset-password",{id:item.id},"resetPassword");
+}
+function generateTemporaryPassword(){
+  const alphabet="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const bytes=crypto.getRandomValues(new Uint8Array(16));
+  const value=Array.from(bytes,n=>alphabet[n%alphabet.length]).join("");
+  for(const name of ["temporary_password","confirm_password"]){const input=$(`[name=${name}]`,$("#modal"));input.value=value;input.type="text";}
+  updateModalControls();
 }
 async function exportInvoice(id,format="html",download=false,portal=false){
   // Open synchronously so the print tab is allowed by browser popup controls.
@@ -153,6 +184,9 @@ document.addEventListener("click",async event=>{
   const id=Number(button.dataset.id),action=button.dataset.p1;
   if(action==="new")showManagement();
   if(action==="edit")showManagement(state.items.find(x=>x.id===id));
+  if(action==="reset-password")showPasswordReset(state.items.find(x=>x.id===id));
+  if(action==="generate-temp")generateTemporaryPassword();
+  if(action==="register")showCustomerRegistration();
   if(["print","export","portal-print","portal-export"].includes(action))exportInvoice(id,action.endsWith("export")?"csv":"html",action.endsWith("export"),action.startsWith("portal-"));
   if(action==="portal-refresh")renderPortal();
   if(action==="portal-logout"){try{await api("/logout",{method:"POST"});state.customer=null;renderLogin();}catch(error){toast(error.message,true);}}

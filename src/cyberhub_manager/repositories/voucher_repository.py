@@ -14,7 +14,7 @@ from cyberhub_manager.domain.voucher import (
     VoucherSource,
     VoucherStatus,
 )
-from cyberhub_manager.repositories.p1_repository import execute, rows
+from cyberhub_manager.repositories.sql import execute, rows
 
 _CATALOG_COLUMNS = "id, code, name, store_id, reward_type, value, min_order_amount, valid_days, coin_cost, is_active"
 
@@ -246,8 +246,8 @@ class VoucherRepository:
 
     def credit_playtime(self, conn: Any, *, account_id, amount, employee_id, store_id) -> None:
         """Cộng số dư khuyến mãi + ghi giao dịch PROMOTION (cùng cơ chế thưởng nạp tiền P1)."""
+        from cyberhub_manager.domain.identifiers import new_transaction_code
         from cyberhub_manager.repositories.account_repository import AccountRepository
-        from cyberhub_manager.services.wallet_service import new_transaction_code
 
         accounts = AccountRepository()
         if not accounts.credit_bonus(conn, account_id, amount):

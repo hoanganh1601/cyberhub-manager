@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from collections import OrderedDict, deque
-from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import date, datetime, timedelta, timezone
-from enum import Enum
 from functools import wraps
 from hmac import compare_digest
 from importlib.resources import files
-import os
 import secrets
 from threading import RLock
 from time import monotonic
@@ -17,7 +14,6 @@ from typing import Any
 
 from flask import (
     Flask,
-    Response,
     g,
     jsonify,
     render_template,
@@ -29,13 +25,8 @@ from mysql.connector import Error as MySQLError
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from cyberhub_manager.domain.dtos import EmployeeSession, InvoiceFilters
-from cyberhub_manager.domain.enums import (
-    CustomerStatus,
-    InvoiceStatus,
-    PaymentMethod,
-    Role,
-)
+from cyberhub_manager.domain.dtos import EmployeeSession
+from cyberhub_manager.domain.enums import PaymentMethod, Role
 from cyberhub_manager.domain.exceptions import (
     ApplicationError,
     PermissionDeniedError,
@@ -43,148 +34,26 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.services.bootstrap import create_service_bundle
-from cyberhub_manager.services.contracts import ServiceBundle
-from cyberhub_manager.domain.p1 import CustomerSession, Promotion, ROLE_PERMISSIONS
-from cyberhub_manager.domain.loyalty import LoyaltySettings
-from cyberhub_manager.services.invoice_export import invoice_html, invoice_csv
+from cyberhub_manager.domain.p1 import CustomerSession
+from cyberhub_manager.web.demo import DemoRegistry, build_demo_bundle
+from cyberhub_manager.web.config import configure_web_app
+from cyberhub_manager.web.serialization import serialize
+from cyberhub_manager.web.feature_routes import register_feature_routes
+from cyberhub_manager.web.operations_routes import register_operations_routes
+from cyberhub_manager.web.business_routes import register_business_routes
 
 UTC = timezone.utc
 LOCAL = timezone(timedelta(hours=7))
 
 
-def serialize(value: Any) -> Any:
-    """Serialize DTOs only. Domain models use explicit public-field projections."""
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    if is_dataclass(value) and not isinstance(value, type):
-        data = asdict(value)
-        if hasattr(value,"cash_balance"):
-            data["cash_balance"] = value.cash_balance
-        return serialize(data)
-    if isinstance(value, dict):
-        return {key: serialize(item) for key, item in value.items()}
-    if isinstance(value, (tuple, list)):
-        return [serialize(item) for item in value]
-    return value
-
-
-def customer_public(customer: Any) -> dict:
-    account = customer.account
-    return dict(
-        customer_id=customer.id,
-        customer_code=customer.code,
-        full_name=customer.full_name,
-        phone=customer.phone,
-        customer_status=customer.status,
-        account_id=account.id,
-        account_code=account.code,
-        username=account.username,
-        balance=account.balance,
-        cash_balance=account.cash_balance,
-        bonus_balance=account.bonus_balance,
-        account_status=account.status,
-    )
-
-
-def machine_public(machine: Any) -> dict:
-    return dict(
-        machine_id=machine.id,
-        machine_code=machine.code,
-        store_id=machine.store_id,
-        name=machine.name,
-        status=machine.status,
-        hourly_rate=machine.hourly_rate,
-        is_active=machine.is_active,
-        updated_at=machine.updated_at,
-    )
-
-
-@dataclass
-class DemoWorkspace:
-    services: ServiceBundle
-    actor: EmployeeSession
-    expires: float
-    lock: RLock = field(default_factory=RLock)
-
-
-class DemoRegistry:
-    """One independent, bounded demo dataset per login; single-worker deployment."""
-
-    def __init__(self, limit: int = 64) -> None:
-        self.entries: dict[str, DemoWorkspace] = {}
-        self.lock = RLock()
-        self.limit = limit
-
-    def get(self, key: str | None) -> DemoWorkspace | None:
-        with self.lock:
-            now = monotonic()
-            for expired in [
-                sid for sid, item in self.entries.items() if item.expires <= now
-            ]:
-                del self.entries[expired]
-            return self.entries.get(key or "")
-
-    def add(self, services: ServiceBundle, actor: EmployeeSession) -> str:
-        with self.lock:
-            self.get(None)
-            if len(self.entries) >= self.limit:
-                raise ServiceUnavailableError(
-                    "Bản demo đang có nhiều người dùng. Vui lòng thử lại sau."
-                )
-            key = secrets.token_urlsafe(32)
-            self.entries[key] = DemoWorkspace(services, actor, monotonic() + 8 * 3600)
-            return key
-
-    def remove(self, key: str | None) -> None:
-        with self.lock:
-            self.entries.pop(key or "", None)
-
-
-def _demo_bundle(*, customer_portal=False) -> ServiceBundle:
-    from cyberhub_manager.services.mocks.clock import MockClock
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-
-    class RunningClock(MockClock):
-        def now(self) -> datetime:
-            return datetime.now(UTC)
-
-    return build_mock_services(clock=RunningClock(datetime.now(UTC)),p1=True,
-                               customer_offers=customer_portal, pos_samples=not customer_portal)
-
-
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
-    app.config.update(
-        SECRET_KEY=os.getenv("CYBERHUB_SECRET_KEY") or secrets.token_hex(32),
-        WEB_MODE=os.getenv("CYBERHUB_WEB_MODE", "demo"),
-        SESSION_COOKIE_NAME="cyberhub_session",
-        SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=os.getenv("CYBERHUB_COOKIE_SECURE", "false").lower()
-        == "true",
-        PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
-        MAX_CONTENT_LENGTH=16 * 1024,
-        TRUSTED_HOSTS=os.getenv("CYBERHUB_ALLOWED_HOSTS", "").split(",")
-        if os.getenv("CYBERHUB_ALLOWED_HOSTS")
-        else None,
-    )
-    app.config.update(config or {})
-    if app.config["WEB_MODE"] not in ("demo", "mysql"):
-        raise RuntimeError("CYBERHUB_WEB_MODE must be demo or mysql")
-    demo = app.config["WEB_MODE"] == "demo"
+    demo = configure_web_app(app, config)
     if not demo:
-        if len(str(app.config["SECRET_KEY"])) < 32 or not (
-            os.getenv("CYBERHUB_SECRET_KEY") or (config or {}).get("SECRET_KEY")
-        ):
-            raise RuntimeError(
-                "MySQL web mode requires a stable CYBERHUB_SECRET_KEY of at least 32 characters"
-            )
         from cyberhub_manager.config import load_settings
 
         load_settings()
-    if os.getenv("CYBERHUB_TRUST_PROXY", "false").lower() == "true":
+    if app.config["TRUST_PROXY"]:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0)
     registry = DemoRegistry()
     app.extensions["cyberhub_demo"] = registry
@@ -231,23 +100,16 @@ def create_app(config: dict | None = None) -> Flask:
             g.workspace_lock = workspace.lock
             g.services = workspace.services
             return workspace.services.management.validate_actor(workspace.actor)
-        employee_id = session.get("employee_id")
-        if type(employee_id) is not int:
+        if real_services.identity is None:
             return None
-        from cyberhub_manager.database.transaction import transaction
-        from cyberhub_manager.repositories.auth_repository import AuthRepository
-        from cyberhub_manager.services.db_errors import translate_db_errors
-
-        with translate_db_errors():
-            with transaction() as conn:
-                actor = AuthRepository().get_active_session_by_id(conn, employee_id)
+        actor = real_services.identity.resolve(
+            session.get("employee_id"),
+            session.get("employee_auth_version", 0),
+            session.get("store_id"),
+        )
         if actor is None:
             return None
         g.services = real_services
-        if actor.store_id!=session.get("store_id"):
-            from cyberhub_manager.services.access import operating_actor
-            with translate_db_errors(), transaction() as conn:
-                actor = operating_actor(conn,AuthRepository(),replace(actor,store_id=session["store_id"]))
         return actor
 
     @app.before_request
@@ -269,7 +131,7 @@ def create_app(config: dict | None = None) -> Flask:
                     "Invalid request token. Please reload the page.",
                     403,
                 )
-        if request.path not in ("/api/login",):
+        if request.path not in ("/api/login", "/api/register"):
             g.actor = current_actor()
             customer_route = request.path.startswith("/api/portal/")
             if customer_route and g.customer is None:
@@ -282,10 +144,23 @@ def create_app(config: dict | None = None) -> Flask:
                     "Please sign in again.",
                     401,
                 )
+            if (
+                g.actor is not None
+                and g.actor.credential_update_required
+                and request.path not in ("/api/session", "/api/logout", "/api/employee/password")
+            ):
+                return error(
+                    "PASSWORD_CHANGE_REQUIRED",
+                    "Bạn phải đổi mật khẩu tạm trước khi tiếp tục.",
+                    "You must change the temporary password before continuing.",
+                    403,
+                )
         return None
 
     from .assistant import register_assistant
-    if "ASSISTANT_ENABLED" not in (config or {}):
+    if "ASSISTANT_ENABLED" not in (config or {}) and (
+        not app.config["TESTING"] or (config or {}).get("ASSISTANT_FROM_ENV")
+    ):
         from cyberhub_manager.ai.runtime import configure_assistant
         configure_assistant(app)
     register_assistant(app)
@@ -455,11 +330,11 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("index.html", assistant_enabled="cyberhub_assistant" in app.extensions)
+        return render_template("index.html", assistant_enabled=app.config.get("ASSISTANT_ENABLED", False))
 
     @app.get("/customer")
     def customer_portal_page():
-        return render_template("index.html",customer_portal=True, assistant_enabled="cyberhub_assistant" in app.extensions)
+        return render_template("index.html",customer_portal=True, assistant_enabled=app.config.get("ASSISTANT_ENABLED", False))
 
     @app.get("/healthz")
     def health():
@@ -486,26 +361,30 @@ def create_app(config: dict | None = None) -> Flask:
         data = body()
         username, password = text(data, "username"), text(data, "password")
         remote = request.remote_addr or "unknown"
-        with attempts_lock:
-            now = monotonic()
-            times = attempts.setdefault(remote, deque())
-            while times and times[0] < now - 600:
-                times.popleft()
-            if len(times) >= 10:
-                response, status = error(
-                    "RATE_LIMITED",
-                    "Thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 10 phút.",
-                    "Too many sign-in attempts. Please try again in 10 minutes.",
-                    429,
-                )
-                response.headers["Retry-After"] = "600"
-                return response, status
-            times.append(now)
-            attempts.move_to_end(remote)
-            if len(attempts) > 4096:
-                attempts.popitem(last=False)
+        if app.config["LOGIN_RATE_LIMIT_ENABLED"]:
+            with attempts_lock:
+                now = monotonic()
+                times = attempts.setdefault(remote, deque())
+                window = app.config["LOGIN_RATE_LIMIT_WINDOW_SECONDS"]
+                limit = app.config["LOGIN_RATE_LIMIT_ATTEMPTS"]
+                while times and times[0] < now - window:
+                    times.popleft()
+                if len(times) >= limit:
+                    wait_minutes = max(1, (window + 59) // 60)
+                    response, status = error(
+                        "RATE_LIMITED",
+                        f"Thử đăng nhập quá nhiều lần. Vui lòng thử lại sau {wait_minutes} phút.",
+                        f"Too many sign-in attempts. Please try again in {wait_minutes} minutes.",
+                        429,
+                    )
+                    response.headers["Retry-After"] = str(window)
+                    return response, status
+                times.append(now)
+                attempts.move_to_end(remote)
+                if len(attempts) > 4096:
+                    attempts.popitem(last=False)
         customer_login = data.get("kind")=="customer"
-        services = _demo_bundle(customer_portal=customer_login) if demo else real_services
+        services = build_demo_bundle(customer_portal=customer_login) if demo else real_services
         actor = services.portal.login(username,password) if customer_login else services.auth.login(username, password)
         workspace = registry.add(services, actor) if demo else None
         registry.remove(session.get("workspace"))
@@ -515,11 +394,13 @@ def create_app(config: dict | None = None) -> Flask:
         if customer_login:
             session.update(customer_id=actor.customer_id,account_id=actor.account_id,customer_auth_version=actor.auth_version)
         else:
-            session.update(employee_id=actor.employee_id,store_id=actor.store_id)
+            session.update(employee_id=actor.employee_id,store_id=actor.store_id,
+                           employee_auth_version=actor.auth_version)
         if demo:
             session["workspace"] = workspace
-        with attempts_lock:
-            attempts.pop(remote, None)
+        if app.config["LOGIN_RATE_LIMIT_ENABLED"]:
+            with attempts_lock:
+                attempts.pop(remote, None)
         return reply(
             dict(
                 actor=None if customer_login else actor,
@@ -530,6 +411,42 @@ def create_app(config: dict | None = None) -> Flask:
             )
         )
 
+    @app.post("/api/register")
+    def register_customer_account():
+        data = body()
+        password = data.get("password")
+        if password != data.get("confirmation"):
+            raise ValidationError(
+                field_errors={"confirmation": "Xác nhận mật khẩu không khớp"}
+            )
+        services = build_demo_bundle(customer_portal=True) if demo else real_services
+        services.customers.register_customer(
+            data.get("full_name"), data.get("phone"), data.get("username"), password
+        )
+        customer = services.portal.login(data.get("username"), password)
+        workspace = registry.add(services, customer) if demo else None
+        registry.remove(session.get("workspace"))
+        session.clear()
+        session.permanent = True
+        session["csrf"] = secrets.token_urlsafe(32)
+        session.update(
+            customer_id=customer.customer_id,
+            account_id=customer.account_id,
+            customer_auth_version=customer.auth_version,
+        )
+        if demo:
+            session["workspace"] = workspace
+        return reply(
+            dict(
+                actor=None,
+                customer=customer,
+                csrf_token=session["csrf"],
+                mode=app.config["WEB_MODE"],
+                today=today(),
+            ),
+            201,
+        )
+
     @app.post("/api/logout")
     def logout():
         registry.remove(session.get("workspace"))
@@ -537,738 +454,29 @@ def create_app(config: dict | None = None) -> Flask:
         session["csrf"] = secrets.token_urlsafe(32)
         return reply(dict(csrf_token=session["csrf"]))
 
-    @app.get("/api/management")
-    def management_overview():
-        return reply(dict(stores=g.services.management.list_stores(g.actor),permissions=sorted(str(p) for p in ROLE_PERMISSIONS[g.actor.role])))
-
-    @app.post("/api/store/switch")
-    def switch_store():
-        actor = g.services.management.switch_store(g.actor,integer(body(),"store_id",minimum=1))
-        session["store_id"] = actor.store_id
-        if demo:
-            registry.get(session["workspace"]).actor = actor
-        return reply(dict(actor=actor))
-
-    @app.get("/api/stores")
-    def list_stores():
-        return reply(g.services.management.list_stores(g.actor))
-
-    @app.route("/api/stores",methods=["POST"])
-    @app.route("/api/stores/<int:store_id>",methods=["PATCH"])
-    def save_store(store_id=None):
-        d = body()
-        return reply(g.services.management.save_store(g.actor,store_id,text(d,"code"),text(d,"name"),text(d,"address"),d.get("status","ACTIVE")))
-
-    @app.get("/api/employees")
-    def list_employees():
-        return reply(g.services.management.list_employees(g.actor))
-
-    @app.route("/api/employees",methods=["POST"])
-    @app.route("/api/employees/<int:employee_id>",methods=["PATCH"])
-    def save_employee(employee_id=None):
-        d = body()
-        return reply(g.services.management.save_employee(g.actor,employee_id,integer(d,"store_id",minimum=1),
-            text(d,"full_name"),text(d,"username"),d.get("role","STAFF"),d.get("status","ACTIVE"),d.get("password","")))
-
-    @app.get("/api/promotions")
-    def list_promotions():
-        return reply(g.services.management.list_promotions(g.actor))
-
-    @app.route("/api/promotions",methods=["POST"])
-    @app.route("/api/promotions/<int:promotion_id>",methods=["PATCH"])
-    def save_promotion(promotion_id=None):
-        d = body()
-        try:
-            start,end = datetime.fromisoformat(text(d,"starts_at")),datetime.fromisoformat(text(d,"ends_at"))
-        except ValueError:
-            raise ValidationError(field_errors={"ends_at":"Ngày giờ không hợp lệ"}) from None
-        store_id = None if d.get("store_id") is None else integer(d,"store_id",minimum=1)
-        old=next((p for p in g.services.management.list_promotions(g.actor) if p.id==promotion_id),None) if promotion_id else None
-        target=d.get('target_customer_id',old.target_customer_id if old else None)
-        if target is not None:
-            target=integer({'target_customer_id':target},'target_customer_id',minimum=1)
-        policy = Promotion(promotion_id or 0,text(d,"code"),text(d,"name"),store_id,
-                           integer(d,"minimum_amount",minimum=1),integer(d,"bonus_percent"),start,end,d.get("is_active",True),
-                           d.get('minimum_tier',old.minimum_tier if old else 'BRONZE'),
-                           d.get('minimum_points',old.minimum_points if old else 0),target)
-        return reply(g.services.management.save_promotion(g.actor,policy))
-
-    @app.post("/api/customers/<int:customer_id>/topup-preview")
-    def topup_preview(customer_id):
-        return reply(g.services.wallet.preview_top_up(customer_id,integer(body(),"amount",minimum=1),g.actor.employee_id))
-
-    def exported(detail):
-        csv_format = request.args.get("format")=="csv"
-        import re
-        filename = re.sub(r"[^A-Za-z0-9_-]","_",detail.invoice.invoice_code)
-        content = invoice_csv(detail) if csv_format else invoice_html(detail,"en" if english() else "vi")
-        response = Response(content,content_type="text/csv; charset=utf-8" if csv_format else "text/html; charset=utf-8")
-        disposition = "attachment" if csv_format or request.args.get("download")=="1" else "inline"
-        response.headers["Content-Disposition"] = f'{disposition}; filename="{filename}.{ "csv" if csv_format else "html" }"'
-        return response
-
-    @app.get("/api/invoices/<int:invoice_id>/export")
-    def export_invoice(invoice_id):
-        detail = g.services.reports.get_invoice(invoice_id)
-        if detail.invoice.store_id!=g.actor.store_id:
-            raise PermissionDeniedError()
-        return exported(detail)
-
-    @app.get("/api/portal/snapshot")
-    def portal_snapshot():
-        return reply(g.services.portal.snapshot(g.customer))
-
-    def portal_integer(name, default=None):
-        value = request.args.get(name)
-        if value is None:
-            return default
-        try:
-            return int(value)
-        except ValueError:
-            raise ValidationError(field_errors={name: "Số nguyên không hợp lệ"}) from None
-
-    @app.get("/api/portal/dashboard")
-    def portal_dashboard():
-        return reply(g.services.portal.dashboard(g.customer, portal_integer("days", 30), portal_integer("store_id")))
-
-    @app.get("/api/portal/history")
-    def portal_history():
-        return reply(g.services.portal.history(
-            g.customer, request.args.get("kind", "transactions"), request.args.get("status", "all"),
-            request.args.get("date_from"), request.args.get("date_to"),
-            portal_integer("page", 1), portal_integer("page_size", 10)))
-
-    @app.post("/api/portal/topup-preview")
-    def portal_promotion_quote():
-        data = body()
-        return reply(g.services.portal.promotion_quote(
-            g.customer, integer(data, "store_id", minimum=1), integer(data, "amount", minimum=1)))
-
-    @app.get("/api/portal/notifications")
-    def portal_notifications():
-        return reply(g.services.portal.notifications(g.customer))
-
-    @app.post("/api/portal/notifications/read")
-    def portal_notifications_read():
-        return reply(g.services.portal.mark_notifications_read(g.customer, body().get("keys")))
-
-    @app.get("/api/portal/availability")
-    def portal_availability():
-        return reply(g.services.portal.availability(g.customer,portal_integer("store_id")))
-
-    @app.get("/api/portal/usage")
-    def portal_usage():
-        return reply(g.services.portal.usage_analysis(g.customer,portal_integer("days",30)))
-
-    @app.get("/api/portal/profile")
-    def portal_profile():
-        return reply(g.services.portal.profile(g.customer))
-
-    @app.patch("/api/portal/profile")
-    def portal_profile_update():
-        data=body()
-        return reply(g.services.portal.update_profile(g.customer,text(data,"full_name"),text(data,"phone"),data.get("current_password")))
-
-    @app.post("/api/portal/password")
-    def portal_password():
-        data=body()
-        customer=g.services.portal.change_password(g.customer,data.get("current_password"),data.get("new_password"),data.get("confirmation"))
-        session["customer_auth_version"]=customer.auth_version
-        session["csrf"]=secrets.token_urlsafe(32)
-        return reply(dict(customer=customer,csrf_token=session["csrf"]))
-
-    @app.get('/api/portal/member')
-    def portal_member():
-        return reply(g.services.portal.member(g.customer,portal_integer('page',1)))
-
-    @app.get('/api/portal/avatar')
-    def portal_avatar():
-        image=g.services.portal.avatar(g.customer)
-        return Response(image['image_data'],content_type='image/webp')
-
-    @app.post('/api/portal/avatar')
-    def portal_avatar_upload():
-        upload=request.files.get('avatar')
-        if upload is None:
-            raise ValidationError(field_errors={'avatar':'Vui lòng chọn ảnh đại diện'})
-        return reply(g.services.portal.update_avatar(g.customer,upload.read(2*1024*1024+1)))
-
-    @app.delete('/api/portal/avatar')
-    def portal_avatar_remove():
-        return reply(g.services.portal.remove_avatar(g.customer))
-
-    @app.get('/api/loyalty/settings')
-    def loyalty_settings():
-        return reply(g.services.management.loyalty_settings(g.actor))
-
-    @app.put('/api/loyalty/settings')
-    def loyalty_settings_update():
-        data=body()
-        values={k:integer(data,k,minimum=1) for k in ('unit_amount','silver_spend','gold_spend','platinum_spend','version')}
-        return reply(g.services.management.update_loyalty_settings(g.actor,LoyaltySettings(enabled=data.get('enabled'),**values)))
-
-    @app.get("/api/machine-rooms")
-    def machine_rooms():
-        return reply(g.services.management.list_machine_rooms(g.actor))
-
-    @app.patch("/api/machines/<int:machine_id>/room-type")
-    def machine_room_update(machine_id):
-        return reply(g.services.management.set_machine_room(g.actor,machine_id,body().get("room_type")))
-
-    @app.get("/api/portal/invoices/<int:invoice_id>/export")
-    def portal_export(invoice_id):
-        return exported(g.services.portal.invoice(g.customer,invoice_id))
-
-    @app.get("/api/machines")
-    def machines():
-        rooms = {item["machine_id"]: item["room_type"] for item in g.services.management.list_machine_rooms(g.actor)}
-        return reply([
-            dict(serialize(machine), room_type=rooms.get(machine.machine_id, "STANDARD"))
-            for machine in g.services.machines.list_machines(g.actor.store_id)
-        ])
-
-    @app.post("/api/machines")
-    @manager_only
-    def create_machine():
-        data = body()
-        machine = g.services.machines.create_machine(
-            text(data, "code"),
-            g.actor.store_id,
-            text(data, "name"),
-            integer(data, "hourly_rate", minimum=1),
-            g.actor,
-        )
-        return reply(machine_public(machine), 201)
-
-    @app.patch("/api/machines/<int:machine_id>")
-    @manager_only
-    def update_machine(machine_id):
-        data = body()
-        return reply(
-            machine_public(
-                g.services.machines.update_machine(
-                    machine_id,
-                    text(data, "name"),
-                    integer(data, "hourly_rate", minimum=1),
-                    g.actor,
-                )
-            )
-        )
-
-    @app.post("/api/machines/<int:machine_id>/maintenance")
-    @manager_only
-    def maintenance(machine_id):
-        enabled = body().get("enabled")
-        if type(enabled) is not bool:
-            raise ValidationError(field_errors={"enabled": "Giá trị phải là boolean"})
-        return reply(
-            machine_public(
-                g.services.machines.set_maintenance(machine_id, enabled, g.actor)
-            )
-        )
-
-    @app.post("/api/machines/<int:machine_id>/archive")
-    @manager_only
-    def archive(machine_id):
-        return reply(g.services.machines.archive_machine(machine_id, g.actor))
-
-    @app.get("/api/customers")
-    def customers():
-        return reply(
-            g.services.customers.search_customers(request.args.get("keyword", "")[:200])
-        )
-
-    @app.get("/api/customers/<int:customer_id>")
-    def customer(customer_id):
-        return reply(
-            dict(
-                customer=customer_public(
-                    g.services.customers.get_customer(customer_id)
-                ),
-                history=g.services.wallet.get_history(customer_id),
-            )
-        )
-
-    @app.post("/api/customers")
-    def create_customer():
-        data = body()
-        return reply(
-            customer_public(
-                g.services.customers.create_customer(
-                    text(data, "full_name"),
-                    text(data, "phone"),
-                    text(data, "username"),
-                    text(data, "password"),
-                )
-            ),
-            201,
-        )
-
-    @app.patch("/api/customers/<int:customer_id>")
-    def update_customer(customer_id):
-        data = body()
-        return reply(
-            customer_public(
-                g.services.customers.update_customer(
-                    customer_id, text(data, "full_name"), text(data, "phone")
-                )
-            )
-        )
-
-    @app.post("/api/customers/<int:customer_id>/status")
-    @manager_only
-    def customer_status(customer_id):
-        value = body().get("status")
-        if value not in ("ACTIVE", "INACTIVE"):
-            raise ValidationError(field_errors={"status": "Trạng thái không hợp lệ"})
-        return reply(
-            customer_public(
-                g.services.customers.set_customer_status(
-                    customer_id, CustomerStatus(value), g.actor
-                )
-            )
-        )
-
-    @app.post("/api/customers/<int:customer_id>/topup")
-    def topup(customer_id):
-        data = body()
-        return reply(
-            g.services.wallet.top_up(
-                customer_id,
-                integer(data, "amount", minimum=1),
-                method(data),
-                g.actor.employee_id,
-            )
-        )
-
-    @app.post("/api/machines/<int:machine_id>/open-preview")
-    def open_preview(machine_id):
-        return reply(
-            g.services.sessions.preview_open(
-                integer(body(), "customer_id", minimum=1), machine_id, g.actor
-            )
-        )
-
-    @app.post("/api/machines/<int:machine_id>/open")
-    def open_session(machine_id):
-        return reply(
-            g.services.sessions.open_session(
-                integer(body(), "customer_id", minimum=1), machine_id, g.actor
-            ),
-            201,
-        )
-
-    @app.get("/api/machines/<int:machine_id>/checkout-preview")
-    def checkout_preview(machine_id):
-        return reply(
-            g.services.sessions.preview_checkout(machine_id, datetime.now(UTC))
-        )
-
-    @app.post("/api/machines/<int:machine_id>/checkout")
-    def checkout(machine_id):
-        data = body()
-        amount = integer(data, "settlement_amount")
-        payment = method(data, optional=True)
-        if amount == 0 and payment is not None:
-            raise ValidationError(
-                field_errors={"method": "Không chọn phương thức khi không cần tiền bù"}
-            )
-        # Real service rechecks under database locks. Mirror the exact contract in demo.
-        if demo:
-            preview = g.services.sessions.preview_checkout(
-                machine_id, datetime.now(UTC)
-            )
-            if amount != preview.settlement_required:
-                raise ValidationError(
-                    field_errors={
-                        "settlement_amount": "Tiền bù phải bằng đúng số tiền còn thiếu"
-                    },
-                    details={"settlement_required": preview.settlement_required},
-                )
-        return reply(
-            g.services.sessions.complete_checkout(machine_id, g.actor, amount, payment)
-        )
-
-    @app.get("/api/invoices")
-    def invoices():
-        status = request.args.get("status") or None
-        if status not in (None, "PAID", "VOID"):
-            raise ValidationError(field_errors={"status": "Trạng thái không hợp lệ"})
-        filters = InvoiceFilters(
-            date_from=query_date("date_from", today() - timedelta(days=30)),
-            date_to=query_date("date_to", today()),
-            keyword=request.args.get("keyword", "")[:200],
-            status=InvoiceStatus(status) if status else None,
-        )
-        return reply(g.services.reports.list_invoices(g.actor.store_id, filters))
-
-    @app.get("/api/invoices/<int:invoice_id>")
-    def invoice(invoice_id):
-        detail = g.services.reports.get_invoice(invoice_id)
-        if detail.invoice.store_id!=g.actor.store_id:
-            raise PermissionDeniedError()
-        return reply(detail)
-
-    @app.get("/api/revenue")
-    @manager_only
-    def revenue():
-        start = query_date("date_from", today() - timedelta(days=6))
-        end = query_date("date_to", today())
-        if start > end or (end - start).days > 3660:
-            raise ValidationError(
-                field_errors={"date_to": "Chọn khoảng ngày hợp lệ, tối đa 10 năm"}
-            )
-        days = g.services.reports.daily_revenue(g.actor.store_id, start, end)
-        pos = g.services.menu.paid_revenue(g.actor, start, end)
-        by_day = {item.date: dict(date=item.date, invoice_count=item.invoice_count,
-                                  machine_revenue=item.revenue, menu_order_count=0,
-                                  menu_revenue=0, refund_count=0, revenue=item.revenue) for item in days}
-        for item in pos["days"]:
-            day = by_day.setdefault(item["date"], dict(date=item["date"], invoice_count=0,
-                                    machine_revenue=0, menu_order_count=0,
-                                    menu_revenue=0, refund_count=0, revenue=0))
-            day["menu_order_count"] = item["order_count"]
-            day["menu_revenue"] = item["revenue"]
-            day["refund_count"] = item["refund_count"]
-            day["revenue"] += item["revenue"]
-        combined = [by_day[day] for day in sorted(by_day)]
-        return reply(
-            dict(
-                days=combined,
-                date_from=start,
-                date_to=end,
-                machine_revenue=sum(item.revenue for item in days),
-                menu_revenue=sum(item["revenue"] for item in pos["days"]),
-                menu_order_count=sum(item["order_count"] for item in pos["days"]),
-                refund_count=sum(item["refund_count"] for item in pos["days"]),
-                top_menu_items=pos["top_items"],
-                total_revenue=sum(item["revenue"] for item in combined),
-                invoice_count=sum(item.invoice_count for item in days),
-            )
-        )
-
-    # ----- Đợt 1: menu đồ ăn/đồ uống ----------------------------------------------
-    # Kiểu dữ liệu (int/bool) được MenuService kiểm tra; route chỉ chuyển giá trị thô.
-    @app.get("/api/portal/menu")
-    def portal_menu():
-        return reply(g.services.menu.portal_menu(g.customer, portal_integer("store_id")))
-
-    @app.post("/api/portal/menu/orders")
-    def portal_menu_order():
-        data = body()
-        return reply(
-            g.services.menu.place_order(g.customer, data.get("lines"), data.get("note", "")), 201
-        )
-
-    @app.get("/api/portal/menu/items/<int:item_id>/image")
-    def portal_menu_image(item_id):
-        return Response(g.services.menu.portal_image(g.customer, item_id), content_type="image/webp")
-
-    @app.get("/api/menu")
-    def menu_manage():
-        return reply(g.services.menu.manage_menu(g.actor))
-
-    @app.get("/api/inventory")
-    def inventory_overview():
-        return reply(g.services.menu.inventory_overview(g.actor))
-
-    @app.post("/api/inventory/ingredients")
-    def inventory_ingredient_create():
-        data = body()
-        return reply(g.services.menu.add_ingredient(
-            g.actor, name=data.get("name"), unit=data.get("unit"),
-            reorder_point=data.get("reorder_point", 0),
-        ), 201)
-
-    @app.post("/api/inventory/ingredients/<int:ingredient_id>/receipts")
-    def inventory_ingredient_receive(ingredient_id):
-        data = body()
-        return reply(g.services.menu.receive_ingredient(
-            g.actor, ingredient_id, quantity=data.get("quantity"),
-            reference_code=data.get("reference_code"),
-            request_id=data.get("request_id"), note=data.get("note", ""),
-        ))
-
-    @app.post("/api/inventory/ingredients/<int:ingredient_id>/movements")
-    def inventory_ingredient_move(ingredient_id):
-        data = body()
-        return reply(g.services.menu.move_ingredient(
-            g.actor, ingredient_id, kind=data.get("kind"), quantity=data.get("quantity"),
-            reference_code=data.get("reference_code"), request_id=data.get("request_id"),
-            note=data.get("note", ""),
-        ))
-
-    @app.post("/api/inventory/ingredients/<int:ingredient_id>/counts")
-    def inventory_count_propose(ingredient_id):
-        data = body()
-        return reply(g.services.menu.propose_inventory_count(
-            g.actor, ingredient_id, counted_on_hand=data.get("counted_on_hand"),
-            reason=data.get("reason"), request_id=data.get("request_id"),
-        ), 201)
-
-    @app.post("/api/inventory/counts/<int:count_id>/decision")
-    def inventory_count_decide(count_id):
-        data = body()
-        return reply(g.services.menu.decide_inventory_count(
-            g.actor, count_id, approve=data.get("approve"),
-        ))
-
-    @app.put("/api/inventory/items/<int:item_id>/recipe")
-    def inventory_item_recipe(item_id):
-        data = body()
-        return reply(g.services.menu.set_item_recipe(
-            g.actor, item_id, parts=data.get("parts"),
-            track_stock=data.get("track_stock", True),
-        ))
-
-    @app.route("/api/menu/categories", methods=["POST"])
-    @app.route("/api/menu/categories/<int:category_id>", methods=["PATCH"])
-    def menu_category_save(category_id=None):
-        data = body()
-        return reply(
-            g.services.menu.save_category(
-                g.actor,
-                category_id,
-                page=data.get("page"),
-                name=data.get("name"),
-                sort_order=data.get("sort_order", 0),
-                is_active=data.get("is_active", True),
-            )
-        )
-
-    @app.route("/api/menu/items", methods=["POST"])
-    @app.route("/api/menu/items/<int:item_id>", methods=["PATCH"])
-    def menu_item_save(item_id=None):
-        data = body()
-        return reply(
-            g.services.menu.save_item(
-                g.actor,
-                item_id,
-                category_id=data.get("category_id"),
-                name=data.get("name"),
-                description=data.get("description", ""),
-                price=data.get("price"),
-                sort_order=data.get("sort_order", 0),
-                is_visible=data.get("is_visible", True),
-                is_available=data.get("is_available", True),
-            )
-        )
-
-    @app.post("/api/menu/items/<int:item_id>/availability")
-    def menu_item_availability(item_id):
-        return reply(g.services.menu.set_item_available(g.actor, item_id, body().get("available")))
-
-    @app.get("/api/menu/items/<int:item_id>/image")
-    def menu_item_image(item_id):
-        return Response(g.services.menu.item_image(g.actor, item_id), content_type="image/webp")
-
-    @app.post("/api/menu/items/<int:item_id>/image")
-    def menu_item_image_upload(item_id):
-        upload = request.files.get("image")
-        if upload is None:
-            raise ValidationError(field_errors={"image": "Vui lòng chọn ảnh món"})
-        return reply(g.services.menu.upload_item_image(g.actor, item_id, upload.read(2 * 1024 * 1024 + 1)))
-
-    @app.get("/api/menu/items/<int:item_id>/history")
-    def menu_item_history(item_id):
-        return reply(g.services.menu.item_history(g.actor, item_id))
-
-    @app.get("/api/menu/orders")
-    def menu_orders():
-        return reply(g.services.menu.list_orders(g.actor, request.args.get("status", "NEW")))
-
-    @app.get("/api/menu/promotions")
-    def menu_promotions():
-        return reply(g.services.menu.list_promotions(g.actor))
-
-    @app.route("/api/menu/promotions", methods=["POST"])
-    @app.route("/api/menu/promotions/<int:promotion_id>", methods=["PATCH"])
-    def menu_promotion_save(promotion_id=None):
-        data = body()
-        try:
-            starts_at = datetime.fromisoformat(data.get("starts_at", ""))
-            ends_at = datetime.fromisoformat(data.get("ends_at", ""))
-        except (TypeError, ValueError):
-            raise ValidationError(field_errors={"starts_at": "Nhập thời gian hợp lệ có múi giờ"}) from None
-        return reply(g.services.menu.save_promotion(g.actor, promotion_id=promotion_id,
-            code=data.get("code"), kind=data.get("kind"), item_id=data.get("item_id"),
-            value=data.get("value"), minimum_tier=data.get("minimum_tier"),
-            starts_at=starts_at, ends_at=ends_at, is_active=data.get("is_active")))
-
-    @app.post("/api/menu/orders/<int:order_id>/status")
-    def menu_order_status(order_id):
-        payload = body()
-        return reply(g.services.menu.finish_order(
-            g.actor, order_id, payload.get("status"), reason=payload.get("reason"),
-        ))
-
-    @app.post("/api/menu/orders/<int:order_id>/payment")
-    def menu_order_payment(order_id):
-        return reply(g.services.menu.pay_order(g.actor, order_id, body().get("method")))
-
-    @app.post("/api/menu/orders/<int:order_id>/reversal")
-    def menu_order_reversal_request(order_id):
-        data = body()
-        return reply(g.services.menu.request_reversal(
-            g.actor, order_id, reason=data.get("reason"), disposition=data.get("disposition")))
-
-    @app.get("/api/menu/reversals")
-    def menu_order_reversals():
-        return reply(g.services.menu.list_reversals(g.actor, request.args.get("status", "PENDING")))
-
-    @app.post("/api/menu/orders/<int:order_id>/reversal/decision")
-    def menu_order_reversal_decision(order_id):
-        data = body()
-        return reply(g.services.menu.decide_reversal(
-            g.actor, order_id, approve=data.get("approve"),
-            refund_confirmed=data.get("refund_confirmed", False),
-            refund_method=data.get("refund_method"),
-            refund_reference=data.get("refund_reference")))
-
-    # ----- Đợt 2: voucher và phần thưởng ------------------------------------------
-    @app.get("/api/portal/vouchers")
-    def portal_vouchers():
-        return reply(g.services.vouchers.portal_vouchers(g.customer))
-
-    @app.get("/api/vouchers")
-    def vouchers_overview():
-        return reply(g.services.vouchers.overview(g.actor))
-
-    @app.route("/api/rewards", methods=["POST"])
-    @app.route("/api/rewards/<int:catalog_id>", methods=["PATCH"])
-    def reward_save(catalog_id=None):
-        data = body()
-        return reply(
-            g.services.vouchers.save_reward(
-                g.actor,
-                catalog_id,
-                code=data.get("code"),
-                name=data.get("name"),
-                reward_type=data.get("reward_type"),
-                value=data.get("value"),
-                min_order_amount=data.get("min_order_amount", 0),
-                valid_days=data.get("valid_days"),
-                coin_cost=data.get("coin_cost"),
-                is_active=data.get("is_active", True),
-                all_stores=data.get("all_stores", False),
-            )
-        )
-
-    @app.post("/api/vouchers/issue")
-    def voucher_issue():
-        data = body()
-        return reply(g.services.vouchers.issue_voucher(g.actor, data.get("catalog_id"), data.get("customer_id")), 201)
-
-    @app.get("/api/vouchers/lookup")
-    def voucher_lookup():
-        return reply(g.services.vouchers.lookup(g.actor, request.args.get("code", "")[:40]))
-
-    @app.post("/api/vouchers/redeem")
-    def voucher_redeem():
-        data = body()
-        return reply(
-            g.services.vouchers.redeem(g.actor, data.get("code"), data.get("customer_id"), data.get("order_id"))
-        )
-
-    @app.post("/api/vouchers/<int:voucher_id>/revoke")
-    def voucher_revoke(voucher_id):
-        return reply(g.services.vouchers.revoke(g.actor, voucher_id, body().get("reason")))
-
-    # ----- Đợt 3: vòng quay và xu game ----------------------------------------------
-    @app.get("/api/portal/game")
-    def portal_game():
-        return reply(g.services.games.portal_game(g.customer))
-
-    @app.post("/api/portal/game/spin")
-    def portal_game_spin():
-        # Không đọc body: kết quả do máy chủ bốc thăm, trình duyệt không gửi điểm/kết quả.
-        return reply(g.services.games.spin(g.customer))
-
-    @app.post("/api/portal/game/redeem")
-    def portal_game_redeem():
-        data = body()
-        return reply(g.services.games.redeem(g.customer, data.get("catalog_id"), data.get("request_key")))
-
-    @app.get("/api/games")
-    def games_manage():
-        return reply(g.services.games.manage(g.actor))
-
-    @app.put("/api/games")
-    def games_save():
-        data = body()
-        return reply(
-            g.services.games.save_game(
-                g.actor,
-                is_active=data.get("is_active"),
-                daily_limit=data.get("daily_limit"),
-                min_interval_seconds=data.get("min_interval_seconds"),
-                prizes=data.get("prizes"),
-            )
-        )
-
-    @app.post("/api/games/wallets/<int:account_id>/lock")
-    def games_wallet_lock(account_id):
-        data = body()
-        return reply(g.services.games.set_wallet_lock(g.actor, account_id, data.get("locked"), data.get("reason", "")))
-
-    # ----- Đợt 4: quảng cáo nhận thưởng ----------------------------------------------
-    @app.get("/api/portal/ads")
-    def portal_ads():
-        return reply(g.services.ads.portal_ads(g.customer))
-
-    @app.post("/api/portal/ads/start")
-    def portal_ads_start():
-        return reply(g.services.ads.start(g.customer))
-
-    @app.post("/api/portal/ads/complete")
-    def portal_ads_complete():
-        # Chỉ nhận token; thời lượng xem do máy chủ tự đo, không tin số giây trình duyệt gửi.
-        return reply(g.services.ads.complete(g.customer, body().get("token")))
-
-    @app.get("/api/ads")
-    def ads_overview():
-        return reply(g.services.ads.overview(g.actor))
-
-    @app.put("/api/ads/settings")
-    def ads_settings():
-        data = body()
-        return reply(
-            g.services.ads.save_settings(
-                g.actor,
-                enabled=data.get("enabled"),
-                mode=data.get("mode"),
-                daily_cap=data.get("daily_cap"),
-                reward_type=data.get("reward_type"),
-                reward_amount=data.get("reward_amount"),
-            )
-        )
-
-    @app.route("/api/ads/creatives", methods=["POST"])
-    @app.route("/api/ads/creatives/<int:creative_id>", methods=["PATCH"])
-    def ads_creative_save(creative_id=None):
-        data = body()
-        return reply(
-            g.services.ads.save_creative(
-                g.actor,
-                creative_id,
-                code=data.get("code"),
-                title=data.get("title"),
-                body=data.get("body"),
-                cta=data.get("cta", ""),
-                duration_seconds=data.get("duration_seconds"),
-                is_active=data.get("is_active", True),
-            )
-        )
-
-    @app.get("/ads/callback")
-    def ads_network_callback():
-        # Callback server-to-server của mạng quảng cáo: không có phiên đăng nhập, xác thực bằng chữ ký HMAC.
-        # Nằm ngoài /api nên không qua kiểm tra đăng nhập/CSRF; chỉ hoạt động ở chế độ MySQL.
-        if real_services is None:
-            return error("NOT_AVAILABLE", "Không hỗ trợ ở chế độ demo", "Not available in demo mode", 404)
-        result = real_services.ads.verify_network_callback(
-            request.args.get("token", "")[:64], request.args.get("txn", "")[:100], request.args.get("sig", "")[:128]
-        )
-        return reply(dict(ok=True, reward_type=result["reward_type"], reward_amount=result["reward_amount"]))
+    register_operations_routes(
+        app,
+        reply=reply,
+        body=body,
+        text=text,
+        integer=integer,
+        method=method,
+        query_date=query_date,
+        today=today,
+        manager_only=manager_only,
+        english=english,
+        registry=registry,
+        demo=demo,
+    )
+
+    register_feature_routes(
+        app,
+        reply=reply,
+        body=body,
+        error=error,
+        real_services=real_services,
+    )
+
+    register_business_routes(app, reply=reply, body=body)
 
     return app

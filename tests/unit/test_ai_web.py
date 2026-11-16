@@ -33,7 +33,7 @@ def ctx(tmp_path):
         docs = [KnowledgeDocument(
             document_id=role.lower(), title=role, content=f"Quy định dành riêng cho {role}.",
             source=f"shared/{role.lower()}.md", audience=(role,), status="APPROVED", version=1,
-        ) for role in ("CUSTOMER", "STAFF", "MANAGER", "ADMIN")]
+        ) for role in ("CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN")]
         holder.retriever.rebuild(docs)
         holder.service = RAGAssistantService(holder.retriever, holder.llm, audit=sink)
         holder.store = sink
@@ -73,6 +73,7 @@ def workspace(ctx):
 
 @pytest.mark.parametrize("username,kind,role", [
     ("nhanvien01", "employee", "STAFF"), ("quanly01", "employee", "MANAGER"),
+    ("bep01", "employee", "KITCHEN"), ("thukho01", "employee", "INVENTORY"),
     ("admin01", "employee", "ADMIN"), ("nguyenvanan", "customer", "CUSTOMER"),
 ])
 def test_authenticated_role_matrix_uses_only_own_backend_sources(ctx, username, kind, role):
@@ -89,7 +90,7 @@ def test_authenticated_role_matrix_uses_only_own_backend_sources(ctx, username, 
     assert json.loads(row["store_ids"]) == ([] if kind == "customer" else [1])
     assert row["result"] == "ANSWERED"
     assert role in ctx.llm.calls[0].user_prompt
-    for other in {"CUSTOMER", "STAFF", "MANAGER", "ADMIN"} - {role}:
+    for other in {"CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN"} - {role}:
         assert f'Quy định dành riêng cho {other}' not in ctx.llm.calls[0].user_prompt
     assert response.headers["Cache-Control"] == "no-store"
 

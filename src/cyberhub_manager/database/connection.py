@@ -75,7 +75,7 @@ def get_connection() -> PooledMySQLConnection:
 
 @contextmanager
 def get_db_connection() -> Generator[PooledMySQLConnection, None, None]:
-    """Context Manager quản lý mượn/trả kết nối và commit/rollback transaction.
+    """Compatibility wrapper around the canonical transaction boundary.
     
     Usage:
         with get_db_connection() as conn:
@@ -83,17 +83,10 @@ def get_db_connection() -> Generator[PooledMySQLConnection, None, None]:
             cursor.execute("SELECT * FROM accounts WHERE id = %s", (account_id,))
             result = cursor.fetchone()
     """
-    conn = get_connection()
-    try:
+    from cyberhub_manager.database.transaction import transaction
+
+    with transaction() as conn:
         yield conn
-        conn.commit()
-    except Exception as exc:
-        conn.rollback()
-        logger.error("Transaction bị hủy (rollback) do phát sinh ngoại lệ: %s", exc)
-        raise
-    finally:
-        # conn.close() đối với PooledMySQLConnection sẽ trả kết nối lại pool, không đóng TCP socket
-        conn.close()
 
 
 @contextmanager

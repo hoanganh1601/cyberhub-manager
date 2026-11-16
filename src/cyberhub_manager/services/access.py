@@ -8,7 +8,9 @@ from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.repositories.p1_repository import P1Repository
 
 
-def operating_actor(conn, auth_repo, requested: EmployeeSession) -> EmployeeSession:
+def operating_actor(
+    conn, auth_repo, requested: EmployeeSession, *, store_repo=None
+) -> EmployeeSession:
     current = auth_repo.get_active_session_by_id(conn, requested.employee_id)
     if current is None or current.role != requested.role:
         raise PermissionDeniedError()
@@ -16,7 +18,8 @@ def operating_actor(conn, auth_repo, requested: EmployeeSession) -> EmployeeSess
         return current
     if current.role != Role.ADMIN:
         raise PermissionDeniedError()
-    target = P1Repository().store(conn, requested.store_id, lock="share")
+    stores = store_repo or P1Repository()
+    target = stores.store(conn, requested.store_id, lock="share")
     if target is None or target.status != "ACTIVE":
         raise PermissionDeniedError()
     return replace(

@@ -5,7 +5,7 @@ from datetime import timezone
 
 def _rows(conn, sql, params=()):
     # Local import avoids a circular dependency with the existing P1 adapter.
-    from .p1_repository import rows
+    from .sql import rows
 
     result = rows(conn, sql, params)
     for item in result:
@@ -40,7 +40,7 @@ class PortalRepositoryMixin:
         return result[0] if result else None
 
     def set_machine_room(self, conn, machine_id, room_type):
-        from .p1_repository import execute
+        from .sql import execute
 
         execute(
             conn,
@@ -105,7 +105,7 @@ class PortalRepositoryMixin:
         )
 
     def portal_update_profile(self, conn, principal, name, phone):
-        from .p1_repository import execute
+        from .sql import execute
 
         execute(
             conn,
@@ -114,7 +114,7 @@ class PortalRepositoryMixin:
         )
 
     def portal_change_password(self, conn, principal, password_hash):
-        from .p1_repository import execute
+        from .sql import execute
 
         execute(
             conn,
@@ -260,7 +260,7 @@ class PortalRepositoryMixin:
         }
 
     def portal_mark_read(self, conn, principal, keys):
-        from .p1_repository import execute
+        from .sql import execute
 
         for key in keys:
             execute(

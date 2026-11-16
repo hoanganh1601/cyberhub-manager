@@ -5,16 +5,24 @@ from contextlib import contextmanager
 
 from cyberhub_manager.services.contracts import ServiceBundle
 
-from .auth import MockAuthService
+from .application_services import (
+    MockAuthService,
+    MockCustomerService,
+    MockMachineService,
+    MockReportService,
+    MockSessionService,
+    MockWalletService,
+)
 from .clock import MockClock
-from .customers import MockCustomerService
-from .fixtures import seed_empty, seed_success
-from .machines import MockMachineService
-from .reports import MockReportService
-from .scenarios import MockScenario
-from .sessions import MockSessionService
-from .store import MockDataStore
-from .wallet import MockWalletService
+from .demo_data import DEMO_PASSWORD, MockDataStore, MockScenario, seed_empty, seed_success
+from .repositories import (
+    MemoryAdRepository,
+    MemoryGameRepository,
+    MemoryInventoryRepository,
+    MemoryMenuRepository,
+    MemoryP1Repository,
+    MemoryVoucherRepository,
+)
 
 
 # Demo prices in VND per hour for each PC. Change these values, restart the
@@ -50,14 +58,12 @@ def build_mock_services(
     seed(data, clock.now())
     from cyberhub_manager.domain.loyalty import invoice_award
     data.invoice_loyalty.update({i.id:invoice_award(i.usage_cost,data.invoice_bonus.get(i.id,0),data.loyalty_settings) for i in data.invoices.values()})
-    from .p1 import MemoryP1Repository
     from cyberhub_manager.services.management_service import ManagementService
     from cyberhub_manager.services.portal_service import PortalService
     if p1:
         from cyberhub_manager.domain.models import Employee, Store
         from cyberhub_manager.domain.enums import EmployeeStatus, Role, StoreStatus
         from cyberhub_manager.security import hash_password
-        from .fixtures import DEMO_PASSWORD
         admin_id = data.next_id("employee")
         data.employees[admin_id] = Employee(admin_id,data.make_code("employee",admin_id),"Quản trị CyberHub",1,"admin01",Role.ADMIN,EmployeeStatus.ACTIVE)
         data.employee_passwords["admin01"] = DEMO_PASSWORD
@@ -95,14 +101,15 @@ def build_mock_services(
                 machine.name, DEMO_ROOM_HOURLY_RATES[repo.room_types[machine.id]]
             )
     # Đợt 1: menu demo cho mọi cơ sở, dùng chung khóa/transaction với repo P1.
-    from .menu import MemoryMenuRepository
     from cyberhub_manager.services.menu_service import MenuService
     menu_repo = MemoryMenuRepository(data, repo, clock=clock.now)
     menu_repo.seed_demo()
+    inventory_repo = MemoryInventoryRepository(menu_repo, clock.now)
+    menu_repo.inventory_repo = inventory_repo
+    inventory_repo.seed_demo()
     if pos_samples and scenario == MockScenario.SUCCESS:
         menu_repo.seed_pos_orders()
     # Đợt 2: danh mục phần thưởng + voucher mẫu.
-    from .voucher import MemoryVoucherRepository
     from cyberhub_manager.services.voucher_service import VoucherService
     voucher_repo = MemoryVoucherRepository(data, repo, clock=clock.now)
     voucher_repo.seed_demo()
@@ -114,11 +121,9 @@ def build_mock_services(
     vouchers = VoucherService(repo=voucher_repo,p1_repo=repo,menu_repo=menu_repo,
                               transaction_factory=food_voucher_transaction,clock=clock.now)
     # Đợt 3: vòng quay + ví xu, transaction bọc voucher để đổi xu và phát voucher cùng rollback.
-    from .game import MemoryGameRepository
     from cyberhub_manager.services.game_service import GameService
     game_repo = MemoryGameRepository(data, voucher_repo)
     # Đợt 4: quảng cáo nội bộ; sự kiện lưu trong game_repo để vòng quay đếm lượt thêm.
-    from .ad import MemoryAdRepository
     from cyberhub_manager.services.ad_service import AdService
     ad_repo = MemoryAdRepository(data, game_repo)
     return ServiceBundle(
@@ -130,7 +135,8 @@ def build_mock_services(
         reports=MockReportService(data, clock, scenario),
         management=ManagementService(repo=repo,transaction_factory=repo.transaction),
         portal=PortalService(repo=repo,transaction_factory=repo.transaction,clock=clock.now),
-        menu=MenuService(repo=menu_repo,p1_repo=repo,transaction_factory=menu_repo.transaction,clock=clock.now),
+        menu=MenuService(repo=menu_repo,p1_repo=repo,inventory_repo=inventory_repo,
+                         transaction_factory=menu_repo.transaction,clock=clock.now),
         vouchers=vouchers,
         games=GameService(repo=game_repo,p1_repo=repo,vouchers=vouchers,
                           transaction_factory=game_repo.transaction,clock=clock.now),

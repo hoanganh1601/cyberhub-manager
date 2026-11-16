@@ -17,6 +17,8 @@ venv/
 !.env.example
 
 # Runtime output
+runtime/
+*.sqlite3
 *.log
 *.sql.gz
 *.dump

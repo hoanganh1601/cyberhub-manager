@@ -108,6 +108,34 @@ def test_customer_cannot_call_employee_apis_or_export_another_invoice(client):
     assert client.get("/customer").status_code == 200
 
 
+def test_admin_reset_password_api_covers_kitchen_and_inventory_without_exposing_secret(client):
+    headers = login(client, "admin01")
+    employees = client.get("/api/employees").json
+    specialist_roles = {employee["role"] for employee in employees}
+    assert {"KITCHEN", "INVENTORY"} <= specialist_roles
+    target = next(employee for employee in employees if employee["role"] == "KITCHEN")
+    response = client.post(
+        f'/api/employees/{target["id"]}/reset-password',
+        json={"temporary_password": "Temporary!2026", "confirm_password": "Temporary!2026"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.json
+    assert response.json["credential_update_required"] is True
+    assert "password_hash" not in response.json
+    assert "temporary_password" not in response.json
+
+
+def test_manager_cannot_call_admin_password_reset_api(client):
+    headers = login(client, "quanly01")
+    target = next(employee for employee in client.get("/api/employees").json if employee["role"] == "STAFF")
+    response = client.post(
+        f'/api/employees/{target["id"]}/reset-password',
+        json={"temporary_password": "Temporary!2026", "confirm_password": "Temporary!2026"},
+        headers=headers,
+    )
+    assert response.status_code == 403
+
+
 def test_printable_and_csv_exports_scoped_and_localized(client):
     login(client, "nhanvien01")
     html = client.get("/api/invoices/1/export", headers={"X-Language": "en"})

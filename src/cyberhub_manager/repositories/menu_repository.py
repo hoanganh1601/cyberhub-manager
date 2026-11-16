@@ -18,7 +18,7 @@ from cyberhub_manager.domain.menu import (
     MenuPaymentMethod,
     MenuPage,
 )
-from cyberhub_manager.repositories.p1_repository import execute, rows
+from cyberhub_manager.repositories.sql import execute, rows
 
 _ITEM_SELECT = """
     SELECT i.id, i.store_id, i.category_id, i.name, i.description, i.price, i.sort_order,

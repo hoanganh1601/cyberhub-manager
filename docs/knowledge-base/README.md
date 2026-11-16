@@ -1,14 +1,10 @@
 # Kho tri thức CyberHub — Đợt 5A, bước 1–11 và 12A–12B
 
-Kho này chứa hướng dẫn nghiệp vụ tĩnh cho trợ lý RAG. Phạm vi hiện tại là tài liệu
-Markdown, model Python, loader, chunker, interface/fake provider, chỉ mục cosine,
-retriever, bộ tạo prompt và RAG service có kiểm tra nguồn/quyền, audit metadata,
-timeout, kiểm thử fake, bộ đánh giá offline và UI chat mock riêng. API dùng phiên
-đăng nhập, quota và audit đã có dưới feature flag mặc định tắt (12A–12B).
-Chưa có embedding/LLM ngữ nghĩa thật hoặc UI nối API thật.
-Model/chunker/provider/retrieval/prompt/service chỉ
-dùng thư viện chuẩn; loader dùng PyYAML SafeLoader (được cài cùng dự án). Không
-cần API key hoặc MySQL cho các bước này.
+Kho này chứa hướng dẫn nghiệp vụ tĩnh cho trợ lý RAG. Pipeline hiện có loader,
+chunker, retrieval theo quyền, Gemini embedding/LLM, kiểm chứng câu trả lời,
+API dùng phiên đăng nhập, quota/audit và UI chat thật. Tính năng mặc định tắt và
+chỉ được bật ở backend bằng API key cùng audit path riêng. Unit test dùng provider
+giả/offline; chạy Gemini thật mới cần API key và gửi kho APPROVED tới Google.
 
 ## Nội dung và trạng thái
 
@@ -16,23 +12,29 @@ cần API key hoặc MySQL cho các bước này.
 |---|---|---|
 | [Thuật ngữ](shared/glossary.md) | Tất cả vai trò | APPROVED |
 | [Câu hỏi chung](shared/faq.md) | Tất cả vai trò | APPROVED |
-| [Chính sách vai trò](shared/role-policy.md) | Nhân sự | DRAFT — chờ Đợt 0 |
+| [Chính sách vai trò](shared/role-policy.md) | Nhân sự | APPROVED |
 | [Tài khoản và avatar](customer/account-guide.md) | Khách hàng | APPROVED |
+| [Game Center](customer/game-center.md) | Khách hàng | APPROVED |
 | [Thành viên](customer/membership-policy.md) | Khách hàng | APPROVED |
 | [Ưu đãi cho khách](customer/promotion-policy.md) | Khách hàng | APPROVED |
 | [Vận hành máy](staff/machine-operation.md) | Nhân viên, quản lý, admin | APPROVED |
 | [Quản lý khách hàng](staff/customer-management.md) | Nhân viên, quản lý, admin | APPROVED |
 | [Nạp tiền](staff/top-up-process.md) | Nhân viên, quản lý, admin | APPROVED |
 | [Thanh toán](staff/payment-process.md) | Nhân viên, quản lý, admin | APPROVED |
+| [POS đồ ăn](staff/menu-pos.md) | Nhân viên, quản lý, admin | APPROVED |
+| [Nghiệp vụ Bếp](staff/kitchen-operation.md) | Bếp, quản lý, admin | APPROVED |
+| [Nghiệp vụ Thủ kho](staff/inventory-operation.md) | Thủ kho, quản lý, admin | APPROVED |
+| [Ca, két và bảo trì](staff/operations-control.md) | Nhân sự nội bộ | APPROVED |
 | [Chính sách doanh thu](manager/revenue-policy.md) | Quản lý, admin | DRAFT — chờ Đợt 0 |
 | [Quản lý khuyến mãi](manager/promotion-management.md) | Quản lý, admin | APPROVED |
 | [Quản lý nhân viên](admin/employee-management.md) | Admin | APPROVED |
+| [Đặt lại mật khẩu nhân viên](admin/employee-password-reset.md) | Admin | APPROVED |
 | [Cấu hình thành viên](admin/system-configuration.md) | Admin | APPROVED |
 
 `APPROVED` ở bản khởi đầu đánh dấu nội dung đối chiếu được với nghiệp vụ đang có
 và quyết định đã chốt, không xác nhận hệ thống RAG đã chạy. Chủ nghiệp vụ cần duyệt
-lại khi thay đổi quy trình. Các tài liệu DRAFT giữ lại chính sách đã thống nhất
-nhưng chưa nghiệm thu Đợt 0; tuyệt đối không đưa chúng vào chỉ mục phục vụ hỏi đáp.
+lại khi thay đổi quy trình. Tài liệu DRAFT giữ lại chính sách chưa nghiệm thu;
+tuyệt đối không đưa chúng vào chỉ mục phục vụ hỏi đáp.
 
 Không index README này, tài liệu bàn giao tổng thể, toàn bộ thư mục `docs`, mã nguồn,
 file cấu hình, thông tin đăng nhập, ảnh bằng chứng hoặc dữ liệu khách hàng thật.
@@ -123,15 +125,15 @@ fallback = AssistantAnswer(
 
 ## Bàn giao cho người làm Đợt 0 và bước tiếp theo
 
-1. Người làm Đợt 0 xác nhận chính sách doanh thu đúng với route, service và UI.
-2. Rà soát hai tài liệu DRAFT; khi đạt nghiệm thu mới cập nhật trạng thái,
+1. Chủ nghiệp vụ xác nhận chính sách doanh thu đúng với route, service và UI.
+2. Rà soát tài liệu DRAFT còn lại; khi đạt nghiệm thu mới cập nhật trạng thái,
    ngày và tăng phiên bản.
 3. Bước 3–4 đã có loader/chunker: chỉ nhận Markdown nghiệp vụ hợp lệ và APPROVED;
    không coi kiểm tra model hoặc chunking là kiểm tra quyền của người hỏi.
-4. Bước 5–11 có interface/fake provider, retrieval, prompt, service, bộ đánh giá
-   và UI mock; tiếp theo là xử lý các ca chưa đạt và adapter model thật.
-5. Bước 12A–12B đã nối API Flask với context từ session được xác thực lại,
-   hạn mức và audit; mặc định chưa bật phục vụ người dùng.
+4. Gemini adapter và UI thật đã có; cần chạy bộ đánh giá live sau mỗi lần đổi
+   corpus/model/ngưỡng trước khi công bố chất lượng.
+5. API Flask lấy context từ session được xác thực lại, có hạn mức và audit;
+   tính năng vẫn mặc định tắt nếu backend chưa cấu hình.
 
 Không viết lại hệ thống xác thực, doanh thu hoặc migration nghiệp vụ.
 
@@ -159,7 +161,7 @@ kiểm thử, cấu hình `KnowledgeDocumentLoader(knowledge_root=...)` ở back
   trùng, alias/anchor, tag tường minh hoặc collection lồng sâu. Version phải là
   số nguyên dương; audience phải là danh sách role hợp lệ, không trùng.
 - Kiểm tra cả tài liệu DRAFT/ARCHIVED và ID trùng trên toàn kho, sau đó chỉ trả
-  APPROVED. Hai tài liệu chờ duyệt hiện vẫn được loại khỏi kết quả.
+  APPROVED. Tài liệu doanh thu DRAFT hiện vẫn được loại khỏi kết quả.
 - Lỗi công khai trong `ai/errors.py`: `InvalidMetadataError`,
   `DuplicateDocumentError`, `KnowledgePathError`, `DocumentTooLargeError`,
   `KnowledgeReadError`; tất cả kế thừa `KnowledgeError`.
@@ -219,9 +221,9 @@ Quyền nằm trong metadata được sao chép, không suy ra từ ID. Khi đ�
 tăng version và thay thế snapshot theo quy tắc bước 3. Bước retrieval sau vẫn
 phải lọc quyền của người hỏi và kiểm tra lại trước khi xây prompt.
 
-Kiểm tra ngày 09/11/2026: **40 tests chunking**, tổng nhóm bước 1–4 **138 tests
-pass**. Kho thật: **12 tài liệu APPROVED → 61 chunk**, ID không trùng, chunk lớn
-nhất 127 từ. Hai tài liệu DRAFT chưa được duyệt và không sinh chunk phục vụ.
+Kiểm tra ngày 15/11/2026: kho thật có **18 tài liệu APPROVED → 85 chunk**, ID
+không trùng, chunk lớn nhất 232 từ. Tài liệu doanh thu DRAFT chưa được duyệt và
+không sinh chunk phục vụ.
 
 ```bash
 python -m pytest tests/unit/test_ai_chunking.py -q
