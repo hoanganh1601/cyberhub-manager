@@ -2,8 +2,8 @@
 
 Quy định:
 - Bố cục/màu: Stitch export (code.html, DESIGN.md) — token STITCH_* trong theme.py.
-- Phân quyền menu, đăng xuất an toàn: docs/diagrams/ui_wireflow.md mục 3 và 4.4.
-- Nhận ServiceBundle từ ngoài, quyền theo role: docs/reference/07_DTO_UI_HANDOFF.md mục 5 và 8.
+- Phân quyền menu, đăng xuất an toàn: history/docs/diagrams/ui_wireflow.md mục 3 và 4.4.
+- Nhận ServiceBundle từ ngoài, quyền theo role: history/docs/reference/07_DTO_UI_HANDOFF.md mục 5 và 8.
 
 Shell không import repository/database và không tự khởi tạo service.
 Login (HA-11) do composition root xử lý thông qua callback `on_logout`.

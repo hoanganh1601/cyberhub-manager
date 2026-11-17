@@ -1,29 +1,17 @@
-# Tài liệu CyberHub Manager
+# CyberHub Manager — tài liệu hiện hành
 
-Điểm bắt đầu cho bản hiện tại (migration `001`–`024`):
+Đọc theo thứ tự: [chạy ứng dụng](guides/QUICKSTART.md) → [kiến trúc](architecture/OVERVIEW.md) → [luồng nghiệp vụ](architecture/BUSINESS_FLOWS.md) → [dữ liệu](architecture/DATA_MODEL.md) → [mở rộng và kiểm thử](guides/DEVELOPMENT.md).
 
-| Cần làm gì | Tài liệu |
+| Bạn cần | Tài liệu |
 |---|---|
-| Chạy ứng dụng và chuẩn bị môi trường | [README dự án](../README.md), [web/MySQL](guides/WEB_DEPLOYMENT.md) |
-| Trình diễn không cần MySQL | [Hướng dẫn demo](demo/README.md) |
-| Kiểm thử | [Chiến lược và phạm vi test](testing/TEST_COVERAGE_AUDIT.md), [checklist thủ công](../tests/manual/CHECKLIST.md) |
-| Đọc sơ đồ dữ liệu | [Tổng quan ERD](diagrams/erd.md), [kiểm kê schema](architecture/DATABASE_SCHEMA_AUDIT.md) |
-| Nghiệp vụ hiện hành | [Ca/két, bảo trì, nhập hàng](features/OPERATIONS_PHASE7.md), [đối tác game/quảng cáo](features/COMMERCIAL_PARTNERS.md), [dự báo](features/FORECASTING_PHASE5.md) |
+| Xem nhanh web và tài khoản demo | [Quickstart](guides/QUICKSTART.md) |
+| Hiểu web, desktop, service, repository và transaction | [Tổng quan kiến trúc](architecture/OVERVIEW.md) |
+| Hiểu khách hàng, máy, POS, kho, ca, bảo trì, mua hàng, game và AI | [Luồng nghiệp vụ](architecture/BUSINESS_FLOWS.md) |
+| Xem migration, quan hệ và giới hạn của sơ đồ | [Mô hình dữ liệu](architecture/DATA_MODEL.md), [ERD hiện hành](diagrams/current_erd.md) |
+| Thêm một nghiệp vụ hoặc kiểm thử thay đổi | [Hướng dẫn phát triển](guides/DEVELOPMENT.md) |
+| Cấu hình web/MySQL hoặc Gemini | [Vận hành web](guides/WEB_DEPLOYMENT.md), [Gemini](guides/GEMINI_API_RUNBOOK.md), [RAG](guides/RAG_5A_RUNBOOK.md) |
+| Xem quy tắc chuyên sâu | [POS và tồn kho](features/POS_INVENTORY_LIFECYCLE.md), [ca/bảo trì/mua hàng](features/OPERATIONS_PHASE7.md), [đối tác](features/COMMERCIAL_PARTNERS.md), [dự báo](features/FORECASTING_PHASE5.md) |
 
-## Cấu trúc thư mục
+**Nguồn sự thật:** trạng thái triển khai là mã trong `src/`, migration theo thứ tự trong `sql/` và test trong `tests/`. Tài liệu ở đây mô tả bản hiện tại theo mã nguồn tại ngày 17/11/2026. Sơ đồ [ERD hiện hành](diagrams/current_erd.md) được suy ra từ migration `001`–`024`; chưa xác minh bằng `INFORMATION_SCHEMA` trên MySQL trong lần kiểm kê. [Data dictionary](diagrams/data_dictionary.md) là file sinh từ DB, hiện thiếu 16/63 bảng nghiệp vụ nên không dùng làm danh sách schema đầy đủ.
 
-| Thư mục | Nội dung |
-|---|---|
-| [`guides/`](guides/) | Hướng dẫn chạy web, đăng nhập, Gemini và RAG. |
-| [`features/`](features/) | Quy trình và ghi chú theo nghiệp vụ: khách hàng, POS, kho, game, dự báo và vận hành. |
-| [`reference/`](reference/) | Yêu cầu, cấu trúc ban đầu, giao diện và phân quyền P1. |
-| [`architecture/`](architecture/) | Báo cáo cấu trúc mã nguồn và kiểm kê schema. |
-| [`diagrams/`](diagrams/README.md) | ERD và sơ đồ thiết kế. |
-| [`testing/`](testing/) | Báo cáo kiểm thử, nghiệm thu và kiểm kê test. |
-| [`demo/`](demo/README.md) | Hướng dẫn trình diễn và ảnh demo. |
-| [`archive/`](archive/README.md) | Handover, backlog và checklist theo giai đoạn cũ. |
-| [`knowledge-base/`](knowledge-base/README.md) | Tri thức được duyệt để trợ lý sử dụng theo vai trò. |
-
-`linear_import.csv` là dữ liệu nhập Linear, giữ ở gốc `docs/` để tiện tìm. Các file trong `archive/` và nhiều file có tên `PHASE`, `VALIDATION`, `REPORT` hoặc mã task phản ánh **thời điểm viết**; hãy đối chiếu với mã nguồn và hướng dẫn hiện hành trước khi dùng làm quy trình vận hành. Ảnh và báo cáo nghiệm thu được giữ để tra cứu lịch sử.
-
-[Kho tri thức RAG](knowledge-base/README.md) là nội dung mà trợ lý đọc theo quyền; không dùng tài liệu vận hành nội bộ làm nguồn cho khách hàng nếu chưa được phê duyệt.
+[Kho tri thức](knowledge-base/README.md) là bộ tài liệu có phân quyền mà chatbot đọc lúc chạy; giữ nguyên đường dẫn này. [Tư liệu lịch sử](../history/README.md) chứa ảnh, phiếu giao việc, báo cáo nghiệm thu và tài liệu P0/đợt cũ. Không dùng những tài liệu đó để suy ra hành vi hiện tại khi mã nguồn đã thay đổi.

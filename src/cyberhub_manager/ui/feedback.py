@@ -1,6 +1,6 @@
 """Hiển thị lỗi nghiệp vụ thống nhất cho mọi view/dialog.
 
-Quy định: docs/reference/07_DTO_UI_HANDOFF.md mục 6.
+Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 6.
 - Không bao giờ hiện traceback/SQL; chỉ dùng câu tiếng Anh trong ui.messages.
 - ConflictError của tranh chấp máy/phiên -> ConfirmDialog.alert (không Toast trùng nội dung).
 - Lỗi không phải ApplicationError -> ghi log, hiện thông báo chung.

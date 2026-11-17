@@ -1,6 +1,6 @@
 """Component Gallery — Ứng dụng độc lập xem và thử nghiệm bộ UI Component.
 
-Quy định: docs/reference/07_DTO_UI_HANDOFF.md mục 9, 10 và docs/assignments/NGAT_NG01.md.
+Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 9, 10 và history/docs/assignments/NGAT_NG01.md.
 Khởi chạy độc lập (không cần Docker, MySQL hay file .env):
     python -m cyberhub_manager.ui.component_gallery
 """

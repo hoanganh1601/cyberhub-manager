@@ -2,7 +2,7 @@
 
 Ứng dụng hiện dùng API key cho cả embedding, trả lời và kiểm chứng.
 Tài liệu chính: [Gemini API runbook](GEMINI_API_RUNBOOK.md).
-Các chế độ Phân tích/Gợi ý được mô tả tại [AI_PHASES_5B_5C.md](../features/AI_PHASES_5B_5C.md).
+Các chế độ Phân tích/Gợi ý được mô tả tại [AI_PHASES_5B_5C.md](../../history/docs/features/AI_PHASES_5B_5C.md).
 
 ## Chạy trong Terminal VS Code
 
@@ -89,6 +89,6 @@ Bỏ `--limit` để chạy toàn bộ fixture; dùng `--questions` để chọn
 Đọc câu trả lời cùng nguồn: retrieval Hit@3 và citation hợp lệ không chứng minh đúng ngữ nghĩa.
 Đợt kiểm chứng bằng model vẫn là xác suất, không thay cho kiểm tra nghiệp vụ.
 
-Các báo cáo ngày 09/11/2026 trong `docs/testing/RAG_LOCAL_*.json` và
-[báo cáo nghiệm thu cũ](../testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md)
+Các báo cáo ngày 09/11/2026 trong `history/docs/testing/RAG_LOCAL_*.json` và
+[báo cáo nghiệm thu cũ](../../history/docs/testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md)
 là lịch sử của provider trước đây. Các số đo đó không phải kết quả Gemini.

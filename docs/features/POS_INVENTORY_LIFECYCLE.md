@@ -1,13 +1,12 @@
 # Chốt nghiệp vụ tồn kho và quyền POS
 
-Trạng thái: **đã có lõi kho theo đơn trong MySQL** qua migration `013_inventory.sql`
-và phiếu kiểm kê qua `014_inventory_counting.sql`:
-nguyên liệu, công thức, snapshot, giữ chỗ, xuất dùng, giải phóng và sổ biến động.
-Màn Menu cho quản lý tạo nguyên liệu, nhập kho và cấu hình công thức; STAFF xem tồn.
-API xem kho chỉ trả công thức và cấu hình theo dõi tồn cho MANAGER/ADMIN.
-Màn Menu cho STAFF đề xuất kiểm kê; MANAGER/ADMIN duyệt hoặc từ chối phiếu của
-người khác, xuất/trả thủ công. Thông báo khách và khuyến mãi món là bước tiếp theo.
-Demo bộ nhớ không mô phỏng sổ kho.
+Trạng thái hiện hành: lõi kho theo đơn có trong MySQL qua migration `013_inventory.sql`
+và phiếu kiểm kê qua `014_inventory_counting.sql`: nguyên liệu, công thức, snapshot,
+giữ chỗ, xuất dùng, giải phóng và sổ biến động. Các migration `016`–`019` bổ sung
+quyền Bếp/Thủ kho, thời hạn giữ, hoàn/hủy, khuyến mãi và thông báo trong web.
+Màn Kho cho người có quyền xem tồn/nhập/xuất/kiểm kê; cấu hình công thức gắn với
+món. Backend kiểm tra quyền từng thao tác và cơ sở của actor. Demo bộ nhớ có dữ liệu
+kho để trình diễn nhưng không mô phỏng sổ kho/transaction MySQL đầy đủ.
 
 ## 1. Số lượng và phạm vi
 
@@ -34,9 +33,9 @@ Demo bộ nhớ không mô phỏng sổ kho.
 | `PREPARING → CANCELLED` | Nguyên liệu đã dùng **không** tự cộng lại. Ghi nhận lý do hủy và hao hụt; nguyên liệu thật sự còn dùng được phải nhập trả bằng giao dịch riêng. | Rollback toàn bộ việc hủy nếu ghi nhận không thành công. |
 | `SERVED → PAID` | Chỉ thu tiền và ghi nhận doanh thu; **không trừ kho lần nữa**. | Đơn vẫn `SERVED` nếu thanh toán không thành công. |
 
-`PAID` và `CANCELLED` là trạng thái cuối. Đơn `SERVED` không được hủy trong luồng P0/POS
-hiện tại; hoàn tiền hoặc trả món sau phục vụ cần một nghiệp vụ đảo riêng, có phê duyệt
-và sổ ghi nhận. Đơn `NEW` mới có thời hạn giữ tồn và worker xử lý như mục 7.
+Đơn `SERVED` không được hủy trực tiếp; hủy/hoàn sau phục vụ đi qua nghiệp vụ đảo
+riêng có phê duyệt và sổ ghi nhận như mục 8. Đơn `NEW` mới có thời hạn giữ tồn
+và worker xử lý như mục 7.
 Lý do hủy được lưu trên đơn kể cả khi món chưa theo dõi kho; hủy sau chuẩn bị bắt buộc
 có lý do, còn hủy trước chuẩn bị có thể để trống.
 
@@ -122,10 +121,10 @@ nguyên role sau migration.
 - STAFF không gọi được API duyệt điều chỉnh hay sửa công thức dù biết URL;
   MANAGER không thao tác được cửa hàng khác; ADMIN có audit khi thao tác xuyên cửa hàng.
 
-Kiểm thử lõi hiện có kiểm tra snapshot, thiếu hàng, giải phóng, xuất dùng và hao hụt.
-Các tiêu chí thông báo và thao tác xuyên cửa hàng cần kiểm thử khi triển khai
-các luồng tương ứng. Kiểm kê cần chạy integration test trên MySQL đã áp dụng
-`013_inventory.sql` và `014_inventory_counting.sql`.
+Kiểm thử lõi cần bao phủ snapshot, thiếu hàng, giải phóng, xuất dùng, hao hụt,
+thông báo và quyền theo cửa hàng. Nghiệm thu transaction/kho cần chạy integration
+test trên MySQL đã áp dụng các migration liên quan; lượt sắp xếp tài liệu này
+chưa xác minh lại MySQL thực tế.
 
 ## 7. Role riêng và thời hạn giữ tồn
 

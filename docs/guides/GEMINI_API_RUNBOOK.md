@@ -72,6 +72,6 @@ python -m scripts.evaluate_rag_gemini --limit 3 --output "$env:TEMP\rag-gemini-c
 python -m scripts.evaluate_rag_gemini --retrieve-only --limit 3 --output "$env:TEMP\rag-gemini-retrieval.json"
 ```
 
-Báo cáo ghi rõ `gemini-api-real-model`; kết quả cũ trong `docs/testing/RAG_LOCAL_*.json`
+Báo cáo ghi rõ `gemini-api-real-model`; kết quả cũ trong `history/docs/testing/RAG_LOCAL_*.json`
 là số đo lịch sử của model trước đây và không chứng minh Gemini đã được nghiệm thu.
-Xem [các lựa chọn API miễn phí](FREE_API_OPTIONS.md) khi cần nhà cung cấp dự phòng.
+Xem [các lựa chọn API miễn phí](../../history/docs/guides/FREE_API_OPTIONS.md) khi cần nhà cung cấp dự phòng.

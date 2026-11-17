@@ -1,11 +1,11 @@
 """NG-09 — Chụp bộ ảnh evidence cho các màn và trạng thái UI chính (dữ liệu mock, không cần MySQL).
 
 Chạy (cần màn hình thật, không chạy được trên CI headless):
-    python scripts/capture_ui_screens.py                          # ghi vào docs/screenshots/ng09
+    python scripts/capture_ui_screens.py                          # ghi vào history/docs/screenshots/ng09
     python scripts/capture_ui_screens.py --out path/khac --only 06,10
 
 Không chạm chuột/bàn phím trong lúc script chạy (cửa sổ cần ở trên cùng để chụp đúng).
-Danh sách ảnh và test case nghiệm thu tương ứng: docs/demo/NG09_DEMO_UI.md.
+Danh sách ảnh và test case nghiệm thu tương ứng: history/docs/demo/NG09_DEMO_UI.md.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from cyberhub_manager.ui.navigation import NavKey
 from cyberhub_manager.ui.theme import SHELL_HEIGHT, SHELL_WIDTH, load_stitch_fonts, setup_theme
 from cyberhub_manager.ui.views import default_view_factories
 
-DEFAULT_OUT = Path(__file__).resolve().parents[1] / "docs" / "screenshots" / "ng09"
+DEFAULT_OUT = Path(__file__).resolve().parents[1] / "history" / "docs" / "screenshots" / "ng09"
 RUNNER = ImmediateTaskRunner()
 SETTLE_MS = 1500
 
@@ -99,7 +99,7 @@ class Studio:
 
 
 # ----------------------------------------------------------------------
-# Danh sách ảnh (mã khớp bảng trong docs/demo/NG09_DEMO_UI.md)
+# Danh sách ảnh (mã khớp bảng trong history/docs/demo/NG09_DEMO_UI.md)
 # ----------------------------------------------------------------------
 def _low_balance_customer(s: Studio) -> Any:
     created = s.services.customers.create_customer("Trần Minh Quân", "0987654321", "quan.tm", "secret1")

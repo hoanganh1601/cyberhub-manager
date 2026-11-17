@@ -35,6 +35,6 @@ role. Backend ghi audit cho cả đặt lại và đổi mật khẩu nhưng kh�
 
 ## Nguồn đối chiếu
 
-- `docs/features/EMPLOYEE_PASSWORD_RESET.md` — Quy trình vận hành hoàn chỉnh
+- `history/docs/features/EMPLOYEE_PASSWORD_RESET.md` — Quy trình vận hành hoàn chỉnh
 - `src/cyberhub_manager/services/management_service.py` — Admin đặt lại mật khẩu
 - `src/cyberhub_manager/services/auth_service.py` — Nhân viên đổi mật khẩu
