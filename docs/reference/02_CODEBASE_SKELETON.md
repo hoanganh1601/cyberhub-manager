@@ -25,7 +25,7 @@ Flask Web ────────┼─> Services ─> Repositories ─> Databa
   nghiệp vụ; `web/application.py` chỉ giữ factory, security hook, session và auth.
 - `domain/models.py`, `MenuService` và `P1Repository` là facade tương thích;
   implementation đã tách theo bounded context/capability. Xem
-  `docs/ARCHITECTURE_REFACTOR.md`.
+  `docs/architecture/ARCHITECTURE_REFACTOR.md`.
 - `ai/` là bounded context riêng, không được tự thay đổi số dư hoặc dữ liệu vận hành.
 - Role hiện có: `ADMIN`, `MANAGER`, `STAFF`, `KITCHEN`, `INVENTORY`;
   quyền chi tiết cho ca/két, bảo trì và mua hàng nằm trong `domain/p1.py`.
@@ -33,7 +33,7 @@ Flask Web ────────┼─> Services ─> Repositories ─> Databa
   và repository tương ứng không trộn logic vào POS/kho cũ.
 - Migration được chạy theo thứ tự trong `sql/`; không giới hạn ở `001–002`.
 
-Tài liệu này quy định cấu trúc mà nhóm sẽ tạo. Hiện chưa có implementation để tránh làm thay phần của các thành viên.
+Phần mô tả và cây thư mục từ đây là kế hoạch MVP ban đầu, được giữ để đối chiếu lịch sử. Vị trí tài liệu hiện hành được liệt kê trong [mục lục docs](../README.md).
 
 Repository đã có sẵn các file placeholder chứa owner/task nhưng chưa có logic. Git theo dõi được toàn bộ cây thư mục; thành viên thay nội dung placeholder khi bắt đầu Linear issue tương ứng. Các thư mục Python có thêm `__init__.py` dù cây bên dưới lược bớt để dễ đọc.
 

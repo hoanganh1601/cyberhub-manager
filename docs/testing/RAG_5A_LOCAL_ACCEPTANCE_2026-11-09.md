@@ -1,7 +1,7 @@
 # RAG 5A — Bản tích hợp local để nghiệm thu
 
 > LƯU TRỮ: Đây là số đo của provider cũ ngày 09/11/2026. Ứng dụng đã chuyển sang Gemini API
-> ngày 10/11/2026; dùng [runbook hiện tại](../GEMINI_API_RUNBOOK.md). Giữ nguyên model/hash/metrics
+> ngày 10/11/2026; dùng [runbook hiện tại](../guides/GEMINI_API_RUNBOOK.md). Giữ nguyên model/hash/metrics
 > bên dưới để đối chiếu lịch sử, không dùng các kết quả này để chứng nhận Gemini.
 
 Ngày 09/11/2026, branch `feat/rag-knowledge-assistant`. Chưa commit/push trong
@@ -10,7 +10,7 @@ web đã duyệt. Không triển khai 5B/5C, không nhận là deployment public
 
 ## Bản chạy
 
-[Lệnh chạy và hướng dẫn kiểm tra](../RAG_5A_RUNBOOK.md).
+[Lệnh chạy và hướng dẫn kiểm tra](../guides/RAG_5A_RUNBOOK.md).
 
 - `http://127.0.0.1:8059/` hoặc Tailscale `http://100.110.233.88:8059/`.
 - Cổng 8059: đăng nhập thật qua web app, AI local thật; nghiệp vụ mặc định demo.

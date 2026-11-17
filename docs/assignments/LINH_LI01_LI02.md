@@ -17,7 +17,7 @@ Bàn giao dữ liệu và interface thống nhất để Ngát làm UI không c�
 3. Thêm `src/cyberhub_manager/domain/dtos.py`: DTO và kiểu theo mục 4 bản v1.
 4. `src/cyberhub_manager/domain/exceptions.py`: hierarchy và payload theo mục 6.
 5. `docs/diagrams/class_diagram.md`: entity, DTO và service interface; thể hiện quan hệ customer-account, machine-active session, checkout-invoice.
-6. Cập nhật `docs/02_CODEBASE_SKELETON.md` phần DTO/contract theo những điểm đã liệt kê ở mục 12 bản v1. Phần SQL/schema không thuộc task này.
+6. Cập nhật `docs/reference/02_CODEBASE_SKELETON.md` phần DTO/contract theo những điểm đã liệt kê ở mục 12 bản v1. Phần SQL/schema không thuộc task này.
 
 Bàn giao sớm đầu tiên: EmployeeSession, CustomerSummary, SessionSummary, ActiveSessionSummary, MachineSummary; enum và business exceptions đi kèm. Các DTO còn lại hoàn thiện trong LI-01 trước khi đóng task.
 

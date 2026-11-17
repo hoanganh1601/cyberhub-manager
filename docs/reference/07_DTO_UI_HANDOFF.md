@@ -2,7 +2,7 @@
 
 Bản giao việc cho Hoàng Anh, Linh và Ngát sau HA-02. Tài liệu này bổ sung chi tiết còn thiếu trong `02_CODEBASE_SKELETON.md`; không phải code đã triển khai. Trưởng nhóm chuyển cùng tài liệu này cho cả hai thành viên. Phần thay đổi so với skeleton được ghi tại mục 12.
 
-Nguồn: `01_REQUIREMENTS.md`, `02_CODEBASE_SKELETON.md`, `03_UI_THEME.md`, `04_LINEAR_BACKLOG.md`, `diagrams/logical_erd.md` và schema HA-02.
+Nguồn: [yêu cầu](01_REQUIREMENTS.md), [khung code](02_CODEBASE_SKELETON.md), [theme](03_UI_THEME.md), [backlog](../archive/04_LINEAR_BACKLOG.md), [logical ERD](../diagrams/logical_erd.md) và schema HA-02.
 
 ## 1. Phạm vi và người sở hữu
 

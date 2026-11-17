@@ -31,7 +31,7 @@ Phần AI/RAG do Hoàng Anh phụ trách, có thể làm song song với menu v�
 
 ### D0-01. Cập nhật tài liệu phân quyền cũ
 
-Vấn đề: bảng Phân quyền trong `docs/P1_DESKTOP_WEB.md` vẫn gộp xuất/in hóa đơn
+Vấn đề: bảng Phân quyền trong `docs/reference/P1_DESKTOP_WEB.md` vẫn gộp xuất/in hóa đơn
 và xem doanh thu vào cùng một dòng cho STAFF, không còn đúng sau PR #33.
 
 Cần làm:
@@ -68,7 +68,7 @@ quyền STAFF để làm demo chạy được.
 
 ### Bằng chứng Đợt 0 đã có
 
-- [Báo cáo kiểm tra](testing/PHASE0_VALIDATION_2026-11-09.md).
+- [Báo cáo kiểm tra](../testing/PHASE0_VALIDATION_2026-11-09.md).
 - 179 unit/UI tests và 20 integration tests pass tại `develop` commit `5341162`.
 - Kiểm tra bổ sung MySQL: hạ quyền đang đăng nhập, khóa nhân viên, MANAGER vượt
   cơ sở, ADMIN chuyển cơ sở và ghi audit đều đạt.
@@ -187,7 +187,7 @@ ReportService: **122 tests pass** (09/11/2026):
 **Đã triển khai trên checkout RAG ngày 09/11/2026, chờ Hoàng Anh kiểm tra.**
 `ai/documents.py`, `ai/errors.py` và `test_ai_documents.py`; nhóm model/corpus/loader
 đạt **98 tests**. Chi tiết giới hạn, lỗi và lệnh chạy tại
-[README kho tri thức](knowledge-base/README.md#document-loader--bước-3).
+[README kho tri thức](../knowledge-base/README.md#document-loader--bước-3).
 Chưa triển khai chunking/index và chưa tự duyệt hai tài liệu DRAFT.
 
 - Chỉ đọc Markdown nghiệp vụ trong knowledge root; bỏ README và bản chưa duyệt.
@@ -207,7 +207,7 @@ test đường dẫn thoát thư mục, duplicate ID, DRAFT/ARCHIVED không đư
 pass**, tổng nhóm bước 1–4 đạt **138 tests**. Chạy loader và chunker trên kho thật:
 12 tài liệu APPROVED tạo 61 chunk, ID duy nhất, giữ nguồn/quyền/phiên bản.
 Chi tiết cấu hình, giới hạn và lệnh kiểm tra tại
-[README kho tri thức](knowledge-base/README.md#markdown-chunker--bước-4).
+[README kho tri thức](../knowledge-base/README.md#markdown-chunker--bước-4).
 Chưa nối embedding/retrieval/LLM/API/UI; không tự duyệt tài liệu DRAFT.
 
 - Chia theo tiêu đề/mục, giữ ngữ cảnh; giới hạn độ dài có thể cấu hình.
@@ -226,7 +226,7 @@ cấp fake xác định/mô phỏng lỗi, không gọi mạng hoặc yêu cầu
 được tách trong `ai/errors.py`; chưa gắn SDK hoặc mô hình AI cụ thể.
 **65 tests provider pass**, tổng nhóm bước 1–5 **203 tests**. Chi tiết hợp đồng,
 giới hạn của fake, lỗi và lệnh kiểm tra tại
-[README kho tri thức](knowledge-base/README.md#provider-độc-lập--bước-5).
+[README kho tri thức](../knowledge-base/README.md#provider-độc-lập--bước-5).
 
 ### Bước 6 — Vector index và Retriever lọc quyền
 
@@ -246,7 +246,7 @@ giả mạo/thu hồi bị chặn. Có nguồn ứng viên và giới hạn cont
 Bước 6–7 đạt **83 tests**, toàn nhóm bước 1–7 **286 tests pass**, không gọi mạng
 hoặc MySQL. Bao gồm kiểm thử phân quyền, reload đồng thời/lỗi, stale/forged chunk,
 ngôn ngữ và delimiter injection; không khẳng định LLM thật đã chống injection.
-Chi tiết/lệnh chạy tại [README kho tri thức](knowledge-base/README.md#vector-index-và-retriever--bước-6).
+Chi tiết/lệnh chạy tại [README kho tri thức](../knowledge-base/README.md#vector-index-và-retriever--bước-6).
 
 ### Bước 8 — RAG service điều phối
 
@@ -266,7 +266,7 @@ score thấp, citation giả/thiếu, timeout thực, worker bận, audit lỗi,
 hồi trong khi LLM chạy và pipeline từ kho Markdown thật đến answer envelope.
 `grounded=True` chưa chứng minh kết luận đúng ngữ nghĩa; đánh giá mô hình thật và
 ngưỡng thuộc bước 10. Audit logging cần cấu hình handler; chưa tạo schema AI.
-Chi tiết/lệnh chạy: [báo cáo bước 8–9](testing/RAG_STEPS_8_9_2026-11-09.md).
+Chi tiết/lệnh chạy: [báo cáo bước 8–9](../testing/RAG_STEPS_8_9_2026-11-09.md).
 
 ### Bước 10 — Bộ câu hỏi và đánh giá offline
 
@@ -288,7 +288,7 @@ role/store đến backend. Chưa sửa auth hoặc API của app vận hành.
 
 Bước 10–11 có 32 tests mới; 419 tests RAG + 40 web regression = **459 pass**.
 Browser kiểm tra 1280×720 và 390×844, không lỗi JS hoặc request API. Bằng chứng và
-ca chưa đạt: [báo cáo bước 10–11](testing/RAG_STEPS_10_11_2026-11-09.md).
+ca chưa đạt: [báo cáo bước 10–11](../testing/RAG_STEPS_10_11_2026-11-09.md).
 
 ### Bước 12A–12B — API/session và hạn mức/audit
 
@@ -301,12 +301,12 @@ hình. Không tự đưa baseline lexical lên phục vụ người dùng.
 
 Nhóm tập trung service/policy/HTTP đạt **138 tests**. Chi tiết cách kiểm tra,
 giới hạn triển khai và việc chưa làm:
-[báo cáo 12A–12B](testing/RAG_STEP_12AB_2026-11-09.md).
+[báo cáo 12A–12B](../testing/RAG_STEP_12AB_2026-11-09.md).
 
 ### Bước 12C–12D — Model local và UI có đăng nhập
 
 > Mốc lịch sử ngày 09/11/2026. Runtime hiện tại đã chuyển sang Gemini API vào 10/11/2026;
-> dùng [runbook Gemini](GEMINI_API_RUNBOOK.md) để chạy. Mô tả/số đo provider cũ bên dưới được giữ để đối chiếu.
+> dùng [runbook Gemini](../guides/GEMINI_API_RUNBOOK.md) để chạy. Mô tả/số đo provider cũ bên dưới được giữ để đối chiếu.
 
 Đã bổ sung adapter Ollama loopback: `qwen3-embedding:0.6b` và `qwen3:8b`, ngưỡng
 cosine 0,53 trên tập development. Context mở rộng theo tài liệu cha đã được phép
@@ -326,8 +326,8 @@ mock; 8059 là bản AI local thật với dữ liệu nghiệp vụ demo mặc 
 `staff/payment-process.md` và `shared/glossary.md`, tăng version lên 2. Không
 chuyển hai tài liệu DRAFT sang APPROVED hoặc thay đổi quy tắc tiền của backend.
 
-- [Lệnh chạy và cách kiểm tra](RAG_5A_RUNBOOK.md).
-- [Kết quả nghiệm thu và các giới hạn còn lại](testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md).
+- [Lệnh chạy và cách kiểm tra](../guides/RAG_5A_RUNBOOK.md).
+- [Kết quả nghiệm thu và các giới hạn còn lại](../testing/RAG_5A_LOCAL_ACCEPTANCE_2026-11-09.md).
 
 Lịch sử/feedback server, quota/audit nhiều host và triển khai public là phần mở
 rộng; chưa áp schema AI/history vào DB nghiệp vụ. Deployment cần ổ bền vững,

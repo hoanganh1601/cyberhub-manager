@@ -1,5 +1,7 @@
 # Mô hình logic và chuẩn hóa
 
+> Tài liệu lịch sử cho P0 (8 bảng). [ERD hiện hành](current_erd.md) mô tả cấu trúc đã mở rộng tới migration `024`.
+
 ## 1. Mục tiêu
 
 Mô hình logic chuyển các thực thể quan niệm thành các quan hệ có thuộc tính, khóa chính, khóa ngoại và khóa duy nhất. Phần này độc lập với kiểu dữ liệu cụ thể của MySQL.

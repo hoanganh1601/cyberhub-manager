@@ -1,5 +1,7 @@
 # Mô hình vật lý — MySQL 8.4
 
+> Tài liệu lịch sử cho schema P0/migration `001`. [ERD hiện hành](current_erd.md) mô tả 63 bảng nghiệp vụ suy ra từ migration `001`–`024`; không dùng sơ đồ P0 để mô tả toàn bộ database hiện tại.
+
 ## 1. Phạm vi HA-02
 
 ERD P0 gồm 8 bảng:

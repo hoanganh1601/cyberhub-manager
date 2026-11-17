@@ -1,6 +1,6 @@
 """DataTable component cho CyberHub Manager.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 7 và docs/03_UI_THEME.md mục 3.4.
+Quy định: docs/reference/07_DTO_UI_HANDOFF.md mục 7 và docs/reference/03_UI_THEME.md mục 3.4.
 - Cấu trúc: TableColumn(key, label, align), TableRow(key, cells).
 - API: set_columns(columns), set_rows(rows), set_state(state, message=None, on_retry=None), set_on_select(callback).
 - Trạng thái qua ViewState: LOADING, READY, EMPTY, ERROR.

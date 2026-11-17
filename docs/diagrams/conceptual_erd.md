@@ -1,5 +1,7 @@
 # Mô hình quan niệm — Conceptual ERD
 
+> Tài liệu lịch sử cho P0 (8 thực thể). [ERD hiện hành](current_erd.md) mô tả các miền nghiệp vụ sau migration `024`.
+
 ## 1. Mục tiêu
 
 Mô hình quan niệm mô tả các đối tượng nghiệp vụ và quan hệ giữa chúng, không phụ thuộc MySQL, kiểu dữ liệu, index hoặc cách cài đặt khóa ngoại.

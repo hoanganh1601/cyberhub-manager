@@ -4,7 +4,7 @@
 
 `develop` tại `2424c12` đã có các chức năng P0 chính và toàn bộ 970 unit/UI/HTTP
 tests hiện tại chạy thành công trên máy Windows này. Chưa đủ căn cứ chuyển toàn bộ
-task sang Done theo Definition of Done trong `docs/04_LINEAR_BACKLOG.md`:
+task sang Done theo Definition of Done trong `docs/archive/04_LINEAR_BACKLOG.md`:
 
 - Còn sai lệch ngôn ngữ VI ở thông báo lỗi và một số hộp xác nhận.
 - Checklist AC-01…AC-24 chưa điền kết quả, người thực hiện và evidence.
@@ -76,7 +76,7 @@ wheel tại `%TEMP%\cyberhub-mvp-wheel\`.
 
 ## Sai lệch cần xử lý: AC-24 / ngôn ngữ VI
 
-`docs/03_UI_THEME.md` yêu cầu nhãn, toast, dialog, trạng thái và lỗi từng trường
+`docs/reference/03_UI_THEME.md` yêu cầu nhãn, toast, dialog, trạng thái và lỗi từng trường
 đều theo lựa chọn VI/EN. Probe với `ViewContext.language == "vi"` cho kết quả:
 
 | Nội dung | Kết quả thực tế |

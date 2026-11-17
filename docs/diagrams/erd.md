@@ -1,5 +1,7 @@
 # Thiết kế cơ sở dữ liệu — CyberHub Manager
 
+> **Phạm vi lịch sử:** ba mô hình và ảnh dưới đây mô tả P0/HA-02 (8 bảng). Hệ thống hiện có 63 bảng nghiệp vụ từ migration `001`–`024`. Xem [ERD hiện hành](current_erd.md) và [báo cáo sai lệch schema](../architecture/DATABASE_SCHEMA_AUDIT.md) khi viết về bản đang chạy. Data dictionary hiện chưa bao phủ 16 bảng được thêm sau P0.
+
 ## 1. Mục tiêu
 
 Thiết kế cơ sở dữ liệu được trình bày theo ba giai đoạn riêng biệt để phục vụ cả báo cáo và triển khai:

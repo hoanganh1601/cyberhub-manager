@@ -1,6 +1,6 @@
 """Chạy lệnh gọi service ngoài Tk main thread rồi trả kết quả về main thread.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 8 — không chạy service/DB call có thể chặn lâu
+Quy định: docs/reference/07_DTO_UI_HANDOFF.md mục 8 — không chạy service/DB call có thể chặn lâu
 trên Tk main thread; worker không được chạm widget; kết quả chuyển về bằng `after`.
 
 - ThreadTaskRunner: dùng khi chạy app thật (1 worker -> các lệnh chạy lần lượt).

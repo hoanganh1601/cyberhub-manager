@@ -32,10 +32,10 @@ trên form để thử lại; ứng dụng không tự chuyển sang dữ liệu
 HTML Stitch người dùng cung cấp được giữ tại `ui-reference/login-stitch/code.html`
 để đối chiếu. Đây là tài liệu tham chiếu; ứng dụng desktop không chạy HTML này.
 
-Ảnh chụp từ ứng dụng desktop: [VI](screenshots/login-stitch/login-vi.png),
-[EN](screenshots/login-stitch/login-en.png),
-[lỗi đăng nhập](screenshots/login-stitch/login-auth-error.png),
-[1100×650](screenshots/login-stitch/login-1100x650.png).
+Ảnh chụp từ ứng dụng desktop: [VI](../screenshots/login-stitch/login-vi.png),
+[EN](../screenshots/login-stitch/login-en.png),
+[lỗi đăng nhập](../screenshots/login-stitch/login-auth-error.png),
+[1100×650](../screenshots/login-stitch/login-1100x650.png).
 
 - Canvas gốc 1280×720, tỷ lệ hai cột 55/45, form rộng 384px. Cho phép co tới 1100×650.
 - Nền radial glow, lưới 40px và đường mạch điện được vẽ local; không dùng webview.

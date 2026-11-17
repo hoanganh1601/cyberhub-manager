@@ -66,7 +66,7 @@ Chromium với STAFF/MANAGER/ADMIN và điều hướng trực tiếp bằng c�
 
 ## Hai điểm cần đồng bộ trước khi chốt bàn giao toàn bộ
 
-1. `docs/P1_DESKTOP_WEB.md`, bảng Phân quyền, vẫn ghi STAFF được xem doanh thu.
+1. `docs/reference/P1_DESKTOP_WEB.md`, bảng Phân quyền, vẫn ghi STAFF được xem doanh thu.
    Tài liệu này cần cập nhật theo chính sách mới để tránh báo cáo hoặc kho RAG
    sử dụng lại quyền cũ.
 2. Audit xem doanh thu đã có ở ReportService dùng MySQL. MockReportService

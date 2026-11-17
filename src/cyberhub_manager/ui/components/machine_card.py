@@ -1,6 +1,6 @@
 """MachineCard component cho CyberHub Manager.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 4, 7, 8 và docs/03_UI_THEME.md mục 3.5.
+Quy định: docs/reference/07_DTO_UI_HANDOFF.md mục 4, 7, 8 và docs/reference/03_UI_THEME.md mục 3.5.
 - Hiển thị thông tin máy, phiên đang chạy và số dư dự kiến live.
 - Cảnh báo âm: sử dụng active_session.projected_balance (không dùng account_balance).
 - Phân quyền theo role của actor: STAFF chỉ xem máy bảo trì, MANAGER/ADMIN có nút 'Bật lại'.

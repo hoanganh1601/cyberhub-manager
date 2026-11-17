@@ -53,4 +53,4 @@ Không tạo tài khoản/ưu đãi mẫu hoặc ghi tiền vào dữ liệu th�
 - [Cấu hình thành viên](customer-phase3/membership-settings-desktop.png)
 
 Ảnh avatar trong test là fixture chữ VA, không phải ảnh khách thật.
-Hướng dẫn/quy tắc đầy đủ: [CUSTOMER_PORTAL_PHASE3.md](../CUSTOMER_PORTAL_PHASE3.md).
+Hướng dẫn/quy tắc đầy đủ: [CUSTOMER_PORTAL_PHASE3.md](../features/CUSTOMER_PORTAL_PHASE3.md).

@@ -47,6 +47,6 @@ Tiền thưởng dùng trước cho phí chơi, không đổi tiền mặt.
 
 ## Nguồn đối chiếu
 
-- `docs/CUSTOMER_PORTAL_PHASE1.md` — Nghiệp vụ được áp dụng
-- `docs/CUSTOMER_PORTAL_PHASE3.md` — Ưu đãi cá nhân hóa
+- `docs/features/CUSTOMER_PORTAL_PHASE1.md` — Nghiệp vụ được áp dụng
+- `docs/features/CUSTOMER_PORTAL_PHASE3.md` — Ưu đãi cá nhân hóa
 - `src/cyberhub_manager/domain/p1.py` — quote_top_up

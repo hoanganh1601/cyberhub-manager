@@ -57,6 +57,6 @@ qua các lần đăng nhập; không dùng số liệu mẫu để kết luận 
 
 ## Nguồn đối chiếu
 
-- `docs/CUSTOMER_PORTAL_PHASE2.md` — Hồ sơ và mật khẩu
-- `docs/CUSTOMER_PORTAL_PHASE3.md` — Avatar và hồ sơ
+- `docs/features/CUSTOMER_PORTAL_PHASE2.md` — Hồ sơ và mật khẩu
+- `docs/features/CUSTOMER_PORTAL_PHASE3.md` — Avatar và hồ sơ
 - `src/cyberhub_manager/services/customer_service.py` — Đăng ký và xác thực dữ liệu

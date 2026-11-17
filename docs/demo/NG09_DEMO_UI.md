@@ -12,7 +12,7 @@ Tài liệu cho cả nhóm khi chuẩn bị buổi nghiệm thu: chạy demo th�
 | Web demo | `python -m pip install -e ".[web]"` → `python -m cyberhub_manager.web --port 8000` | Mở `http://localhost:8000`; tài khoản mock giống desktop, dữ liệu tách theo phiên đăng nhập |
 
 HA-11 đã nối Login ↔ AppShell và nguồn actor đáng tin cậy cho sáu service. Web MySQL dùng chung bootstrap/nghiệp vụ;
-cấu hình triển khai trong [WEB_DEPLOYMENT.md](../WEB_DEPLOYMENT.md). Không nhầm mật khẩu seed với mật khẩu MySQL.
+cấu hình triển khai trong [WEB_DEPLOYMENT.md](../guides/WEB_DEPLOYMENT.md). Không nhầm mật khẩu seed với mật khẩu MySQL.
 
 Dữ liệu mock (đồng hồ cố định 16:00 ngày 18/10/2026 giờ Việt Nam, đơn giá 10.000 VND/giờ, số dư tối thiểu 5.000 VND):
 

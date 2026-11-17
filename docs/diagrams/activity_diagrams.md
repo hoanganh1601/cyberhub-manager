@@ -4,7 +4,7 @@
 
 ## 1. Mở phiên sử dụng máy (LI-06)
 
-Căn cứ: SES-01 đến SES-06 trong `docs/01_REQUIREMENTS.md`, `SessionServiceProtocol`
+Căn cứ: SES-01 đến SES-06 trong `docs/reference/01_REQUIREMENTS.md`, `SessionServiceProtocol`
 trong `services/contracts.py`. Preview chỉ đọc; mở phiên khóa dữ liệu bằng
 `SELECT ... FOR UPDATE` và chạy trọn trong một transaction.
 
@@ -91,7 +91,7 @@ flowchart TD
 
 ## 3. Checkout và tạo hóa đơn (LI-07)
 
-Căn cứ: SES-07 đến SES-09 và INV-01 trong `docs/01_REQUIREMENTS.md`. Preview chỉ
+Căn cứ: SES-07 đến SES-09 và INV-01 trong `docs/reference/01_REQUIREMENTS.md`. Preview chỉ
 đọc. Hoàn tất checkout tính lại phí bằng giờ server và số dư đã khóa; trừ số dư,
 ghi giao dịch, đóng phiên, trả máy và tạo hóa đơn cùng commit hoặc cùng rollback.
 

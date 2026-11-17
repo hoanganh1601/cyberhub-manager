@@ -59,7 +59,7 @@ phân quyền; không tự đặt món, nạp tiền, thanh toán, quay thưởn
 ## Nguồn đối chiếu
 
 - `src/cyberhub_manager/domain/models.py` — minimum_balance, MINIMUM_SESSION_MINUTES
-- `docs/CUSTOMER_PORTAL_PHASE1.md`
-- `docs/CUSTOMER_PORTAL_PHASE2.md`
-- `docs/HANDOVER_BUSINESS_DISCUSSION.md`
-- `docs/GAME_CENTER_PHASE6.md`
+- `docs/features/CUSTOMER_PORTAL_PHASE1.md`
+- `docs/features/CUSTOMER_PORTAL_PHASE2.md`
+- `docs/archive/HANDOVER_BUSINESS_DISCUSSION.md`
+- `docs/features/GAME_CENTER_PHASE6.md`

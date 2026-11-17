@@ -46,7 +46,7 @@ Quy ước ghi kết quả:
 - Lưu evidence tại `docs/screenshots/li09/`, tên file theo mã `AC-XX`.
 - Trạng thái FAIL phải có bug: ghi mã bug, mức độ và owner vào mục Ghi chú, đồng
   thời ghi vào mục Bug còn tồn tại của `docs/testing/LI09_TEST_REPORT.md`.
-- Ngôn ngữ đúng theo `docs/03_UI_THEME.md` mục Quy chuẩn ngôn ngữ hiển thị.
+- Ngôn ngữ đúng theo `docs/reference/03_UI_THEME.md` mục Quy chuẩn ngôn ngữ hiển thị.
 
 ---
 
@@ -415,7 +415,7 @@ Quy ước ghi kết quả:
 - Các bước thực hiện:
   1. Kiểm tra tiêu đề màn hình, nhãn trường, placeholder, tiêu đề cột, sidebar.
   2. Kiểm tra Toast, nút `Confirm`/`Cancel`, các trạng thái ViewState, lỗi nghiệp vụ và lỗi từng trường.
-- Kết quả mong đợi: Khi chọn VI, cả bước 1 và 2 hiển thị tiếng Việt. Chuyển EN và lặp lại: cả hai bước bằng tiếng Anh, đúng `docs/03_UI_THEME.md`; giữ nguyên tên khách/cửa hàng. Không hiển thị lỗi kỹ thuật hoặc trộn ngôn ngữ.
+- Kết quả mong đợi: Khi chọn VI, cả bước 1 và 2 hiển thị tiếng Việt. Chuyển EN và lặp lại: cả hai bước bằng tiếng Anh, đúng `docs/reference/03_UI_THEME.md`; giữ nguyên tên khách/cửa hàng. Không hiển thị lỗi kỹ thuật hoặc trộn ngôn ngữ.
 - Kết quả thực tế:
 - Trạng thái: PASS / FAIL
 - Evidence:

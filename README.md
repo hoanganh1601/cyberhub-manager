@@ -4,19 +4,19 @@ CyberHub Manager hỗ trợ nhân viên và quản lý vận hành quán net qua
 và giao diện web dùng chung các service nghiệp vụ Python/MySQL.
 
 P1 cho cả hai bản: ví chính/khuyến mãi, thưởng theo mốc nạp, quản trị nhân viên/cơ sở,
-cổng khách hàng và xuất/in hóa đơn. Xem [hướng dẫn chạy và nghiệm thu P1](docs/P1_DESKTOP_WEB.md).
+cổng khách hàng và xuất/in hóa đơn. Xem [hướng dẫn chạy và nghiệm thu P1](docs/reference/P1_DESKTOP_WEB.md).
 
 Vận hành MySQL có quy trình ca/két, sự cố bảo trì máy và mua hàng
-nhà cung cấp. Xem [nghiệp vụ và phân quyền](docs/OPERATIONS_PHASE7.md).
+nhà cung cấp. Xem [nghiệp vụ và phân quyền](docs/features/OPERATIONS_PHASE7.md).
 
 Web khách hàng đợt 1 có dashboard, biểu đồ chi tiêu, ưu đãi theo cơ sở, lịch sử phân trang
-và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/CUSTOMER_PORTAL_PHASE1.md).
+và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/features/CUSTOMER_PORTAL_PHASE1.md).
 
 Đợt 2 bổ sung số máy trống theo loại thường/VIP/Couple/Siêu VIP tại cơ sở (5 phút/lần), biểu đồ sử dụng và hồ sơ/đổi mật khẩu.
-Xem [hướng dẫn đợt 2](docs/CUSTOMER_PORTAL_PHASE2.md).
+Xem [hướng dẫn đợt 2](docs/features/CUSTOMER_PORTAL_PHASE2.md).
 
 Đợt 3 có menu avatar góc phải, tải ảnh đại diện, điểm/hạng thành viên và ưu đãi theo từng khách.
-Xem [quy tắc nghiệp vụ và hướng dẫn đợt 3](docs/CUSTOMER_PORTAL_PHASE3.md).
+Xem [quy tắc nghiệp vụ và hướng dẫn đợt 3](docs/features/CUSTOMER_PORTAL_PHASE3.md).
 
 ## Công nghệ
 
@@ -95,7 +95,7 @@ python -m cyberhub_manager.web --host 0.0.0.0 --port 8000
 
 Mở `http://localhost:8000`, đăng nhập `quanly01 / demo123` hoặc `nhanvien01 / demo123`.
 Demo có dữ liệu riêng cho mỗi phiên đăng nhập và mất khi server khởi động lại.
-Xem [WEB_DEPLOYMENT.md](docs/WEB_DEPLOYMENT.md) để dùng MySQL thật, triển khai Render
+Xem [WEB_DEPLOYMENT.md](docs/guides/WEB_DEPLOYMENT.md) để dùng MySQL thật, triển khai Render
 qua `render.yaml` hoặc Railway qua `railway.json` / `Dockerfile.web`.
 
 ### Xem Login và full UI không cần MySQL
@@ -106,8 +106,8 @@ python -m cyberhub_manager.app --mock
 
 Manager: `quanly01 / demo123`; Staff: `nhanvien01 / demo123`.
 Chạy `python -m cyberhub_manager.app` để dùng cấu hình MySQL thật bên dưới.
-Xem [hướng dẫn Login desktop](docs/LOGIN_DESKTOP.md) để thử VI/EN, validation và các trạng thái UI.
-Xem [hướng dẫn giao diện và biểu đồ](docs/WORKSPACE_UI.md) để kiểm tra các màn nghiệp vụ,
+Xem [hướng dẫn Login desktop](docs/guides/LOGIN_DESKTOP.md) để thử VI/EN, validation và các trạng thái UI.
+Xem [hướng dẫn giao diện và biểu đồ](docs/reference/WORKSPACE_UI.md) để kiểm tra các màn nghiệp vụ,
 chế độ EN và hộp thoại. Thêm `--lang en` vào lệnh trên để bắt đầu bằng tiếng Anh.
 
 Tạo `.env` từ file mẫu:
@@ -363,12 +363,12 @@ Quy tắc bắt buộc:
 
 ## Tài liệu dự án
 
-1. [Yêu cầu sản phẩm](docs/01_REQUIREMENTS.md)
-2. [Khung code và hợp đồng module](docs/02_CODEBASE_SKELETON.md)
-3. [Theme và quy chuẩn frontend](docs/03_UI_THEME.md)
-4. [Phân công và backlog Linear](docs/04_LINEAR_BACKLOG.md)
-5. [GitHub workflow](docs/05_GITHUB_WORKFLOW.md)
-6. [Checklist kickoff](docs/06_KICKOFF_CHECKLIST.md)
+1. [Yêu cầu sản phẩm](docs/reference/01_REQUIREMENTS.md)
+2. [Khung code và hợp đồng module](docs/reference/02_CODEBASE_SKELETON.md)
+3. [Theme và quy chuẩn frontend](docs/reference/03_UI_THEME.md)
+4. [Phân công và backlog Linear](docs/archive/04_LINEAR_BACKLOG.md)
+5. [GitHub workflow](docs/archive/05_GITHUB_WORKFLOW.md)
+6. [Checklist kickoff](docs/archive/06_KICKOFF_CHECKLIST.md)
 7. [CSV nhập task vào Linear](docs/linear_import.csv)
 
 Mọi thay đổi tên bảng, field, service contract hoặc theme phải được cập nhật trong tài liệu liên quan trước khi merge.
@@ -434,13 +434,13 @@ python -m scripts.run_rag_gemini --port 8059
 ```
 
 Không cần GPU hoặc tải model. Mặc định dùng Gemini Flash-Lite và Gemini embedding;
-free tier có giới hạn và gửi dữ liệu tới Google. Xem [hướng dẫn Gemini API](docs/GEMINI_API_RUNBOOK.md)
+free tier có giới hạn và gửi dữ liệu tới Google. Xem [hướng dẫn Gemini API](docs/guides/GEMINI_API_RUNBOOK.md)
 để cấu hình model, quyền dữ liệu và xử lý lỗi key/quota.
 
 5A giải thích tài liệu đúng quyền; 5B phân tích
 snapshot doanh thu/máy đã lọc cho MANAGER/ADMIN; 5C gợi ý menu, ưu đãi, voucher và
-game cho chính khách hàng đang đăng nhập. Xem [thiết kế và cách kiểm tra 5B–5C](docs/AI_PHASES_5B_5C.md).
+game cho chính khách hàng đang đăng nhập. Xem [thiết kế và cách kiểm tra 5B–5C](docs/features/AI_PHASES_5B_5C.md).
 AI không được thao tác nạp tiền, checkout, đặt món hay dùng voucher. Mặc định app
 thường chỉ bật trợ lý khi cấu hình API key, cờ bật và audit path; helper Gemini tự đặt cờ/audit path.
 Lệnh cũ `python -m scripts.run_rag_local` cũng chuyển tiếp sang Gemini API.
-Xem [các lựa chọn API miễn phí](docs/FREE_API_OPTIONS.md) khi cần dự phòng hạn mức.
+Xem [các lựa chọn API miễn phí](docs/guides/FREE_API_OPTIONS.md) khi cần dự phòng hạn mức.

@@ -98,7 +98,7 @@ Giữ thiết lập HTTPS/cookie/proxy trong hướng dẫn triển khai web hi�
 5. Admin bấm tên cơ sở ở thanh trên, chọn cơ sở khác; danh sách máy/hóa đơn/doanh thu đổi theo cơ sở.
 6. Tạo nhân viên STAFF và thử đăng nhập. Manager không được cấp MANAGER/ADMIN hoặc sửa nhân viên cơ sở khác.
 7. Khách đăng nhập cổng riêng: xem ví và xuất/in hóa đơn của mình. Desktop hiển thị 100 bản ghi gần nhất;
-   web có dashboard, ưu đãi, lịch sử phân trang toàn bộ dữ liệu và thông báo theo [hướng dẫn đợt 1](CUSTOMER_PORTAL_PHASE1.md).
+   web có dashboard, ưu đãi, lịch sử phân trang toàn bộ dữ liệu và thông báo theo [hướng dẫn đợt 1](../features/CUSTOMER_PORTAL_PHASE1.md).
 8. Chuyển VI/EN ở các màn mới; kiểm tra cửa sổ desktop 1100×650 và web trên điện thoại.
 
 Không có chính sách khuyến mãi mặc định tự kích hoạt trên dữ liệu thật. Tài khoản/cơ sở mẫu chỉ ở chế độ demo.

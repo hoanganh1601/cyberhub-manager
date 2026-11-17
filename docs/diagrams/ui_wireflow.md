@@ -1,7 +1,7 @@
 # UI Wireflow — CyberHub Manager
 
 Tài liệu thiết kế luồng điều hướng màn hình và ma trận phân quyền giao diện cho CyberHub Manager (Nhiệm vụ NG-01).
-Căn cứ quy chuẩn: `docs/03_UI_THEME.md`, `docs/07_DTO_UI_HANDOFF.md` và `docs/assignments/NGAT_NG01.md`.
+Căn cứ quy chuẩn: `docs/reference/03_UI_THEME.md`, `docs/reference/07_DTO_UI_HANDOFF.md` và `docs/assignments/NGAT_NG01.md`.
 
 ---
 

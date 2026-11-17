@@ -49,4 +49,4 @@ Smoke app/session chế độ MySQL local trả HTTP 200.
 - [Phân phòng cho quản lý](customer-phase2/room-settings-desktop.png)
 
 Chạy lại: `python scripts/check_customer_phase2_ui.py` (cần Playwright/Chromium cục bộ).
-Quy tắc và hướng dẫn: [CUSTOMER_PORTAL_PHASE2.md](../CUSTOMER_PORTAL_PHASE2.md).
+Quy tắc và hướng dẫn: [CUSTOMER_PORTAL_PHASE2.md](../features/CUSTOMER_PORTAL_PHASE2.md).

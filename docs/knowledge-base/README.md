@@ -531,7 +531,7 @@ Kiểm tra model và cấu trúc kho tài liệu:
 
 ## Bản tích hợp Gemini API — cập nhật 10/11/2026
 
-Xem [runbook Gemini API](../GEMINI_API_RUNBOOK.md) để chạy web có đăng nhập tại cổng 8059.
+Xem [runbook Gemini API](../guides/GEMINI_API_RUNBOOK.md) để chạy web có đăng nhập tại cổng 8059.
 Embedding, sinh câu trả lời và kiểm chứng sử dụng API key. Nguồn đưa vào prompt vẫn lọc theo
 audience; kho APPROVED được gửi Google để tạo embedding. Các tài liệu DRAFT không được phục vụ.
 

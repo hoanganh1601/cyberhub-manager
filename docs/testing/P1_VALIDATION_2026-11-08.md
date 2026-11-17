@@ -63,4 +63,4 @@ khởi tạo dữ liệu và Admin riêng khi chuyển sang MySQL theo hướng 
 với máy in đang dùng. Bản demo web tách dữ liệu theo phiên đăng nhập; kiểm tra chia sẻ dữ liệu giữa
 desktop/web hoặc nhiều máy phải dùng cùng MySQL. Chưa triển khai lại hosting hay push nhánh lên GitHub.
 
-Xem [hướng dẫn vận hành và nghiệm thu](../P1_DESKTOP_WEB.md).
+Xem [hướng dẫn vận hành và nghiệm thu](../reference/P1_DESKTOP_WEB.md).

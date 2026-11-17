@@ -1,7 +1,7 @@
 # Phân loại báo cáo AI
 
 Từ ngày 10/11/2026, source ứng dụng chỉ dùng Gemini API key. Các lệnh chạy/đánh giá cũ
-cũng chuyển tiếp sang API; xem [Gemini runbook](../GEMINI_API_RUNBOOK.md).
+cũng chuyển tiếp sang API; xem [Gemini runbook](../guides/GEMINI_API_RUNBOOK.md).
 
 Các tệp sau là bằng chứng lịch sử của provider trên máy trước khi chuyển đổi:
 

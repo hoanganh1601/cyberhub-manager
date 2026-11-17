@@ -1,7 +1,7 @@
 # Nghiệm thu web khách hàng — đợt 1, 08/11/2026
 
 Triển khai trên nhánh `feat/p1-desktop-web`, tiếp nối P1 desktop/web.
-Hướng dẫn chạy và quy tắc: [CUSTOMER_PORTAL_PHASE1.md](../CUSTOMER_PORTAL_PHASE1.md).
+Hướng dẫn chạy và quy tắc: [CUSTOMER_PORTAL_PHASE1.md](../features/CUSTOMER_PORTAL_PHASE1.md).
 
 ## Phạm vi đã kiểm tra
 
