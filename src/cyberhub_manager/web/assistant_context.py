@@ -13,6 +13,8 @@ import json
 
 from cyberhub_manager.ai.models import AIAccessContext, DynamicAssistantSource
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
+from cyberhub_manager.domain.enums import Role
+from cyberhub_manager.domain.p1 import Permission, can
 
 VN = timezone(timedelta(hours=7))
 _MODES = frozenset({"knowledge", "analytics", "personalized"})
@@ -23,7 +25,10 @@ def validate_mode(mode, access: AIAccessContext) -> str:
         return "knowledge"
     if not isinstance(mode, str) or mode not in _MODES:
         raise ValidationError(field_errors={"mode": "Chế độ trợ lý không hợp lệ"})
-    if mode == "analytics" and access.role not in ("MANAGER", "ADMIN"):
+    if mode == "analytics" and (
+        access.role not in Role.__members__
+        or not can(Role(access.role), Permission.VIEW_REVENUE)
+    ):
         raise PermissionDeniedError()
     if mode == "personalized" and access.role != "CUSTOMER":
         raise PermissionDeniedError()
@@ -74,7 +79,7 @@ def analytics_sources(*, services, actor, access, days: int) -> tuple[DynamicAss
         title="Số liệu vận hành đã lọc theo quyền",
         section=f"Kỳ {days} ngày · {len(compact['stores'])} cơ sở",
         content=_content(compact), source="runtime/analytics-live.md",
-        audience=("MANAGER", "ADMIN"), store_ids=access.store_ids,
+        audience=(access.role,), store_ids=access.store_ids,
         generated_at=datetime.now(timezone.utc),
     ),)
 

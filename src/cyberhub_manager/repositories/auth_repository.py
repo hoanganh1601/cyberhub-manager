@@ -37,8 +37,10 @@ class AuthRepository:
                     s.name AS store_name
                 FROM employees AS e
                 JOIN stores AS s ON s.id = e.store_id
+                LEFT JOIN employee_profiles AS p ON p.employee_id = e.id
                 WHERE e.username = %s
                   AND e.status = 'ACTIVE'
+                  AND (p.id IS NULL OR p.employment_status = 'ACTIVE')
                   AND s.status = 'ACTIVE'
                 """,
                 (username,),
@@ -87,8 +89,10 @@ class AuthRepository:
                     s.name AS store_name
                 FROM employees AS e
                 JOIN stores AS s ON s.id = e.store_id
+                LEFT JOIN employee_profiles AS p ON p.employee_id = e.id
                 WHERE e.id = %s
                   AND e.status = 'ACTIVE'
+                  AND (p.id IS NULL OR p.employment_status = 'ACTIVE')
                   AND s.status = 'ACTIVE'
                 FOR SHARE
                 """,
@@ -125,7 +129,8 @@ class AuthRepository:
                        e.auth_version,e.must_change_password,
                        s.code AS store_code,s.name AS store_name
                 FROM employees e JOIN stores s ON s.id=e.store_id
-                WHERE e.id=%s AND e.status='ACTIVE' AND s.status='ACTIVE'
+                LEFT JOIN employee_profiles p ON p.employee_id=e.id
+                WHERE e.id=%s AND e.status='ACTIVE' AND (p.id IS NULL OR p.employment_status='ACTIVE') AND s.status='ACTIVE'
                 FOR UPDATE
                 """,
                 (employee_id,),

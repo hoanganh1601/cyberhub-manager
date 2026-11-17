@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+import os
 
 from .enums import Role
 from .exceptions import ValidationError
@@ -13,11 +14,17 @@ class Permission(StrEnum):
     OPERATE = "operate"
     MANAGE_MACHINES = "manage_machines"
     LOCK_CUSTOMERS = "lock_customers"
+    VIEW_CUSTOMERS = "view_customers"
+    CREATE_CUSTOMERS = "create_customers"
+    EDIT_CUSTOMERS = "edit_customers"
+    OPERATE_WALLET = "operate_wallet"
     MANAGE_EMPLOYEES = "manage_employees"
+    MANAGE_EMPLOYEE_CREDENTIALS = "manage_employee_credentials"
     MANAGE_PROMOTIONS = "manage_promotions"
     MANAGE_STORES = "manage_stores"
     SWITCH_STORE = "switch_store"
     EXPORT_INVOICE = "export_invoice"
+    VIEW_REVENUE = "view_revenue"
     MANAGE_MENU = "manage_menu"  # Đợt 1: thêm/sửa/ẩn món, nhóm món, giá, ảnh (MANAGER/ADMIN)
     MANAGE_REWARDS = "manage_rewards"  # Đợt 2: danh mục phần thưởng, phát/thu hồi voucher (MANAGER/ADMIN)
     POS_VIEW_ORDERS = "pos_view_orders"
@@ -45,6 +52,7 @@ class Permission(StrEnum):
     PROCUREMENT_APPROVE = "procurement_approve"
     PROCUREMENT_RECEIVE = "procurement_receive"
     PROCUREMENT_PAY = "procurement_pay"
+    PROCUREMENT_APPROVE_PAYMENT = "procurement_approve_payment"
     PROCUREMENT_MANAGE_SUPPLIERS = "procurement_manage_suppliers"
     COMMERCIAL_VIEW = "commercial_view"
     COMMERCIAL_MANAGE = "commercial_manage"
@@ -55,6 +63,10 @@ class Permission(StrEnum):
 # available to MANAGER or ADMIN merely because it was added to the enum.
 _STAFF_PERMISSIONS = frozenset({
     Permission.OPERATE,
+    Permission.VIEW_CUSTOMERS,
+    Permission.CREATE_CUSTOMERS,
+    Permission.EDIT_CUSTOMERS,
+    Permission.OPERATE_WALLET,
     Permission.EXPORT_INVOICE,
     Permission.POS_VIEW_ORDERS,
     Permission.POS_PREPARE_ORDERS,
@@ -71,6 +83,7 @@ _STAFF_PERMISSIONS = frozenset({
     Permission.MAINTENANCE_UPDATE,
 })
 _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
+    Permission.VIEW_REVENUE,
     Permission.MANAGE_MACHINES,
     Permission.LOCK_CUSTOMERS,
     Permission.MANAGE_EMPLOYEES,
@@ -89,6 +102,7 @@ _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
     Permission.PROCUREMENT_APPROVE,
     Permission.PROCUREMENT_RECEIVE,
     Permission.PROCUREMENT_PAY,
+    Permission.PROCUREMENT_APPROVE_PAYMENT,
     Permission.PROCUREMENT_MANAGE_SUPPLIERS,
     Permission.COMMERCIAL_VIEW,
 })
@@ -109,12 +123,51 @@ ROLE_PERMISSIONS = {
         Permission.SWITCH_STORE,
         Permission.COMMERCIAL_MANAGE,
         Permission.COMMERCIAL_RECONCILE,
+        Permission.MANAGE_EMPLOYEE_CREDENTIALS,
+    }),
+    Role.DIRECTOR: frozenset({
+        Permission.MANAGE_STORES, Permission.SWITCH_STORE,
+        Permission.VIEW_REVENUE,
+        Permission.VIEW_CUSTOMERS,
+        Permission.MANAGE_EMPLOYEES, Permission.MANAGE_PROMOTIONS,
+        Permission.MANAGE_REWARDS, Permission.COMMERCIAL_VIEW,
+        Permission.COMMERCIAL_MANAGE, Permission.COMMERCIAL_RECONCILE,
+        Permission.EXPORT_INVOICE, Permission.PROCUREMENT_VIEW,
+        Permission.PROCUREMENT_MANAGE_SUPPLIERS,
+        Permission.PROCUREMENT_APPROVE_PAYMENT,
     }),
 }
 
 
+# Existing ADMIN accounts keep their grants until an operator explicitly opts in
+# after reviewing and migrating each account. No role is rewritten by this switch.
+SEPARATED_ADMIN_PERMISSIONS = frozenset({
+    Permission.MANAGE_EMPLOYEE_CREDENTIALS,
+})
+
+
+def separated_rbac() -> bool:
+    return os.getenv("CYBERHUB_RBAC_POLICY", "legacy").lower() == "separated"
+
+
+def permissions_for(role: Role) -> frozenset[Permission]:
+    if role == Role.ADMIN and separated_rbac():
+        return SEPARATED_ADMIN_PERMISSIONS
+    return ROLE_PERMISSIONS.get(role, frozenset())
+
+
 def can(role: Role, permission: Permission) -> bool:
-    return permission in ROLE_PERMISSIONS.get(role, ())
+    return permission in permissions_for(role)
+
+
+def business_manager(role: Role) -> bool:
+    """Local operations; a chain director does not become a cashier."""
+    return role == Role.MANAGER or (role == Role.ADMIN and not separated_rbac())
+
+
+def chain_director(role: Role) -> bool:
+    """Chain-wide business scope, with a temporary legacy ADMIN bridge."""
+    return role == Role.DIRECTOR or (role == Role.ADMIN and not separated_rbac())
 
 
 @dataclass(frozen=True)

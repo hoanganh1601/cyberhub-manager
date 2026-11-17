@@ -25,7 +25,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.menu import MenuOrderStatus
-from cyberhub_manager.domain.p1 import CustomerSession, Permission, can
+from cyberhub_manager.domain.p1 import CustomerSession, Permission, can, chain_director
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.voucher import (
     FOOD_TYPES,
@@ -183,11 +183,12 @@ class VoucherService:
     def overview(self, actor):
         """Trang Voucher: danh mục (quản lý) và nhật ký phát hành/sử dụng của cơ sở."""
         with self._errors(), self._transaction() as conn:
-            current = self._actor(conn, actor, Permission.OPERATE)
+            current = self._actor(conn, actor,
+                                  Permission.MANAGE_REWARDS if actor.role == Role.DIRECTOR else Permission.OPERATE)
             manage = can(current.role, Permission.MANAGE_REWARDS)
             return dict(
                 can_manage=manage,
-                is_admin=current.role == Role.ADMIN,
+                is_admin=chain_director(current.role),
                 catalog=self._repo.list_catalog(conn, current.store_id) if manage else [],
                 events=self._repo.list_events(conn, current.store_id),
             )
@@ -220,14 +221,14 @@ class VoucherService:
         with self._errors(), self._transaction() as conn:
             current = self._actor(conn, actor, Permission.MANAGE_REWARDS)
             # Chỉ ADMIN tạo/sửa phần thưởng áp dụng mọi cơ sở.
-            if all_stores and current.role != Role.ADMIN:
+            if all_stores and not chain_director(current.role):
                 raise PermissionDeniedError("Chỉ quản trị viên tạo phần thưởng cho mọi cơ sở")
             store_id = None if all_stores else current.store_id
             if catalog_id is not None:
                 existing = self._repo.get_catalog(conn, catalog_id, lock=True) if _positive_id(catalog_id) else None
                 if existing is None or (existing.store_id or None) not in (None, current.store_id):
                     raise NotFoundError("Không tìm thấy phần thưởng")
-                if existing.store_id is None and current.role != Role.ADMIN:
+                if existing.store_id is None and not chain_director(current.role):
                     raise PermissionDeniedError("Chỉ quản trị viên sửa phần thưởng dùng chung")
             if self._repo.catalog_code_taken(conn, code, catalog_id):
                 raise ConflictError("Mã đã tồn tại", field_errors={"code": "Mã đã tồn tại"})

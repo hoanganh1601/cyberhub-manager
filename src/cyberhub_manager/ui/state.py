@@ -1,6 +1,6 @@
 """UI state cho view và form trong CyberHub Manager.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 7.
+Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 7.
 - ViewState gồm: LOADING, READY, EMPTY, ERROR.
 - Trạng thái submit form là cờ is_submitting: bool riêng của form,
   không trộn với ViewState hoặc enum MachineStatus / AccountStatus.

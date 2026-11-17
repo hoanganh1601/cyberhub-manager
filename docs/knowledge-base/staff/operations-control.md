@@ -43,5 +43,5 @@ thu. Sau khi quản lý kiểm tra và xác nhận, máy mới trở lại trạ
 
 ## Nguồn đối chiếu
 
-- `docs/OPERATIONS_PHASE7.md` — quy trình, phân quyền và hướng dẫn nghiệm thu
+- `docs/features/OPERATIONS_PHASE7.md` — quy trình, phân quyền và hướng dẫn nghiệm thu
 - `src/cyberhub_manager/domain/p1.py` — quyền ca và bảo trì

@@ -1,6 +1,6 @@
 """StatusBadge component cho CyberHub Manager.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 7 & 8.
+Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 7 & 8.
 - StatusBadge.set_status(status) nhận enum nghiệp vụ, tự chọn nhãn / icon / token màu.
 - Luôn hiển thị chữ + icon, không chỉ dùng màu.
 """
@@ -74,6 +74,7 @@ _STYLE_MAPPING: dict[tuple[type, str], tuple[str, str, str, str]] = {
 
     # Role
     (Role, Role.ADMIN.value): ("Admin", "★", DANGER, BG_DANGER_SUBTLE),
+    (Role, Role.DIRECTOR.value): ("Giám đốc", "◆", INFO, BG_INFO_SUBTLE),
     (Role, Role.MANAGER.value): ("Quản lý", "◆", INFO, BG_INFO_SUBTLE),
     (Role, Role.STAFF.value): ("Nhân viên", "●", SUCCESS, BG_SUCCESS_SUBTLE),
 }

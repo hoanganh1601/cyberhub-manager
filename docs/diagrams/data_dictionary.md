@@ -3,7 +3,7 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: các migration `sql/001_*.sql` đến `sql/024_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+Nguồn: các migration `sql/001_*.sql` đến `sql/027_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
 tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.
 
 ## 1. Danh sách bảng
@@ -12,8 +12,11 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 |---|---|---:|
 | [`stores`](#stores) | Cửa hàng net. Nhân viên, máy và hóa đơn đều thuộc một cửa hàng. | 7 |
 | [`employees`](#employees) | Nhân viên đăng nhập ứng dụng; vai trò quyết định quyền thao tác. | 13 |
-| [`customers`](#customers) | Thông tin cá nhân của khách chơi. | 7 |
-| [`accounts`](#accounts) | Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách đúng một tài khoản. | 12 |
+| [`employee_profiles`](#employee_profiles) | Hồ sơ nhân sự độc lập với thông tin xác thực; DIRECTOR/MANAGER quản lý nghiệp vụ, ADMIN chỉ gắn/cấp tài khoản. | 8 |
+| [`employee_store_assignments`](#employee_store_assignments) | Phân công bổ sung cho MANAGER được vận hành tại nhiều cơ sở; không thay đổi cơ sở chính trong hồ sơ. | 4 |
+| [`customers`](#customers) | Thông tin cá nhân của khách chơi. | 8 |
+| [`customer_store_links`](#customer_store_links) | Phạm vi khách hàng tại từng cơ sở, suy ra từ giao dịch/phiên hoặc liên kết được xác minh tại quầy. | 4 |
+| [`accounts`](#accounts) | Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách đúng một tài khoản. | 14 |
 | [`machines`](#machines) | Máy trạm của cửa hàng và trạng thái hiện tại. | 9 |
 | [`usage_sessions`](#usage_sessions) | Một lần khách dùng một máy, từ lúc mở đến lúc checkout. | 13 |
 | [`account_transactions`](#account_transactions) | Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa. | 11 |
@@ -36,6 +39,9 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`inventory_movements`](#inventory_movements) | Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh. | 14 |
 | [`inventory_counts`](#inventory_counts) | Phiếu kiểm kê đề xuất; người khác có thẩm quyền phải phê duyệt trước khi tạo điều chỉnh kho. | 14 |
 | [`customer_notification_events`](#customer_notification_events) | Sổ sự kiện thông báo bền vững cho khách theo vòng đời đơn; khóa sự kiện chống phát trùng. | 8 |
+| [`pos_order_reversals`](#pos_order_reversals) | Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt. | 13 |
+| [`menu_promotions`](#menu_promotions) | Chính sách khuyến mãi POS theo cơ sở; mỗi đơn chỉ chọn một ưu đãi xác định. | 10 |
+| [`menu_order_pricing`](#menu_order_pricing) | Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán. | 7 |
 | [`reward_catalog`](#reward_catalog) | Danh mục phần thưởng; không có loại nào quy đổi tiền mặt. | 11 |
 | [`customer_vouchers`](#customer_vouchers) | Voucher của khách; điều kiện được chụp lúc phát, dùng một lần. | 19 |
 | [`voucher_events`](#voucher_events) | Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm. | 7 |
@@ -48,6 +54,19 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`ad_settings`](#ad_settings) | Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất). | 7 |
 | [`ad_creatives`](#ad_creatives) | Nội dung quảng cáo nội bộ do CyberHub tự soạn. | 8 |
 | [`ad_reward_events`](#ad_reward_events) | Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game. | 15 |
+| [`cash_shifts`](#cash_shifts) | Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở. | 15 |
+| [`cash_shift_entries`](#cash_shift_entries) | Sổ bất biến thu, chi, hoàn và điều chỉnh theo ca; chống ghi trùng bằng nguồn nghiệp vụ. | 11 |
+| [`machine_incidents`](#machine_incidents) | Phiếu sự cố và vòng đời bảo trì máy từ báo lỗi đến nghiệm thu. | 18 |
+| [`machine_incident_parts`](#machine_incident_parts) | Linh kiện sử dụng cho một phiếu sửa máy. | 5 |
+| [`machine_incident_events`](#machine_incident_events) | Lịch sử chuyển trạng thái sự cố máy, chỉ thêm. | 7 |
+| [`suppliers`](#suppliers) | Nhà cung cấp theo cơ sở và điều khoản thanh toán. | 10 |
+| [`purchase_requests`](#purchase_requests) | Đề nghị nhập hàng có người lập và người quyết định. | 9 |
+| [`purchase_request_lines`](#purchase_request_lines) | Nguyên liệu và số lượng trong đề nghị nhập. | 3 |
+| [`purchase_orders`](#purchase_orders) | Đơn mua hàng tạo từ đề nghị đã duyệt và gắn nhà cung cấp. | 10 |
+| [`purchase_order_lines`](#purchase_order_lines) | Dòng đơn mua và tiến độ nhận theo nguyên liệu. | 6 |
+| [`goods_receipts`](#goods_receipts) | Phiếu nhận hàng idempotent, tạo nhập kho và công nợ theo số lượng đạt. | 9 |
+| [`goods_receipt_lines`](#goods_receipt_lines) | Chi tiết hàng đạt, hỏng và thiếu trong một lần nhận. | 6 |
+| [`supplier_payables`](#supplier_payables) | Công nợ phát sinh từ phiếu nhận hàng và trạng thái thanh toán. | 11 |
 | [`commercial_partners`](#commercial_partners) | Đối tác cung cấp game hoặc mạng quảng cáo. | 10 |
 | [`commercial_contracts`](#commercial_contracts) | Hợp đồng thương mại có maker-checker và mô hình tính doanh thu. | 13 |
 | [`commercial_campaigns`](#commercial_campaigns) | Chiến dịch game/quảng cáo thuộc một hợp đồng đã duyệt. | 13 |
@@ -57,6 +76,10 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`commercial_reward_grants`](#commercial_reward_grants) | Outbox phần thưởng; callback không được cộng xu/phát voucher trực tiếp. | 10 |
 | [`commercial_settlements`](#commercial_settlements) | Kỳ đối soát doanh thu có maker-checker. | 14 |
 | [`commercial_settlement_lines`](#commercial_settlement_lines) | Dòng snapshot đối soát theo vị trí và loại sự kiện. | 6 |
+| [`supplier_payable_approvals`](#supplier_payable_approvals) | Bản ghi duyệt công nợ nhà cung cấp; dùng kiểm soát phân tách người duyệt và người chi. | 4 |
+| [`customer_email_tokens`](#customer_email_tokens) | Token kích hoạt/đặt lại mật khẩu khách; chỉ lưu hash và nonce dẫn xuất, token thô không được lưu. | 8 |
+| [`customer_mail_outbox`](#customer_mail_outbox) | Transactional outbox gửi email khách sau khi transaction đăng ký/reset đã commit. | 7 |
+| [`customer_security_audit`](#customer_security_audit) | Audit bất biến cho thao tác kích hoạt, đặt lại mật khẩu và các sự kiện bảo mật khách. | 6 |
 
 ## 2. Quan hệ và cardinality
 
@@ -66,6 +89,9 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | Cha | | Con | Khóa ngoại | Ý nghĩa |
 |---|:---:|---|---|---|
 | `stores` | 1 — 0..n | `employees` | `employees.store_id` → `stores.id` | Cửa hàng nhân viên làm việc. |
+| `stores` | 1 — 0..n | `employee_profiles` | `employee_profiles.home_store_id` → `stores.id` | Cơ sở công tác chính. |
+| `stores` | 1 — 0..n | `employee_store_assignments` | `employee_store_assignments.store_id` → `stores.id` | Cơ sở được phép vận hành; phần thứ hai của khóa chính. |
+| `stores` | 1 — 0..n | `customer_store_links` | `customer_store_links.store_id` → `stores.id` | Cơ sở liên quan; phần thứ hai của khóa chính. |
 | `stores` | 1 — 0..n | `machines` | `machines.store_id` → `stores.id` | Cửa hàng sở hữu máy. |
 | `stores` | 0..1 — 0..n | `account_transactions` | `account_transactions.store_id` → `stores.id` | Cơ sở ghi nhận giao dịch tại thời điểm phát sinh. |
 | `stores` | 1 — 0..n | `invoices` | `invoices.store_id` → `stores.id` | Cửa hàng; dùng cho báo cáo doanh thu. |
@@ -76,11 +102,25 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `stores` | 1 — 0..n | `menu_orders` | `menu_orders.store_id` → `stores.id` | Cơ sở của máy đang dùng. |
 | `stores` | 1 — 0..n | `inventory_ingredients` | `inventory_ingredients.store_id` → `stores.id` | Cửa hàng sở hữu nguyên liệu; cùng `id` tạo khóa tham chiếu ghép cho sổ kho. |
 | `stores` | 1 — 0..n | `customer_notification_events` | `customer_notification_events.store_id` → `stores.id` | Cửa hàng phát sinh thông báo. |
+| `stores` | 1 — 0..n | `pos_order_reversals` | `pos_order_reversals.store_id` → `stores.id` | Cơ sở xử lý. |
+| `stores` | 1 — 0..n | `menu_promotions` | `menu_promotions.store_id` → `stores.id` | Cơ sở áp dụng. |
 | `stores` | 0..1 — 0..n | `reward_catalog` | `reward_catalog.store_id` → `stores.id` | Cơ sở áp dụng; NULL = mọi cơ sở (chỉ ADMIN tạo). |
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.store_id` → `stores.id` | Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở. |
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_store_id` → `stores.id` | Cơ sở nơi dùng. |
 | `stores` | 0..1 — 0..n | `voucher_events` | `voucher_events.store_id` → `stores.id` | Cơ sở phát sinh. |
+| `stores` | 1 — 0..n | `cash_shifts` | `cash_shifts.store_id` → `stores.id` | Cơ sở mở ca. |
+| `stores` | 1 — 0..n | `cash_shift_entries` | `cash_shift_entries.store_id` → `stores.id` | Cơ sở phát sinh. |
+| `stores` | 1 — 0..n | `machine_incidents` | `machine_incidents.store_id` → `stores.id` | Cơ sở có máy lỗi. |
+| `stores` | 1 — 0..n | `suppliers` | `suppliers.store_id` → `stores.id` | Cơ sở quản lý nhà cung cấp. |
+| `stores` | 1 — 0..n | `purchase_requests` | `purchase_requests.store_id` → `stores.id` | Cơ sở đề nghị. |
+| `stores` | 1 — 0..n | `purchase_orders` | `purchase_orders.store_id` → `stores.id` | Cơ sở mua. |
+| `stores` | 1 — 0..n | `goods_receipts` | `goods_receipts.store_id` → `stores.id` | Cơ sở nhận. |
+| `stores` | 1 — 0..n | `supplier_payables` | `supplier_payables.store_id` → `stores.id` | Cơ sở chịu công nợ. |
 | `stores` | 0..1 — 0..n | `commercial_placements` | `commercial_placements.store_id` → `stores.id` | Cửa hàng áp dụng; NULL = toàn hệ thống. |
+| `stores` | 0..1 — 0..n | `customer_security_audit` | `customer_security_audit.store_id` → `stores.id` | Cơ sở liên quan nếu có; NULL với luồng web tự phục vụ. |
+| `employees` | 0..1 — 0..1 | `employee_profiles` | `employee_profiles.employee_id` → `employees.id` | Tài khoản nhân viên được gắn; NULL khi mới tạo hồ sơ, UNIQUE khi đã cấp tài khoản. |
+| `employees` | 1 — 0..n | `employee_store_assignments` | `employee_store_assignments.employee_id` → `employees.id` | Nhân viên được phân công; phần thứ nhất của khóa chính. |
+| `employees` | 1 — 0..n | `employee_store_assignments` | `employee_store_assignments.granted_by` → `employees.id` | ADMIN đã cấp quyền phân công. |
 | `employees` | 0..1 — 0..n | `usage_sessions` | `usage_sessions.closed_by` → `employees.id` | Nhân viên checkout; NULL khi phiên đang chạy. |
 | `employees` | 1 — 0..n | `usage_sessions` | `usage_sessions.opened_by` → `employees.id` | Nhân viên mở phiên. |
 | `employees` | 1 — 0..n | `account_transactions` | `account_transactions.employee_id` → `employees.id` | Nhân viên thực hiện. |
@@ -92,15 +132,32 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `employees` | 0..1 — 0..n | `inventory_movements` | `inventory_movements.employee_id` → `employees.id` | Nhân viên thực hiện hoặc phê duyệt; NULL với tác vụ hệ thống. |
 | `employees` | 0..1 — 0..n | `inventory_counts` | `inventory_counts.decided_by` → `employees.id` | Nhân viên khác phê duyệt/từ chối; NULL khi đang chờ. |
 | `employees` | 1 — 0..n | `inventory_counts` | `inventory_counts.proposed_by` → `employees.id` | Nhân viên đề xuất kiểm kê. |
+| `employees` | 0..1 — 0..n | `pos_order_reversals` | `pos_order_reversals.decided_by` → `employees.id` | Quản lý quyết định; NULL khi đang chờ. |
+| `employees` | 1 — 0..n | `pos_order_reversals` | `pos_order_reversals.requested_by` → `employees.id` | Nhân viên đề nghị. |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.issued_by` → `employees.id` | Nhân viên phát (NULL khi do hệ thống). |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_by` → `employees.id` | Nhân viên xác nhận. |
 | `employees` | 0..1 — 0..n | `voucher_events` | `voucher_events.employee_id` → `employees.id` | Nhân viên thực hiện. |
 | `employees` | 1 — 0..n | `loyalty_point_grants` | `loyalty_point_grants.employee_id` → `employees.id` | Nhân viên xác nhận. |
+| `employees` | 1 — 0..n | `cash_shifts` | `cash_shifts.employee_id` → `employees.id` | Nhân viên chịu trách nhiệm ca. |
+| `employees` | 0..1 — 0..n | `cash_shifts` | `cash_shifts.reviewed_by` → `employees.id` | Quản lý duyệt chênh lệch. |
+| `employees` | 1 — 0..n | `cash_shift_entries` | `cash_shift_entries.employee_id` → `employees.id` | Nhân viên ghi nhận. |
+| `employees` | 0..1 — 0..n | `machine_incidents` | `machine_incidents.assigned_to` → `employees.id` | Người được phân công; có thể NULL trước khi phân công. |
+| `employees` | 1 — 0..n | `machine_incidents` | `machine_incidents.reported_by` → `employees.id` | Người báo lỗi. |
+| `employees` | 0..1 — 0..n | `machine_incidents` | `machine_incidents.verified_by` → `employees.id` | Người nghiệm thu. |
+| `employees` | 1 — 0..n | `machine_incident_events` | `machine_incident_events.employee_id` → `employees.id` | Người thực hiện. |
+| `employees` | 0..1 — 0..n | `purchase_requests` | `purchase_requests.decided_by` → `employees.id` | Người duyệt/từ chối. |
+| `employees` | 1 — 0..n | `purchase_requests` | `purchase_requests.requested_by` → `employees.id` | Người lập. |
+| `employees` | 1 — 0..n | `purchase_orders` | `purchase_orders.created_by` → `employees.id` | Người tạo đơn. |
+| `employees` | 1 — 0..n | `goods_receipts` | `goods_receipts.received_by` → `employees.id` | Người nhận. |
+| `employees` | 0..1 — 0..n | `supplier_payables` | `supplier_payables.paid_by` → `employees.id` | Người thanh toán. |
 | `employees` | 0..1 — 0..n | `commercial_contracts` | `commercial_contracts.approved_by` → `employees.id` | Người duyệt; phải khác người lập theo service. |
 | `employees` | 1 — 0..n | `commercial_contracts` | `commercial_contracts.created_by` → `employees.id` | Nhân viên lập hợp đồng. |
 | `employees` | 1 — 0..n | `commercial_campaigns` | `commercial_campaigns.created_by` → `employees.id` | Nhân viên tạo. |
 | `employees` | 1 — 0..n | `commercial_settlements` | `commercial_settlements.generated_by` → `employees.id` | Nhân viên tạo kỳ. |
 | `employees` | 0..1 — 0..n | `commercial_settlements` | `commercial_settlements.reviewed_by` → `employees.id` | Người duyệt, phải khác người tạo theo service. |
+| `employees` | 1 — 0..n | `supplier_payable_approvals` | `supplier_payable_approvals.approved_by` → `employees.id` | Nhân viên phê duyệt, phải khác người thanh toán theo service trong chính sách tách quyền. |
+| `employees` | 0..1 — 0..n | `customer_security_audit` | `customer_security_audit.employee_id` → `employees.id` | Nhân viên liên quan nếu thao tác tại quầy; NULL với luồng email tự phục vụ. |
+| `customers` | 1 — 0..n | `customer_store_links` | `customer_store_links.customer_id` → `customers.id` | Khách hàng; phần thứ nhất của khóa chính. |
 | `customers` | 1 — 0..1 | `accounts` | `accounts.customer_id` → `customers.id` | Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản. |
 | `customers` | 1 — 0..n | `usage_sessions` | `usage_sessions.customer_id` → `customers.id` | Khách dùng máy. |
 | `customers` | 1 — 0..n | `invoices` | `invoices.customer_id` → `customers.id` | Khách (lưu thẳng để báo cáo không phải đi qua phiên). |
@@ -120,9 +177,12 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `accounts` | 1 — 0..n | `commercial_play_sessions` | `commercial_play_sessions.account_id` → `accounts.id` | Tài khoản khách chơi. |
 | `accounts` | 0..1 — 0..n | `commercial_events` | `commercial_events.account_id` → `accounts.id` | Tài khoản liên quan; có thể NULL. |
 | `accounts` | 1 — 0..n | `commercial_reward_grants` | `commercial_reward_grants.account_id` → `accounts.id` | Tài khoản nhận thưởng. |
+| `accounts` | 1 — 0..n | `customer_email_tokens` | `customer_email_tokens.account_id` → `accounts.id` | Tài khoản khách nhận token. |
+| `accounts` | 1 — 0..n | `customer_security_audit` | `customer_security_audit.account_id` → `accounts.id` | Tài khoản khách chịu tác động. |
 | `machines` | 1 — 0..n | `usage_sessions` | `usage_sessions.machine_id` → `machines.id` | Máy được dùng. |
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `machines` | 1 — 0..n | `menu_orders` | `menu_orders.machine_id` → `machines.id` | Máy giao món tới. |
+| `machines` | 1 — 0..n | `machine_incidents` | `machine_incidents.machine_id` → `machines.id` | Máy gặp sự cố. |
 | `usage_sessions` | 0..1 — 0..n | `account_transactions` | `account_transactions.session_id` → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
 | `usage_sessions` | 1 — 0..1 | `invoices` | `invoices.session_id` → `usage_sessions.id` | Phiên được thanh toán; UNIQUE ⇒ mỗi phiên tối đa một hóa đơn. |
 | `usage_sessions` | 1 — 0..n | `menu_orders` | `menu_orders.session_id` → `usage_sessions.id` | Phiên ACTIVE lúc đặt. |
@@ -132,14 +192,21 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `menu_items` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.item_id` → `menu_items.id` | Món bị thay đổi. |
 | `menu_items` | 1 — 0..n | `menu_order_items` | `menu_order_items.item_id` → `menu_items.id` | Món được gọi. |
 | `menu_items` | 1 — 0..n | `menu_item_recipes` | `menu_item_recipes.item_id` → `menu_items.id` | Món dùng nguyên liệu; phần thứ nhất của khóa chính. |
+| `menu_items` | 0..1 — 0..n | `menu_promotions` | `menu_promotions.item_id` → `menu_items.id` | Món áp dụng; NULL khi ưu đãi không gắn một món. |
 | `menu_orders` | 1 — 0..n | `menu_order_items` | `menu_order_items.order_id` → `menu_orders.id` | Yêu cầu gọi món. |
 | `menu_orders` | 0..1 — 0..n | `inventory_movements` | `inventory_movements.order_id` → `menu_orders.id` | Đơn POS liên quan; NULL với nhập/kiểm kê độc lập. |
+| `menu_orders` | 1 — 0..1 | `pos_order_reversals` | `pos_order_reversals.order_id` → `menu_orders.id` | Đơn POS; UNIQUE nên mỗi đơn có tối đa một yêu cầu hoàn/hủy. |
+| `menu_orders` | 1 — 0..1 | `menu_order_pricing` | `menu_order_pricing.order_id` → `menu_orders.id` | Đơn POS; khóa chính/FK. |
 | `menu_orders` | 0..1 — 0..1 | `customer_vouchers` | `customer_vouchers.used_order_id` → `menu_orders.id` | Yêu cầu gọi món được áp (voucher đồ ăn); UNIQUE. |
 | `menu_order_items` | 1 — 0..n | `menu_order_recipe_snapshots` | `menu_order_recipe_snapshots.order_id,item_id` → `menu_order_items.order_id,item_id` | Đơn chứa dòng món; thuộc khóa chính và FK ghép tới `menu_order_items`.; Món trong đơn; thuộc khóa chính và FK ghép tới `menu_order_items`. |
 | `inventory_ingredients` | 1 — 0..n | `menu_item_recipes` | `menu_item_recipes.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai của khóa chính. |
 | `inventory_ingredients` | 1 — 0..n | `menu_order_recipe_snapshots` | `menu_order_recipe_snapshots.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu đã được chụp cho dòng món. |
 | `inventory_ingredients` | 1 — 0..n | `inventory_movements` | `inventory_movements.store_id,ingredient_id` → `inventory_ingredients.store_id,id` | Cửa hàng phát sinh; cùng `ingredient_id` bảo đảm nguyên liệu đúng cửa hàng.; Nguyên liệu bị thay đổi. |
 | `inventory_ingredients` | 1 — 0..n | `inventory_counts` | `inventory_counts.store_id,ingredient_id` → `inventory_ingredients.store_id,id` | Cửa hàng kiểm kê; cùng `ingredient_id` khóa đúng nguyên liệu.; Nguyên liệu được kiểm kê. |
+| `inventory_ingredients` | 1 — 0..n | `purchase_request_lines` | `purchase_request_lines.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
+| `inventory_ingredients` | 1 — 0..n | `purchase_order_lines` | `purchase_order_lines.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
+| `inventory_ingredients` | 1 — 0..n | `goods_receipt_lines` | `goods_receipt_lines.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
+| `menu_promotions` | 0..1 — 0..n | `menu_order_pricing` | `menu_order_pricing.promotion_id` → `menu_promotions.id` | Khuyến mãi được chọn; NULL nếu không áp dụng. |
 | `reward_catalog` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.catalog_id` → `reward_catalog.id` | Phần thưởng gốc. |
 | `customer_vouchers` | 0..1 — 0..n | `voucher_events` | `voucher_events.voucher_id` → `customer_vouchers.id` | Voucher liên quan; NULL khi mã nhập không tồn tại. |
 | `customer_vouchers` | 1 — 0..1 | `loyalty_point_grants` | `loyalty_point_grants.voucher_id` → `customer_vouchers.id` | Voucher MEMBER_POINTS; UNIQUE. |
@@ -149,6 +216,18 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `games` | 0..1 — 0..n | `commercial_placements` | `commercial_placements.legacy_game_id` → `games.id` | Game nội bộ cũ nếu vị trí ánh xạ vào game có sẵn. |
 | `ad_creatives` | 0..1 — 0..n | `ad_reward_events` | `ad_reward_events.creative_id` → `ad_creatives.id` | Nội dung đã phát. |
 | `ad_creatives` | 0..1 — 0..n | `commercial_placements` | `commercial_placements.legacy_ad_creative_id` → `ad_creatives.id` | Nội dung quảng cáo nội bộ cũ nếu có. |
+| `cash_shifts` | 1 — 0..n | `cash_shift_entries` | `cash_shift_entries.shift_id` → `cash_shifts.id` | Ca sở hữu bút toán. |
+| `machine_incidents` | 1 — 0..n | `machine_incident_parts` | `machine_incident_parts.incident_id` → `machine_incidents.id` | Phiếu sự cố. |
+| `machine_incidents` | 1 — 0..n | `machine_incident_events` | `machine_incident_events.incident_id` → `machine_incidents.id` | Phiếu sự cố. |
+| `suppliers` | 1 — 0..n | `purchase_orders` | `purchase_orders.supplier_id` → `suppliers.id` | Nhà cung cấp. |
+| `suppliers` | 1 — 0..n | `supplier_payables` | `supplier_payables.supplier_id` → `suppliers.id` | Nhà cung cấp. |
+| `purchase_requests` | 1 — 0..n | `purchase_request_lines` | `purchase_request_lines.request_id` → `purchase_requests.id` | Đề nghị; phần thứ nhất khóa chính. |
+| `purchase_requests` | 1 — 0..1 | `purchase_orders` | `purchase_orders.request_id` → `purchase_requests.id` | Đề nghị nguồn; UNIQUE. |
+| `purchase_orders` | 1 — 0..n | `purchase_order_lines` | `purchase_order_lines.order_id` → `purchase_orders.id` | Đơn mua; phần thứ nhất khóa chính. |
+| `purchase_orders` | 1 — 0..n | `goods_receipts` | `goods_receipts.order_id` → `purchase_orders.id` | Đơn mua. |
+| `goods_receipts` | 1 — 0..n | `goods_receipt_lines` | `goods_receipt_lines.receipt_id` → `goods_receipts.id` | Phiếu nhận; phần thứ nhất khóa chính. |
+| `goods_receipts` | 1 — 0..1 | `supplier_payables` | `supplier_payables.receipt_id` → `goods_receipts.id` | Phiếu nhận nguồn; UNIQUE. |
+| `supplier_payables` | 1 — 0..1 | `supplier_payable_approvals` | `supplier_payable_approvals.payable_id` → `supplier_payables.id` | Công nợ được duyệt; khóa chính/FK nên mỗi công nợ được duyệt tối đa một lần. |
 | `commercial_partners` | 1 — 0..n | `commercial_contracts` | `commercial_contracts.partner_id` → `commercial_partners.id` | Đối tác ký hợp đồng. |
 | `commercial_contracts` | 1 — 0..n | `commercial_campaigns` | `commercial_campaigns.contract_id` → `commercial_contracts.id` | Hợp đồng chi phối chiến dịch. |
 | `commercial_contracts` | 1 — 0..n | `commercial_settlements` | `commercial_settlements.contract_id` → `commercial_contracts.id` | Hợp đồng được đối soát. |
@@ -160,6 +239,7 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `commercial_play_sessions` | 0..1 — 0..n | `commercial_events` | `commercial_events.play_session_id` → `commercial_play_sessions.id` | Phiên chơi liên quan; có thể NULL. |
 | `commercial_events` | 1 — 0..1 | `commercial_reward_grants` | `commercial_reward_grants.event_id` → `commercial_events.id` | COMPLETE event đã xác minh; duy nhất. |
 | `commercial_settlements` | 1 — 0..n | `commercial_settlement_lines` | `commercial_settlement_lines.settlement_id` → `commercial_settlements.id` | Kỳ đối soát. |
+| `customer_email_tokens` | 1 — 0..1 | `customer_mail_outbox` | `customer_mail_outbox.token_id` → `customer_email_tokens.id` | Token cần gửi; UNIQUE để tránh gửi trùng outbox. |
 
 ## 3. Chi tiết từng bảng
 
@@ -198,7 +278,7 @@ Nhân viên đăng nhập ứng dụng; vai trò quyết định quyền thao t�
 | `full_name` | `varchar(100)` | Không | — | — | Họ tên. |
 | `username` | `varchar(30)` | Không | — | UK | Tên đăng nhập, duy nhất, 4–30 ký tự. |
 | `password_hash` | `varchar(255)` | Không | — | — | Mật khẩu đã băm bcrypt; không bao giờ trả ra UI/DTO. |
-| `role` | `varchar(20)` | Không | — | — | `ADMIN` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác. |
+| `role` | `varchar(20)` | Không | — | — | `ADMIN` / `DIRECTOR` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác. |
 | `status` | `varchar(20)` | Không | `ACTIVE` | — | `ACTIVE` / `INACTIVE` / `LOCKED`. Chỉ ACTIVE đăng nhập được. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
@@ -215,13 +295,55 @@ Ràng buộc:
 - CHECK `chk_employees_code_not_blank`: `(char_length(trim(code)) > 0)`
 - CHECK `chk_employees_full_name_not_blank`: `(char_length(trim(full_name)) > 0)`
 - CHECK `chk_employees_password_hash_not_blank`: `(char_length(trim(password_hash)) > 0)`
-- CHECK `chk_employees_role`: `(role in ('ADMIN','MANAGER','STAFF','KITCHEN','INVENTORY'))`
+- CHECK `chk_employees_role`: `(role in ('ADMIN','DIRECTOR','MANAGER','STAFF','KITCHEN','INVENTORY'))`
 - CHECK `chk_employees_status`: `(status in ('ACTIVE','INACTIVE','LOCKED'))`
 - CHECK `chk_employees_username_length`: `(char_length(username) between 4 and 30)`
 
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_employees_store_status` (`store_id, status`)
+
+### employee_profiles
+
+Hồ sơ nhân sự độc lập với thông tin xác thực; DIRECTOR/MANAGER quản lý nghiệp vụ, ADMIN chỉ gắn/cấp tài khoản.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `employee_id` | `bigint unsigned` | Có | — | UK, FK → `employees.id` | Tài khoản nhân viên được gắn; NULL khi mới tạo hồ sơ, UNIQUE khi đã cấp tài khoản. |
+| `code` | `varchar(20)` | Không | — | UK | Mã hồ sơ nhân sự, duy nhất. |
+| `home_store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở công tác chính. |
+| `full_name` | `varchar(100)` | Không | — | — | Họ tên nhân sự. |
+| `employment_status` | `varchar(10)` | Không | `ACTIVE` | — | `ACTIVE` / `INACTIVE`, tách khỏi trạng thái khóa đăng nhập. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+| `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_employee_profiles_code` (`code`)
+- UNIQUE `uq_employee_profiles_employee` (`employee_id`)
+- FOREIGN KEY `fk_employee_profiles_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_employee_profiles_store` (`home_store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_employee_profiles_status`: `(employment_status in ('ACTIVE','INACTIVE'))`
+
+### employee_store_assignments
+
+Phân công bổ sung cho MANAGER được vận hành tại nhiều cơ sở; không thay đổi cơ sở chính trong hồ sơ.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `employee_id` | `bigint unsigned` | Không | — | PK, FK → `employees.id` | Nhân viên được phân công; phần thứ nhất của khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | PK, FK → `stores.id` | Cơ sở được phép vận hành; phần thứ hai của khóa chính. |
+| `granted_by` | `bigint unsigned` | Không | — | FK → `employees.id` | ADMIN đã cấp quyền phân công. |
+| `granted_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm cấp (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`employee_id,store_id`)
+- FOREIGN KEY `fk_employee_assignments_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_employee_assignments_granter` (`granted_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_employee_assignments_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 
 ### customers
 
@@ -236,11 +358,13 @@ Thông tin cá nhân của khách chơi.
 | `status` | `varchar(20)` | Không | `ACTIVE` | — | `ACTIVE` / `INACTIVE`. Khách INACTIVE không được mở phiên mới. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
 | `updated_at` | `datetime` | Không | `CURRENT_TIMESTAMP`, tự cập nhật khi sửa | — | Thời điểm sửa gần nhất (UTC). |
+| `email` | `varchar(254)` | Có | — | UK | Email đăng ký/kích hoạt tài khoản; NULL với tài khoản cũ chưa xác minh, UNIQUE nếu có. |
 
 Ràng buộc:
 
 - PRIMARY KEY (`id`)
 - UNIQUE `uq_customers_code` (`code`)
+- UNIQUE `uq_customers_email` (`email`)
 - UNIQUE `uq_customers_phone` (`phone`)
 - CHECK `chk_customers_code_not_blank`: `(char_length(trim(code)) > 0)`
 - CHECK `chk_customers_full_name_length`: `(char_length(trim(full_name)) between 2 and 100)`
@@ -250,6 +374,23 @@ Ràng buộc:
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_customers_full_name` (`full_name`)
+
+### customer_store_links
+
+Phạm vi khách hàng tại từng cơ sở, suy ra từ giao dịch/phiên hoặc liên kết được xác minh tại quầy.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `customer_id` | `bigint unsigned` | Không | — | PK, FK → `customers.id` | Khách hàng; phần thứ nhất của khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | PK, FK → `stores.id` | Cơ sở liên quan; phần thứ hai của khóa chính. |
+| `source` | `varchar(24)` | Không | — | — | Nguồn chứng minh liên kết, ví dụ `INVOICE`, `SESSION` hoặc đăng ký tại quầy. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm lập liên kết (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`customer_id,store_id`)
+- FOREIGN KEY `fk_customer_links_customer` (`customer_id`) → `customers` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_customer_links_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 
 ### accounts
 
@@ -261,7 +402,7 @@ Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách
 | `code` | `varchar(20)` | Không | — | UK | Mã tài khoản, duy nhất (`ACC-` + hex). |
 | `customer_id` | `bigint unsigned` | Không | — | UK, FK → `customers.id` | Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản. |
 | `username` | `varchar(30)` | Không | — | UK | Tên đăng nhập máy trạm, duy nhất, chữ/số/`_`/`.`, 4–30 ký tự. |
-| `password_hash` | `varchar(255)` | Không | — | — | Mật khẩu đã băm bcrypt. |
+| `password_hash` | `varchar(255)` | Có | — | — | Mật khẩu đã băm bcrypt. |
 | `balance` | `bigint` | Không | `0` | — | Số dư sổ cái (VND), có dấu để hỗ trợ dữ liệu nợ. Cảnh báo âm trong phiên dùng số dư dự kiến; checkout P0 phải bù đủ để số dư cuối không âm. Mọi thay đổi phải kèm `account_transactions`. |
 | `status` | `varchar(20)` | Không | `ACTIVE` | — | `ACTIVE` / `LOCKED`. LOCKED không mở phiên được nhưng vẫn nạp tiền để trả nợ. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
@@ -269,6 +410,8 @@ Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách
 | `bonus_balance` | `bigint` | Không | `0` | — | Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt. |
 | `cash_balance` | `bigint` | Có | — | — | Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính. Biểu thức: `(balance - bonus_balance)` (STORED). |
 | `auth_version` | `bigint unsigned` | Không | `0` | — | Phiên bản xác thực khách hàng; tăng khi đổi mật khẩu để thu hồi các phiên cũ. |
+| `web_login_enabled` | `tinyint(1)` | Không | `1` | — | FALSE khi tài khoản đăng ký tại quầy chưa kích hoạt email; TRUE mới cho đăng nhập web. |
+| `email_verified_at` | `datetime` | Có | — | — | Thời điểm email được xác minh khi kích hoạt (UTC); NULL nếu chưa xác minh. |
 
 Ràng buộc:
 
@@ -279,7 +422,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_accounts_customer` (`customer_id`) → `customers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_accounts_bonus_nonnegative`: `(bonus_balance >= 0)`
 - CHECK `chk_accounts_code_not_blank`: `(char_length(trim(code)) > 0)`
-- CHECK `chk_accounts_password_hash_not_blank`: `(char_length(trim(password_hash)) > 0)`
+- CHECK `chk_accounts_password_hash_not_blank`: `((password_hash is null) or (char_length(trim(password_hash)) > 0))`
 - CHECK `chk_accounts_status`: `(status in ('ACTIVE','LOCKED'))`
 - CHECK `chk_accounts_username_format`: `regexp_like(username,'^[A-Za-z0-9_.]{4,30}$','c')`
 
@@ -888,6 +1031,94 @@ Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_customer_notification_account_created` (`account_id, created_at, id`)
 
+### pos_order_reversals
+
+Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `order_id` | `bigint unsigned` | Không | — | UK, FK → `menu_orders.id` | Đơn POS; UNIQUE nên mỗi đơn có tối đa một yêu cầu hoàn/hủy. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở xử lý. |
+| `requested_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên đề nghị. |
+| `reason` | `varchar(255)` | Không | — | — | Lý do bắt buộc. |
+| `disposition` | `varchar(8)` | Không | — | — | `RESTOCK` hoặc `WASTE`. |
+| `status` | `varchar(10)` | Không | `PENDING` | — | `PENDING` / `APPROVED` / `REJECTED`. |
+| `decided_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Quản lý quyết định; NULL khi đang chờ. |
+| `decided_at` | `datetime` | Có | — | — | Thời điểm quyết định (UTC). |
+| `refund_amount` | `bigint unsigned` | Không | `0` | — | Số tiền hoàn VND. |
+| `refund_method` | `varchar(10)` | Có | — | — | `CASH` / `TRANSFER`. |
+| `refund_reference` | `varchar(100)` | Có | — | — | Tham chiếu giao dịch hoàn. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_pos_reversal_order` (`order_id`)
+- FOREIGN KEY `fk_pos_reversal_approver` (`decided_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_pos_reversal_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_pos_reversal_requester` (`requested_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_pos_reversal_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_pos_reversal_decision`: `(((status = 'PENDING') and (decided_by is null) and (decided_at is null)) or ((status <> 'PENDING') and (decided_by is not null) and (decided_at is not null)))`
+- CHECK `chk_pos_reversal_disposition`: `(disposition in ('RESTOCK','WASTE'))`
+- CHECK `chk_pos_reversal_method`: `((refund_method is null) or (refund_method in ('CASH','TRANSFER')))`
+- CHECK `chk_pos_reversal_status`: `(status in ('PENDING','APPROVED','REJECTED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_pos_reversal_store_status` (`store_id, status, id`)
+
+### menu_promotions
+
+Chính sách khuyến mãi POS theo cơ sở; mỗi đơn chỉ chọn một ưu đãi xác định.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở áp dụng. |
+| `code` | `varchar(30)` | Không | — | — | Mã duy nhất trong cơ sở. |
+| `kind` | `varchar(16)` | Không | — | — | `BOGO` / `PLAY_DRINK` / `TIER_PERCENT`. |
+| `item_id` | `bigint unsigned` | Có | — | FK → `menu_items.id` | Món áp dụng; NULL khi ưu đãi không gắn một món. |
+| `value` | `int unsigned` | Không | — | — | Giá trị cấu hình theo loại ưu đãi. |
+| `minimum_tier` | `varchar(12)` | Có | — | — | Hạng tối thiểu nếu có. |
+| `starts_at` | `datetime` | Không | — | — | Bắt đầu hiệu lực (UTC). |
+| `ends_at` | `datetime` | Không | — | — | Kết thúc hiệu lực (UTC). |
+| `is_active` | `tinyint(1)` | Không | `0` | — | Bật/tắt chính sách. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_menu_promo_store_code` (`store_id,code`)
+- FOREIGN KEY `fk_menu_promo_item` (`item_id`) → `menu_items` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_menu_promo_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_menu_promo_kind`: `(kind in ('BOGO','PLAY_DRINK','TIER_PERCENT'))`
+- CHECK `chk_menu_promo_period`: `(starts_at < ends_at)`
+- CHECK `chk_menu_promo_tier`: `((minimum_tier is null) or (minimum_tier in ('BRONZE','SILVER','GOLD','PLATINUM')))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_menu_promo_active` (`store_id, is_active, starts_at, ends_at`)
+
+### menu_order_pricing
+
+Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `order_id` | `bigint unsigned` | Không | — | PK, FK → `menu_orders.id` | Đơn POS; khóa chính/FK. |
+| `promotion_id` | `bigint unsigned` | Có | — | FK → `menu_promotions.id` | Khuyến mãi được chọn; NULL nếu không áp dụng. |
+| `promotion_code` | `varchar(30)` | Có | — | — | Mã khuyến mãi chụp lại. |
+| `promotion_kind` | `varchar(16)` | Có | — | — | Loại khuyến mãi chụp lại. |
+| `discount_amount` | `bigint unsigned` | Không | `0` | — | Tổng giảm giá VND. |
+| `final_amount` | `bigint unsigned` | Không | — | — | Thành tiền sau giảm VND. |
+| `snapshot_json` | `json` | Không | — | — | Chi tiết đầu vào và kết quả tính giá để audit. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`order_id`)
+- FOREIGN KEY `fk_menu_pricing_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_menu_pricing_promotion` (`promotion_id`) → `menu_promotions` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+
 ### reward_catalog
 
 Danh mục phần thưởng; không có loại nào quy đổi tiền mặt.
@@ -1226,6 +1457,358 @@ Index bổ sung (`002_indexes.sql`):
 - INDEX `idx_ad_reward_events_account_day` (`account_id, played_on, status`)
 - INDEX `idx_ad_reward_events_day` (`played_on`)
 
+### cash_shifts
+
+Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(24)` | Không | — | UK | Mã ca duy nhất. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở mở ca. |
+| `employee_id` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên chịu trách nhiệm ca. |
+| `status` | `varchar(16)` | Không | `OPEN` | — | `OPEN` / `PENDING_REVIEW` / `CLOSED`. |
+| `opening_cash` | `bigint unsigned` | Không | — | — | Tiền mặt đầu ca. |
+| `expected_cash` | `bigint unsigned` | Có | — | — | Tiền mặt hệ thống tính cuối ca. |
+| `counted_cash` | `bigint unsigned` | Có | — | — | Tiền mặt thực đếm cuối ca. |
+| `variance` | `bigint` | Có | — | — | Chênh lệch thực tế trừ hệ thống. |
+| `opened_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm mở ca (UTC). |
+| `submitted_at` | `datetime` | Có | — | — | Thời điểm nhân viên nộp đối chiếu (UTC). |
+| `closed_at` | `datetime` | Có | — | — | Thời điểm đóng ca (UTC). |
+| `reviewed_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Quản lý duyệt chênh lệch. |
+| `review_note` | `varchar(255)` | Có | — | — | Ghi chú duyệt. |
+| `active_employee_id` | `bigint unsigned` | Có | — | UK | Cột sinh giữ employee_id khi ca còn OPEN/PENDING_REVIEW; UNIQUE ngăn mở hai ca đồng thời. Biểu thức: `(case when (status in ('OPEN','PENDING_REVIEW')) then employee_id else NULL end)` (STORED). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_cash_shifts_active_employee` (`active_employee_id`)
+- UNIQUE `uq_cash_shifts_code` (`code`)
+- FOREIGN KEY `fk_cash_shifts_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_cash_shifts_reviewer` (`reviewed_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_cash_shifts_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_cash_shifts_close`: `(((status = 'OPEN') and (expected_cash is null) and (counted_cash is null) and (variance is null) and (submitted_at is null) and (closed_at is null)) or ((status = 'PENDING_REVIEW') and (expected_cash is not null) and (counted_cash is not null) and (variance is not null) and (submitted_at is not null) and (closed_at is null)) or ((status = 'CLOSED') and (expected_cash is not null) and (counted_cash is not null) and (variance is not null) and (submitted_at is not null) and (closed_at is not null)))`
+- CHECK `chk_cash_shifts_status`: `(status in ('OPEN','PENDING_REVIEW','CLOSED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_cash_shifts_store_time` (`store_id, opened_at, id`)
+
+### cash_shift_entries
+
+Sổ bất biến thu, chi, hoàn và điều chỉnh theo ca; chống ghi trùng bằng nguồn nghiệp vụ.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `shift_id` | `bigint unsigned` | Không | — | FK → `cash_shifts.id` | Ca sở hữu bút toán. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở phát sinh. |
+| `employee_id` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên ghi nhận. |
+| `kind` | `varchar(12)` | Không | — | — | `RECEIPT` / `EXPENSE` / `REFUND` / `ADJUSTMENT_IN` / `ADJUSTMENT_OUT`. |
+| `payment_method` | `varchar(10)` | Không | — | — | `CASH` / `TRANSFER`. |
+| `amount` | `bigint unsigned` | Không | — | — | Số tiền dương (VND). |
+| `source_type` | `varchar(24)` | Không | — | — | Loại chứng từ nguồn. |
+| `source_id` | `varchar(64)` | Không | — | — | Mã nguồn; kết hợp phương thức thanh toán để chống ghi trùng. |
+| `note` | `varchar(255)` | Không | `` | — | Ghi chú nghiệp vụ. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm ghi sổ (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_cash_shift_entries_source` (`source_type,source_id,payment_method`)
+- FOREIGN KEY `fk_cash_entries_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_cash_entries_shift` (`shift_id`) → `cash_shifts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_cash_entries_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_cash_entries_amount`: `(amount > 0)`
+- CHECK `chk_cash_entries_kind`: `(kind in ('RECEIPT','EXPENSE','REFUND','ADJUSTMENT_IN','ADJUSTMENT_OUT'))`
+- CHECK `chk_cash_entries_method`: `(payment_method in ('CASH','TRANSFER'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_cash_entries_shift_time` (`shift_id, created_at, id`)
+
+### machine_incidents
+
+Phiếu sự cố và vòng đời bảo trì máy từ báo lỗi đến nghiệm thu.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(24)` | Không | — | UK | Mã sự cố duy nhất. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở có máy lỗi. |
+| `machine_id` | `bigint unsigned` | Không | — | FK → `machines.id` | Máy gặp sự cố. |
+| `reported_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Người báo lỗi. |
+| `assigned_to` | `bigint unsigned` | Có | — | FK → `employees.id` | Người được phân công; có thể NULL trước khi phân công. |
+| `severity` | `varchar(10)` | Không | — | — | `LOW` / `MEDIUM` / `HIGH` / `CRITICAL`. |
+| `status` | `varchar(20)` | Không | `REPORTED` | — | `REPORTED` / `ASSIGNED` / `IN_PROGRESS` / `WAITING_PARTS` / `COMPLETED` / `VERIFIED` / `CANCELLED`. |
+| `title` | `varchar(120)` | Không | — | — | Tiêu đề ngắn. |
+| `description` | `varchar(1000)` | Không | — | — | Mô tả lỗi. |
+| `resolution` | `varchar(1000)` | Có | — | — | Kết quả xử lý. |
+| `labor_cost` | `bigint unsigned` | Không | `0` | — | Chi phí nhân công. |
+| `parts_cost` | `bigint unsigned` | Không | `0` | — | Chi phí linh kiện. |
+| `reported_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm báo (UTC). |
+| `started_at` | `datetime` | Có | — | — | Thời điểm bắt đầu sửa (UTC). |
+| `completed_at` | `datetime` | Có | — | — | Thời điểm hoàn thành sửa (UTC). |
+| `verified_at` | `datetime` | Có | — | — | Thời điểm nghiệm thu (UTC). |
+| `verified_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Người nghiệm thu. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_machine_incidents_code` (`code`)
+- FOREIGN KEY `fk_incidents_assignee` (`assigned_to`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_incidents_machine` (`machine_id`) → `machines` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_incidents_reporter` (`reported_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_incidents_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_incidents_verifier` (`verified_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_incidents_cost`: `((labor_cost <= 1000000000) and (parts_cost <= 1000000000))`
+- CHECK `chk_incidents_severity`: `(severity in ('LOW','MEDIUM','HIGH','CRITICAL'))`
+- CHECK `chk_incidents_status`: `(status in ('REPORTED','ASSIGNED','IN_PROGRESS','WAITING_PARTS','COMPLETED','VERIFIED','CANCELLED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_incidents_machine_history` (`machine_id, reported_at, id`)
+- INDEX `idx_incidents_store_status` (`store_id, status, reported_at`)
+
+### machine_incident_parts
+
+Linh kiện sử dụng cho một phiếu sửa máy.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `incident_id` | `bigint unsigned` | Không | — | FK → `machine_incidents.id` | Phiếu sự cố. |
+| `name` | `varchar(120)` | Không | — | — | Tên linh kiện. |
+| `quantity` | `int unsigned` | Không | — | — | Số lượng. |
+| `unit_cost` | `bigint unsigned` | Không | — | — | Đơn giá VND. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- FOREIGN KEY `fk_incident_parts_incident` (`incident_id`) → `machine_incidents` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_incident_parts_cost`: `(unit_cost <= 1000000000)`
+- CHECK `chk_incident_parts_quantity`: `(quantity between 1 and 1000)`
+
+### machine_incident_events
+
+Lịch sử chuyển trạng thái sự cố máy, chỉ thêm.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `incident_id` | `bigint unsigned` | Không | — | FK → `machine_incidents.id` | Phiếu sự cố. |
+| `employee_id` | `bigint unsigned` | Không | — | FK → `employees.id` | Người thực hiện. |
+| `from_status` | `varchar(20)` | Có | — | — | Trạng thái trước; NULL ở sự kiện đầu. |
+| `to_status` | `varchar(20)` | Không | — | — | Trạng thái sau. |
+| `note` | `varchar(500)` | Không | `` | — | Ghi chú chuyển trạng thái. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- FOREIGN KEY `fk_incident_events_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_incident_events_incident` (`incident_id`) → `machine_incidents` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_incident_events_history` (`incident_id, created_at, id`)
+
+### suppliers
+
+Nhà cung cấp theo cơ sở và điều khoản thanh toán.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở quản lý nhà cung cấp. |
+| `code` | `varchar(24)` | Không | — | — | Mã duy nhất trong cơ sở. |
+| `name` | `varchar(120)` | Không | — | — | Tên nhà cung cấp. |
+| `phone` | `varchar(20)` | Có | — | — | Số điện thoại. |
+| `email` | `varchar(120)` | Có | — | — | Email liên hệ. |
+| `address` | `varchar(255)` | Có | — | — | Địa chỉ. |
+| `payment_terms_days` | `int unsigned` | Không | `0` | — | Số ngày công nợ. |
+| `is_active` | `tinyint(1)` | Không | `1` | — | FALSE khi ngừng giao dịch mới. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_suppliers_store_code` (`store_id,code`)
+- FOREIGN KEY `fk_suppliers_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_suppliers_terms`: `(payment_terms_days <= 365)`
+
+### purchase_requests
+
+Đề nghị nhập hàng có người lập và người quyết định.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(24)` | Không | — | UK | Mã đề nghị duy nhất. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở đề nghị. |
+| `requested_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Người lập. |
+| `status` | `varchar(12)` | Không | `PENDING` | — | `PENDING` / `APPROVED` / `REJECTED` / `ORDERED`. |
+| `reason` | `varchar(255)` | Không | — | — | Lý do nhập. |
+| `decided_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Người duyệt/từ chối. |
+| `decided_at` | `datetime` | Có | — | — | Thời điểm quyết định (UTC). |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_purchase_requests_code` (`code`)
+- FOREIGN KEY `fk_purchase_requests_decider` (`decided_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_purchase_requests_requester` (`requested_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_purchase_requests_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_purchase_requests_decision`: `(((status = 'PENDING') and (decided_by is null) and (decided_at is null)) or ((status <> 'PENDING') and (decided_by is not null) and (decided_at is not null)))`
+- CHECK `chk_purchase_requests_status`: `(status in ('PENDING','APPROVED','REJECTED','ORDERED'))`
+
+### purchase_request_lines
+
+Nguyên liệu và số lượng trong đề nghị nhập.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `request_id` | `bigint unsigned` | Không | — | PK, FK → `purchase_requests.id` | Đề nghị; phần thứ nhất khóa chính. |
+| `ingredient_id` | `bigint unsigned` | Không | — | PK, FK → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
+| `quantity` | `bigint unsigned` | Không | — | — | Số lượng đề nghị. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`request_id,ingredient_id`)
+- FOREIGN KEY `fk_purchase_request_lines_ingredient` (`ingredient_id`) → `inventory_ingredients` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_purchase_request_lines_request` (`request_id`) → `purchase_requests` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_purchase_request_lines_quantity`: `(quantity > 0)`
+
+### purchase_orders
+
+Đơn mua hàng tạo từ đề nghị đã duyệt và gắn nhà cung cấp.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(24)` | Không | — | UK | Mã đơn mua duy nhất. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở mua. |
+| `request_id` | `bigint unsigned` | Không | — | UK, FK → `purchase_requests.id` | Đề nghị nguồn; UNIQUE. |
+| `supplier_id` | `bigint unsigned` | Không | — | FK → `suppliers.id` | Nhà cung cấp. |
+| `created_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Người tạo đơn. |
+| `status` | `varchar(20)` | Không | `OPEN` | — | `OPEN` / `PARTIALLY_RECEIVED` / `RECEIVED` / `CANCELLED`. |
+| `ordered_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đặt (UTC). |
+| `expected_at` | `datetime` | Có | — | — | Thời điểm dự kiến nhận (UTC). |
+| `total_amount` | `bigint unsigned` | Không | — | — | Tổng giá trị VND. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_purchase_orders_code` (`code`)
+- UNIQUE `uq_purchase_orders_request` (`request_id`)
+- FOREIGN KEY `fk_purchase_orders_creator` (`created_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_purchase_orders_request` (`request_id`) → `purchase_requests` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_purchase_orders_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_purchase_orders_supplier` (`supplier_id`) → `suppliers` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_purchase_orders_status`: `(status in ('OPEN','PARTIALLY_RECEIVED','RECEIVED','CANCELLED'))`
+- CHECK `chk_purchase_orders_total`: `(total_amount > 0)`
+
+### purchase_order_lines
+
+Dòng đơn mua và tiến độ nhận theo nguyên liệu.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `order_id` | `bigint unsigned` | Không | — | PK, FK → `purchase_orders.id` | Đơn mua; phần thứ nhất khóa chính. |
+| `ingredient_id` | `bigint unsigned` | Không | — | PK, FK → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
+| `quantity` | `bigint unsigned` | Không | — | — | Số lượng đặt. |
+| `unit_cost` | `bigint unsigned` | Không | — | — | Đơn giá nhập. |
+| `received_quantity` | `bigint unsigned` | Không | `0` | — | Số lượng đã nhận đạt. |
+| `damaged_quantity` | `bigint unsigned` | Không | `0` | — | Số lượng đã nhận hỏng. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`order_id,ingredient_id`)
+- FOREIGN KEY `fk_purchase_order_lines_ingredient` (`ingredient_id`) → `inventory_ingredients` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_purchase_order_lines_order` (`order_id`) → `purchase_orders` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_purchase_order_lines_quantity`: `((quantity > 0) and (unit_cost > 0))`
+- CHECK `chk_purchase_order_lines_received`: `((received_quantity + damaged_quantity) <= quantity)`
+
+### goods_receipts
+
+Phiếu nhận hàng idempotent, tạo nhập kho và công nợ theo số lượng đạt.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `code` | `varchar(24)` | Không | — | UK | Mã phiếu nhận duy nhất. |
+| `order_id` | `bigint unsigned` | Không | — | FK → `purchase_orders.id` | Đơn mua. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở nhận. |
+| `received_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Người nhận. |
+| `request_id` | `char(32)` | Không | — | UK | Khóa idempotency của yêu cầu nhận. |
+| `note` | `varchar(255)` | Không | `` | — | Ghi chú. |
+| `received_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm nhận (UTC). |
+| `accepted_amount` | `bigint unsigned` | Không | — | — | Giá trị hàng đạt được nhận. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_goods_receipts_code` (`code`)
+- UNIQUE `uq_goods_receipts_request` (`request_id`)
+- FOREIGN KEY `fk_goods_receipts_order` (`order_id`) → `purchase_orders` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_goods_receipts_receiver` (`received_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_goods_receipts_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+
+### goods_receipt_lines
+
+Chi tiết hàng đạt, hỏng và thiếu trong một lần nhận.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `receipt_id` | `bigint unsigned` | Không | — | PK, FK → `goods_receipts.id` | Phiếu nhận; phần thứ nhất khóa chính. |
+| `ingredient_id` | `bigint unsigned` | Không | — | PK, FK → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
+| `accepted_quantity` | `bigint unsigned` | Không | — | — | Số lượng đạt nhập kho. |
+| `damaged_quantity` | `bigint unsigned` | Không | `0` | — | Số lượng hỏng. |
+| `missing_quantity` | `bigint unsigned` | Không | `0` | — | Số lượng thiếu. |
+| `unit_cost` | `bigint unsigned` | Không | — | — | Đơn giá chụp khi nhận. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`receipt_id,ingredient_id`)
+- FOREIGN KEY `fk_goods_receipt_lines_ingredient` (`ingredient_id`) → `inventory_ingredients` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_goods_receipt_lines_receipt` (`receipt_id`) → `goods_receipts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_goods_receipt_lines_quantity`: `(((accepted_quantity + damaged_quantity) + missing_quantity) > 0)`
+
+### supplier_payables
+
+Công nợ phát sinh từ phiếu nhận hàng và trạng thái thanh toán.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `receipt_id` | `bigint unsigned` | Không | — | UK, FK → `goods_receipts.id` | Phiếu nhận nguồn; UNIQUE. |
+| `supplier_id` | `bigint unsigned` | Không | — | FK → `suppliers.id` | Nhà cung cấp. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở chịu công nợ. |
+| `amount` | `bigint unsigned` | Không | — | — | Tổng phải trả. |
+| `paid_amount` | `bigint unsigned` | Không | `0` | — | Số đã trả. |
+| `due_date` | `date` | Không | — | — | Hạn thanh toán. |
+| `status` | `varchar(10)` | Không | `UNPAID` | — | `UNPAID` / `PAID`. |
+| `paid_at` | `datetime` | Có | — | — | Thời điểm thanh toán (UTC). |
+| `paid_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Người thanh toán. |
+| `payment_method` | `varchar(10)` | Có | — | — | `CASH` / `TRANSFER`; NULL khi chưa trả. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_supplier_payables_receipt` (`receipt_id`)
+- FOREIGN KEY `fk_supplier_payables_employee` (`paid_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_supplier_payables_receipt` (`receipt_id`) → `goods_receipts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_supplier_payables_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_supplier_payables_supplier` (`supplier_id`) → `suppliers` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_supplier_payables_amount`: `((amount > 0) and (paid_amount <= amount))`
+- CHECK `chk_supplier_payables_method`: `((payment_method is null) or (payment_method in ('CASH','TRANSFER')))`
+- CHECK `chk_supplier_payables_status`: `(status in ('UNPAID','PAID'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_supplier_payables_due` (`store_id, status, due_date`)
+
 ### commercial_partners
 
 Đối tác cung cấp game hoặc mạng quảng cáo.
@@ -1503,3 +2086,91 @@ Ràng buộc:
 - FOREIGN KEY `fk_commercial_settlement_lines_placement` (`placement_id`) → `commercial_placements` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 - FOREIGN KEY `fk_commercial_settlement_lines_settlement` (`settlement_id`) → `commercial_settlements` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 - CHECK `chk_commercial_settlement_lines_event`: `(event_type in ('IMPRESSION','CLICK','COMPLETE','FIXED'))`
+
+### supplier_payable_approvals
+
+Bản ghi duyệt công nợ nhà cung cấp; dùng kiểm soát phân tách người duyệt và người chi.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `payable_id` | `bigint unsigned` | Không | — | PK, FK → `supplier_payables.id` | Công nợ được duyệt; khóa chính/FK nên mỗi công nợ được duyệt tối đa một lần. |
+| `approved_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên phê duyệt, phải khác người thanh toán theo service trong chính sách tách quyền. |
+| `approved_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm duyệt (UTC). |
+| `note` | `varchar(255)` | Không | — | — | Ghi chú duyệt bắt buộc. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`payable_id`)
+- FOREIGN KEY `fk_payable_approval_employee` (`approved_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_payable_approval_payable` (`payable_id`) → `supplier_payables` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+
+### customer_email_tokens
+
+Token kích hoạt/đặt lại mật khẩu khách; chỉ lưu hash và nonce dẫn xuất, token thô không được lưu.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản khách nhận token. |
+| `purpose` | `varchar(12)` | Không | — | — | `ACTIVATE` hoặc `RESET`. |
+| `token_hash` | `char(64)` | Không | — | UK | SHA-256 token thô; UNIQUE, dùng tra cứu/xác thực. |
+| `nonce` | `char(64)` | Không | — | — | Nonce ngẫu nhiên dùng dẫn xuất token cho worker, không phải token thô. |
+| `expires_at` | `datetime` | Không | — | — | Hạn sử dụng (UTC). |
+| `used_at` | `datetime` | Có | — | — | Thời điểm dùng thành công; NULL nếu chưa dùng. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm phát hành (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_customer_email_token_hash` (`token_hash`)
+- FOREIGN KEY `fk_customer_email_token_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_customer_email_token_purpose`: `(purpose in ('ACTIVATE','RESET'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_customer_email_token_account` (`account_id, purpose, created_at`)
+
+### customer_mail_outbox
+
+Transactional outbox gửi email khách sau khi transaction đăng ký/reset đã commit.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `token_id` | `bigint unsigned` | Không | — | UK, FK → `customer_email_tokens.id` | Token cần gửi; UNIQUE để tránh gửi trùng outbox. |
+| `status` | `varchar(12)` | Không | `PENDING` | — | `PENDING` / `SENDING` / `SENT` / `FAILED`. |
+| `attempts` | `int unsigned` | Không | `0` | — | Số lần worker đã thử gửi. |
+| `next_attempt_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm đủ điều kiện thử lại (UTC). |
+| `sent_at` | `datetime` | Có | — | — | Thời điểm gửi thành công (UTC). |
+| `last_error` | `varchar(120)` | Có | — | — | Thông báo lỗi rút gọn của lần gửi gần nhất. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_customer_mail_outbox_token` (`token_id`)
+- FOREIGN KEY `fk_customer_mail_outbox_token` (`token_id`) → `customer_email_tokens` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_customer_mail_outbox_status`: `(status in ('PENDING','SENDING','SENT','FAILED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_customer_mail_outbox_due` (`status, next_attempt_at`)
+
+### customer_security_audit
+
+Audit bất biến cho thao tác kích hoạt, đặt lại mật khẩu và các sự kiện bảo mật khách.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản khách chịu tác động. |
+| `employee_id` | `bigint unsigned` | Có | — | FK → `employees.id` | Nhân viên liên quan nếu thao tác tại quầy; NULL với luồng email tự phục vụ. |
+| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở liên quan nếu có; NULL với luồng web tự phục vụ. |
+| `action` | `varchar(40)` | Không | — | — | Tên sự kiện bảo mật. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm ghi audit (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- FOREIGN KEY `fk_customer_security_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_customer_security_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_customer_security_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION

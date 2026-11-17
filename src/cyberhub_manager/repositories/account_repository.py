@@ -14,7 +14,7 @@ class AccountRepository:
         code: str,
         customer_id: int,
         username: str,
-        password_hash: str,
+        password_hash: str | None,
     ) -> int:
         """Insert an account and return its ID without committing."""
         cursor = conn.cursor()
@@ -190,6 +190,7 @@ class AccountRepository:
         account_id: int,
         *,
         limit: int = 50,
+        store_id: int | None = None,
     ) -> list[TransactionSummary]:
         """Return the most recent transactions for an account."""
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
@@ -213,10 +214,11 @@ class AccountRepository:
                 FROM account_transactions AS t
                 JOIN employees AS e ON e.id = t.employee_id
                 WHERE t.account_id = %s
+                  AND (%s IS NULL OR t.store_id=%s)
                 ORDER BY t.created_at DESC, t.id DESC
                 LIMIT %s
                 """,
-                (account_id, limit),
+                (account_id, store_id, store_id, limit),
             )
             rows = cursor.fetchall()
         finally:

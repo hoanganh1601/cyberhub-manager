@@ -1,4 +1,4 @@
-# Render Blueprint: deploy the browser demo; see docs/WEB_DEPLOYMENT.md for MySQL.
+# Render Blueprint: deploy the browser demo; see docs/guides/WEB_DEPLOYMENT.md for MySQL.
 services:
   - type: web
     name: cyberhub-manager-web

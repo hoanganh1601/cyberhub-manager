@@ -41,7 +41,7 @@ class MenuOrderMixin:
             raise ValidationError(field_errors={"date_to": "Chọn khoảng ngày hợp lệ, tối đa 10 năm"})
         start, before = local_dates_to_utc_range(date_from, date_to)
         with self._errors(), self._transaction() as conn:
-            current = self._actor(conn, actor, Permission.MANAGE_MENU)
+            current = self._actor(conn, actor, Permission.VIEW_REVENUE)
             return self._repo.paid_order_report(conn, current.store_id, start, before)
 
     def maintain_holds(self, *, now=None, limit=100):

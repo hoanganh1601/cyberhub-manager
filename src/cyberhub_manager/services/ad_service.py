@@ -37,7 +37,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.game import LedgerReason
-from cyberhub_manager.domain.p1 import Permission
+from cyberhub_manager.domain.p1 import Permission, chain_director
 
 from .p1_runtime import errors, retry_on_transient
 
@@ -223,11 +223,12 @@ class AdService:
     # =================================================================================
     def overview(self, actor):
         with self._errors(), self._transaction() as conn:
-            current = self._vouchers._actor(conn, actor, Permission.OPERATE)
+            current = self._vouchers._actor(conn, actor,
+                Permission.MANAGE_REWARDS if actor.role == Role.DIRECTOR else Permission.OPERATE)
             now = self._now()
             since = now.astimezone(VN).date() - timedelta(days=6)
             return dict(
-                can_configure=current.role == Role.ADMIN,
+                can_configure=chain_director(current.role),
                 network_ready=bool(self._secret),
                 settings=self._repo.settings(conn),
                 creatives=self._repo.creatives(conn),
@@ -244,7 +245,7 @@ class AdService:
 
     def _admin(self, conn, actor):
         current = self._vouchers._actor(conn, actor, Permission.MANAGE_REWARDS)
-        if current.role != Role.ADMIN:
+        if not chain_director(current.role):
             raise PermissionDeniedError("Chỉ quản trị viên cấu hình quảng cáo")
         return current
 

@@ -1,6 +1,6 @@
 # Ma trận quyền RBAC cho chức năng hiện có
 
-**Trạng thái:** Đề xuất; đối chiếu với [`RBAC_DESIGN.md`](RBAC_DESIGN.md). Bảng này mô tả **quyền đang chạy** và **quyền đích cần phê duyệt**, không phải quyền đã triển khai. Phạm vi audit: `develop` (`960beb1`).
+**Trạng thái:** Ma trận thiết kế và đối chiếu. Cột “Hiện tại” phản ánh khảo sát `develop` (`960beb1`); cột “Đề xuất” là đích nghiệp vụ. Một phần quyền đã được triển khai ở chế độ `CYBERHUB_RBAC_POLICY=separated`; xem [trạng thái chuyển đổi](RBAC_DESIGN.md#7-trạng-thái-triển-khai-và-chuyển-đổi). Các hàng có dấu `?` vẫn cần quyết định nghiệp vụ và chưa được triển khai đầy đủ.
 
 ## Cách đọc
 
@@ -30,7 +30,7 @@ Nguồn: [`management_service.py`](../src/cyberhub_manager/services/management_s
 | Chức năng hiện có / điểm kiểm tra | Hiện tại | Đề xuất | Phạm vi và điều kiện |
 | --- | --- | --- | --- |
 | Tìm/xem khách và lịch sử ví (`actor` hợp lệ) | `*`; truy vấn khách toàn cục | D, M, S; K/I chỉ nếu nhiệm vụ cần `?` | Cần chốt chính sách khách đa cơ sở; STAFF chỉ trường tối thiểu cho phục vụ, lịch sử tài chính theo quyền riêng. Đây là **khoảng trống hiện tại**. |
-| Tạo khách tại quầy (hiện nhận mật khẩu do nhân viên nhập) | `*` | M, S theo cơ sở; không A/D mặc định | Luồng **hiện tại** khác luồng email mong muốn; thiết kế email ở mục 7. |
+| Tạo khách tại quầy | `CREATE_CUSTOMERS` | M, S theo cơ sở; không A/D mặc định | Trong `separated`: bắt buộc email, tài khoản chờ kích hoạt và nhân viên không biết mật khẩu. Legacy giữ luồng cũ để không làm gián đoạn tài khoản đang dùng. |
 | Sửa hồ sơ khách | `*` | M, S theo chính sách `?` | Không cho nhân viên đổi mật khẩu/email đã xác minh của khách. |
 | Khóa/mở hồ sơ khách (`LOCK_CUSTOMERS`/role cứng) | A, M | M; D khi xử lý khiếu nại `?` | Audit lý do; không được dùng quyền này để sửa thông tin xác thực nhân viên. |
 | Xem trước/nạp tiền ví, đọc giao dịch | `*` | M, S | Cơ sở thu tiền; ca phải mở nếu nghiệp vụ yêu cầu; giữ ledger và audit. |
@@ -108,7 +108,7 @@ Nguồn: [`commercial_service.py`](../src/cyberhub_manager/services/commercial_s
 
 ## 6. Quyền chưa tồn tại trong source: không cấp ở giai đoạn này
 
-Đặc tả đính kèm đề xuất `customer:self_register`, `customer:create_at_counter`, `customer:view`, `customer:update_profile`, `customer:resend_activation`, `customer:change_own_password`, `customer:reset_own_password`, `customer:manage_status`. Đây là **tên quyền tương lai**. Hiện có các luồng tương tự (tự đăng ký, tạo/sửa/khóa khách, tự đổi mật khẩu), nhưng chúng chưa dùng các tên quyền đó. **Email kích hoạt, gửi lại email, reset qua email và ngân sách độc lập chưa có**; không ghi các chức năng đó là đã được bảo vệ bằng RBAC.
+Đặc tả đính kèm đề xuất `customer:self_register`, `customer:create_at_counter`, `customer:view`, `customer:update_profile`, `customer:resend_activation`, `customer:change_own_password`, `customer:reset_own_password`, `customer:manage_status`. Các tên permission này chưa được đưa vào enum vì hệ thống đang dùng `Permission` hiện có. Tuy vậy, đăng ký quầy qua email, gửi lại kích hoạt và reset qua email đã có trong `separated`: token chỉ lưu hash, dùng một lần, có hạn, và yêu cầu email không tiết lộ tài khoản có tồn tại.
 
 Khi được phê duyệt, ma trận riêng cho đăng ký email nên là:
 

@@ -103,7 +103,7 @@ document.addEventListener('keydown',event=>{
 document.addEventListener('error',event=>{if(event.target.matches?.('[data-customer-avatar]')){const fallback=document.createElement('span');fallback.textContent=initials(state.customer?.full_name);event.target.replaceWith(fallback);}},true);
 
 function installLoyaltyManagement(){
-  if(state.page!=='promotions'||state.actor?.role!=='ADMIN')return;
+    if(state.page!=='promotions'||!hasPermission('manage_stores'))return;
   const actions=$('.page-head .actions');if(!actions)return;
   const button=document.createElement('button');button.className='btn small';button.innerHTML=icon('shield')+esc(t('p3Policy'));button.dataset.loyaltySettings='true';button.onclick=showLoyaltySettings;actions.append(button);
 }

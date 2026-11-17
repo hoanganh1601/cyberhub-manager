@@ -36,7 +36,7 @@ from cyberhub_manager.domain.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.p1 import Permission, can, chain_director
 from cyberhub_manager.repositories.commercial_repository import CommercialRepository
 
 from .operational_base import OperationalServiceBase
@@ -155,7 +155,7 @@ class CommercialService(OperationalServiceBase):
             result = self._repo.overview(
                 conn,
                 current.store_id,
-                include_global=current.role is Role.ADMIN,
+                include_global=chain_director(current.role),
             )
             result["can_manage"] = can(current.role, Permission.COMMERCIAL_MANAGE)
             result["can_reconcile"] = can(

@@ -20,7 +20,7 @@ from cyberhub_manager.domain.dtos import (
     MachineSummary,
     SessionSummary,
 )
-from cyberhub_manager.domain.enums import MachineStatus, Role
+from cyberhub_manager.domain.enums import MachineStatus
 from cyberhub_manager.domain.exceptions import (
     ConflictError,
     NotFoundError,
@@ -28,13 +28,13 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Machine, UsageSession, estimate_live_usage
+from cyberhub_manager.domain.p1 import Permission, can
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 
-MANAGER_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
 ActorProvider = Callable[[], EmployeeSession | None]
 
 CODE_TAKEN = "Mã máy đã tồn tại"
@@ -350,7 +350,7 @@ class MachineService:
         ):
             raise PermissionDeniedError(WRONG_STORE)
 
-        if manager_only and current_actor.role not in MANAGER_ROLES:
+        if manager_only and not can(current_actor.role, Permission.MANAGE_MACHINES):
             raise PermissionDeniedError()
 
         return current_actor

@@ -1,6 +1,6 @@
 # Thiết kế RBAC: tách quản trị hệ thống và điều hành kinh doanh
 
-**Trạng thái:** Đề xuất để phê duyệt; chưa triển khai. **Nhánh khảo sát:** `develop` (`960beb1`).
+**Trạng thái:** Đang triển khai theo hai bước. Thiết kế ban đầu được khảo sát trên `develop` (`960beb1`); phần mã hiện tại đã thêm vai trò DIRECTOR và chính sách tách quyền tùy chọn. Quyền tài khoản đang hoạt động chưa bị thay đổi tự động.
 **Phạm vi:** Web, desktop, demo và MySQL hiện có. Tài liệu này đi cùng [ma trận quyền](RBAC_PERMISSION_MATRIX.md). Không đổi quyền của tài khoản đang hoạt động khi chỉ áp dụng tài liệu này.
 
 ## 1. Đầu vào và hiện trạng đã kiểm tra
@@ -82,7 +82,7 @@ Principal lấy từ session đã được kiểm tra lại với DB; `store_id`
 5. Chính sách hồ sơ khách dùng chung và mức dữ liệu STAFF/MANAGER được xem; đặc biệt lịch sử giao dịch, điện thoại và tài khoản khách liên cơ sở.
 6. Quyền tạo/sửa hồ sơ nhân sự của MANAGER: chỉ nhân viên tại cơ sở hay DIRECTOR duyệt trước; ai cho phép thay đổi trạng thái nghỉ việc.
 7. Phạm vi duyệt ngân sách/giá, hợp đồng quảng cáo và thanh toán công nợ; ngưỡng tiền và người phê duyệt thứ hai nếu cần. **Chưa có module ngân sách riêng** trong mã hiện tại.
-8. Thời điểm và chính sách bật đăng ký tại quầy qua email: khách cũ giữ đăng nhập thế nào, khi nào nhân viên được xem email, thời hạn token, nhà cung cấp email. Đây là **giai đoạn chức năng khác**, chưa triển khai trong RBAC này.
+8. Luồng đăng ký tại quầy qua email đã có nền tảng kỹ thuật ở migration `027`; trước vận hành thật vẫn phải phê duyệt nhà cung cấp SMTP, thời hạn token, chính sách nhân viên được xem email và quy trình hỗ trợ khi khách không nhận được thư. Khách cũ giữ quyền đăng nhập theo migration hiện tại.
 
 ## 6. Tiêu chí kiểm thử khi triển khai
 
@@ -102,4 +102,29 @@ Principal lấy từ session đã được kiểm tra lại với DB; `store_id`
 | INVENTORY | Xem/nhập/xuất/kiểm kê kho, tạo đề nghị và nhận hàng | Tự duyệt kiểm kê/đề nghị nhập, thu tiền POS, xem doanh thu, sửa tài khoản nhân viên. |
 | Khách hàng | Xem/sửa thông tin và đổi mật khẩu của chính mình, đặt món/chơi game theo chính sách | Truy cập `/api/employees`, `/api/revenue`, tài khoản khách khác hoặc các API nghiệp vụ nhân viên. |
 
-**Chưa chạy migration hoặc test thay đổi quyền:** tài liệu này chỉ là phân tích và kế hoạch.
+## 7. Trạng thái triển khai và chuyển đổi
+
+- `sql/025_director_role.sql` chỉ mở rộng CHECK của `employees.role`; không sửa role, mật khẩu hay dữ liệu người dùng hiện có. Chạy `scripts/init_db.py` sau khi sao lưu cơ sở dữ liệu và kiểm tra thứ tự migration.
+- Mặc định `CYBERHUB_RBAC_POLICY=legacy`: ADMIN hiện tại vẫn dùng quyền cũ. `CYBERHUB_RBAC_POLICY=separated` giới hạn ADMIN vào quản trị thông tin xác thực nhân viên; DIRECTOR quản lý chính sách kinh doanh và xem báo cáo. Cả web, Service, demo và desktop dùng chung ma trận `permissions_for()`.
+- Quy trình chuyển đổi: kiểm kê tài khoản ADMIN hiện tại; phê duyệt người giữ vai trò ADMIN kỹ thuật và người cần tài khoản DIRECTOR; tạo tài khoản DIRECTOR riêng sau migration; xác minh đăng nhập và quyền API; sau đó mới bật `separated` và khởi động lại web. Không đổi role hàng loạt hoặc bật chính sách mới trước khi có tài khoản điều hành độc lập.
+- `employees` hiện vẫn là một bảng chứa cả hồ sơ và thông tin xác thực. Service đã chặn DIRECTOR/MANAGER sửa username, role, trạng thái đăng nhập và mật khẩu trong chính sách mới; ADMIN không được sửa hồ sơ nhân sự của tài khoản đã tồn tại. Đổi username, role, trạng thái hoặc cơ sở làm tăng `auth_version` và vô hiệu phiên cũ. Tạo hồ sơ mới hoàn toàn độc lập tài khoản vẫn cần migration tách bảng và quy trình phê duyệt riêng.
+- Quan hệ khách hàng với cơ sở, MANAGER nhiều cơ sở và phân tách trạng thái nghỉ việc với khóa đăng nhập chưa có mô hình dữ liệu. Không coi các phạm vi đó là đã giải quyết; cần chốt chính sách và migration trước khi dùng dữ liệu thực nhiều cơ sở.
+- Kiểm thử: `tests/unit/test_rbac_separation.py` kiểm tra quyền, API, chống leo thang và chuyển cơ sở ở demo. Cần kiểm tra migration và quy trình đăng nhập trên bản sao MySQL trước khi cutover.
+
+### Bàn giao triển khai hiện tại
+
+Các phần sau đã có code, migration và kiểm thử MySQL trên database `cyberhub_manager_test`:
+
+- `025`: bổ sung vai trò `DIRECTOR`, giữ `CYBERHUB_RBAC_POLICY=legacy` là mặc định để không hạ quyền tài khoản đang hoạt động.
+- `026`: tách hồ sơ nhân sự (`employee_profiles`) khỏi tài khoản đăng nhập theo luồng nghiệp vụ; ADMIN cấp thông tin xác thực, DIRECTOR/MANAGER quản lý hồ sơ. Thêm `employee_store_assignments` cho MANAGER đa cơ sở và `customer_store_links` cho phạm vi khách theo chứng cứ giao dịch/đăng ký.
+- `026`: ca có điều chỉnh tiền phải chuyển sang chờ duyệt khi đóng; công nợ nhà cung cấp ở chính sách `separated` cần người duyệt và người thanh toán khác nhau.
+- `027`: đăng ký khách tại quầy bằng email, kích hoạt/đặt lại mật khẩu qua token dùng một lần có hạn, transactional outbox và worker SMTP. Tài khoản khách hiện có vẫn đăng nhập được; chỉ tài khoản mới theo luồng quầy phải kích hoạt.
+- `scripts/rbac_cutover.py`: dry-run mặc định; chỉ áp dụng mapping từng tài khoản đã có `approval_reference`, vẫn phải còn ADMIN kỹ thuật và DIRECTOR kinh doanh trước khi bật `separated`.
+
+Các phần cần hoàn thiện hoặc quyết định trước khi đưa vào vận hành thật:
+
+1. Lập và phê duyệt file mapping tài khoản thật, chạy `rbac_cutover.py` trên bản sao trước; không bật `CYBERHUB_RBAC_POLICY=separated` chỉ bằng suy đoán role hiện tại.
+2. Cấu hình SMTP, `CYBERHUB_EMAIL_TOKEN_SECRET` và `CYBERHUB_PUBLIC_URL` HTTPS; chạy worker outbox riêng. Chưa có cơ chế scheduler/service manager để tự khởi động worker khi deploy.
+3. UI Desktop mới phản ánh quyền tách ở mức menu/guard hiện có, nhưng chưa có màn hình riêng cho hồ sơ nhân sự, cấp tài khoản và phân công đa cơ sở như Web MySQL.
+4. Liên kết khách–cơ sở được backfill từ hóa đơn/phiên và được nhân viên xác minh bằng mã khách + số điện thoại. Cần thống nhất chính sách hiển thị dữ liệu tối thiểu cho khách liên cơ sở trước khi mở rộng sang báo cáo hoặc export toàn chuỗi.
+5. Chính sách duyệt chi mới chưa có hạn mức tiền, đính kèm chứng từ, hoặc luồng duyệt nhiều cấp. Đây là bước tiếp theo nếu dùng với công nợ thật.

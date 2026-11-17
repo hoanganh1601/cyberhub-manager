@@ -34,7 +34,7 @@ from cyberhub_manager.domain.game import (
     LedgerReason,
     expected_coins,
 )
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.p1 import Permission, can, chain_director
 from cyberhub_manager.domain.voucher import VoucherSource
 
 from .p1_runtime import errors, retry_on_transient
@@ -212,12 +212,13 @@ class GameService:
     # =================================================================================
     def manage(self, actor):
         with self._errors(), self._transaction() as conn:
-            current = self._vouchers._actor(conn, actor, Permission.OPERATE)
+            current = self._vouchers._actor(conn, actor,
+                Permission.MANAGE_REWARDS if actor.role == Role.DIRECTOR else Permission.OPERATE)
             game = self._game(conn)
             today = self._local_day(self._now())
             return dict(
                 can_manage=can(current.role, Permission.MANAGE_REWARDS),
-                can_configure=current.role == Role.ADMIN,
+                can_configure=chain_director(current.role),
                 game=dict(name=game.name, is_active=game.is_active, daily_limit=game.daily_limit,
                           min_interval_seconds=game.min_interval_seconds, prizes=list(game.prizes),
                           expected_coins=round(expected_coins(game.prizes), 1)),
@@ -252,7 +253,7 @@ class GameService:
             cleaned.append(GamePrize(index, label.strip(), coins, weight))
         with self._errors(), self._transaction() as conn:
             current = self._vouchers._actor(conn, actor, Permission.MANAGE_REWARDS)
-            if current.role != Role.ADMIN:
+            if not chain_director(current.role):
                 raise PermissionDeniedError("Chỉ quản trị viên cấu hình trò chơi")
             game = self._game(conn, lock=True)
             self._repo.save_game(conn, game.id, is_active=is_active, daily_limit=daily_limit,

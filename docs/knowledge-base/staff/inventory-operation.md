@@ -56,5 +56,5 @@ phải giữ nguyên mã yêu cầu để hệ thống không nhập trùng.
 
 - `src/cyberhub_manager/domain/p1.py` — Permission của INVENTORY
 - `src/cyberhub_manager/repositories/inventory_repository.py` — Sổ kho và kiểm kê
-- `docs/POS_INVENTORY_LIFECYCLE.md` — Quy tắc tồn, giữ và hoàn kho
-- `docs/OPERATIONS_PHASE7.md` — Đề nghị, đơn mua, nhận hàng và công nợ
+- `docs/features/POS_INVENTORY_LIFECYCLE.md` — Quy tắc tồn, giữ và hoàn kho
+- `docs/features/OPERATIONS_PHASE7.md` — Đề nghị, đơn mua, nhận hàng và công nợ

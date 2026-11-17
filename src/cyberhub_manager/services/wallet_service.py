@@ -15,7 +15,7 @@ from cyberhub_manager.domain.identifiers import (
     TRANSACTION_CODE_PREFIX,
     new_transaction_code,
 )
-from cyberhub_manager.domain.p1 import quote_top_up
+from cyberhub_manager.domain.p1 import Permission, can, quote_top_up, separated_rbac, chain_director
 from cyberhub_manager.domain.loyalty import personalized
 from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.services.access import operating_actor
@@ -110,7 +110,7 @@ class WalletService:
     def preview_top_up(self, customer_id, amount, employee_id):
         with translate_db_errors(), self._transaction() as conn:
             actor = self._require_actor(conn,employee_id)
-            customer=self._get_customer(conn,customer_id)
+            customer=self._get_customer(conn,customer_id,actor)
             return self._customer_quote(conn,customer,amount,actor.store_id)
 
     def _customer_quote(self,conn,customer,amount,store_id):
@@ -138,7 +138,7 @@ class WalletService:
             with self._transaction() as conn:
                 # Xác thực actor trước khi đọc khách hay đụng tới số dư.
                 actor = self._require_actor(conn, employee_id)
-                customer = self._get_customer(conn, customer_id)
+                customer = self._get_customer(conn, customer_id, actor)
 
                 # Khóa dòng account trước khi đọc số dư để hai lần nạp đồng
                 # thời không ghi đè nhau. Account LOCKED vẫn được nạp để trả nợ.
@@ -192,14 +192,19 @@ class WalletService:
     def get_history(self, customer_id: int) -> list[TransactionSummary]:
         with translate_db_errors():
             with self._transaction() as conn:
-                self._require_actor(conn)
-                customer = self._get_customer(conn, customer_id)
+                actor = self._require_actor(conn)
+                customer = self._get_customer(conn, customer_id, actor)
+                if separated_rbac() and not chain_director(actor.role):
+                    return self._accounts.list_transactions(conn, customer.account.id, store_id=actor.store_id)
                 return self._accounts.list_transactions(conn, customer.account.id)
 
-    def _get_customer(self, conn: Any, customer_id: int) -> Customer:
+    def _get_customer(self, conn: Any, customer_id: int, actor=None) -> Customer:
         if _is_positive_id(customer_id):
             customer = self._customers.get_by_id(conn, customer_id)
             if customer is not None:
+                if (actor is not None and separated_rbac() and not chain_director(actor.role)
+                        and not self._customers.has_store_link(conn, customer_id, actor.store_id)):
+                    raise NotFoundError("Không tìm thấy khách hàng trong cơ sở hiện tại")
                 return customer
         raise NotFoundError("Không tìm thấy khách hàng")
 
@@ -215,6 +220,11 @@ class WalletService:
             raise PermissionDeniedError()
         # Tra lại DB: nhân viên/cửa hàng có thể đã bị khóa hoặc nhân viên đã chuyển cửa hàng.
         current = operating_actor(conn,self._auth,actor)
+        if separated_rbac() and not can(
+            current.role,
+            Permission.OPERATE_WALLET if employee_id is not None else Permission.VIEW_CUSTOMERS,
+        ):
+            raise PermissionDeniedError()
         return current
 
     def _get_created_transaction(

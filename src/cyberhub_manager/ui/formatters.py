@@ -1,6 +1,6 @@
 """Các hàm định dạng hiển thị dữ liệu chuẩn trên giao diện CyberHub Manager.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 2 và 8.
+Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 2 và 8.
 - Tiền tệ: 25.000 VND, số âm là -10.000 VND.
 - Thời gian: HH:mm dd/MM/yyyy theo múi giờ Việt Nam (Asia/Ho_Chi_Minh).
 - Thời lượng: X giờ Y phút hoặc Y phút.

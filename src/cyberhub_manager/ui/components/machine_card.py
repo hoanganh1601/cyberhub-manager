@@ -1,6 +1,6 @@
 """MachineCard component cho CyberHub Manager.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 4, 7, 8 và docs/03_UI_THEME.md mục 3.5.
+Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 4, 7, 8 và history/docs/reference/03_UI_THEME.md mục 3.5.
 - Hiển thị thông tin máy, phiên đang chạy và số dư dự kiến live.
 - Cảnh báo âm: sử dụng active_session.projected_balance (không dùng account_balance).
 - Phân quyền theo role của actor: STAFF chỉ xem máy bảo trì, MANAGER/ADMIN có nút 'Bật lại'.
@@ -16,6 +16,7 @@ import customtkinter as ctk
 
 from ...domain.dtos import EmployeeSession, MachineSummary
 from ...domain.enums import MachineStatus, Role
+from ...domain.p1 import Permission, can
 from ..formatters import format_duration, format_money
 from ..theme import (
     BG_ALERT_DANGER,
@@ -270,7 +271,7 @@ class MachineCard(ctk.CTkFrame):
 
         elif machine.status == MachineStatus.MAINTENANCE:
             # Chỉ Manager hoặc Admin mới có quyền bật lại máy bảo trì
-            if actor.role in (Role.MANAGER, Role.ADMIN):
+            if can(actor.role, Permission.MANAGE_MACHINES):
                 self._action_btn.configure(
                     text="Bật lại",
                     kind="secondary",

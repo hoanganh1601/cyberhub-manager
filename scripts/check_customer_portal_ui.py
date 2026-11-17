@@ -1,7 +1,7 @@
 """Exercise the customer portal in Chromium and save optional visual evidence.
 
 Requires the optional local tool Playwright and its Chromium browser.
-Run: python scripts/check_customer_portal_ui.py --screenshots docs/testing/customer-phase1
+Run: python scripts/check_customer_portal_ui.py --screenshots history/docs/testing/customer-phase1
 Uses an ephemeral local HTTP server and isolated demo data, never the configured MySQL.
 """
 
