@@ -28,7 +28,7 @@ class P1Repository(
             "a.password_hash,a.auth_version "
             "FROM accounts a JOIN customers c ON c.id=a.customer_id WHERE "
             + column
-            + "=%s AND a.status='ACTIVE' AND c.status='ACTIVE'"
+            + "=%s AND a.status='ACTIVE' AND a.web_login_enabled=TRUE AND c.status='ACTIVE'"
             + (" FOR UPDATE" if lock else ""),
             (value,),
         )

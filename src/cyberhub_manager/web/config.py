@@ -30,6 +30,7 @@ def configure_web_app(app: Flask, overrides: dict[str, Any] | None = None) -> bo
         MAX_CONTENT_LENGTH=16 * 1024,
         TRUSTED_HOSTS=list(allowed_hosts) if allowed_hosts else None,
         TRUST_PROXY=_boolean("CYBERHUB_TRUST_PROXY", False),
+        RBAC_POLICY=os.getenv("CYBERHUB_RBAC_POLICY", "legacy").lower(),
         LOGIN_RATE_LIMIT_ENABLED=_boolean(
             "CYBERHUB_LOGIN_RATE_LIMIT_ENABLED", True
         ),
@@ -75,6 +76,10 @@ def _validate(app: Flask, *, stable_secret: bool) -> None:
         raise RuntimeError("Login rate-limit values must be positive integers")
     if app.config["WEB_MODE"] not in ("demo", "mysql"):
         raise RuntimeError("CYBERHUB_WEB_MODE must be demo or mysql")
+    if app.config["RBAC_POLICY"] not in ("legacy", "separated"):
+        raise RuntimeError("CYBERHUB_RBAC_POLICY must be legacy or separated")
+    if app.config["RBAC_POLICY"] != os.getenv("CYBERHUB_RBAC_POLICY", "legacy").lower():
+        raise RuntimeError("RBAC_POLICY override must match CYBERHUB_RBAC_POLICY used by services")
     if app.config["WEB_MODE"] == "mysql" and (
         len(str(app.config["SECRET_KEY"])) < 32 or not stable_secret
     ):

@@ -25,8 +25,8 @@ const copy = {
     "Each demo login has its own dataset, cleared on server restart. Do not enter real information.",
   ],
   demoAccounts: [
-    "Quản lý: quanly01 · Nhân viên: nhanvien01",
-    "Manager: quanly01 · Staff: nhanvien01",
+    "Giám đốc: giamdoc01 · Quản lý: quanly01 · Nhân viên: nhanvien01",
+    "Director: giamdoc01 · Manager: quanly01 · Staff: nhanvien01",
   ],
   demoPassword: ["Mật khẩu demo: demo123", "Demo password: demo123"],
   intro: [
@@ -43,6 +43,7 @@ const copy = {
   kitchen: ["BẾP", "KITCHEN"],
   inventory: ["THỦ KHO", "INVENTORY"],
   admin: ["QUẢN TRỊ", "ADMIN"],
+  director: ["GIÁM ĐỐC", "DIRECTOR"],
   refresh: ["Làm mới", "Refresh"],
   loading: ["Đang tải dữ liệu…", "Loading data…"],
   processing: ["Đang xử lý…", "Processing…"],
@@ -352,8 +353,10 @@ function storedLanguage() {
 const state = {
   lang: storedLanguage(),
   actor: null,
+  permissions: [],
   csrf: "",
   mode: "demo",
+  rbacPolicy: "legacy",
   page: "dashboard",
   filter: "all",
   roomFilter: "all",
@@ -418,7 +421,9 @@ const initials = (name) =>
     .map((part) => part[0])
     .join("")
     .toUpperCase();
-const isManager = () => ["MANAGER", "ADMIN"].includes(state.actor?.role);
+const hasPermission = (name) => state.permissions.includes(name);
+const isManager = () => hasPermission("manage_machines");
+const canViewRevenue = () => hasPermission("view_revenue");
 const statusKey = (value) =>
   ({
     AVAILABLE: "available",
@@ -518,12 +523,16 @@ function renderLogin() {
     try {
       const result = await api("/login", { method: "POST", body: values });
       state.actor = result.actor;
+      state.permissions = result.permissions || [];
       state.today = result.today;
       state.mode = result.mode;
+      state.rbacPolicy = result.rbac_policy || "legacy";
       form.reset();
       if(state.actor.credential_update_required){renderRequiredPasswordChange();return;}
       state.page = state.actor.role === "KITCHEN" ? "menu"
-        : state.actor.role === "INVENTORY" ? "warehouse" : "dashboard";
+        : state.actor.role === "INVENTORY" ? "warehouse"
+        : hasPermission("operate") ? "dashboard"
+        : hasPermission("view_revenue") ? "revenue" : "employees";
       state.selected = null;
       renderShell();
       await loadPage();
@@ -538,22 +547,20 @@ function renderLogin() {
 function renderShell() {
   document.title = `CyberHub Manager — ${t(state.page)}`;
   const links = [
-    ["dashboard", "grid"],
-    ["customers", "users"],
+    ...(hasPermission("operate") ? [["dashboard", "grid"]] : []),
+    ...(hasPermission("view_customers") ? [["customers", "users"]] : []),
     ...(isManager() ? [["machines", "monitor"]] : []),
-    ["invoices", "invoice"],
-    ...(state.mode === "mysql" && ["STAFF","MANAGER","ADMIN"].includes(state.actor.role) ? [["shifts", "wallet"]] : []),
-    ...(state.mode === "mysql" ? [["maintenanceOps", "wrench"]] : []),
-    ["menu", "utensils"],
-    ...(["INVENTORY", "MANAGER", "ADMIN"].includes(state.actor.role) ? [["warehouse", "warehouse"]] : []),
-    ...(state.mode === "mysql" && ["INVENTORY","MANAGER","ADMIN"].includes(state.actor.role) ? [["procurement", "invoice"]] : []),
-    ["vouchers", "ticket"],
-    ["games", "wheel"],
-    ["ads", "monitor"],
-    ...(isManager() ? [["revenue", "chart"]] : []),
-    ...(isManager() ? [["forecasting", "chart"]] : []),
-    ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
-    ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
+    ...(hasPermission("export_invoice") ? [["invoices", "invoice"]] : []),
+    ...(state.mode === "mysql" && hasPermission("shift_view") ? [["shifts", "wallet"]] : []),
+    ...(state.mode === "mysql" && hasPermission("maintenance_view") ? [["maintenanceOps", "wrench"]] : []),
+    ...(hasPermission("pos_view_orders") ? [["menu", "utensils"]] : []),
+    ...(hasPermission("inventory_view") ? [["warehouse", "warehouse"]] : []),
+    ...(state.mode === "mysql" && hasPermission("procurement_view") ? [["procurement", "invoice"]] : []),
+    ...(hasPermission("operate") || hasPermission("manage_rewards") ? [["vouchers", "ticket"],["games", "wheel"],["ads", "monitor"]] : []),
+    ...(canViewRevenue() ? [["revenue", "chart"],["forecasting", "chart"]] : []),
+    ...(hasPermission("manage_employees") || hasPermission("manage_employee_credentials") ? [["employees","users"]] : []),
+    ...(hasPermission("manage_promotions") ? [["promotions","wallet"]] : []),
+    ...(hasPermission("manage_stores") ? [["stores","store"]] : []),
   ].filter(([page]) => state.actor.role === "KITCHEN" ? ["menu","maintenanceOps"].includes(page)
     : state.actor.role === "INVENTORY" ? ["warehouse","procurement","maintenanceOps"].includes(page) : true);
   $("#app").innerHTML =
@@ -586,8 +593,8 @@ function metric(label, value, color = "", symbol = "monitor", hint = "") {
   return `<div class="metric"><div class="metric-label">${t(label)}</div>${icon(symbol)}<div class="metric-value ${color}">${esc(value)}</div><small>${esc(hint)}</small></div>`;
 }
 async function loadPage(silent = false) {
-  if (state.page === "revenue" && !isManager()) state.page = "dashboard";
-  if (state.page === "forecasting" && !isManager()) state.page = "dashboard";
+  if (state.page === "revenue" && !canViewRevenue()) state.page = "employees";
+  if (state.page === "forecasting" && !canViewRevenue()) state.page = "employees";
   const seq = ++state.seq;
   const page = state.page;
   if (!state.actor) return;
@@ -623,9 +630,13 @@ async function loadPage(silent = false) {
       return;
     }
     if (["employees","promotions","stores"].includes(page)) {
-      const [items,stores] = await Promise.all([api(`/${page}`),api('/stores')]);
+      const [items,stores,profiles] = await Promise.all([
+        api(`/${page}`),api('/stores'),
+        page === "employees" && state.mode === "mysql" && state.rbacPolicy === "separated"
+          ? api('/employee-profiles') : Promise.resolve([])
+      ]);
       if(seq!==state.seq) return;
-      state.items=items; state.stores=stores; renderPage(); return;
+      state.items=items; state.stores=stores; state.employeeProfiles=profiles; renderPage(); return;
     }
     if (page === "forecasting") {
       data = await api(`/forecasting?days=${state.forecastHorizon}`);
@@ -686,8 +697,8 @@ function renderPage() {
   else if (state.page === "games") html = gameAdminPage();
   else if (state.page === "ads") html = adAdminPage();
   else if (["shifts","maintenanceOps","procurement"].includes(state.page)) html = businessAdminPage();
-  else if (state.page === "revenue" && isManager()) html = revenuePage();
-  else if (state.page === "forecasting" && isManager()) html = forecastAdminPage();
+  else if (state.page === "revenue" && canViewRevenue()) html = revenuePage();
+  else if (state.page === "forecasting" && canViewRevenue()) html = forecastAdminPage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
@@ -754,7 +765,7 @@ function customersPage() {
   const { rows, foot } = paginate(filtered);
   return (
     pageHead(
-      `<button class="btn primary small" data-action="customer-create">${icon("plus")}${t("newCustomer")}</button>`,
+      hasPermission("create_customers") ? `${state.mode==="mysql"&&state.rbacPolicy==="separated"?`<button class="btn small" data-action="customer-link">${state.lang==="vi"?"Liên kết khách đến cơ sở":"Link customer to store"}</button>`:""}<button class="btn primary small" data-action="customer-create">${icon("plus")}${t("newCustomer")}</button>` : "",
     ) +
     `<div class="toolbar"><input id="local-search" class="input search" value="${esc(state.keyword)}" placeholder="${t("customerSearch")}" aria-label="${t("search")}"><span class="spacer"></span>${["all", "ACTIVE", "INACTIVE"].map((value) => `<button class="filter-btn ${state.filter === value ? "active" : ""}" data-action="filter" data-filter="${value}">${t(value === "all" ? "all" : statusKey(value))} (${state.items.filter((c) => value === "all" || c.customer_status === value).length})</button>`).join("")}</div><div class="split"><section class="panel">${rows.length ? table(["code", "fullName", "phone", "username", "accountBalance", "status"], rows.map((c) => `<tr data-select="customer" data-id="${c.customer_id}" class="${state.selected === c.customer_id ? "selected" : ""}" tabindex="0"><td class="table-code">${esc(c.customer_code)}</td><td class="table-name">${esc(c.full_name)}</td><td>${esc(c.phone)}</td><td>${esc(c.username)}</td><td class="money ${c.balance < 0 ? "red" : "green"}">${money(c.balance)}</td><td>${badge(c.customer_status)}</td></tr>`).join("")) : empty()}${foot}</section><aside class="panel detail-panel ${state.detail ? "has-selection" : ""}" id="detail-panel">${customerDetail()}</aside></div>`
   );
@@ -767,7 +778,7 @@ function customerDetail() {
   const { customer: c, history } = state.detail;
   const allowed =
     c.customer_status === "ACTIVE" && c.account_status === "ACTIVE";
-  return `<div class="panel-body"><div class="detail-identity"><div class="avatar">${esc(initials(c.full_name))}</div><div><strong>${esc(c.full_name)}</strong><small class="cyan">${esc(c.customer_code)}</small></div></div><div class="key-values">${kv("account", esc(c.account_code))}${kv("phone", esc(c.phone))}${kv("username", esc(c.username))}${kv("customerStatus", badge(c.customer_status))}${kv("accountStatus", badge(c.account_status))}</div><div class="balance-box"><p>${t("balance")}</p><strong class="money ${c.balance < 0 ? "red" : "green"}">${money(c.balance)}</strong></div><div class="actions"><button class="btn primary small" data-action="topup" data-id="${c.customer_id}">${icon("plus")}${t("topup")}</button><button class="btn small" data-action="customer-edit" data-id="${c.customer_id}">${icon("edit")}${t("edit")}</button>${isManager() ? `<button class="btn ghost small ${allowed ? "red" : "cyan"}" data-action="customer-status" data-id="${c.customer_id}">${icon("lock")}${t(c.customer_status === "ACTIVE" ? "lock" : "unlock")}</button>` : ""}</div><h3 class="history-title">${t("recentHistory")}</h3>${
+  return `<div class="panel-body"><div class="detail-identity"><div class="avatar">${esc(initials(c.full_name))}</div><div><strong>${esc(c.full_name)}</strong><small class="cyan">${esc(c.customer_code)}</small></div></div><div class="key-values">${kv("account", esc(c.account_code))}${kv("phone", esc(c.phone))}${kv("username", esc(c.username))}${kv("customerStatus", badge(c.customer_status))}${kv("accountStatus", badge(c.account_status))}</div><div class="balance-box"><p>${t("balance")}</p><strong class="money ${c.balance < 0 ? "red" : "green"}">${money(c.balance)}</strong></div><div class="actions">${hasPermission("operate_wallet") ? `<button class="btn primary small" data-action="topup" data-id="${c.customer_id}">${icon("plus")}${t("topup")}</button>` : ""}${hasPermission("edit_customers") ? `<button class="btn small" data-action="customer-edit" data-id="${c.customer_id}">${icon("edit")}${t("edit")}</button>` : ""}${hasPermission("lock_customers") ? `<button class="btn ghost small ${allowed ? "red" : "cyan"}" data-action="customer-status" data-id="${c.customer_id}">${icon("lock")}${t(c.customer_status === "ACTIVE" ? "lock" : "unlock")}</button>` : ""}</div><h3 class="history-title">${t("recentHistory")}</h3>${
     history.length
       ? history
           .slice(0, 8)
@@ -922,11 +933,12 @@ async function selectRow(type, id) {
 }
 async function showCustomerForm(edit = false) {
   const c = edit ? (await api(`/customers/${state.selected}`)).customer : null;
+  const counterEmail = !edit && state.mode === "mysql" && state.rbacPolicy === "separated";
   modal(
     edit ? "edit" : "newCustomer",
     "customersSub",
-    `<div class="form-grid">${field("full_name", "fullName", c?.full_name || "")}${field("phone", "phone", c?.phone || "", "tel")}${!edit ? field("username", "username", "", "text", "wide") + field("password", "password", "", "password") + field("confirm_password", "confirmPassword", "", "password") : ""}</div><div class="notice info">${t(edit ? "passwordClear" : "createNote")} ${!edit ? t("autoCode") : ""}</div>`,
-    edit ? "customer-edit" : "customer-create",
+    `<div class="form-grid">${field("full_name", "fullName", c?.full_name || "")}${field("phone", "phone", c?.phone || "", "tel")}${!edit ? field("username", "username", "", "text", "wide") + (counterEmail?field("email","Email","","email"):field("password", "password", "", "password") + field("confirm_password", "confirmPassword", "", "password")) : ""}</div><div class="notice info">${counterEmail?(state.lang==="vi"?"Khách tự đặt mật khẩu qua email kích hoạt. Email được xếp hàng gửi sau khi lưu.":"Customer sets a password using the activation email. Mail is queued after saving."):t(edit ? "passwordClear" : "createNote")} ${!edit ? t("autoCode") : ""}</div>`,
+    edit ? "customer-edit" : counterEmail ? "counter-register" : "customer-create",
     { id: c?.customer_id },
     edit ? "save" : "newCustomer",
   );
@@ -1069,7 +1081,7 @@ async function submitModal(event) {
     return;
   }
   if (context.action === "topup" && !form.elements.received.checked) return;
-  if(["management","switch-store","reset-password"].includes(context.action)) { await submitManagement(context,values); return; }
+  if(["management","switch-store","reset-password","employee-profile","manager-assignment"].includes(context.action)) { await submitManagement(context,values); return; }
   if(context.action === "business") { await submitBusinessModal(context, values); return; }
   if(context.action==="customer-register"){
     if(values.password!==values.confirmation){formError({message:t("mismatch"),field_errors:{confirmation:t("mismatch")}});return;}
@@ -1093,6 +1105,10 @@ async function submitModal(event) {
   busyModal(true);
   try {
     let result;
+    if (context.action === "customer-link")
+      result = await api("/customers/link-store", {method:"POST",body:{code:values.code,phone:values.phone}});
+    if (context.action === "counter-register")
+      result = await api("/customers/register-counter", {method:"POST",body:values});
     if (context.action === "customer-create")
       result = await api("/customers", { method: "POST", body: values });
     if (context.action === "customer-edit")
@@ -1130,7 +1146,7 @@ async function submitModal(event) {
       result = await api(context.url, { method: "POST", body: context.body });
     state.busy = false;
     closeModal();
-    if (context.action === "customer-create") {
+    if (context.action === "customer-create" || context.action === "counter-register") {
       state.selected = result.customer_id;
       state.filter = "all";
       state.keyword = "";
@@ -1250,6 +1266,7 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "close-modal") closeModal();
     if (action === "customer-create") await showCustomerForm();
+    if (action === "customer-link") modal("customers","customersSub",`<div class="form-grid">${field("code","code")}${field("phone","phone","","tel")}</div><div class="notice info">${state.lang==="vi"?"Xác nhận mã khách và số điện thoại do khách cung cấp trước khi liên kết với cơ sở.":"Verify customer code and phone before linking to this store."}</div>`,"customer-link",{},"save");
     if (action === "customer-edit") {
       state.selected = id;
       await showCustomerForm(true);
@@ -1314,15 +1331,19 @@ async function boot() {
   try {
     const data = await api("/session");
     state.actor = data.actor;
+    state.permissions = data.permissions || [];
     state.customer = data.customer;
     state.today = data.today;
     state.mode = data.mode;
+    state.rbacPolicy = data.rbac_policy || "legacy";
     document.documentElement.lang = state.lang;
     if(state.customer) { await renderPortal(); return; }
     if (state.actor) {
       if(state.actor.credential_update_required){renderRequiredPasswordChange();return;}
       if (state.actor.role === "KITCHEN") state.page = "menu";
       if (state.actor.role === "INVENTORY") state.page = "warehouse";
+      if (state.actor.role === "ADMIN" && !hasPermission("operate")) state.page = "employees";
+      if (state.actor.role === "DIRECTOR") state.page = "revenue";
       renderShell();
       await loadPage();
     } else renderLogin();

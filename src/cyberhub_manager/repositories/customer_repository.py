@@ -4,8 +4,24 @@ from mysql.connector.pooling import PooledMySQLConnection
 from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus
 from cyberhub_manager.domain.models import Account, Customer
 from cyberhub_manager.domain.dtos import CustomerSummary
+from .sql import execute, rows
 
 class CustomerRepository:
+    def customer_id_by_code_phone(self, conn, code, phone):
+        found = rows(conn, "SELECT id FROM customers WHERE code=%s AND phone=%s", (code,phone))
+        return found[0]["id"] if found else None
+    def link_store(self, conn, customer_id, store_id, source):
+        execute(conn, "INSERT IGNORE INTO customer_store_links(customer_id,store_id,source) "
+                "VALUES(%s,%s,%s)", (customer_id,store_id,source))
+
+    def has_store_link(self, conn, customer_id, store_id):
+        return bool(rows(conn, "SELECT customer_id FROM customer_store_links "
+                         "WHERE customer_id=%s AND store_id=%s", (customer_id,store_id)))
+
+    def audit_store_link(self, conn, employee_id, store_id, customer_id):
+        execute(conn, "INSERT INTO management_audit(employee_id,store_id,action,entity_id) "
+                "VALUES(%s,%s,'CUSTOMER_STORE_LINK',%s)",
+                (employee_id,store_id,customer_id))
     def create(
         self,
         conn: PooledMySQLConnection,
@@ -122,6 +138,7 @@ class CustomerRepository:
         self,
         conn: PooledMySQLConnection,
         keyword: str,
+        store_id: int | None = None,
     ) -> list[CustomerSummary]:
         """Search customers by code, name, phone, or username."""
         pattern = f"%{keyword.strip()}%"
@@ -143,14 +160,16 @@ class CustomerRepository:
                     a.status AS account_status
                 FROM customers AS c
                 JOIN accounts AS a ON a.customer_id = c.id
-                WHERE c.code LIKE %s
+                WHERE (%s IS NULL OR EXISTS(SELECT 1 FROM customer_store_links l
+                       WHERE l.customer_id=c.id AND l.store_id=%s))
+                  AND (c.code LIKE %s
                    OR c.full_name LIKE %s
                    OR c.phone LIKE %s
-                   OR a.username LIKE %s
+                   OR a.username LIKE %s)
                 ORDER BY c.id DESC
                 LIMIT 50
                 """,
-                (pattern, pattern, pattern, pattern),
+                (store_id, store_id, pattern, pattern, pattern, pattern),
             )
             rows = cursor.fetchall()
         finally:

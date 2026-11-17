@@ -15,20 +15,20 @@ from uuid import uuid4
 from cyberhub_manager.database.transaction import transaction
 from cyberhub_manager.services.access import operating_actor
 from cyberhub_manager.domain.dtos import CustomerSummary, EmployeeSession
-from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus, Role
+from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus
 from cyberhub_manager.domain.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     ValidationError,
 )
 from cyberhub_manager.domain.models import Customer
+from cyberhub_manager.domain.p1 import Permission, can, separated_rbac, chain_director
 from cyberhub_manager.repositories.account_repository import AccountRepository
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.security import hash_password
 from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 
-MANAGER_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
 ActorProvider = Callable[[], EmployeeSession | None]
 
 # "CUS-"/"ACC-" + 16 ký tự hex = 20 ký tự, vừa cột code VARCHAR(20).
@@ -129,6 +129,8 @@ class CustomerService:
         username: str,
         password: str,
     ) -> Customer:
+        if separated_rbac():
+            raise PermissionDeniedError("Đăng ký tại quầy cần email kích hoạt; nhân viên không đặt mật khẩu khách")
         return self._create_customer(full_name, phone, username, password, require_actor=True)
 
     @retry_on_transient
@@ -167,8 +169,7 @@ class CustomerService:
 
         with self._database() as conn:
             # Customer và account cùng một transaction: lỗi ở account thì rollback cả customer.
-            if require_actor:
-                self._require_actor(conn)
+            actor = self._require_actor(conn, permission=Permission.CREATE_CUSTOMERS) if require_actor else None
             customer_id = self._customers.create(
                 conn,
                 code=_new_code(CUSTOMER_CODE_PREFIX),
@@ -182,17 +183,20 @@ class CustomerService:
                 username=username,
                 password_hash=password_hash,
             )
-            return self._get_customer(conn, customer_id)
+            if actor is not None and separated_rbac():
+                self._customers.link_store(conn, customer_id, actor.store_id, "COUNTER")
+            return self._get_customer(conn, customer_id, actor)
 
     def get_customer(self, customer_id: int) -> Customer:
         with self._database() as conn:
-            self._require_actor(conn)
-            return self._get_customer(conn, customer_id)
+            actor = self._require_actor(conn, permission=Permission.VIEW_CUSTOMERS)
+            return self._get_customer(conn, customer_id, actor)
 
     def search_customers(self, keyword: str) -> list[CustomerSummary]:
         with self._database() as conn:
-            self._require_actor(conn)
-            return self._customers.search(conn, _clean(keyword))
+            actor = self._require_actor(conn, permission=Permission.VIEW_CUSTOMERS)
+            scope = actor.store_id if separated_rbac() and not chain_director(actor.role) else None
+            return self._customers.search(conn, _clean(keyword), scope) if scope is not None else self._customers.search(conn, _clean(keyword))
 
     @retry_on_transient
     def update_customer(
@@ -211,13 +215,13 @@ class CustomerService:
         )
 
         with self._database() as conn:
-            self._require_actor(conn)
-            self._get_customer(conn, customer_id)
+            actor = self._require_actor(conn, permission=Permission.EDIT_CUSTOMERS)
+            self._get_customer(conn, customer_id, actor)
             # Không dựa vào rowcount: MySQL trả 0 khi dữ liệu mới giống dữ liệu cũ.
             self._customers.update_profile(
                 conn, customer_id, full_name=full_name, phone=phone
             )
-            return self._get_customer(conn, customer_id)
+            return self._get_customer(conn, customer_id, actor)
 
     @retry_on_transient
     def set_customer_status(
@@ -240,13 +244,13 @@ class CustomerService:
         )
 
         with self._database() as conn:
-            self._require_actor(
+            current = self._require_actor(
                 conn,
                 actor,
                 manager_only=True,
             )
 
-            customer = self._get_customer(conn, customer_id)
+            customer = self._get_customer(conn, customer_id, current)
 
             # Update customer and account atomically.
             self._customers.set_status(
@@ -260,7 +264,19 @@ class CustomerService:
                 account_status,
             )
 
-            return self._get_customer(conn, customer.id)
+            return self._get_customer(conn, customer.id, current)
+
+    def link_customer_to_store(self, code: str, phone: str) -> Customer:
+        """At-counter visit requires two customer-provided identifiers."""
+        with self._database() as conn:
+            actor = self._require_actor(conn, permission=Permission.CREATE_CUSTOMERS)
+            customer_id = self._customers.customer_id_by_code_phone(conn, _clean(code), _clean(phone))
+            customer = self._customers.get_by_id(conn, customer_id) if customer_id else None
+            if customer is None:
+                raise NotFoundError("Không tìm thấy khách hàng với thông tin đã cung cấp")
+            self._customers.link_store(conn, customer_id, actor.store_id, "VISIT")
+            self._customers.audit_store_link(conn, actor.employee_id, actor.store_id, customer_id)
+            return customer
 
     def _require_actor(
         self,
@@ -268,6 +284,7 @@ class CustomerService:
         requested_actor: EmployeeSession | None = None,
         *,
         manager_only: bool = False,
+        permission: Permission | None = None,
     ) -> EmployeeSession:
         """Validate the current actor against the active database record."""
 
@@ -293,7 +310,9 @@ class CustomerService:
 
         current_actor = operating_actor(conn,self._auth,actor)
 
-        if manager_only and current_actor.role not in MANAGER_ROLES:
+        if manager_only and not can(current_actor.role, Permission.LOCK_CUSTOMERS):
+            raise PermissionDeniedError()
+        if separated_rbac() and permission and not can(current_actor.role, permission):
             raise PermissionDeniedError()
 
         return current_actor
@@ -306,9 +325,12 @@ class CustomerService:
             with self._transaction() as conn:
                 yield conn
 
-    def _get_customer(self, conn: Any, customer_id: int) -> Customer:
+    def _get_customer(self, conn: Any, customer_id: int, actor=None) -> Customer:
         if _is_positive_id(customer_id):
             customer = self._customers.get_by_id(conn, customer_id)
             if customer is not None:
+                if (actor is not None and separated_rbac() and not chain_director(actor.role)
+                        and not self._customers.has_store_link(conn, customer_id, actor.store_id)):
+                    raise NotFoundError("Không tìm thấy khách hàng trong cơ sở hiện tại")
                 return customer
         raise NotFoundError("Không tìm thấy khách hàng")

@@ -23,6 +23,51 @@ class ManagementRepositoryMixin:
             )
         ]
 
+    def assigned_store_ids(self, conn, employee_id):
+        return {item["store_id"] for item in rows(
+            conn, "SELECT store_id FROM employee_store_assignments WHERE employee_id=%s",
+            (employee_id,),
+        )}
+
+    def set_store_assignment(self, conn, employee_id, store_id, granter_id, enabled):
+        if enabled:
+            execute(conn, "INSERT INTO employee_store_assignments(employee_id,store_id,granted_by) "
+                    "VALUES(%s,%s,%s) ON DUPLICATE KEY UPDATE granted_by=VALUES(granted_by)",
+                    (employee_id, store_id, granter_id))
+        else:
+            execute(conn, "DELETE FROM employee_store_assignments WHERE employee_id=%s AND store_id=%s",
+                    (employee_id, store_id))
+
+    def list_employee_profiles(self, conn, store_id=None):
+        return rows(conn, "SELECT id,employee_id,code,home_store_id,full_name,employment_status "
+                    "FROM employee_profiles" + (" WHERE home_store_id=%s" if store_id else "") +
+                    " ORDER BY id DESC", (store_id,) if store_id else ())
+
+    def employee_profile(self, conn, profile_id, lock=False):
+        result = rows(conn, "SELECT id,employee_id,code,home_store_id,full_name,employment_status "
+                      "FROM employee_profiles WHERE id=%s" + (" FOR UPDATE" if lock else ""),
+                      (profile_id,))
+        return result[0] if result else None
+
+    def create_employee_profile(self, conn, code, store_id, full_name):
+        return execute(conn, "INSERT INTO employee_profiles(code,home_store_id,full_name) VALUES(%s,%s,%s)",
+                       (code, store_id, full_name))
+
+    def update_employee_profile(self, conn, profile_id, store_id, full_name, status):
+        execute(conn, "UPDATE employee_profiles SET home_store_id=%s,full_name=%s,employment_status=%s "
+                "WHERE id=%s", (store_id, full_name, status, profile_id))
+        execute(conn, "UPDATE employees e JOIN employee_profiles p ON p.employee_id=e.id "
+                "SET e.auth_version=e.auth_version+IF(e.store_id<>%s OR %s='INACTIVE',1,0),"
+                "e.store_id=%s,e.full_name=%s WHERE p.id=%s",
+                (store_id, status, store_id, full_name, profile_id))
+
+    def link_employee_profile(self, conn, profile_id, employee_id):
+        execute(conn, "UPDATE employee_profiles SET employee_id=%s WHERE id=%s AND employee_id IS NULL",
+                (employee_id, profile_id))
+
+    def bump_auth_version(self, conn, employee_id):
+        execute(conn, "UPDATE employees SET auth_version=auth_version+1 WHERE id=%s", (employee_id,))
+
     def store(self, conn, store_id, lock=False):
         result = rows(
             conn,
@@ -75,7 +120,7 @@ class ManagementRepositoryMixin:
             )
         ]
 
-    def save_employee(self, conn, employee_id, values, password_hash):
+    def save_employee(self, conn, employee_id, values, password_hash, profile_id=None):
         store_id, name, username, role, status = values
         if employee_id is None:
             employee_id = execute(
@@ -95,8 +140,9 @@ class ManagementRepositoryMixin:
         else:
             execute(
                 conn,
-                "UPDATE employees SET store_id=%s,full_name=%s,username=%s,role=%s,status=%s WHERE id=%s",
-                (*values, employee_id),
+                "UPDATE employees SET auth_version=auth_version+IF(store_id<>%s OR username<>%s OR role<>%s OR status<>%s,1,0),"
+                "store_id=%s,full_name=%s,username=%s,role=%s,status=%s WHERE id=%s",
+                (store_id, username, role, status, *values, employee_id),
             )
             if password_hash:
                 execute(
@@ -104,6 +150,16 @@ class ManagementRepositoryMixin:
                     "UPDATE employees SET password_hash=%s WHERE id=%s",
                     (password_hash, employee_id),
                 )
+            execute(conn, "UPDATE employee_profiles SET home_store_id=%s,full_name=%s "
+                    "WHERE employee_id=%s", (store_id, name, employee_id))
+        if profile_id is not None:
+            self.link_employee_profile(conn, profile_id, employee_id)
+        elif password_hash and employee_id is not None:
+            # A newly provisioned identity may still be using the legacy API.
+            execute(conn, "INSERT INTO employee_profiles(employee_id,code,home_store_id,full_name) "
+                    "SELECT e.id,e.code,e.store_id,e.full_name FROM employees e WHERE e.id=%s "
+                    "AND NOT EXISTS(SELECT 1 FROM employee_profiles p WHERE p.employee_id=e.id)",
+                    (employee_id,))
         return next(item for item in self.list_employees(conn) if item.id == employee_id)
 
     def reset_employee_password(self, conn, employee_id, password_hash):

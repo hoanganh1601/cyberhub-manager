@@ -19,6 +19,7 @@ def create_service_bundle(
 
     from .auth_service import AuthService
     from .customer_service import CustomerService
+    from .customer_email_service import CustomerEmailService
     from .machine_service import MachineService
     from .report_service import ReportService
     from .session_service import SessionService
@@ -36,10 +37,11 @@ def create_service_bundle(
     from .commercial_service import CommercialService
 
     shifts = CashShiftService()
+    customers = CustomerService(actor_provider=actor_provider)
 
     return ServiceBundle(
         auth=AuthService(),
-        customers=CustomerService(actor_provider=actor_provider),
+        customers=customers,
         wallet=WalletService(actor_provider=actor_provider, shift_service=shifts),
         machines=MachineService(actor_provider=actor_provider),
         sessions=SessionService(actor_provider=actor_provider, shift_service=shifts),
@@ -55,4 +57,5 @@ def create_service_bundle(
         maintenance=MaintenanceService(),
         procurement=ProcurementService(shifts=shifts),
         commercial=CommercialService(),
+        customer_email=CustomerEmailService(customers),
     )

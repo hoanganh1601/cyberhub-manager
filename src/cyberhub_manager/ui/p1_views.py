@@ -10,7 +10,7 @@ import customtkinter as ctk
 
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import ApplicationError, ValidationError
-from cyberhub_manager.domain.p1 import Promotion
+from cyberhub_manager.domain.p1 import Permission, Promotion, can, separated_rbac, chain_director
 from cyberhub_manager.services.invoice_export import invoice_html, invoice_csv
 from . import theme as t
 from .background import default_runner
@@ -34,6 +34,7 @@ STATUS = {
     "INACTIVE": "Ngừng hoạt động",
     "LOCKED": "Đã khóa",
     "ADMIN": "Quản trị viên",
+    "DIRECTOR": "Giám đốc",
     "MANAGER": "Quản lý",
     "STAFF": "Nhân viên",
     "KITCHEN": "Nhân viên bếp",
@@ -165,25 +166,19 @@ class ManagementForm(StitchDialog):
                 ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE"]),
             ]
         elif kind == "employees":
-            specs = [
-                ("full_name", "Họ và tên", "text", None),
-                ("username", "Tên đăng nhập", "text", None),
-                ("store_id", "Cơ sở", "choice", store_choices),
-                (
-                    "role",
-                    "Vai trò",
-                    "choice",
-                    (
-                        ["ADMIN", "MANAGER", "STAFF"]
-                        if context.session.role == Role.ADMIN
-                        else ["STAFF"]
-                    ),
-                ),
-                ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE", "LOCKED"]),
-                ("password", "Mật khẩu mới", "password", None),
-            ]
+            credentials = can(context.session.role, Permission.MANAGE_EMPLOYEE_CREDENTIALS)
+            specs = [("full_name", "Họ và tên", "text", None),
+                     ("username", "Tên đăng nhập", "text", None),
+                     ("store_id", "Cơ sở", "choice", store_choices),
+                     ("role", "Vai trò", "choice",
+                      ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN", "INVENTORY"] if credentials else ["STAFF"]),
+                     ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE", "LOCKED"]),
+                     ("password", "Mật khẩu mới", "password", None)]
+            if separated_rbac() and item:
+                allowed = {"username", "role", "status"} if credentials else {"full_name", "store_id"} if context.session.role == Role.DIRECTOR else {"full_name"}
+                specs = [spec for spec in specs if spec[0] in allowed]
         else:
-            if context.session.role == Role.ADMIN:
+            if can(context.session.role, Permission.SWITCH_STORE):
                 store_choices = {None: self._t("Toàn hệ thống"), **store_choices}
             specs = [
                 ("code", "Mã khuyến mãi", "text", None),
@@ -325,6 +320,9 @@ class ManagementForm(StitchDialog):
             if self.kind == "stores":
                 return service.save_store(actor, entity_id, **values)
             if self.kind == "employees":
+                if self.item:
+                    for key in ("full_name", "username", "store_id", "role", "status"):
+                        values.setdefault(key, getattr(self.item, key))
                 return service.save_employee(actor, entity_id, **values)
             if self.item:
                 values.update(minimum_tier=self.item.minimum_tier,minimum_points=self.item.minimum_points,target_customer_id=self.item.target_customer_id)
@@ -391,13 +389,15 @@ class ManagementView(ctk.CTkFrame):
             eyebrow=self._t("QUẢN TRỊ VẬN HÀNH"),
         )
         header.pack(fill="x")
-        icon_action(
+        add_button = icon_action(
             header.actions,
             self._t("Thêm mới"),
             "plus",
             kind="primary",
             command=lambda: self.open_form(),
-        ).pack(side="right")
+        )
+        if kind != "employees" or not separated_rbac() or can(context.session.role, Permission.MANAGE_EMPLOYEE_CREDENTIALS):
+            add_button.pack(side="right")
         self.refresh_button = icon_action(
             header.actions, self._t("Làm mới"), "refresh", command=self.reload
         )
@@ -494,7 +494,7 @@ class ManagementView(ctk.CTkFrame):
         self.tiles[2].value.configure(
             text=(
                 self._t("Toàn hệ thống")
-                if self._context.session.role == Role.ADMIN
+                if chain_director(self._context.session.role)
                 else self._context.session.store_code
             )
         )
@@ -588,13 +588,14 @@ class ManagementView(ctk.CTkFrame):
                 self._t("Chỉnh sửa"),
                 command=lambda current=item: self.open_form(current),
             )
+            role = self._context.session.role
             editable = (
-                self._context.session.role == Role.ADMIN
-                or (self.kind == "employees" and item.role == "STAFF")
-                or (
-                    self.kind == "promotions"
-                    and item.store_id == self._context.session.store_id
-                )
+                can(role, Permission.MANAGE_STORES) if self.kind == "stores" else
+                (can(role, Permission.MANAGE_EMPLOYEE_CREDENTIALS) or
+                 can(role, Permission.MANAGE_EMPLOYEES) and
+                 (role == Role.DIRECTOR or item.role == "STAFF")) if self.kind == "employees" else
+                can(role, Permission.MANAGE_PROMOTIONS) and
+                (can(role, Permission.SWITCH_STORE) or item.store_id == self._context.session.store_id)
             )
             button.set_enabled(editable)
             button.grid(row=0, column=4, padx=10, pady=10, sticky="e")

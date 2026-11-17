@@ -35,12 +35,13 @@ from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import translate_db_errors
 from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.domain.p1 import Permission, can, chain_director
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
 # Đợt 0: mọi vai trò xem/xuất hóa đơn để thanh toán; chỉ MANAGER/ADMIN xem doanh thu.
-INVOICE_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN})
-REVENUE_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
+INVOICE_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN, Role.DIRECTOR})
+REVENUE_ROLES = frozenset({Role.MANAGER, Role.ADMIN, Role.DIRECTOR})
 REPORT_ROLES = INVOICE_ROLES  # giữ tên cũ cho code đang import
 REVENUE_VIEW_AUDIT = "REVENUE_VIEW"
 AI_REVENUE_ANALYSIS_AUDIT = "AI_REVENUE_ANALYSIS"
@@ -296,7 +297,7 @@ class ReportService:
                 or current.store_id != actor.store_id
             ):
                 raise PermissionDeniedError()
-            if current.role == Role.MANAGER and store_ids != (current.store_id,):
+            if not chain_director(current.role) and store_ids != (current.store_id,):
                 raise PermissionDeniedError(WRONG_STORE)
 
             stores = []
@@ -304,7 +305,7 @@ class ReportService:
                 store = self._audit.store(conn, store_id, lock="share")
                 if store is None or store.status != "ACTIVE":
                     raise PermissionDeniedError(WRONG_STORE)
-                if current.role != Role.ADMIN and store_id != current.store_id:
+                if not chain_director(current.role) and store_id != current.store_id:
                     raise PermissionDeniedError(WRONG_STORE)
                 daily = self._invoices.daily_revenue_by_store(
                     conn, store_id, created_from_utc=start, created_before_utc=end,
@@ -369,6 +370,8 @@ class ReportService:
             or current.store_id != actor.store_id
             or current.role != actor.role
             or current.role not in roles
+            or (roles == REVENUE_ROLES and not can(current.role, Permission.VIEW_REVENUE))
+            or (roles == INVOICE_ROLES and not can(current.role, Permission.EXPORT_INVOICE))
         ):
             raise PermissionDeniedError()
         return current

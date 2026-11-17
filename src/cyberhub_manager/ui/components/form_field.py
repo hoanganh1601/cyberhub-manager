@@ -1,6 +1,6 @@
 """FormField component cho CyberHub Manager.
 
-Quy định: docs/07_DTO_UI_HANDOFF.md mục 7 và docs/03_UI_THEME.md mục 3.4.
+Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 7 và history/docs/reference/03_UI_THEME.md mục 3.4.
 - API: get_value() -> str, set_value(value: str), set_error(message: str | None), set_enabled(enabled: bool).
 - Label ở trên; placeholder không thay thế cho label.
 - Hỗ trợ trường mật khẩu với nút bật/tắt hiện/ẩn.

@@ -4,7 +4,7 @@ Cùng API với MachineCard (NG-01) để có thể thay thế nhau:
 render(machine, actor), set_busy(busy), set_on_open/set_on_checkout/set_on_maintenance(cb).
 Callback nhận machine_id: int.
 
-Quy tắc hiển thị (docs/07_DTO_UI_HANDOFF.md mục 8):
+Quy tắc hiển thị (history/docs/reference/07_DTO_UI_HANDOFF.md mục 8):
 - Cảnh báo âm dùng active_session.projected_balance, không dùng account_balance.
 - STAFF thấy máy bảo trì nhưng không có nút "Kết thúc bảo trì".
 - Trạng thái luôn có chữ, không chỉ có màu.
@@ -19,10 +19,10 @@ import customtkinter as ctk
 
 from ...domain.dtos import EmployeeSession, MachineSummary
 from ...domain.enums import MachineStatus
+from ...domain.p1 import Permission, can
 from ..formatters import format_duration, format_money
 from ..i18n import UIStrings
 from ..messages import MSG_PROCESSING
-from ..navigation import MANAGEMENT_ROLES
 from ..theme import (
     FONT_ST_BODY,
     FONT_ST_BODY_STRONG,
@@ -81,7 +81,7 @@ def card_action(machine: MachineSummary, actor: EmployeeSession) -> str | None:
         return "open"
     if machine.status == MachineStatus.IN_USE:
         return "checkout"
-    if machine.status == MachineStatus.MAINTENANCE and actor.role in MANAGEMENT_ROLES:
+    if machine.status == MachineStatus.MAINTENANCE and can(actor.role, Permission.MANAGE_MACHINES):
         return "maintenance"
     return None
 

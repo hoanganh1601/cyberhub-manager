@@ -129,12 +129,17 @@ class CashShiftService(OperationalServiceBase):
             shift = self._repo.active_for_employee(conn, current.employee_id, lock=True)
             if shift is None or shift["status"] != "OPEN":
                 raise ConflictError("Không có ca đang mở để đóng")
-            totals = calculate_totals(int(shift["opening_cash"]), self._repo.entries(conn, shift["id"]))
+            entries = self._repo.entries(conn, shift["id"])
+            totals = calculate_totals(int(shift["opening_cash"]), entries)
             if totals.expected_cash < 0:
                 raise ConflictError("Tiền chi vượt quá số tiền mặt dự kiến trong két")
             variance = counted_cash - totals.expected_cash
+            requires_review = variance != 0 or any(
+                entry["kind"] in ("ADJUSTMENT_IN", "ADJUSTMENT_OUT") for entry in entries
+            )
             if self._repo.submit_close(conn, shift["id"], expected_cash=totals.expected_cash,
-                                       counted_cash=counted_cash, variance=variance) != 1:
+                                       counted_cash=counted_cash, variance=variance,
+                                       requires_review=requires_review) != 1:
                 raise ConflictError("Ca vừa được xử lý bởi yêu cầu khác")
             self._audit.audit(conn, current, "SHIFT_SUBMIT_CLOSE", shift["id"])
             return self._repo.get_shift(conn, shift["id"])

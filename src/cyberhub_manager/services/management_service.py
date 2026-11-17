@@ -3,6 +3,7 @@
 from dataclasses import replace
 from datetime import datetime, timezone
 import re
+from uuid import uuid4
 
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import (
@@ -11,7 +12,7 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.domain.p1 import Permission, Promotion, can
+from cyberhub_manager.domain.p1 import Permission, Promotion, can, chain_director, separated_rbac
 from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.security import hash_password
 from .p1_runtime import errors, retry_on_transient
@@ -35,7 +36,9 @@ def choice(value, key, options):
 class ManagementService:
     def loyalty_settings(self, actor):
         with self._errors(), self._transaction() as conn:
-            self._actor(conn, actor)
+            current = self._actor(conn, actor, Permission.MANAGE_PROMOTIONS)
+            if separated_rbac() and not chain_director(current.role):
+                raise PermissionDeniedError()
             return self._repo.loyalty_settings(conn)
 
     @retry_on_transient
@@ -72,7 +75,7 @@ class ManagementService:
             )
         with self._errors(), self._transaction() as conn:
             actor = self._actor(conn, actor)
-            if actor.role != Role.ADMIN:
+            if not chain_director(actor.role):
                 raise PermissionDeniedError()
             current = self._repo.loyalty_settings(conn, lock=True)
             if type(settings.version) is not int or settings.version != current.version:
@@ -158,19 +161,24 @@ class ManagementService:
     def list_stores(self, actor):
         with self._errors(), self._transaction() as conn:
             actor = self._actor(conn, actor)
-            return self._repo.list_stores(
-                conn, None if actor.role == Role.ADMIN else actor.store_id
-            )
+            if chain_director(actor.role) or actor.role == Role.ADMIN:
+                return self._repo.list_stores(conn)
+            if actor.role == Role.MANAGER and separated_rbac() and not self._memory:
+                home = self._auth.get_active_session_by_id(conn, actor.employee_id)
+                allowed = {home.store_id} | self._repo.assigned_store_ids(conn, actor.employee_id)
+                return [store for store in self._repo.list_stores(conn) if store.id in allowed]
+            return self._repo.list_stores(conn, actor.store_id)
 
     def switch_store(self, actor, store_id):
         if type(store_id) is not int or store_id <= 0:
             raise ValidationError(field_errors={"store_id": "Cơ sở không hợp lệ"})
         with self._errors(), self._transaction() as conn:
             current = self._actor(conn, actor)
-            if store_id != current.store_id and not can(
-                current.role, Permission.SWITCH_STORE
-            ):
-                raise PermissionDeniedError()
+            if store_id != current.store_id and not can(current.role, Permission.SWITCH_STORE):
+                home = self._auth.get_active_session_by_id(conn, current.employee_id) if not self._memory else None
+                if (not separated_rbac() or current.role != Role.MANAGER or self._memory
+                        or store_id not in ({home.store_id} | self._repo.assigned_store_ids(conn, current.employee_id))):
+                    raise PermissionDeniedError()
             store = self._repo.store(conn, store_id, lock="share")
             if store is None or store.status != "ACTIVE":
                 raise ConflictError("Cơ sở không còn hoạt động")
@@ -220,10 +228,78 @@ class ManagementService:
 
     def list_employees(self, actor):
         with self._errors(), self._transaction() as conn:
-            actor = self._actor(conn, actor, Permission.MANAGE_EMPLOYEES)
+            permission = (Permission.MANAGE_EMPLOYEE_CREDENTIALS
+                          if actor.role == Role.ADMIN else Permission.MANAGE_EMPLOYEES)
+            actor = self._actor(conn, actor, permission)
             return self._repo.list_employees(
-                conn, None if actor.role == Role.ADMIN else actor.store_id
+                conn, None if chain_director(actor.role) or actor.role == Role.ADMIN else actor.store_id
             )
+
+    def list_employee_profiles(self, actor):
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor)
+            if current.role == Role.ADMIN:
+                return self._repo.list_employee_profiles(conn)
+            if not can(current.role, Permission.MANAGE_EMPLOYEES):
+                raise PermissionDeniedError()
+            return self._repo.list_employee_profiles(
+                conn, None if chain_director(current.role) else current.store_id
+            )
+
+    @retry_on_transient
+    def save_employee_profile(self, actor, profile_id, store_id, full_name, employment_status="ACTIVE"):
+        name = text(full_name, "full_name", 2)
+        choice(employment_status, "employment_status", ("ACTIVE", "INACTIVE"))
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_EMPLOYEES)
+            if separated_rbac() and current.role == Role.ADMIN:
+                raise PermissionDeniedError()
+            if current.role == Role.MANAGER and store_id != current.store_id:
+                raise PermissionDeniedError()
+            old = self._repo.employee_profile(conn, profile_id, lock=True) if profile_id else None
+            if profile_id and old is None:
+                raise NotFoundError()
+            if old and current.role == Role.MANAGER and old["home_store_id"] != current.store_id:
+                raise PermissionDeniedError()
+            store = self._repo.store(conn, store_id, lock="share")
+            if store is None or store.status != "ACTIVE":
+                raise ValidationError(field_errors={"store_id": "Chọn cơ sở đang hoạt động"})
+            if old is None:
+                profile_id = self._repo.create_employee_profile(
+                    conn, "HR-" + uuid4().hex[:16], store_id, name
+                )
+            else:
+                self._repo.update_employee_profile(conn, profile_id, store_id, name, employment_status)
+            self._repo.audit(conn, current, "EMPLOYEE_PROFILE_SAVE", profile_id)
+            return self._repo.employee_profile(conn, profile_id)
+
+    def set_manager_store_assignment(self, actor, employee_id, store_id, enabled):
+        if type(enabled) is not bool or type(employee_id) is not int or type(store_id) is not int:
+            raise ValidationError(field_errors={"store_id": "Phân công không hợp lệ"})
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_EMPLOYEE_CREDENTIALS)
+            if current.role != Role.ADMIN or not separated_rbac():
+                raise PermissionDeniedError()
+            target = next((x for x in self._repo.list_employees(conn, lock=True) if x.id == employee_id), None)
+            store = self._repo.store(conn, store_id, lock="share")
+            if target is None or target.role != "MANAGER" or store is None or store.status != "ACTIVE":
+                raise ValidationError(field_errors={"store_id": "Chọn quản lý và cơ sở đang hoạt động"})
+            if store_id == target.store_id:
+                raise ConflictError("Cơ sở chính đã được phân công sẵn")
+            self._repo.set_store_assignment(conn, employee_id, store_id, current.employee_id, enabled)
+            self._repo.bump_auth_version(conn, employee_id)
+            self._repo.audit(conn, current, "MANAGER_STORE_ASSIGN" if enabled else "MANAGER_STORE_REVOKE", employee_id)
+            return dict(employee_id=employee_id, store_id=store_id, enabled=enabled)
+
+    def list_manager_store_assignments(self, actor, employee_id):
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.MANAGE_EMPLOYEE_CREDENTIALS)
+            if current.role != Role.ADMIN:
+                raise PermissionDeniedError()
+            target = next((x for x in self._repo.list_employees(conn) if x.id == employee_id), None)
+            if target is None or target.role != "MANAGER":
+                raise NotFoundError()
+            return sorted(self._repo.assigned_store_ids(conn, employee_id))
 
     @retry_on_transient
     def save_employee(
@@ -236,6 +312,7 @@ class ManagementService:
         role="STAFF",
         status="ACTIVE",
         password="",
+        profile_id=None,
     ):
         name, username = text(full_name, "full_name", 2), text(
             username, "username", 4, 30
@@ -263,12 +340,44 @@ class ManagementService:
                 )
         password_hash = hash_password(password) if password else None
         with self._errors(), self._transaction() as conn:
-            actor = self._actor(conn, actor, Permission.MANAGE_EMPLOYEES)
+            credential_change = actor.role == Role.ADMIN
+            permission = (Permission.MANAGE_EMPLOYEE_CREDENTIALS if credential_change
+                          else Permission.MANAGE_EMPLOYEES)
+            actor = self._actor(conn, actor, permission)
             employees = self._repo.list_employees(conn, lock=True)
             old = next((e for e in employees if e.id == employee_id), None)
+            profile = None
+            if profile_id is not None:
+                if old is not None:
+                    raise ValidationError(field_errors={"profile_id": "Chỉ gắn hồ sơ khi cấp tài khoản mới"})
+                if type(profile_id) is not int or profile_id <= 0 or self._memory:
+                    raise ValidationError(field_errors={"profile_id": "Hồ sơ nhân sự không hợp lệ"})
+                profile = self._repo.employee_profile(conn, profile_id, lock=True)
+                if profile is None or profile["employee_id"] is not None:
+                    raise ConflictError("Hồ sơ đã có tài khoản hoặc không tồn tại")
+                if (profile["home_store_id"], profile["full_name"], profile["employment_status"]) != (store_id, name, "ACTIVE"):
+                    raise ValidationError(field_errors={"profile_id": "Thông tin phải khớp hồ sơ nhân sự đang làm việc"})
+            if separated_rbac() and credential_change and old is None and not self._memory and profile is None:
+                raise ValidationError(field_errors={"profile_id": "Chọn hồ sơ nhân sự trước khi cấp tài khoản"})
             if employee_id is not None and old is None:
                 raise NotFoundError()
-            if actor.role != Role.ADMIN and (
+            if old is not None and old.role == "ADMIN" and not credential_change:
+                raise PermissionDeniedError()
+            if (separated_rbac() or actor.role == Role.DIRECTOR) and not credential_change:
+                # The existing table requires credentials on INSERT. Only the
+                # identity administrator can provision a new row until profile
+                # staging is introduced; business roles edit profile fields only.
+                if old is None or (username, role, status) != (old.username, old.role, old.status):
+                    raise PermissionDeniedError()
+                if actor.role == Role.MANAGER and (
+                    store_id != actor.store_id or old.store_id != actor.store_id
+                ):
+                    raise PermissionDeniedError()
+            elif separated_rbac() and credential_change and old is not None and (
+                store_id != old.store_id or name != old.full_name
+            ):
+                raise PermissionDeniedError()
+            elif actor.role != Role.ADMIN and actor.role != Role.DIRECTOR and (
                 store_id != actor.store_id
                 or role != "STAFF"
                 or old
@@ -308,13 +417,11 @@ class ManagementService:
                 raise ConflictError(
                     field_errors={"username": "Tên đăng nhập đã tồn tại"}
                 )
-            result = self._repo.save_employee(
-                conn,
-                employee_id,
-                (store_id, name, username, role, status),
-                password_hash,
-            )
-            self._repo.audit(conn, actor, "EMPLOYEE_SAVE", result.id)
+            values = (store_id, name, username, role, status)
+            result = (self._repo.save_employee(conn, employee_id, values, password_hash, profile_id)
+                      if profile_id is not None else self._repo.save_employee(conn, employee_id, values, password_hash))
+            action = ("EMPLOYEE_CREDENTIAL_SAVE" if credential_change else "EMPLOYEE_PROFILE_SAVE") if separated_rbac() else "EMPLOYEE_SAVE"
+            self._repo.audit(conn, actor, action, result.id)
             return result
 
     @retry_on_transient
@@ -330,7 +437,7 @@ class ManagementService:
                 field_errors={"temporary_password": "Mật khẩu tạm phải từ 8 ký tự và tối đa 72 byte"}
             )
         with self._errors(), self._transaction() as conn:
-            actor = self._actor(conn, actor, Permission.MANAGE_EMPLOYEES)
+            actor = self._actor(conn, actor, Permission.MANAGE_EMPLOYEE_CREDENTIALS)
             if actor.role != Role.ADMIN:
                 raise PermissionDeniedError()
             if employee_id == actor.employee_id:
@@ -351,9 +458,9 @@ class ManagementService:
 
     def list_promotions(self, actor):
         with self._errors(), self._transaction() as conn:
-            actor = self._actor(conn, actor)
+            actor = self._actor(conn, actor, Permission.MANAGE_PROMOTIONS)
             return self._repo.list_promotions(
-                conn, None if actor.role == Role.ADMIN else actor.store_id
+                conn, None if chain_director(actor.role) else actor.store_id
             )
 
     @retry_on_transient
@@ -417,7 +524,7 @@ class ManagementService:
             old = next((p for p in policies if p.id == policy.id), None)
             if policy.id and old is None:
                 raise NotFoundError()
-            if actor.role != Role.ADMIN and (
+            if not chain_director(actor.role) and (
                 policy.store_id != actor.store_id
                 or old
                 and old.store_id != actor.store_id

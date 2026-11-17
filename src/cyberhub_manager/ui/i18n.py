@@ -50,6 +50,10 @@ _TRANSLATIONS: Final[dict[str, dict[Language, str]]] = {
         "vi": "Quản trị viên",
         "en": "Administrator",
     },
+    "role.director": {
+        "vi": "Giám đốc",
+        "en": "Director",
+    },
     "role.manager": {
         "vi": "Quản lý",
         "en": "Manager",

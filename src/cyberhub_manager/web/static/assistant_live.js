@@ -65,7 +65,7 @@
     return null;
   }
   function snapshot() {
-    return typeof state === "undefined" ? {} : { actor: state.actor, customer: state.customer };
+    return typeof state === "undefined" ? {} : { actor: state.actor, customer: state.customer, permissions: state.permissions };
   }
   function clear() {
     revision++; controller?.abort(); controller = null; busy = false; messages = []; input.value = "";
@@ -82,7 +82,7 @@
     if (language !== nextLanguage) { language = nextLanguage; translate(); }
     if (modeSelect) {
       const view = snapshot(), allowed = view.customer ? ["knowledge", "personalized"] :
-        view.actor && ["MANAGER", "ADMIN"].includes(view.actor.role) ? ["knowledge", "analytics"] : ["knowledge"];
+        view.actor && view.permissions?.includes("view_revenue") ? ["knowledge", "analytics"] : ["knowledge"];
       Array.from(modeSelect.options).forEach(option => option.hidden = !allowed.includes(option.value));
       if (!allowed.includes(mode)) { mode = "knowledge"; modeSelect.value = mode; messages = []; render(); }
     }

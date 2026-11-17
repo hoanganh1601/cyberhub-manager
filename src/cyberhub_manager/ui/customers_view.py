@@ -22,6 +22,7 @@ import customtkinter as ctk
 from ..domain.dtos import CustomerSummary, TopUpResult, TransactionSummary
 from ..domain.enums import AccountStatus, CustomerStatus, PaymentMethod, TransactionType
 from ..domain.models import Customer
+from ..domain.p1 import Permission, can
 from .app_shell import ViewContext, initials
 from .i18n import UIStrings
 from .background import TaskRunner, default_runner
@@ -33,7 +34,6 @@ from .dialogs.topup_dialog import TopUpDialog
 from .feedback import notify_success
 from .formatters import format_datetime, format_money
 from .messages import MSG_LOADING, MSG_NO_DATA, MSG_RETRY, get_user_friendly_error
-from .navigation import MANAGEMENT_ROLES
 from .state import ViewState
 from .table_kit import Page, bind_hover, build_pager, paginate
 from .theme import (
@@ -263,7 +263,7 @@ class CustomersView(ctk.CTkFrame):
 
     @property
     def can_manage(self) -> bool:
-        return self._context.session.role in MANAGEMENT_ROLES
+        return can(self._context.session.role, Permission.LOCK_CUSTOMERS)
 
     @property
     def current_page(self) -> Page:

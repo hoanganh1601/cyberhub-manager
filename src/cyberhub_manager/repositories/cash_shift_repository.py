@@ -48,13 +48,13 @@ class CashShiftRepository:
             (shift_id,store_id,employee_id,kind,payment_method,amount,
              source_type,source_id,note))
 
-    def submit_close(self, conn, shift_id, *, expected_cash, counted_cash, variance):
+    def submit_close(self, conn, shift_id, *, expected_cash, counted_cash, variance, requires_review=False):
         return execute(conn,
             "UPDATE cash_shifts SET status=CASE WHEN %s=0 THEN 'CLOSED' "
             "ELSE 'PENDING_REVIEW' END,expected_cash=%s,counted_cash=%s,variance=%s,"
             "submitted_at=UTC_TIMESTAMP(),closed_at=CASE WHEN %s=0 THEN UTC_TIMESTAMP() ELSE NULL END "
             "WHERE id=%s AND status='OPEN'",
-            (variance,expected_cash,counted_cash,variance,variance,shift_id))
+            (int(requires_review),expected_cash,counted_cash,variance,int(requires_review),shift_id))
 
     def review(self, conn, shift_id, reviewer_id, note):
         return execute(conn,

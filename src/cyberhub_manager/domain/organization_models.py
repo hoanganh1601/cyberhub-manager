@@ -7,6 +7,7 @@ from datetime import datetime
 
 from .enums import EmployeeStatus, Role, StoreStatus
 from .exceptions import ValidationError
+from .p1 import Permission, can
 from .model_base import (
     Entity,
     Person,
@@ -151,7 +152,7 @@ class Employee(Person):
     def can_manage_machines(self) -> bool:
         return (
             self.__status == EmployeeStatus.ACTIVE
-            and self.__role in {Role.MANAGER, Role.ADMIN}
+            and can(self.__role, Permission.MANAGE_MACHINES)
         )
 
     def can_access_store(self, store_id: int) -> bool:

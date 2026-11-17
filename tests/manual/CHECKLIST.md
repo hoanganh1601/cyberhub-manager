@@ -4,7 +4,7 @@
 Hoàng Anh hỗ trợ database/repository và kiểm tra release. -->
 
 Kết quả automated và phần còn cần ký nghiệm thu của bản tích hợp được ghi riêng tại
-[HA_LI_NG_RELEASE_AUDIT.md](../../docs/testing/HA_LI_NG_RELEASE_AUDIT.md).
+[HA_LI_NG_RELEASE_AUDIT.md](../../history/docs/testing/HA_LI_NG_RELEASE_AUDIT.md).
 Giữ trống kết quả thủ công cho đến khi người thực hiện chạy thật và đính kèm evidence.
 
 - Người thực hiện:
@@ -43,10 +43,10 @@ Dữ liệu demo sau khi seed:
 
 Quy ước ghi kết quả:
 
-- Lưu evidence tại `docs/screenshots/li09/`, tên file theo mã `AC-XX`.
+- Lưu evidence tại `history/docs/screenshots/li09/`, tên file theo mã `AC-XX`.
 - Trạng thái FAIL phải có bug: ghi mã bug, mức độ và owner vào mục Ghi chú, đồng
-  thời ghi vào mục Bug còn tồn tại của `docs/testing/LI09_TEST_REPORT.md`.
-- Ngôn ngữ đúng theo `docs/03_UI_THEME.md` mục Quy chuẩn ngôn ngữ hiển thị.
+  thời ghi vào mục Bug còn tồn tại của `history/docs/testing/LI09_TEST_REPORT.md`.
+- Ngôn ngữ đúng theo `history/docs/reference/03_UI_THEME.md` mục Quy chuẩn ngôn ngữ hiển thị.
 
 ---
 
@@ -415,7 +415,7 @@ Quy ước ghi kết quả:
 - Các bước thực hiện:
   1. Kiểm tra tiêu đề màn hình, nhãn trường, placeholder, tiêu đề cột, sidebar.
   2. Kiểm tra Toast, nút `Confirm`/`Cancel`, các trạng thái ViewState, lỗi nghiệp vụ và lỗi từng trường.
-- Kết quả mong đợi: Khi chọn VI, cả bước 1 và 2 hiển thị tiếng Việt. Chuyển EN và lặp lại: cả hai bước bằng tiếng Anh, đúng `docs/03_UI_THEME.md`; giữ nguyên tên khách/cửa hàng. Không hiển thị lỗi kỹ thuật hoặc trộn ngôn ngữ.
+- Kết quả mong đợi: Khi chọn VI, cả bước 1 và 2 hiển thị tiếng Việt. Chuyển EN và lặp lại: cả hai bước bằng tiếng Anh, đúng `history/docs/reference/03_UI_THEME.md`; giữ nguyên tên khách/cửa hàng. Không hiển thị lỗi kỹ thuật hoặc trộn ngôn ngữ.
 - Kết quả thực tế:
 - Trạng thái: PASS / FAIL
 - Evidence:
