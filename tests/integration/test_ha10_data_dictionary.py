@@ -37,6 +37,10 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
                   "reward_catalog", "customer_vouchers", "voucher_events", "loyalty_point_grants",
                   "games", "game_prizes", "game_wallets", "game_sessions", "game_coin_ledger",
                   "ad_settings", "ad_creatives", "ad_reward_events",
+                  "cash_shifts", "cash_shift_entries", "machine_incidents", "machine_incident_parts",
+                  "machine_incident_events", "suppliers", "purchase_requests", "purchase_request_lines",
+                  "purchase_orders", "purchase_order_lines", "goods_receipts", "goods_receipt_lines",
+                  "supplier_payables",
                   "commercial_partners", "commercial_contracts", "commercial_campaigns",
                   "commercial_placements", "commercial_play_sessions", "commercial_events",
                   "commercial_reward_grants", "commercial_settlements",
@@ -44,6 +48,6 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
                   "customer_store_links", "supplier_payable_approvals", "customer_email_tokens",
                   "customer_mail_outbox", "customer_security_audit"):
         assert f"### {table}" in content
-    # 73 khóa ngoại đến migration 020 + 22 của 024 + 9 của 026 + 5 của 027.
-    assert content.count(" — 0..") == 109
+    # 73 khóa ngoại đến migration 020 + 35 của 021–023 + 22 của 024 + 9 của 026 + 5 của 027.
+    assert content.count(" — 0..") == 144
     assert "password_hash" in content and "bcrypt" in content

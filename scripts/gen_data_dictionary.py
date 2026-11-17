@@ -70,6 +70,20 @@ TABLES = (
     "ad_settings",
     "ad_creatives",
     "ad_reward_events",
+    # Ca/két tiền, bảo trì và mua hàng
+    "cash_shifts",
+    "cash_shift_entries",
+    "machine_incidents",
+    "machine_incident_parts",
+    "machine_incident_events",
+    "suppliers",
+    "purchase_requests",
+    "purchase_request_lines",
+    "purchase_orders",
+    "purchase_order_lines",
+    "goods_receipts",
+    "goods_receipt_lines",
+    "supplier_payables",
     # Đợt thương mại — đối tác, game/ads ngoài và đối soát doanh thu
     "commercial_partners",
     "commercial_contracts",
@@ -274,6 +288,69 @@ DESCRIPTIONS["customer_security_audit"] = (
         "action": "Tên sự kiện bảo mật.", "created_at": "Thời điểm ghi audit (UTC).",
     },
 )
+DESCRIPTIONS["cash_shifts"] = ("Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở.", {
+    "id":"Khóa chính.", "code":"Mã ca duy nhất.", "store_id":"Cơ sở mở ca.", "employee_id":"Nhân viên chịu trách nhiệm ca.",
+    "status":"`OPEN` / `PENDING_REVIEW` / `CLOSED`.", "opening_cash":"Tiền mặt đầu ca.", "expected_cash":"Tiền mặt hệ thống tính cuối ca.",
+    "counted_cash":"Tiền mặt thực đếm cuối ca.", "variance":"Chênh lệch thực tế trừ hệ thống.", "opened_at":"Thời điểm mở ca (UTC).",
+    "submitted_at":"Thời điểm nhân viên nộp đối chiếu (UTC).", "closed_at":"Thời điểm đóng ca (UTC).", "reviewed_by":"Quản lý duyệt chênh lệch.",
+    "review_note":"Ghi chú duyệt.", "active_employee_id":"Cột sinh giữ employee_id khi ca còn OPEN/PENDING_REVIEW; UNIQUE ngăn mở hai ca đồng thời.",
+})
+DESCRIPTIONS["cash_shift_entries"] = ("Sổ bất biến thu, chi, hoàn và điều chỉnh theo ca; chống ghi trùng bằng nguồn nghiệp vụ.", {
+    "id":"Khóa chính.", "shift_id":"Ca sở hữu bút toán.", "store_id":"Cơ sở phát sinh.", "employee_id":"Nhân viên ghi nhận.",
+    "kind":"`RECEIPT` / `EXPENSE` / `REFUND` / `ADJUSTMENT_IN` / `ADJUSTMENT_OUT`.", "payment_method":"`CASH` / `TRANSFER`.",
+    "amount":"Số tiền dương (VND).", "source_type":"Loại chứng từ nguồn.", "source_id":"Mã nguồn; kết hợp phương thức thanh toán để chống ghi trùng.",
+    "note":"Ghi chú nghiệp vụ.", "created_at":"Thời điểm ghi sổ (UTC).",
+})
+DESCRIPTIONS["machine_incidents"] = ("Phiếu sự cố và vòng đời bảo trì máy từ báo lỗi đến nghiệm thu.", {
+    "id":"Khóa chính.", "code":"Mã sự cố duy nhất.", "store_id":"Cơ sở có máy lỗi.", "machine_id":"Máy gặp sự cố.",
+    "reported_by":"Người báo lỗi.", "assigned_to":"Người được phân công; có thể NULL trước khi phân công.", "severity":"`LOW` / `MEDIUM` / `HIGH` / `CRITICAL`.",
+    "status":"`REPORTED` / `ASSIGNED` / `IN_PROGRESS` / `WAITING_PARTS` / `COMPLETED` / `VERIFIED` / `CANCELLED`.",
+    "title":"Tiêu đề ngắn.", "description":"Mô tả lỗi.", "resolution":"Kết quả xử lý.", "labor_cost":"Chi phí nhân công.", "parts_cost":"Chi phí linh kiện.",
+    "reported_at":"Thời điểm báo (UTC).", "started_at":"Thời điểm bắt đầu sửa (UTC).", "completed_at":"Thời điểm hoàn thành sửa (UTC).",
+    "verified_at":"Thời điểm nghiệm thu (UTC).", "verified_by":"Người nghiệm thu.",
+})
+DESCRIPTIONS["machine_incident_parts"] = ("Linh kiện sử dụng cho một phiếu sửa máy.", {
+    "id":"Khóa chính.", "incident_id":"Phiếu sự cố.", "name":"Tên linh kiện.", "quantity":"Số lượng.", "unit_cost":"Đơn giá VND.",
+})
+DESCRIPTIONS["machine_incident_events"] = ("Lịch sử chuyển trạng thái sự cố máy, chỉ thêm.", {
+    "id":"Khóa chính.", "incident_id":"Phiếu sự cố.", "employee_id":"Người thực hiện.", "from_status":"Trạng thái trước; NULL ở sự kiện đầu.",
+    "to_status":"Trạng thái sau.", "note":"Ghi chú chuyển trạng thái.", "created_at":"Thời điểm (UTC).",
+})
+DESCRIPTIONS["suppliers"] = ("Nhà cung cấp theo cơ sở và điều khoản thanh toán.", {
+    "id":"Khóa chính.", "store_id":"Cơ sở quản lý nhà cung cấp.", "code":"Mã duy nhất trong cơ sở.", "name":"Tên nhà cung cấp.",
+    "phone":"Số điện thoại.", "email":"Email liên hệ.", "address":"Địa chỉ.", "payment_terms_days":"Số ngày công nợ.",
+    "is_active":"FALSE khi ngừng giao dịch mới.", "created_at":"Thời điểm tạo (UTC).",
+})
+DESCRIPTIONS["purchase_requests"] = ("Đề nghị nhập hàng có người lập và người quyết định.", {
+    "id":"Khóa chính.", "code":"Mã đề nghị duy nhất.", "store_id":"Cơ sở đề nghị.", "requested_by":"Người lập.",
+    "status":"`PENDING` / `APPROVED` / `REJECTED` / `ORDERED`.", "reason":"Lý do nhập.", "decided_by":"Người duyệt/từ chối.",
+    "decided_at":"Thời điểm quyết định (UTC).", "created_at":"Thời điểm tạo (UTC).",
+})
+DESCRIPTIONS["purchase_request_lines"] = ("Nguyên liệu và số lượng trong đề nghị nhập.", {
+    "request_id":"Đề nghị; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu; phần thứ hai khóa chính.", "quantity":"Số lượng đề nghị.",
+})
+DESCRIPTIONS["purchase_orders"] = ("Đơn mua hàng tạo từ đề nghị đã duyệt và gắn nhà cung cấp.", {
+    "id":"Khóa chính.", "code":"Mã đơn mua duy nhất.", "store_id":"Cơ sở mua.", "request_id":"Đề nghị nguồn; UNIQUE.",
+    "supplier_id":"Nhà cung cấp.", "created_by":"Người tạo đơn.", "status":"`OPEN` / `PARTIALLY_RECEIVED` / `RECEIVED` / `CANCELLED`.",
+    "ordered_at":"Thời điểm đặt (UTC).", "expected_at":"Thời điểm dự kiến nhận (UTC).", "total_amount":"Tổng giá trị VND.",
+})
+DESCRIPTIONS["purchase_order_lines"] = ("Dòng đơn mua và tiến độ nhận theo nguyên liệu.", {
+    "order_id":"Đơn mua; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu; phần thứ hai khóa chính.", "quantity":"Số lượng đặt.",
+    "unit_cost":"Đơn giá nhập.", "received_quantity":"Số lượng đã nhận đạt.", "damaged_quantity":"Số lượng đã nhận hỏng.",
+})
+DESCRIPTIONS["goods_receipts"] = ("Phiếu nhận hàng idempotent, tạo nhập kho và công nợ theo số lượng đạt.", {
+    "id":"Khóa chính.", "code":"Mã phiếu nhận duy nhất.", "order_id":"Đơn mua.", "store_id":"Cơ sở nhận.", "received_by":"Người nhận.",
+    "request_id":"Khóa idempotency của yêu cầu nhận.", "note":"Ghi chú.", "received_at":"Thời điểm nhận (UTC).", "accepted_amount":"Giá trị hàng đạt được nhận.",
+})
+DESCRIPTIONS["goods_receipt_lines"] = ("Chi tiết hàng đạt, hỏng và thiếu trong một lần nhận.", {
+    "receipt_id":"Phiếu nhận; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu; phần thứ hai khóa chính.",
+    "accepted_quantity":"Số lượng đạt nhập kho.", "damaged_quantity":"Số lượng hỏng.", "missing_quantity":"Số lượng thiếu.", "unit_cost":"Đơn giá chụp khi nhận.",
+})
+DESCRIPTIONS["supplier_payables"] = ("Công nợ phát sinh từ phiếu nhận hàng và trạng thái thanh toán.", {
+    "id":"Khóa chính.", "receipt_id":"Phiếu nhận nguồn; UNIQUE.", "supplier_id":"Nhà cung cấp.", "store_id":"Cơ sở chịu công nợ.",
+    "amount":"Tổng phải trả.", "paid_amount":"Số đã trả.", "due_date":"Hạn thanh toán.", "status":"`UNPAID` / `PAID`.",
+    "paid_at":"Thời điểm thanh toán (UTC).", "paid_by":"Người thanh toán.", "payment_method":"`CASH` / `TRANSFER`; NULL khi chưa trả.",
+})
 DESCRIPTIONS["invoices"][1].update({
     "loyalty_eligible_amount":"Phí trả bằng tiền chính/tiền bù (không gồm bonus_used), chụp khi lập hóa đơn; chỉ cộng PAID vào xét hạng.",
     "loyalty_points":"Điểm chụp lúc lập hóa đơn; chỉ cộng PAID, VOID có hiệu lực 0 điểm. Không đổi ra tiền.",
