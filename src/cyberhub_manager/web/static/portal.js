@@ -103,12 +103,50 @@ function newPortalUI(account) {
   return {account, tab:"home", days:30, store:null, amount:100000, quote:null,
     chart:"spent", chartDay:null, kind:"transactions", status:"all", from:"", to:"", page:1,
     data:null, notices:null, history:null, unreadOnly:false,
-    phase2:null, availabilityStore:null, availabilityCache:{}, p2Busy:false, usageDay:null,memberPage:1};
+    phase2:null, availabilityStore:null, availabilityCache:{}, p2Busy:false, usageDay:null,memberPage:1,
+    transitionDirection:null,transitionFrom:null};
 }
 const pcDate = value => new Intl.DateTimeFormat(state.lang === "en" ? "en-GB" : "vi-VN",
   {timeZone:"Asia/Ho_Chi_Minh",day:"2-digit",month:"2-digit"}).format(new Date(value+"T00:00:00+07:00"));
 const pcEmpty = (title, sub, symbol="chart") => `<div class="pc-empty">${icon(symbol)}<h3>${t(title)}</h3>${sub?`<p>${t(sub)}</p>`:""}</div>`;
 const pcButton = (tab, label, symbol) => `<button class="pc-nav-button ${portalUI.tab===tab?"selected":""}" data-portal="tab" data-tab="${tab}" aria-current="${portalUI.tab===tab?"page":"false"}">${icon(symbol)}<span>${t(label)}</span>${tab==="notifications"&&portalUI.notices?.unread?`<b class="pc-count">${portalUI.notices.unread}</b>`:""}</button>`;
+const pcTabOrder = ["home","availability","menu","vouchers","game","offers","member","usage","history","notifications","profile"];
+
+function beginPortalTabTransition(nextTab) {
+  const main=$("#pc-main");
+  const currentTab=main?.dataset.portalTab||portalUI?.tab;
+  if(!currentTab||currentTab===nextTab)return;
+  const currentIndex=pcTabOrder.indexOf(currentTab),nextIndex=pcTabOrder.indexOf(nextTab);
+  const direction=currentIndex<0||nextIndex<0||nextIndex>=currentIndex?"forward":"backward";
+  portalUI.transitionDirection=direction;
+  portalUI.transitionFrom=currentTab;
+  if(main){
+    main.classList.remove("pc-forward","pc-backward");
+    main.classList.add("pc-page-pending",`pc-${direction}`);
+    main.setAttribute("aria-busy","true");
+  }
+  for(const button of document.querySelectorAll('.pc-nav-button[data-portal="tab"]')){
+    const selected=button.dataset.tab===nextTab;
+    button.classList.toggle("selected",selected);
+    button.setAttribute("aria-current",selected?"page":"false");
+  }
+}
+
+function cancelPortalTabTransition(ui) {
+  if(!ui?.transitionDirection)return;
+  if(ui.transitionFrom)ui.tab=ui.transitionFrom;
+  ui.transitionDirection=null;ui.transitionFrom=null;
+  const main=$("#pc-main");
+  if(main){
+    main.classList.remove("pc-page-pending","pc-forward","pc-backward");
+    main.removeAttribute("aria-busy");
+  }
+  for(const button of document.querySelectorAll('.pc-nav-button[data-portal="tab"]')){
+    const selected=button.dataset.tab===ui.tab;
+    button.classList.toggle("selected",selected);
+    button.setAttribute("aria-current",selected?"page":"false");
+  }
+}
 
 async function renderCustomerPortal(silent=false) {
   clearInterval(refreshTimer);
@@ -139,6 +177,7 @@ async function renderCustomerPortal(silent=false) {
     drawCustomerPortal();
   } catch(error) {
     if(seq!==portalSequence || state.customer!==customer)return;
+    cancelPortalTabTransition(ui);
     if(error.code==="PERMISSION_DENIED"||error.code==="AUTH_REQUIRED") {
       state.customer=null;portalUI=null;renderLogin();
     } else if(!ui.data) {
@@ -166,7 +205,7 @@ function drawCustomerPortal() {
       ${customerAccountMenu()}
     </header>
     <nav class="pc-nav" aria-label="${t("customerPortal")}">${pcButton("home","pcHome","grid")}${pcButton("availability","p2Availability","monitor")}${pcButton("menu","dot1Menu","utensils")}${pcButton("vouchers","dot2Vouchers","ticket")}${pcButton("game","dot3Game","wheel")}${pcButton("offers","pcOffers","gift")}${pcButton("member","p3Member","shield")}${pcButton("usage","p2Usage","chart")}${pcButton("history","pcHistory","clock")}${pcButton("notifications","pcNotifications","bell")}</nav>
-    <main id="pc-main">${state.mode==="demo"?`<p class="pc-demo">${icon("shield")}${t("pcDemo")}</p>`:""}
+    <main id="pc-main" data-portal-tab="${portalUI.tab}" class="${portalUI.transitionDirection?`pc-page-enter pc-${portalUI.transitionDirection}`:""}">${state.mode==="demo"?`<p class="pc-demo">${icon("shield")}${t("pcDemo")}</p>`:""}
       <header class="pc-page-head"><div>${portalUI.tab==="home"?`<p class="pc-eyebrow">CYBERHUB · ${esc(d.wallet.account_code)}</p><h1>${t("pcHello")} <span>${esc(d.profile.full_name)}</span></h1><p>${t("pcWelcome")}</p>`:`<p class="pc-eyebrow">${esc(d.profile.full_name)} · CYBERHUB</p><h1>${t(tabs[portalUI.tab])}</h1><p>${t({offers:"pcOfferSub",history:"pcHistorySub",notifications:"pcNotifySub",availability:"p2AvailabilitySub",usage:"p2UsageSub",profile:"p2ProfileSub",member:"p3MemberSub",menu:"dot1MenuSub",vouchers:"dot2VouchersSub",game:"dot3GameSub"}[portalUI.tab])}</p>`}</div>
         ${["home","usage"].includes(portalUI.tab)?`<div class="segment pc-period" role="group" aria-label="${t("period")}">${[7,30,90].map(days=>`<button data-portal="days" data-days="${days}" class="${portalUI.days===days?"active":""}" aria-pressed="${portalUI.days===days}">${days} ${t("pcDays")}</button>`).join("")}</div>`:`<button class="p3-tier-chip" data-portal="tab" data-tab="member">${icon("shield")}${t(d.member.tier)}</button>`}
       </header>
@@ -179,6 +218,7 @@ function drawCustomerPortal() {
     const headers=[...table.querySelectorAll('th')].map(h=>h.textContent);
     for(const row of table.querySelectorAll('tbody tr')) [...row.children].forEach((cell,index)=>cell.dataset.label=headers[index]);
   }
+  portalUI.transitionDirection=null;portalUI.transitionFrom=null;
 }
 
 function pcHome() {
@@ -210,7 +250,7 @@ function pcOffers() {
   const d=portalUI.data,q=portalUI.quote;
   return `<section class="pc-offer-banner"><div class="pc-offer-icon">${icon("gift")}</div><div><p class="pc-eyebrow">CYBERHUB REWARDS</p><h2>${t("pcOfferIntro")}</h2><p>${t("pcOnePolicy")}</p></div></section>
     <div class="pc-offer-layout"><section class="pc-card"><header><h2>${t("promotions")}</h2></header><label class="pc-field"><span>${t("store")}</span><select id="pc-store" ${d.stores.length?"":"disabled"}>${d.stores.map(s=>`<option value="${s.id}" ${s.id===d.store_id?"selected":""}>${esc(s.code+" · "+s.name)}</option>`).join("")}</select></label><div class="pc-offers">${d.promotions.length?d.promotions.map(p=>`<article class="pc-offer"><div class="pc-offer-percent">+${p.bonus_percent}<span>%</span></div><div><h3>${esc(p.name)}</h3><p>${t("pcTier")} <strong>${money(p.minimum_amount)}</strong></p><small>${t(p.store_id===null?"global":"store")} · ${t("pcUntil")} ${dt(p.ends_at)}</small></div><button class="btn small" data-portal="tier" data-amount="${p.minimum_amount}">${t("pcCalculate")}${icon("arrow")}</button></article>`).join(""):pcEmpty("pcNoOffers","pcNoOffersSub","gift")}</div><p class="pc-fine">${t("bonusNote")}</p></section>
-    <section class="pc-card pc-calculator"><header><h2>${t("pcCalculate")}</h2>${icon("wallet")}</header><form id="pc-quote-form"><label class="pc-field"><span>${t("pcAmount")} (VND)</span><input class="input" type="number" name="amount" min="1" max="100000000" step="1" value="${portalUI.amount}" required inputmode="numeric"></label><div class="pc-quick-amounts">${[50000,100000,200000].map(amount=>`<button class="btn small" type="button" data-portal="tier" data-amount="${amount}">${money(amount)}</button>`).join("")}</div><button class="btn primary full" type="submit" ${d.store_id===null?"disabled":""}>${t("pcCalculate")}${icon("arrow")}</button></form><div id="pc-quote-result" aria-live="polite">${q?`<div class="pc-quote-values"><div><span>${t("pcAmount")}</span><strong>${money(q.amount)}</strong></div><div><span>${t("bonusAward")}</span><strong class="green">+${money(q.bonus_amount)}</strong></div><div class="pc-credit"><span>${t("pcCredit")}</span><strong class="cyan">${money(q.credited_total)}</strong></div></div><p class="pc-fine">${esc(q.promotion?.name||t("noPolicy"))}</p>${q.next_tier?`<div class="pc-next-tier">${icon("gift")}<p>${t("pcNext")} <strong>${money(q.amount_to_next)}</strong> ${t("pcToTier")} (${q.next_tier.bonus_percent}%).</p></div>`:""}`:""}</div><p class="pc-fine">${t("pcQuoteNote")}</p><div class="pc-counter">${icon("store")}<span>${t("pcAtCounter")}</span></div></section></div>`;
+    <section class="pc-card pc-calculator"><header><h2>${t("pcCalculate")}</h2>${icon("wallet")}</header><form id="pc-quote-form"><label class="pc-field"><span>${t("pcAmount")} (VND)</span><input class="input" type="text" name="amount" value="${formatVndInput(portalUI.amount)}" required inputmode="numeric" autocomplete="off" maxlength="11" data-vnd-input></label><div class="pc-quick-amounts">${[50000,100000,200000].map(amount=>`<button class="btn small" type="button" data-portal="tier" data-amount="${amount}">${money(amount)}</button>`).join("")}</div><button class="btn primary full" type="submit" ${d.store_id===null?"disabled":""}>${t("pcCalculate")}${icon("arrow")}</button></form><div id="pc-quote-result" aria-live="polite">${q?`<div class="pc-quote-values"><div><span>${t("pcAmount")}</span><strong>${money(q.amount)}</strong></div><div><span>${t("bonusAward")}</span><strong class="green">+${money(q.bonus_amount)}</strong></div><div class="pc-credit"><span>${t("pcCredit")}</span><strong class="cyan">${money(q.credited_total)}</strong></div></div><p class="pc-fine">${esc(q.promotion?.name||t("noPolicy"))}</p>${q.next_tier?`<div class="pc-next-tier">${icon("gift")}<p>${t("pcNext")} <strong>${money(q.amount_to_next)}</strong> ${t("pcToTier")} (${q.next_tier.bonus_percent}%).</p></div>`:""}`:""}</div><p class="pc-fine">${t("pcQuoteNote")}</p><div class="pc-counter">${icon("store")}<span>${t("pcAtCounter")}</span></div></section></div>`;
 }
 
 function pcHistory() {
@@ -244,8 +284,13 @@ function pcNotifications() {
 
 async function pcCalculateQuote() {
   const seq=++portalQuoteSequence,ui=portalUI,customer=state.customer, store=ui.store;
-  const form=$("#pc-quote-form");if(!form?.reportValidity())return;
-  ui.amount=Number(form.elements.amount.value);
+  const form=$("#pc-quote-form");if(!form)return;
+  const amountInput=form.elements.amount;
+  const parsedAmount=parseVndInput(amountInput.value);
+  const validAmount=Number.isSafeInteger(parsedAmount)&&parsedAmount>=1&&parsedAmount<=100000000;
+  amountInput.setCustomValidity(validAmount?"":t("amountHint"));
+  if(!form.reportValidity())return;
+  ui.amount=parsedAmount;
   const amount=ui.amount,button=$("button[type=submit]",form);button.disabled=true;
   try {
     const quote=await api("/portal/topup-preview",{method:"POST",body:{store_id:store,amount}});
@@ -261,12 +306,16 @@ document.addEventListener("click",async event=>{
   if(action==="refresh"){if(portalUI?.tab==="availability")portalUI.availabilityCache={};await renderCustomerPortal();return;}
   if(!portalUI||!state.customer)return;
   try {
-    if(action==="tab"){portalUI.tab=button.dataset.tab;await renderCustomerPortal();}
+    if(action==="tab"){
+      beginPortalTabTransition(button.dataset.tab);
+      portalUI.tab=button.dataset.tab;
+      await renderCustomerPortal();
+    }
     if(action==="days"){portalUI.days=Number(button.dataset.days);portalUI.chartDay=null;await renderCustomerPortal();}
     if(action==="chart"){portalUI.chart=button.dataset.series;portalUI.chartDay=null;drawCustomerPortal();}
     if(action==="day"){portalUI.chartDay=button.dataset.day;drawCustomerPortal();$(`[data-portal="day"][data-day="${portalUI.chartDay}"]`)?.focus({preventScroll:true});}
     if(action==="tier"){
-      portalUI.amount=Number(button.dataset.amount);$("#pc-quote-form input").value=portalUI.amount;await pcCalculateQuote();
+      portalUI.amount=Number(button.dataset.amount);$("#pc-quote-form input").value=formatVndInput(portalUI.amount);await pcCalculateQuote();
     }
     if(action==="history-kind"){portalUI.kind=button.dataset.kind;portalUI.status="all";portalUI.page=1;await renderCustomerPortal();}
     if(action==="history-page"){portalUI.page=Number(button.dataset.page);await renderCustomerPortal();}
@@ -294,7 +343,9 @@ document.addEventListener("change",async event=>{
 });
 document.addEventListener("input",event=>{
   if(event.target.closest("#pc-quote-form")){
-    portalUI.amount=Number(event.target.value);portalUI.quote=null;++portalQuoteSequence;
+    if(event.target.matches("[data-vnd-input]")) formatVndInputElement(event.target);
+    portalUI.amount=parseVndInput(event.target.value);portalUI.quote=null;++portalQuoteSequence;
+    event.target.setCustomValidity("");
     $("#pc-quote-result").replaceChildren();
   }
 });

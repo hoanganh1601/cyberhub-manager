@@ -95,6 +95,30 @@ Object.assign(copy, {
   invTrack: ["Quản lý tồn theo công thức", "Track stock by recipe"],
   invEmpty: ["Chưa có nguyên liệu", "No ingredients yet"],
   invLow: ["Sắp hết", "Low stock"],
+  invOutOfStock: ["Hết hàng", "Out of stock"],
+  invHealthy: ["Đủ tồn", "In stock"],
+  invNeedsRestock: ["Cần bổ sung sớm", "Restock soon"],
+  invNoLowStock: ["Không có mặt hàng sắp hết", "No low-stock items"],
+  invOutHint: ["Không còn lượng khả dụng", "No available stock"],
+  invNoOut: ["Không có mặt hàng hết", "No out-of-stock items"],
+  invNoPending: ["Không có phiếu chờ duyệt", "No pending stock counts"],
+  invAllStock: ["Tất cả trạng thái", "All stock states"],
+  invSearch: ["Tìm theo tên hoặc mã nguyên liệu...", "Search ingredient name or code..."],
+  invSortName: ["Sắp xếp: Tên A–Z", "Sort: Name A–Z"],
+  invSortAvailableAsc: ["Khả dụng: Thấp đến cao", "Available: Low to high"],
+  invSortAvailableDesc: ["Khả dụng: Cao đến thấp", "Available: High to low"],
+  invSortStatus: ["Ưu tiên cần xử lý", "Attention required first"],
+  invShowing: ["Đang hiển thị", "Showing"],
+  invRecords: ["nguyên liệu", "ingredients"],
+  invStockStatus: ["Trạng thái tồn", "Stock status"],
+  invActions: ["Thao tác", "Actions"],
+  invMore: ["Thao tác khác", "More actions"],
+  invRecipes: ["Cấu hình công thức món", "Item recipe configuration"],
+  invRecipesHint: ["Chỉ mở khi cần cập nhật định lượng nguyên liệu cho món.", "Open only when updating ingredient quantities for an item."],
+  invPendingManager: ["Chờ quản lý duyệt", "Awaiting manager approval"],
+  invExpected: ["Tồn hệ thống", "System stock"],
+  invDifference: ["Chênh lệch", "Difference"],
+  invLedgerHint: ["Theo dõi nhập, xuất, giữ và điều chỉnh tồn theo thời gian.", "Track receipts, issues, reservations and adjustments over time."],
   invDemoNotice: ["Demo: dữ liệu và sổ kho được mô phỏng trong bộ nhớ; nghiệm thu đồng thời và lưu trữ lâu dài dùng MySQL.", "Demo: stock and its ledger are simulated in memory; use MySQL for concurrency acceptance and persistence."],
   invCancelReason: ["Lý do hủy sau khi chuẩn bị", "Reason for cancelling after preparation"],
   invIssue: ["Xuất kho", "Issue stock"],
@@ -146,20 +170,39 @@ async function loadInventoryAdmin(seq) {
   return true;
 }
 
+function inventoryNumber(value) {
+  return new Intl.NumberFormat(state.lang === "en" ? "en-US" : "vi-VN", {
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+function inventoryStockStatus(ingredient) {
+  if (Number(ingredient.available) <= 0) return "OUT";
+  if (Number(ingredient.available) <= Number(ingredient.reorder_point)) return "LOW";
+  return "HEALTHY";
+}
+
+function inventoryKpi(label, value, tone, iconName, supportingText) {
+  return `<article class="inventory-kpi ${tone}">
+    <div class="inventory-kpi-copy"><span>${t(label)}</span><strong>${inventoryNumber(value)}</strong><small>${t(supportingText)}</small></div>
+    <span class="inventory-kpi-icon" aria-hidden="true">${icon(iconName)}</span>
+  </article>`;
+}
+
 function inventoryAdminPage() {
   const inventory = state.menuInventory;
   if (!inventory) return pageHead() + loading();
-  const low = inventory.ingredients.filter(i => i.available <= i.reorder_point).length;
-  const reserved = inventory.ingredients.reduce((sum, i) => sum + i.reserved, 0);
+  const low = inventory.ingredients.filter(i => inventoryStockStatus(i) === "LOW").length;
+  const out = inventory.ingredients.filter(i => inventoryStockStatus(i) === "OUT").length;
   const pending = (inventory.counts || []).filter(c => c.status === "PENDING").length;
-  const metrics = `<div class="metrics inventory-metrics">
-    ${metric("invTotalKinds", inventory.ingredients.length, "cyan", "warehouse")}
-    ${metric("invLowKinds", low, low ? "amber" : "green", "alert")}
-    ${metric("invReservedTotal", reserved, "", "clock")}
-    ${metric("invPendingCounts", pending, pending ? "amber" : "green", "check")}
+  const metrics = `<div class="inventory-kpi-grid">
+    ${inventoryKpi("invTotalKinds", inventory.ingredients.length, "cyan", "warehouse", "invAllStock")}
+    ${inventoryKpi("invLowKinds", low, low ? "amber" : "green", "alert", low ? "invNeedsRestock" : "invNoLowStock")}
+    ${inventoryKpi("invOutOfStock", out, out ? "red" : "green", "alert", out ? "invOutHint" : "invNoOut")}
+    ${inventoryKpi("invPendingCounts", pending, pending ? "amber" : "green", "check", pending ? "invPendingManager" : "invNoPending")}
   </div>`;
-  return pageHead() + (state.mode === "demo" ? `<div class="notice info">${t("invDemoNotice")}</div>` : "")
-    + metrics + `<div class="warehouse-layout">${dot1InventoryPanel(inventory)}${dot1MovementPanel(inventory)}</div>`;
+  return pageHead() + (state.mode === "demo" ? `<div class="notice info inventory-context-note">${t("invDemoNotice")}</div>` : "")
+    + metrics + `<div class="inventory-workspace">${dot1InventoryPanel(inventory)}${dot1CountPanel(inventory)}${dot1MovementPanel(inventory)}</div>`;
 }
 
 function menuAdminPage() {
@@ -192,41 +235,81 @@ function dot1PromotionPanel() {
 }
 
 function dot1InventoryPanel(inventory) {
-  const actions = inventory.can_configure
-    ? `<button class="btn primary small" data-menuadmin="ingredient">${t("invAdd")}</button>` : "";
-  const rows = inventory.ingredients.map((i) => `<tr>
-    <td><strong>${esc(i.name)}</strong><br><small>${esc(i.code)} · ${esc(i.unit)}</small></td>
-    <td>${i.on_hand}</td><td>${i.reserved}</td>
-    <td>${i.available}${i.available <= i.reorder_point ? ` <span class="badge amber">${t("invLow")}</span>` : ""}</td>
-    <td>${i.reorder_point}</td>
-    <td><div class="actions">
-      ${inventory.can_receive ? `<button class="btn small" data-menuadmin="receive" data-id="${i.id}">${t("invReceive")}</button>` : ""}
-      ${inventory.can_issue ? `<button class="btn small" data-menuadmin="issue" data-id="${i.id}">${t("invIssue")}</button><button class="btn small" data-menuadmin="return" data-id="${i.id}">${t("invReturn")}</button>` : ""}
-      ${inventory.can_count ? `<button class="btn small" data-menuadmin="count" data-id="${i.id}">${t("invCount")}</button>` : ""}
-    </div></td>
-  </tr>`).join("");
-  const recipeButtons = inventory.can_configure
-    ? (inventory.items || []).map((item) => `<button class="btn small" data-menuadmin="recipe" data-id="${item.id}">${t("invRecipe")}: ${esc(item.name)}</button>`).join(" ") : "";
-  const byId = new Map(inventory.ingredients.map((i) => [i.id, i]));
-  const pending = (inventory.counts || []).filter((c) => c.status === "PENDING");
-  const countRows = pending.map((c) => `<tr><td>${esc(byId.get(c.ingredient_id)?.name || c.ingredient_id)}</td>
-    <td>${c.expected_on_hand} → ${c.counted_on_hand}</td><td>${esc(c.reason)}</td>
-    <td>${inventory.can_approve && c.proposed_by !== inventory.actor_id ? `<div class="actions"><button class="btn small" data-menuadmin="approve-count" data-id="${c.id}">${t("invApprove")}</button><button class="btn small" data-menuadmin="reject-count" data-id="${c.id}">${t("invReject")}</button></div>` : ""}</td></tr>`).join("");
-  return `<section class="panel"><header class="panel-heading"><h3>${t("invTitle")}</h3>${actions}</header>
-    ${rows ? table(["name", "invOnHand", "invReserved", "invAvailable", "invReorder", ""], rows) : empty("invEmpty")}
-    ${countRows ? `<h4>${t("invCountRequests")}</h4>${table(["name", "invCounted", "invReason", ""], countRows)}<p class="dot1-tip">${t("invCountStale")}</p>` : ""}
-    <div class="actions">${recipeButtons}</div></section>`;
+  const query = (state.inventoryQuery || "").trim().toLocaleLowerCase();
+  const stockFilter = state.inventoryStockFilter || "ALL";
+  const sort = state.inventorySort || "STATUS";
+  const statusOrder = { OUT: 0, LOW: 1, HEALTHY: 2 };
+  const visible = inventory.ingredients
+    .filter((item) => !query || `${item.name} ${item.code}`.toLocaleLowerCase().includes(query))
+    .filter((item) => stockFilter === "ALL" || inventoryStockStatus(item) === stockFilter)
+    .sort((a, b) => {
+      if (sort === "NAME") return a.name.localeCompare(b.name, state.lang);
+      if (sort === "AVAILABLE_ASC") return Number(a.available) - Number(b.available);
+      if (sort === "AVAILABLE_DESC") return Number(b.available) - Number(a.available);
+      return statusOrder[inventoryStockStatus(a)] - statusOrder[inventoryStockStatus(b)] || a.name.localeCompare(b.name, state.lang);
+    });
+  const rows = visible.map((item) => {
+    const status = inventoryStockStatus(item);
+    const statusLabel = status === "OUT" ? "invOutOfStock" : status === "LOW" ? "invLow" : "invHealthy";
+    const reorder = Number(item.reorder_point);
+    const level = reorder > 0 ? Math.min(100, Math.max(0, Number(item.available) / reorder * 100)) : 100;
+    const secondaryActions = [
+      inventory.can_issue ? `<button class="inventory-menu-action" data-menuadmin="return" data-id="${item.id}">${t("invReturn")}</button>` : "",
+      inventory.can_count ? `<button class="inventory-menu-action" data-menuadmin="count" data-id="${item.id}">${t("invCount")}</button>` : "",
+    ].filter(Boolean).join("");
+    return `<tr>
+      <td class="inventory-name-cell"><strong>${esc(item.name)}</strong><small>${esc(item.code)} · ${esc(item.unit)}</small></td>
+      <td><span class="inventory-stock-badge ${status.toLowerCase()}"><i></i>${t(statusLabel)}</span></td>
+      <td class="inventory-number">${inventoryNumber(item.on_hand)}</td>
+      <td class="inventory-number muted-number">${inventoryNumber(item.reserved)}</td>
+      <td class="inventory-number inventory-available"><strong>${inventoryNumber(item.available)}</strong><span class="inventory-level ${status.toLowerCase()}"><i style="width:${level}%"></i></span></td>
+      <td class="inventory-number">${inventoryNumber(item.reorder_point)}</td>
+      <td><div class="inventory-row-actions">
+        ${inventory.can_receive ? `<button class="btn primary small" data-menuadmin="receive" data-id="${item.id}">${t("invReceive")}</button>` : ""}
+        ${inventory.can_issue ? `<button class="btn small" data-menuadmin="issue" data-id="${item.id}">${t("invIssue")}</button>` : ""}
+        ${secondaryActions ? `<details class="inventory-action-menu"><summary title="${t("invMore")}" aria-label="${t("invMore")}">•••</summary><div class="inventory-action-list">${secondaryActions}</div></details>` : ""}
+      </div></td>
+    </tr>`;
+  }).join("");
+  const recipes = inventory.can_configure && (inventory.items || []).length
+    ? `<details class="inventory-recipes"><summary><span><strong>${t("invRecipes")}</strong><small>${t("invRecipesHint")}</small></span><span class="badge">${inventory.items.length}</span></summary><div class="inventory-recipe-grid">${inventory.items.map((item) => `<button class="btn small" data-menuadmin="recipe" data-id="${item.id}">${esc(item.name)}</button>`).join("")}</div></details>` : "";
+  return `<section class="panel inventory-stock-panel">
+    <header class="inventory-panel-header"><div><h3>${icon("warehouse")} ${t("invTitle")}</h3><p>${t("invShowing")} <strong>${visible.length}</strong> / ${inventory.ingredients.length} ${t("invRecords")}</p></div>
+      <div class="inventory-toolbar">
+        <label class="inventory-search"><span aria-hidden="true">⌕</span><input id="inventory-search" class="input" value="${esc(state.inventoryQuery || "")}" placeholder="${t("invSearch")}" aria-label="${t("invSearch")}"></label>
+        <select id="inventory-stock-filter" class="input inventory-select" aria-label="${t("invStockStatus")}"><option value="ALL" ${stockFilter === "ALL" ? "selected" : ""}>${t("invAllStock")}</option><option value="HEALTHY" ${stockFilter === "HEALTHY" ? "selected" : ""}>${t("invHealthy")}</option><option value="LOW" ${stockFilter === "LOW" ? "selected" : ""}>${t("invLow")}</option><option value="OUT" ${stockFilter === "OUT" ? "selected" : ""}>${t("invOutOfStock")}</option></select>
+        <select id="inventory-sort" class="input inventory-select" aria-label="${t("invSortStatus")}"><option value="STATUS" ${sort === "STATUS" ? "selected" : ""}>${t("invSortStatus")}</option><option value="NAME" ${sort === "NAME" ? "selected" : ""}>${t("invSortName")}</option><option value="AVAILABLE_ASC" ${sort === "AVAILABLE_ASC" ? "selected" : ""}>${t("invSortAvailableAsc")}</option><option value="AVAILABLE_DESC" ${sort === "AVAILABLE_DESC" ? "selected" : ""}>${t("invSortAvailableDesc")}</option></select>
+        ${inventory.can_configure ? `<button class="btn primary small inventory-add" data-menuadmin="ingredient">${icon("plus")}${t("invAdd")}</button>` : ""}
+      </div>
+    </header>
+    ${rows ? `<div class="inventory-table-wrap"><table class="inventory-table"><thead><tr><th>${t("name")}</th><th>${t("invStockStatus")}</th><th class="number-head">${t("invOnHand")}</th><th class="number-head">${t("invReserved")}</th><th class="number-head">${t("invAvailable")}</th><th class="number-head">${t("invReorder")}</th><th>${t("invActions")}</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="inventory-filter-empty">${empty("invEmpty")}</div>`}
+    ${recipes}
+  </section>`;
+}
+
+function dot1CountPanel(inventory) {
+  const pending = (inventory.counts || []).filter((count) => count.status === "PENDING");
+  if (!pending.length) return "";
+  const byId = new Map(inventory.ingredients.map((item) => [item.id, item]));
+  const rows = pending.map((count) => {
+    const ingredient = byId.get(count.ingredient_id);
+    const difference = Number(count.counted_on_hand) - Number(count.expected_on_hand);
+    const decisions = inventory.can_approve && count.proposed_by !== inventory.actor_id
+      ? `<div class="inventory-row-actions"><button class="btn primary small" data-menuadmin="approve-count" data-id="${count.id}">${t("invApprove")}</button><button class="btn small" data-menuadmin="reject-count" data-id="${count.id}">${t("invReject")}</button></div>`
+      : `<span class="inventory-stock-badge low"><i></i>${t("invPendingManager")}</span>`;
+    return `<tr><td class="inventory-name-cell"><strong>${esc(ingredient?.name || count.ingredient_id)}</strong><small>${esc(ingredient?.unit || "")}</small></td><td class="inventory-number">${inventoryNumber(count.expected_on_hand)}</td><td class="inventory-number">${inventoryNumber(count.counted_on_hand)}</td><td class="inventory-number ${difference < 0 ? "negative" : difference > 0 ? "positive" : ""}">${difference > 0 ? "+" : ""}${inventoryNumber(difference)}</td><td class="inventory-note-cell">${esc(count.reason)}</td><td>${decisions}</td></tr>`;
+  }).join("");
+  return `<section class="panel inventory-count-panel"><header class="inventory-panel-header"><div><h3>${icon("check")} ${t("invCountRequests")}</h3><p>${t("invCountStale")}</p></div><span class="badge amber">${pending.length}</span></header><div class="inventory-table-wrap compact"><table class="inventory-table"><thead><tr><th>${t("name")}</th><th class="number-head">${t("invExpected")}</th><th class="number-head">${t("invCounted")}</th><th class="number-head">${t("invDifference")}</th><th>${t("invReason")}</th><th>${t("invActions")}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 function dot1MovementPanel(inventory) {
-  const rows = (inventory.movements || []).map(m => `<tr>
-    <td>${dt(m.created_at)}</td><td><strong>${esc(m.ingredient_name)}</strong><br><small>${esc(m.unit)}</small></td>
-    <td><span class="badge">${t("invKind" + m.kind)}</span></td>
-    <td>${m.on_hand_delta > 0 ? "+" : ""}${m.on_hand_delta}${m.reserved_delta ? ` · giữ ${m.reserved_delta > 0 ? "+" : ""}${m.reserved_delta}` : ""}</td>
-    <td>${esc(m.reference_code || "—")}<br><small>${esc(m.note || "")}</small></td>
-  </tr>`).join("");
-  return `<section class="panel"><header class="panel-heading"><h3>${t("invLedger")}</h3></header>
-    ${rows ? table(["invTime", "name", "invMovement", "invDelta", "invReference"], rows) : empty("invNoMovements")}</section>`;
+  const rows = (inventory.movements || []).map((movement) => {
+    const delta = Number(movement.on_hand_delta);
+    const reserved = Number(movement.reserved_delta);
+    const tone = ["RECEIVE", "RETURN", "RELEASE"].includes(movement.kind) ? "positive" : ["ISSUE", "CONSUME", "WASTE"].includes(movement.kind) ? "negative" : "neutral";
+    return `<tr><td class="inventory-time-cell">${dt(movement.created_at)}</td><td class="inventory-name-cell"><strong>${esc(movement.ingredient_name)}</strong><small>${esc(movement.unit)}</small></td><td><span class="inventory-movement-badge ${tone}">${t("invKind" + movement.kind)}</span></td><td class="inventory-number ${delta < 0 ? "negative" : delta > 0 ? "positive" : ""}"><strong>${delta > 0 ? "+" : ""}${inventoryNumber(delta)}</strong>${reserved ? `<small>${t("invReserved")}: ${reserved > 0 ? "+" : ""}${inventoryNumber(reserved)}</small>` : ""}</td><td class="inventory-reference-cell"><strong>${esc(movement.reference_code || "—")}</strong><small title="${esc(movement.note || "")}">${esc(movement.note || "")}</small></td></tr>`;
+  }).join("");
+  return `<section class="panel inventory-ledger-panel"><header class="inventory-panel-header"><div><h3>${icon("clock")} ${t("invLedger")}</h3><p>${t("invLedgerHint")}</p></div><span class="badge">${(inventory.movements || []).length}</span></header>${rows ? `<div class="inventory-table-wrap ledger"><table class="inventory-table"><thead><tr><th>${t("invTime")}</th><th>${t("name")}</th><th>${t("invMovement")}</th><th class="number-head">${t("invDelta")}</th><th>${t("invReference")}</th></tr></thead><tbody>${rows}</tbody></table></div>` : empty("invNoMovements")}</section>`;
 }
 
 function dot1OrderCard(order) {
@@ -509,6 +592,20 @@ async function dot1HistoryDialog(id) {
 }
 
 // ----- Sự kiện ------------------------------------------------------------------------
+document.addEventListener("input", (event) => {
+  if (state.page !== "warehouse" || event.target.id !== "inventory-search") return;
+  state.inventoryQuery = event.target.value;
+  renderPage();
+});
+
+document.addEventListener("change", (event) => {
+  if (state.page !== "warehouse") return;
+  if (event.target.id === "inventory-stock-filter") state.inventoryStockFilter = event.target.value;
+  else if (event.target.id === "inventory-sort") state.inventorySort = event.target.value;
+  else return;
+  renderPage();
+});
+
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-menuadmin]");
   if (!button || button.disabled) return;
