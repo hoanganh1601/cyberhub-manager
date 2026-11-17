@@ -41,6 +41,7 @@ from cyberhub_manager.web.serialization import serialize
 from cyberhub_manager.web.feature_routes import register_feature_routes
 from cyberhub_manager.web.operations_routes import register_operations_routes
 from cyberhub_manager.web.business_routes import register_business_routes
+from cyberhub_manager.web.forecasting_routes import register_forecasting_routes
 
 UTC = timezone.utc
 LOCAL = timezone(timedelta(hours=7))
@@ -478,5 +479,7 @@ def create_app(config: dict | None = None) -> Flask:
     )
 
     register_business_routes(app, reply=reply, body=body)
+
+    register_forecasting_routes(app, reply=reply, manager_only=manager_only)
 
     return app

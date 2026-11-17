@@ -7,6 +7,7 @@ const copy = {
   machines: ["Quản lý máy", "Machines"],
   invoices: ["Hóa đơn", "Invoices"],
   revenue: ["Doanh thu", "Revenue"],
+  forecasting: ["Phân tích & Dự báo", "Analytics & Forecasting"],
   login: ["Đăng nhập", "Sign in"],
   logout: ["Đăng xuất", "Sign out"],
   portal: ["CỔNG VẬN HÀNH NHÂN VIÊN", "STAFF OPERATIONS PORTAL"],
@@ -76,6 +77,10 @@ const copy = {
   revenueSub: [
     "Theo dõi doanh thu từ hóa đơn đã thanh toán",
     "Track revenue from paid invoices",
+  ],
+  forecastingSub: [
+    "Dự báo doanh thu, lượng khách và hỗ trợ lập kế hoạch kinh doanh",
+    "Forecast revenue and demand to support business planning",
   ],
   search: ["Tìm kiếm…", "Search…"],
   machineSearch: ["Tìm mã hoặc tên máy…", "Search machine code or name…"],
@@ -362,6 +367,7 @@ const state = {
   dates: {},
   seq: 0,
   busy: false,
+  forecastHorizon: 7,
 };
 let modalContext = null;
 let refreshTimer;
@@ -522,6 +528,7 @@ function renderShell() {
     ["games", "wheel"],
     ["ads", "monitor"],
     ...(isManager() ? [["revenue", "chart"]] : []),
+    ...(isManager() ? [["forecasting", "chart"]] : []),
     ...(isManager() ? [["employees","users"],["promotions","wallet"]] : []),
     ...(state.actor.role === "ADMIN" ? [["stores","store"]] : []),
   ].filter(([page]) => state.actor.role === "KITCHEN" ? ["menu","maintenanceOps"].includes(page)
@@ -557,6 +564,7 @@ function metric(label, value, color = "", symbol = "monitor", hint = "") {
 }
 async function loadPage(silent = false) {
   if (state.page === "revenue" && !isManager()) state.page = "dashboard";
+  if (state.page === "forecasting" && !isManager()) state.page = "dashboard";
   const seq = ++state.seq;
   const page = state.page;
   if (!state.actor) return;
@@ -596,7 +604,10 @@ async function loadPage(silent = false) {
       if(seq!==state.seq) return;
       state.items=items; state.stores=stores; renderPage(); return;
     }
-    if (page === "dashboard" || page === "machines")
+    if (page === "forecasting") {
+      data = await api(`/forecasting?days=${state.forecastHorizon}`);
+    }
+    else if (page === "dashboard" || page === "machines")
       data = await api("/machines");
     else if (page === "customers") data = await api("/customers");
     else {
@@ -653,6 +664,7 @@ function renderPage() {
   else if (state.page === "ads") html = adAdminPage();
   else if (["shifts","maintenanceOps","procurement"].includes(state.page)) html = businessAdminPage();
   else if (state.page === "revenue" && isManager()) html = revenuePage();
+  else if (state.page === "forecasting" && isManager()) html = forecastAdminPage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
