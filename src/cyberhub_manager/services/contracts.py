@@ -360,6 +360,25 @@ class ManagementServiceProtocol(Protocol):
         status: str = "ACTIVE",
     ) -> StoreSummary: ...
     def list_employees(self, actor: EmployeeSession) -> list[EmployeeSummary]: ...
+    def list_employee_profiles(self, actor: EmployeeSession) -> list[dict]: ...
+    def save_employee_profile(
+        self,
+        actor: EmployeeSession,
+        profile_id: int | None,
+        store_id: int,
+        full_name: str,
+        employment_status: str = "ACTIVE",
+    ) -> dict: ...
+    def list_manager_store_assignments(
+        self, actor: EmployeeSession, employee_id: int
+    ) -> list[int]: ...
+    def set_manager_store_assignment(
+        self,
+        actor: EmployeeSession,
+        employee_id: int,
+        store_id: int,
+        enabled: bool,
+    ) -> dict: ...
     def save_employee(
         self,
         actor: EmployeeSession,
@@ -370,6 +389,7 @@ class ManagementServiceProtocol(Protocol):
         role: str = "STAFF",
         status: str = "ACTIVE",
         password: str = "",
+        profile_id: int | None = None,
     ) -> EmployeeSummary: ...
     def reset_employee_password(
         self, actor: EmployeeSession, employee_id: int, temporary_password: str

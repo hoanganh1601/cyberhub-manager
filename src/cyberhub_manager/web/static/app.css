@@ -680,10 +680,19 @@ input[aria-invalid="true"] {
 }
 .main {
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
   padding: 26px;
   display: flex;
   flex-direction: column;
+}
+.main > * {
+  /* A long table/page must grow naturally so .main becomes the single
+     vertical scroll container. Without this, flex-shrink compresses panels
+     to the viewport and .panel's overflow rule clips their lower rows. */
+  flex-shrink: 0;
 }
 .page-head {
   display: flex;

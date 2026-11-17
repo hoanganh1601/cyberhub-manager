@@ -93,6 +93,16 @@ def sidebar_icon(name: str, color: str, size: int = STITCH_NAV_ICON_SIZE) -> ctk
         line([(16, 2), (16, 7)])
         line([(8, 14), (10, 14)])
         line([(14, 14), (16, 14)])
+    elif name == "lock":
+        rect((4, 10, 20, 22), 2)
+        draw.arc(
+            tuple(v * scale for v in (7, 2, 17, 15)),
+            180,
+            360,
+            fill=color,
+            width=stroke,
+        )
+        line([(12, 14), (12, 18)])
     elif name == "money":
         rect((2, 5, 22, 19), 2)
         circle((9, 9, 15, 15))
