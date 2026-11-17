@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tkinter import filedialog
+import secrets
+import string
 import tempfile
 import webbrowser
 
@@ -126,10 +128,20 @@ class StorePicker(StitchDialog):
 
 class ManagementForm(StitchDialog):
     def __init__(
-        self, parent, context, kind, *, item=None, stores=(), runner=None, on_saved=None
+        self,
+        parent,
+        context,
+        kind,
+        *,
+        item=None,
+        stores=(),
+        profiles=(),
+        runner=None,
+        on_saved=None,
     ):
         self._t = UIStrings(context.language)
         self.context, self.kind, self.item = context, kind, item
+        self.profiles = list(profiles)
         self.runner = runner or default_runner()
         self.on_saved = on_saved
         self.fields, self.choices = {}, {}
@@ -167,13 +179,31 @@ class ManagementForm(StitchDialog):
             ]
         elif kind == "employees":
             credentials = can(context.session.role, Permission.MANAGE_EMPLOYEE_CREDENTIALS)
-            specs = [("full_name", "Họ và tên", "text", None),
-                     ("username", "Tên đăng nhập", "text", None),
-                     ("store_id", "Cơ sở", "choice", store_choices),
-                     ("role", "Vai trò", "choice",
-                      ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN", "INVENTORY"] if credentials else ["STAFF"]),
-                     ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE", "LOCKED"]),
-                     ("password", "Mật khẩu mới", "password", None)]
+            pending_profiles = {
+                profile["id"]: (
+                    f'{profile["full_name"]} · '
+                    f'{next((s.code for s in stores if s.id == profile["home_store_id"]), profile["home_store_id"])}'
+                )
+                for profile in self.profiles
+                if not profile.get("employee_id")
+                and profile.get("employment_status") == "ACTIVE"
+            }
+            if separated_rbac() and not item and credentials and pending_profiles:
+                specs = [
+                    ("profile_id", "Hồ sơ nhân sự", "choice", pending_profiles),
+                    ("username", "Tên đăng nhập", "text", None),
+                    ("role", "Vai trò", "choice", ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN", "INVENTORY"]),
+                    ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE", "LOCKED"]),
+                    ("password", "Mật khẩu tạm thời", "password", None),
+                ]
+            else:
+                specs = [("full_name", "Họ và tên", "text", None),
+                         ("username", "Tên đăng nhập", "text", None),
+                         ("store_id", "Cơ sở", "choice", store_choices),
+                         ("role", "Vai trò", "choice",
+                          ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN", "INVENTORY"] if credentials else ["STAFF"]),
+                         ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE", "LOCKED"]),
+                         ("password", "Mật khẩu mới", "password", None)]
             if separated_rbac() and item:
                 allowed = {"username", "role", "status"} if credentials else {"full_name", "store_id"} if context.session.role == Role.DIRECTOR else {"full_name"}
                 specs = [spec for spec in specs if spec[0] in allowed]
@@ -198,6 +228,7 @@ class ManagementForm(StitchDialog):
         now = datetime.now(VN).replace(second=0, microsecond=0)
         defaults = dict(
             store_id=context.session.store_id,
+            profile_id=(next(iter(pending_profiles)) if kind == "employees" and 'pending_profiles' in locals() and pending_profiles else None),
             role="STAFF",
             status="ACTIVE",
             bonus_percent=5,
@@ -320,6 +351,14 @@ class ManagementForm(StitchDialog):
             if self.kind == "stores":
                 return service.save_store(actor, entity_id, **values)
             if self.kind == "employees":
+                if values.get("profile_id") is not None:
+                    selected = next(
+                        profile
+                        for profile in self.profiles
+                        if profile["id"] == values["profile_id"]
+                    )
+                    values["full_name"] = selected["full_name"]
+                    values["store_id"] = selected["home_store_id"]
                 if self.item:
                     for key in ("full_name", "username", "store_id", "role", "status"):
                         values.setdefault(key, getattr(self.item, key))
@@ -362,13 +401,279 @@ class ManagementForm(StitchDialog):
             )
 
 
+class EmployeeProfileForm(StitchDialog):
+    """Business-owned personnel profile, deliberately separate from credentials."""
+
+    def __init__(self, parent, context, stores, *, profile=None, runner=None, on_saved=None):
+        self.context, self.profile = context, profile
+        self.runner = runner or default_runner()
+        self.on_saved = on_saved
+        self._t = UIStrings(context.language)
+        super().__init__(
+            parent,
+            title=self._t("Hồ sơ nhân sự"),
+            subtitle=self._t("Thông tin công việc; không thay đổi tài khoản đăng nhập"),
+            icon="",
+            width=620,
+            language=context.language,
+            confirm_text=self._t("Lưu hồ sơ"),
+        )
+        self.name = StitchField(self.body, self._t("Họ và tên"))
+        self.name.pack(fill="x", pady=(0, 12))
+        if profile:
+            self.name.set_value(profile["full_name"])
+        active_stores = [store for store in stores if store.status == "ACTIVE"]
+        self.store_values = {
+            f"{store.code} · {store.name}": store.id for store in active_stores
+        }
+        ctk.CTkLabel(
+            self.body,
+            text=self._t("CƠ SỞ CHÍNH"),
+            font=t.FONT_ST_LABEL_CAPS,
+            text_color=t.STITCH_TEXT,
+            anchor="w",
+        ).pack(fill="x")
+        self.store = ctk.CTkOptionMenu(
+            self.body,
+            values=list(self.store_values),
+            height=38,
+            font=t.FONT_ST_BODY,
+            fg_color=t.STITCH_BG_CANVAS,
+            button_color=t.STITCH_CHIP_BG,
+            button_hover_color=t.STITCH_TAB_HOVER,
+        )
+        self.store.pack(fill="x", pady=(6, 12))
+        selected_store = profile["home_store_id"] if profile else context.session.store_id
+        for label, store_id in self.store_values.items():
+            if store_id == selected_store:
+                self.store.set(label)
+                break
+        self.status_values = {
+            self._t("Hoạt động"): "ACTIVE",
+            self._t("Ngừng hoạt động"): "INACTIVE",
+        }
+        ctk.CTkLabel(
+            self.body,
+            text=self._t("TRẠNG THÁI LÀM VIỆC"),
+            font=t.FONT_ST_LABEL_CAPS,
+            text_color=t.STITCH_TEXT,
+            anchor="w",
+        ).pack(fill="x")
+        self.status = ctk.CTkOptionMenu(
+            self.body,
+            values=list(self.status_values),
+            height=38,
+            font=t.FONT_ST_BODY,
+            fg_color=t.STITCH_BG_CANVAS,
+            button_color=t.STITCH_CHIP_BG,
+            button_hover_color=t.STITCH_TAB_HOVER,
+        )
+        self.status.pack(fill="x", pady=(6, 0))
+        if profile and profile["employment_status"] == "INACTIVE":
+            self.status.set(self._t("Ngừng hoạt động"))
+        self.error_label = ctk.CTkLabel(
+            self.body, text="", font=t.FONT_ST_BODY, text_color=t.STITCH_DANGER
+        )
+        self.error_label.pack(fill="x", pady=(8, 0))
+        self.finish(self.name.focus)
+
+    def submit(self):
+        if self.is_submitting:
+            return
+        self.set_submitting(True)
+        profile_id = self.profile["id"] if self.profile else None
+        self.runner.submit(
+            self,
+            lambda: self.context.services.management.save_employee_profile(
+                self.context.session,
+                profile_id,
+                self.store_values[self.store.get()],
+                self.name.get_value(),
+                self.status_values[self.status.get()],
+            ),
+            self._saved,
+            self._failed,
+        )
+
+    def _saved(self, result):
+        callback = self.on_saved
+        self.close()
+        if callback:
+            callback(result)
+
+    def _failed(self, exc):
+        self.set_submitting(False)
+        self.error_label.configure(text=getattr(exc, "message", str(exc)))
+
+
+class EmployeePasswordResetForm(StitchDialog):
+    """ADMIN-only temporary-password reset; the service enforces revocation and audit."""
+
+    def __init__(self, parent, context, employee, *, runner=None, on_saved=None):
+        self.context, self.employee = context, employee
+        self.runner = runner or default_runner()
+        self.on_saved = on_saved
+        self._t = UIStrings(context.language)
+        super().__init__(
+            parent,
+            title=self._t("Đặt lại mật khẩu"),
+            subtitle=f"{employee.full_name} · {employee.username}",
+            icon="",
+            width=620,
+            language=context.language,
+            confirm_text=self._t("Đặt mật khẩu tạm"),
+        )
+        self.password = StitchField(
+            self.body,
+            self._t("Mật khẩu tạm thời"),
+            password=True,
+            hint=self._t("Người dùng phải đổi mật khẩu ở lần đăng nhập tiếp theo"),
+        )
+        self.password.pack(fill="x")
+        generate = stitch_button(
+            self.body,
+            self._t("Tạo mật khẩu an toàn"),
+            command=self._generate,
+            width=180,
+        )
+        generate.pack(anchor="e", pady=(10, 0))
+        self.error_label = ctk.CTkLabel(
+            self.body, text="", font=t.FONT_ST_BODY, text_color=t.STITCH_DANGER
+        )
+        self.error_label.pack(fill="x", pady=(8, 0))
+        self.finish(self.password.focus)
+
+    def _generate(self):
+        alphabet = string.ascii_letters + string.digits + "!@#$%"
+        value = "".join(secrets.choice(alphabet) for _ in range(16))
+        self.password.set_value(value)
+        if not self.password.is_revealed:
+            self.password.toggle_password()
+
+    def submit(self):
+        if self.is_submitting:
+            return
+        self.set_submitting(True)
+        self.runner.submit(
+            self,
+            lambda: self.context.services.management.reset_employee_password(
+                self.context.session, self.employee.id, self.password.get_value()
+            ),
+            self._saved,
+            self._failed,
+        )
+
+    def _saved(self, result):
+        callback = self.on_saved
+        self.close()
+        if callback:
+            callback(result)
+
+    def _failed(self, exc):
+        self.set_submitting(False)
+        self.error_label.configure(text=getattr(exc, "message", str(exc)))
+
+
+class ManagerStoreAssignmentForm(StitchDialog):
+    """ADMIN-owned grant/revoke dialog for a manager's additional stores."""
+
+    def __init__(self, parent, context, employee, stores, assigned, *, runner=None, on_saved=None):
+        self.context, self.employee = context, employee
+        self.runner = runner or default_runner()
+        self.on_saved = on_saved
+        self._t = UIStrings(context.language)
+        super().__init__(
+            parent,
+            title=self._t("Phân công cơ sở"),
+            subtitle=f"{employee.full_name} · {employee.username}",
+            icon="",
+            width=640,
+            language=context.language,
+            confirm_text=self._t("Áp dụng"),
+        )
+        available = [
+            store for store in stores
+            if store.status == "ACTIVE" and store.id != employee.store_id
+        ]
+        self.store_values = {
+            f"{store.code} · {store.name}": store.id for store in available
+        }
+        assigned_names = [store.name for store in available if store.id in set(assigned)]
+        ctk.CTkLabel(
+            self.body,
+            text=self._t("Cơ sở phụ hiện tại") + ": " + (", ".join(assigned_names) or "—"),
+            font=t.FONT_ST_BODY,
+            text_color=t.STITCH_TEXT_MUTED,
+            anchor="w",
+            wraplength=570,
+        ).pack(fill="x", pady=(0, 12))
+        self.store = ctk.CTkOptionMenu(
+            self.body,
+            values=list(self.store_values) or [self._t("Không có cơ sở phụ")],
+            height=38,
+            font=t.FONT_ST_BODY,
+            fg_color=t.STITCH_BG_CANVAS,
+            button_color=t.STITCH_CHIP_BG,
+            button_hover_color=t.STITCH_TAB_HOVER,
+        )
+        self.store.pack(fill="x", pady=(0, 12))
+        self.action_values = {
+            self._t("Giao quyền vận hành"): True,
+            self._t("Thu hồi quyền vận hành"): False,
+        }
+        self.action = ctk.CTkOptionMenu(
+            self.body,
+            values=list(self.action_values),
+            height=38,
+            font=t.FONT_ST_BODY,
+            fg_color=t.STITCH_BG_CANVAS,
+            button_color=t.STITCH_CHIP_BG,
+            button_hover_color=t.STITCH_TAB_HOVER,
+        )
+        self.action.pack(fill="x")
+        self.error_label = ctk.CTkLabel(
+            self.body, text="", font=t.FONT_ST_BODY, text_color=t.STITCH_DANGER
+        )
+        self.error_label.pack(fill="x", pady=(8, 0))
+        if not self.store_values:
+            self.confirm_button.set_enabled(False)
+        self.finish()
+
+    def submit(self):
+        if self.is_submitting or not self.store_values:
+            return
+        self.set_submitting(True)
+        self.runner.submit(
+            self,
+            lambda: self.context.services.management.set_manager_store_assignment(
+                self.context.session,
+                self.employee.id,
+                self.store_values[self.store.get()],
+                self.action_values[self.action.get()],
+            ),
+            self._saved,
+            self._failed,
+        )
+
+    def _saved(self, result):
+        callback = self.on_saved
+        self.close()
+        if callback:
+            callback(result)
+
+    def _failed(self, exc):
+        self.set_submitting(False)
+        self.error_label.configure(text=getattr(exc, "message", str(exc)))
+
+
 class ManagementView(ctk.CTkFrame):
     def __init__(self, master, context, *, kind, runner=None):
         super().__init__(master, fg_color="transparent")
         self._context, self.kind = context, kind
         self._t = UIStrings(context.language)
         self.runner = runner or default_runner()
-        self.items, self.stores = [], []
+        self.items, self.stores, self.profiles = [], [], []
+        self.employee_mode = "accounts"
         self._closed = False
         self._request = 0
         title, subtitle = {
@@ -389,7 +694,7 @@ class ManagementView(ctk.CTkFrame):
             eyebrow=self._t("QUẢN TRỊ VẬN HÀNH"),
         )
         header.pack(fill="x")
-        add_button = icon_action(
+        self.add_button = icon_action(
             header.actions,
             self._t("Thêm mới"),
             "plus",
@@ -397,7 +702,21 @@ class ManagementView(ctk.CTkFrame):
             command=lambda: self.open_form(),
         )
         if kind != "employees" or not separated_rbac() or can(context.session.role, Permission.MANAGE_EMPLOYEE_CREDENTIALS):
-            add_button.pack(side="right")
+            self.add_button.pack(side="right")
+        if (
+            kind == "employees"
+            and separated_rbac()
+            and can(context.session.role, Permission.MANAGE_EMPLOYEES)
+            and context.session.role != Role.ADMIN
+        ):
+            self.profile_button = icon_action(
+                header.actions,
+                self._t("Tạo hồ sơ nhân sự"),
+                "plus",
+                kind="primary",
+                command=lambda: self.open_profile_form(),
+            )
+            self.profile_button.pack(side="right")
         self.refresh_button = icon_action(
             header.actions, self._t("Làm mới"), "refresh", command=self.reload
         )
@@ -425,6 +744,15 @@ class ManagementView(ctk.CTkFrame):
             self.tiles.append(tile)
         bar = surface(self)
         bar.pack(fill="x", pady=(0, 12))
+        if kind == "employees" and separated_rbac():
+            self.employee_tabs = ctk.CTkSegmentedButton(
+                bar,
+                values=[self._t("Tài khoản đăng nhập"), self._t("Hồ sơ nhân sự")],
+                command=self._set_employee_mode,
+                font=t.FONT_ST_BODY,
+            )
+            self.employee_tabs.set(self._t("Tài khoản đăng nhập"))
+            self.employee_tabs.pack(side="left", padx=(12, 0), pady=10)
         self.search = ctk.CTkEntry(
             bar,
             placeholder_text=self._t("Tìm kiếm…"),
@@ -433,7 +761,7 @@ class ManagementView(ctk.CTkFrame):
             fg_color=t.STITCH_BG_CANVAS,
             border_color=t.STITCH_BORDER,
         )
-        self.search.pack(fill="x", padx=12, pady=10)
+        self.search.pack(side="left", fill="x", expand=True, padx=12, pady=10)
         self.search.bind("<KeyRelease>", lambda _: self.render())
         self.table = ctk.CTkScrollableFrame(
             self, fg_color=t.STITCH_CARD_BG, corner_radius=12
@@ -463,15 +791,22 @@ class ManagementView(ctk.CTkFrame):
 
         def call():
             service, actor = self._context.services.management, self._context.session
-            return getattr(service, "list_" + self.kind)(actor), service.list_stores(
-                actor
+            profiles = (
+                service.list_employee_profiles(actor)
+                if self.kind == "employees" and separated_rbac()
+                else []
+            )
+            return (
+                getattr(service, "list_" + self.kind)(actor),
+                service.list_stores(actor),
+                profiles,
             )
 
         def loaded(result):
             if self._closed or request_id != self._request:
                 return
             self.refresh_button.set_busy(False)
-            self.items, self.stores = result
+            self.items, self.stores, self.profiles = result
             self.render()
 
         def failed(exc):
@@ -482,9 +817,18 @@ class ManagementView(ctk.CTkFrame):
 
         self.runner.submit(self, call, loaded, failed)
 
+    def _set_employee_mode(self, label):
+        self.employee_mode = (
+            "profiles" if label == self._t("Hồ sơ nhân sự") else "accounts"
+        )
+        self.render()
+
     def render(self):
         for child in self.table.winfo_children():
             child.destroy()
+        if self.kind == "employees" and self.employee_mode == "profiles":
+            self._render_employee_profiles()
+            return
         self.tiles[0].value.configure(text=str(len(self.items)))
         active = sum(
             getattr(i, "status", "ACTIVE") == "ACTIVE" and getattr(i, "is_active", True)
@@ -582,23 +926,55 @@ class ManagementView(ctk.CTkFrame):
                     wraplength=180,
                 ).grid(row=0, column=column, sticky="ew", padx=10, pady=12)
             row.grid_columnconfigure(4, weight=1, uniform="cols")
-            button = row_action(
-                row,
-                "edit",
-                self._t("Chỉnh sửa"),
-                command=lambda current=item: self.open_form(current),
-            )
+            actions = ctk.CTkFrame(row, fg_color="transparent")
             role = self._context.session.role
             editable = (
                 can(role, Permission.MANAGE_STORES) if self.kind == "stores" else
-                (can(role, Permission.MANAGE_EMPLOYEE_CREDENTIALS) or
+                (can(role, Permission.MANAGE_EMPLOYEE_CREDENTIALS)
+                 if separated_rbac()
+                 else can(role, Permission.MANAGE_EMPLOYEE_CREDENTIALS) or
                  can(role, Permission.MANAGE_EMPLOYEES) and
                  (role == Role.DIRECTOR or item.role == "STAFF")) if self.kind == "employees" else
                 can(role, Permission.MANAGE_PROMOTIONS) and
                 (can(role, Permission.SWITCH_STORE) or item.store_id == self._context.session.store_id)
             )
-            button.set_enabled(editable)
-            button.grid(row=0, column=4, padx=10, pady=10, sticky="e")
+            if editable:
+                button = row_action(
+                    actions,
+                    "edit",
+                    self._t("Chỉnh sửa"),
+                    command=lambda current=item: self.open_form(current),
+                )
+                button.pack(side="left")
+            if (
+                self.kind == "employees"
+                and separated_rbac()
+                and can(role, Permission.MANAGE_EMPLOYEE_CREDENTIALS)
+                and item.id != self._context.session.employee_id
+            ):
+                reset = row_action(
+                    actions,
+                    "lock",
+                    self._t("Đặt lại mật khẩu"),
+                    command=lambda current=item: self.open_password_reset(current),
+                )
+                reset.pack(side="left", padx=(6, 0))
+                if item.role == "MANAGER":
+                    assignment = row_action(
+                        actions,
+                        "stores",
+                        self._t("Phân công cơ sở"),
+                        command=lambda current=item: self.open_store_assignment(current),
+                    )
+                    assignment.pack(side="left", padx=(6, 0))
+            if not actions.winfo_children():
+                ctk.CTkLabel(
+                    actions,
+                    text="—",
+                    font=t.FONT_ST_BODY,
+                    text_color=t.STITCH_TEXT_DIM,
+                ).pack()
+            actions.grid(row=0, column=4, padx=10, pady=10, sticky="e")
         if not rows:
             ctk.CTkLabel(
                 self.table,
@@ -607,15 +983,150 @@ class ManagementView(ctk.CTkFrame):
                 text_color=t.STITCH_TEXT_MUTED,
             ).pack(pady=60)
 
+    def _render_employee_profiles(self):
+        self.tiles[0].value.configure(text=str(len(self.profiles)))
+        self.tiles[1].value.configure(
+            text=str(sum(p["employment_status"] == "ACTIVE" for p in self.profiles))
+        )
+        self.tiles[2].value.configure(
+            text=(
+                self._t("Toàn hệ thống")
+                if chain_director(self._context.session.role)
+                else self._context.session.store_code
+            )
+        )
+        search = self.search.get().strip().casefold()
+        profiles = [
+            profile for profile in self.profiles
+            if not search
+            or search in " ".join(str(value) for value in profile.values()).casefold()
+        ]
+        header = ctk.CTkFrame(self.table, fg_color=t.STITCH_BG_CHROME, corner_radius=6)
+        header.pack(fill="x", pady=(4, 8), padx=4)
+        labels = ["Mã hồ sơ", "Họ và tên", "Cơ sở chính", "Tài khoản", "Trạng thái", "Thao tác"]
+        for column, label in enumerate(labels):
+            header.grid_columnconfigure(column, weight=2 if column != 5 else 1, uniform="profiles")
+            ctk.CTkLabel(
+                header,
+                text=self._t(label),
+                font=t.FONT_ST_LABEL_CAPS,
+                text_color=t.STITCH_TEXT_MUTED,
+                anchor="w",
+            ).grid(row=0, column=column, sticky="ew", padx=10, pady=10)
+        store_names = {store.id: store.code for store in self.stores}
+        account_names = {employee.id: employee.username for employee in self.items}
+        can_edit = (
+            can(self._context.session.role, Permission.MANAGE_EMPLOYEES)
+            and self._context.session.role != Role.ADMIN
+        )
+        for index, profile in enumerate(profiles):
+            row = ctk.CTkFrame(
+                self.table,
+                fg_color=t.WORKSPACE_ROW_ALT if index % 2 else "transparent",
+                corner_radius=7,
+            )
+            row.pack(fill="x", padx=4, pady=2)
+            values = [
+                profile["code"],
+                profile["full_name"],
+                store_names.get(profile["home_store_id"], str(profile["home_store_id"])),
+                account_names.get(profile.get("employee_id"), self._t("Chưa cấp")),
+                self._t(STATUS[profile["employment_status"]]),
+            ]
+            for column, value in enumerate(values):
+                row.grid_columnconfigure(column, weight=2, uniform="profiles")
+                ctk.CTkLabel(
+                    row,
+                    text=value,
+                    font=t.FONT_ST_BODY,
+                    text_color=t.STITCH_TEXT,
+                    anchor="w",
+                ).grid(row=0, column=column, sticky="ew", padx=10, pady=12)
+            row.grid_columnconfigure(5, weight=1, uniform="profiles")
+            if can_edit:
+                button = row_action(
+                    row,
+                    "edit",
+                    self._t("Chỉnh sửa"),
+                    command=lambda current=profile: self.open_profile_form(current),
+                )
+                button.grid(row=0, column=5, padx=10, pady=10, sticky="e")
+            else:
+                ctk.CTkLabel(row, text="—", text_color=t.STITCH_TEXT_DIM).grid(
+                    row=0, column=5, padx=10, pady=10, sticky="e"
+                )
+        if not profiles:
+            ctk.CTkLabel(
+                self.table,
+                text=self._t("Chưa có hồ sơ nhân sự phù hợp."),
+                font=t.FONT_ST_BODY,
+                text_color=t.STITCH_TEXT_MUTED,
+            ).pack(pady=60)
+
     def open_form(self, item=None):
+        if self.kind == "employees" and separated_rbac() and item is None:
+            pending = [
+                profile for profile in self.profiles
+                if not profile.get("employee_id")
+                and profile.get("employment_status") == "ACTIVE"
+            ]
+            if not pending:
+                notify_error(
+                    self,
+                    ValidationError(
+                        "Cần có hồ sơ nhân sự đang hoạt động và chưa được cấp tài khoản"
+                    ),
+                )
+                return
         ManagementForm(
             self.winfo_toplevel(),
             self._context,
             self.kind,
             item=item,
             stores=self.stores,
+            profiles=self.profiles,
             runner=self.runner,
             on_saved=lambda _: self.reload(),
+        )
+
+    def open_profile_form(self, profile=None):
+        EmployeeProfileForm(
+            self.winfo_toplevel(),
+            self._context,
+            self.stores,
+            profile=profile,
+            runner=self.runner,
+            on_saved=lambda _: self.reload(),
+        )
+
+    def open_password_reset(self, employee):
+        EmployeePasswordResetForm(
+            self.winfo_toplevel(),
+            self._context,
+            employee,
+            runner=self.runner,
+            on_saved=lambda _: self.reload(),
+        )
+
+    def open_store_assignment(self, employee):
+        def loaded(assigned):
+            ManagerStoreAssignmentForm(
+                self.winfo_toplevel(),
+                self._context,
+                employee,
+                self.stores,
+                assigned,
+                runner=self.runner,
+                on_saved=lambda _: self.reload(),
+            )
+
+        self.runner.submit(
+            self,
+            lambda: self._context.services.management.list_manager_store_assignments(
+                self._context.session, employee.id
+            ),
+            loaded,
+            lambda exc: notify_error(self, exc),
         )
 
     def shutdown(self):

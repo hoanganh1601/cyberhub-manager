@@ -60,3 +60,22 @@ def test_customer_workspace_readonly(tk_root, context):
     tk_root.update_idletasks()
     assert len(view.body.winfo_children()) == 4
     view.destroy()
+
+
+def test_separated_employee_page_loads_accounts_and_profiles(tk_root, monkeypatch):
+    monkeypatch.setenv("CYBERHUB_RBAC_POLICY", "separated")
+    bundle = build_mock_services(p1=True)
+    actor = bundle.auth.login("admin01", "demo123")
+    context = ViewContext(bundle, actor, "en", lambda _: True)
+    view = ManagementView(
+        tk_root, context, kind="employees", runner=ImmediateTaskRunner()
+    )
+    view.pack(fill="both", expand=True)
+    tk_root.update_idletasks()
+
+    assert view.items
+    assert view.profiles
+    view._set_employee_mode("Personnel profile")
+    assert view.employee_mode == "profiles"
+    assert view.table.winfo_children()
+    view.destroy()
