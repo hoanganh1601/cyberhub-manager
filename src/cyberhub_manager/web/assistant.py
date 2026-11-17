@@ -16,6 +16,7 @@ from cyberhub_manager.ai.policy_store import (
 from cyberhub_manager.ai.retrieval import normalize_question
 from cyberhub_manager.ai.service import RAGAssistantService
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
+from cyberhub_manager.domain.p1 import chain_director
 from .assistant_context import analytics_sources, personalized_sources, validate_mode
 
 _blueprint = Blueprint("assistant", __name__)
@@ -70,7 +71,7 @@ def _access(language: str, *, revalidate: bool = False, mode: str = "knowledge")
     if revalidate:
         actor = g.services.management.validate_actor(actor)
     store_ids = (actor.store_id,)
-    if actor.role.value == "ADMIN" and mode == "analytics":
+    if chain_director(actor.role) and mode == "analytics":
         store_ids = tuple(
             store.id for store in g.services.management.list_stores(actor)
             if store.status == "ACTIVE"

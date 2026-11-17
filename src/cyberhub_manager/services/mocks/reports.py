@@ -16,6 +16,7 @@ from cyberhub_manager.domain.dtos import (
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import InvoiceStatus, Role
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
+from cyberhub_manager.domain.p1 import Permission, can, chain_director
 
 from .base import MockServiceBase, clean_text, raise_if_errors
 from .store import VN_TZ, local_date
@@ -106,7 +107,7 @@ class MockReportService(MockServiceBase):
         """Demo equivalent of the de-identified, role-scoped 5B snapshot."""
         if (
             not isinstance(actor, EmployeeSession)
-            or actor.role not in (Role.MANAGER, Role.ADMIN)
+            or not can(actor.role, Permission.VIEW_REVENUE)
             or type(store_ids) is not tuple
             or not store_ids
             or any(type(store_id) is not int or store_id <= 0 for store_id in store_ids)
@@ -115,7 +116,7 @@ class MockReportService(MockServiceBase):
         raise_if_errors(_date_range_errors(date_from, date_to, required=True))
         if (date_to - date_from).days not in (6, 29, 89):
             raise ValidationError(field_errors={"days": "Chọn kỳ 7, 30 hoặc 90 ngày"})
-        if actor.role == Role.MANAGER and store_ids != (actor.store_id,):
+        if not chain_director(actor.role) and store_ids != (actor.store_id,):
             raise PermissionDeniedError()
         period_days = (date_to - date_from).days + 1
         previous_from = date_from - timedelta(days=period_days)
@@ -125,7 +126,7 @@ class MockReportService(MockServiceBase):
             store = self._data.stores.get(store_id)
             if store is None or store.status.value != "ACTIVE":
                 raise PermissionDeniedError()
-            if actor.role != Role.ADMIN and store_id != actor.store_id:
+            if not chain_director(actor.role) and store_id != actor.store_id:
                 raise PermissionDeniedError()
             current = self.daily_revenue(store_id, date_from, date_to)
             previous = self.daily_revenue(store_id, previous_from, previous_to)

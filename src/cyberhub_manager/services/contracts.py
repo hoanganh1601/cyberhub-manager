@@ -503,3 +503,4 @@ class ServiceBundle:
     maintenance: MaintenanceServiceProtocol | None = None
     procurement: ProcurementServiceProtocol | None = None
     commercial: CommercialServiceProtocol | None = None
+    customer_email: object | None = None

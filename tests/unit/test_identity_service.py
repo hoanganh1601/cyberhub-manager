@@ -33,13 +33,19 @@ class AuthRepo:
 
 
 class StoreRepo:
-    def __init__(self, stores):
+    def __init__(self, stores, assignments=()):
         self.stores = stores
+        self.assignments = set(assignments)
 
     def store(self, conn, store_id, lock=False):
         assert conn is CONNECTION
         assert lock == "share"
         return self.stores.get(store_id)
+
+    def assigned_store_ids(self, conn, employee_id):
+        assert conn is CONNECTION
+        assert employee_id == 7
+        return self.assignments
 
 
 CONNECTION = object()
@@ -50,10 +56,10 @@ def transaction():
     yield CONNECTION
 
 
-def service(current, stores=None):
+def service(current, stores=None, assignments=()):
     return IdentityService(
         auth_repo=AuthRepo(current),
-        store_repo=StoreRepo(stores or {}),
+        store_repo=StoreRepo(stores or {}, assignments),
         transaction_factory=transaction,
     )
 
@@ -90,3 +96,9 @@ def test_admin_can_switch_to_an_active_store():
 def test_non_admin_cannot_switch_store():
     with pytest.raises(PermissionDeniedError):
         service(actor(role=Role.MANAGER)).resolve(7, 3, 2)
+
+
+def test_manager_can_switch_only_to_an_explicitly_assigned_store():
+    stores = {2: SimpleNamespace(id=2, code="STORE-2", name="Store 2", status="ACTIVE")}
+    resolved = service(actor(role=Role.MANAGER), stores, assignments={2}).resolve(7, 3, 2)
+    assert resolved.store_id == 2

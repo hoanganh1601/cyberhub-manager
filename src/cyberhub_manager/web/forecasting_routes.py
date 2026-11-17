@@ -14,7 +14,7 @@ from cyberhub_manager.services.forecasting.dashboard import ForecastDashboardSer
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
-def register_forecasting_routes(app, *, reply, manager_only) -> None:
+def register_forecasting_routes(app, *, reply, revenue_reader) -> None:
     output_dir = Path(
         os.getenv(
             "CYBERHUB_FORECAST_DIR",
@@ -24,7 +24,7 @@ def register_forecasting_routes(app, *, reply, manager_only) -> None:
     service = ForecastDashboardService(output_dir)
 
     @app.get("/api/forecasting")
-    @manager_only
+    @revenue_reader
     def forecasting_dashboard():
         try:
             horizon_days = int(request.args.get("days", "7"))

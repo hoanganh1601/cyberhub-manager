@@ -9,6 +9,8 @@ cổng khách hàng và xuất/in hóa đơn. Xem [hướng dẫn chạy và ngh
 Vận hành MySQL có quy trình ca/két, sự cố bảo trì máy và mua hàng
 nhà cung cấp. Xem [nghiệp vụ và phân quyền](docs/OPERATIONS_PHASE7.md).
 
+RBAC có vai trò `DIRECTOR` và chính sách chuyển đổi không đổi quyền tài khoản hiện có. Xem [thiết kế RBAC](docs/RBAC_DESIGN.md) và [ma trận quyền](docs/RBAC_PERMISSION_MATRIX.md) trước khi bật `CYBERHUB_RBAC_POLICY=separated`.
+
 Web khách hàng đợt 1 có dashboard, biểu đồ chi tiêu, ưu đãi theo cơ sở, lịch sử phân trang
 và thông báo đã đọc. Xem [hướng dẫn chạy và kiểm tra](docs/CUSTOMER_PORTAL_PHASE1.md).
 

@@ -16,6 +16,7 @@ import customtkinter as ctk
 
 from ...domain.dtos import EmployeeSession, MachineSummary
 from ...domain.enums import MachineStatus, Role
+from ...domain.p1 import Permission, can
 from ..formatters import format_duration, format_money
 from ..theme import (
     BG_ALERT_DANGER,
@@ -270,7 +271,7 @@ class MachineCard(ctk.CTkFrame):
 
         elif machine.status == MachineStatus.MAINTENANCE:
             # Chỉ Manager hoặc Admin mới có quyền bật lại máy bảo trì
-            if actor.role in (Role.MANAGER, Role.ADMIN):
+            if can(actor.role, Permission.MANAGE_MACHINES):
                 self._action_btn.configure(
                     text="Bật lại",
                     kind="secondary",

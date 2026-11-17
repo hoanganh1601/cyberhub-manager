@@ -26,6 +26,7 @@ from ..services.contracts import ServiceBundle
 from .components import ConfirmDialog, ToastManager
 from .components.sidebar_button import SidebarButton
 from ..domain.enums import Role
+from ..domain.p1 import Permission, can
 from .sidebar_icons import sidebar_icon
 from .i18n import Language, normalize_language, translate
 from .messages import MSG_CANCEL, MSG_OPERATION_FAILED, get_user_friendly_error
@@ -226,7 +227,8 @@ class AppShell(ctk.CTkFrame):
         self._build_main()
         self._apply_language()
         self._bind_shortcuts()
-        self.navigate(DEFAULT_NAV_KEY)
+        initial_key = DEFAULT_NAV_KEY if can_access(self._session.role, DEFAULT_NAV_KEY) else visible_nav_items(self._session.role)[0].key
+        self.navigate(initial_key)
 
     # ------------------------------------------------------------------
     # Thuộc tính công khai (dùng cho test và composition root)
@@ -339,7 +341,7 @@ class AppShell(ctk.CTkFrame):
             corner_radius=STITCH_RADIUS,
         )
         chip.pack(side="left", padx=(20, 12))
-        if session.role == Role.ADMIN and self._on_store_change:
+        if can(session.role, Permission.SWITCH_STORE) and self._on_store_change:
             ctk.CTkButton(chip,text="⌄",width=26,height=24,command=self._choose_store).pack(side="right",padx=4)
         ctk.CTkLabel(
             chip, text="⌂", font=FONT_ST_BODY_STRONG, text_color=STITCH_CYAN, height=24

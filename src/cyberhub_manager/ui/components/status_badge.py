@@ -74,6 +74,7 @@ _STYLE_MAPPING: dict[tuple[type, str], tuple[str, str, str, str]] = {
 
     # Role
     (Role, Role.ADMIN.value): ("Admin", "★", DANGER, BG_DANGER_SUBTLE),
+    (Role, Role.DIRECTOR.value): ("Giám đốc", "◆", INFO, BG_INFO_SUBTLE),
     (Role, Role.MANAGER.value): ("Quản lý", "◆", INFO, BG_INFO_SUBTLE),
     (Role, Role.STAFF.value): ("Nhân viên", "●", SUCCESS, BG_SUCCESS_SUBTLE),
 }

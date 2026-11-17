@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from hmac import compare_digest
 from importlib.resources import files
+import re
 import secrets
 from threading import RLock
 from time import monotonic
@@ -35,6 +36,7 @@ from cyberhub_manager.domain.exceptions import (
 )
 from cyberhub_manager.services.bootstrap import create_service_bundle
 from cyberhub_manager.domain.p1 import CustomerSession
+from cyberhub_manager.domain.p1 import Permission, can, permissions_for
 from cyberhub_manager.web.demo import DemoRegistry, build_demo_bundle
 from cyberhub_manager.web.config import configure_web_app
 from cyberhub_manager.web.serialization import serialize
@@ -132,7 +134,9 @@ def create_app(config: dict | None = None) -> Flask:
                     "Invalid request token. Please reload the page.",
                     403,
                 )
-        if request.path not in ("/api/login", "/api/register"):
+        if request.path not in ("/api/login", "/api/register", "/api/customer-email/activate",
+                                "/api/customer-email/request-reset", "/api/customer-email/reset",
+                                "/api/customer-email/resend"):
             g.actor = current_actor()
             customer_route = request.path.startswith("/api/portal/")
             if customer_route and g.customer is None:
@@ -156,6 +160,23 @@ def create_app(config: dict | None = None) -> Flask:
                     "You must change the temporary password before continuing.",
                     403,
                 )
+            if g.actor is not None and app.config["RBAC_POLICY"] == "separated" and g.actor.role == Role.ADMIN:
+                credential_path = (
+                    (request.method == "GET" and request.path in
+                     ("/api/session", "/api/management", "/api/stores", "/api/employees", "/api/employee-profiles"))
+                    or (request.method == "POST" and request.path in
+                        ("/api/logout", "/api/employee/password", "/api/employees"))
+                    or (request.method == "PATCH" and
+                        re.fullmatch(r"/api/employees/[1-9][0-9]*", request.path))
+                    or (request.method == "POST" and
+                        re.fullmatch(r"/api/employees/[1-9][0-9]*/reset-password", request.path))
+                    or (request.method == "POST" and
+                        re.fullmatch(r"/api/employees/[1-9][0-9]*/store-assignments", request.path))
+                    or (request.method == "GET" and
+                        re.fullmatch(r"/api/employees/[1-9][0-9]*/store-assignments", request.path))
+                )
+                if not credential_path:
+                    raise PermissionDeniedError()
         return None
 
     from .assistant import register_assistant
@@ -165,6 +186,44 @@ def create_app(config: dict | None = None) -> Flask:
         from cyberhub_manager.ai.runtime import configure_assistant
         configure_assistant(app)
     register_assistant(app)
+
+    @app.get("/activate")
+    @app.get("/reset-password")
+    def customer_email_page():
+        response = send_from_directory(app.static_folder, "customer_email.html")
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.post("/api/customer-email/activate")
+    def activate_customer_email():
+        if demo:
+            raise PermissionDeniedError()
+        data = body()
+        if data.get("password") != data.get("confirmation"):
+            raise ValidationError(field_errors={"confirmation": "Mật khẩu xác nhận không khớp"})
+        return reply(real_services.customer_email.activate(data.get("token"), data.get("password")))
+
+    @app.post("/api/customer-email/request-reset")
+    def request_customer_reset():
+        if demo:
+            raise PermissionDeniedError()
+        return reply(real_services.customer_email.request_reset(body().get("email")))
+
+    @app.post("/api/customer-email/resend")
+    def resend_customer_activation():
+        if demo:
+            raise PermissionDeniedError()
+        return reply(real_services.customer_email.resend_activation(body().get("email")))
+
+    @app.post("/api/customer-email/reset")
+    def reset_customer_password():
+        if demo:
+            raise PermissionDeniedError()
+        data = body()
+        if data.get("password") != data.get("confirmation"):
+            raise ValidationError(field_errors={"confirmation": "Mật khẩu xác nhận không khớp"})
+        return reply(real_services.customer_email.reset_password(data.get("token"), data.get("password")))
 
     @app.teardown_request
     def release_workspace(_exc):
@@ -280,14 +339,17 @@ def create_app(config: dict | None = None) -> Flask:
             500,
         )
 
-    def manager_only(func):
-        @wraps(func)
-        def decorated(*args, **kwargs):
-            if g.actor.role not in (Role.MANAGER, Role.ADMIN):
-                raise PermissionDeniedError()
-            return func(*args, **kwargs)
+    def require_permission(permission):
+        def decorate(func):
+            @wraps(func)
+            def decorated(*args, **kwargs):
+                if not can(g.actor.role, permission):
+                    raise PermissionDeniedError()
+                return func(*args, **kwargs)
+            return decorated
+        return decorate
 
-        return decorated
+    revenue_reader = require_permission(Permission.VIEW_REVENUE)
 
     def body() -> dict:
         value = request.get_json(silent=True)
@@ -350,9 +412,11 @@ def create_app(config: dict | None = None) -> Flask:
         return reply(
             dict(
                 actor=g.actor,
+                permissions=sorted(str(p) for p in permissions_for(g.actor.role)) if g.actor else [],
                 customer=getattr(g,"customer",None),
                 csrf_token=session["csrf"],
                 mode=app.config["WEB_MODE"],
+                rbac_policy=app.config["RBAC_POLICY"],
                 today=today(),
             )
         )
@@ -405,9 +469,11 @@ def create_app(config: dict | None = None) -> Flask:
         return reply(
             dict(
                 actor=None if customer_login else actor,
+                permissions=sorted(str(p) for p in permissions_for(actor.role)) if not customer_login else [],
                 customer=actor if customer_login else None,
                 csrf_token=session["csrf"],
                 mode=app.config["WEB_MODE"],
+                rbac_policy=app.config["RBAC_POLICY"],
                 today=today(),
             )
         )
@@ -464,7 +530,8 @@ def create_app(config: dict | None = None) -> Flask:
         method=method,
         query_date=query_date,
         today=today,
-        manager_only=manager_only,
+        revenue_reader=revenue_reader,
+        require_permission=require_permission,
         english=english,
         registry=registry,
         demo=demo,
@@ -480,6 +547,6 @@ def create_app(config: dict | None = None) -> Flask:
 
     register_business_routes(app, reply=reply, body=body)
 
-    register_forecasting_routes(app, reply=reply, manager_only=manager_only)
+    register_forecasting_routes(app, reply=reply, revenue_reader=revenue_reader)
 
     return app

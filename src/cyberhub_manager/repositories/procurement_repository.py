@@ -117,13 +117,24 @@ class ProcurementRepository:
                        (receipt_id,order["supplier_id"],order["store_id"],amount,due_date))
 
     def list_payables(self, conn, store_id):
-        return rows(conn,"SELECT p.*,s.name AS supplier_name,r.code AS receipt_code FROM supplier_payables p "
+        return rows(conn,"SELECT p.*,s.name AS supplier_name,r.code AS receipt_code,"
+                    "a.approved_by,a.approved_at,a.note AS approval_note FROM supplier_payables p "
                     "JOIN suppliers s ON s.id=p.supplier_id JOIN goods_receipts r ON r.id=p.receipt_id "
+                    "LEFT JOIN supplier_payable_approvals a ON a.payable_id=p.id "
                     "WHERE p.store_id=%s ORDER BY p.status,p.due_date,p.id",(store_id,))
 
     def payable(self, conn, payable_id, *, lock=False):
         result=rows(conn,"SELECT * FROM supplier_payables WHERE id=%s"+(" FOR UPDATE" if lock else ""),(payable_id,))
         return result[0] if result else None
+
+    def payable_approval(self, conn, payable_id):
+        result=rows(conn,"SELECT payable_id,approved_by,approved_at,note "
+                    "FROM supplier_payable_approvals WHERE payable_id=%s",(payable_id,))
+        return result[0] if result else None
+
+    def approve_payable(self, conn, payable_id, approver_id, note):
+        return execute(conn,"INSERT INTO supplier_payable_approvals(payable_id,approved_by,note) "
+                       "VALUES(%s,%s,%s)",(payable_id,approver_id,note))
 
     def pay(self, conn, payable_id, employee_id, method):
         return execute(conn,"UPDATE supplier_payables SET paid_amount=amount,status='PAID',paid_at=UTC_TIMESTAMP(),"

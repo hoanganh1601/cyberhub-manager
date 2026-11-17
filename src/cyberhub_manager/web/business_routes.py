@@ -100,6 +100,11 @@ def register_business_routes(app, *, reply, body):
         return reply(service("procurement").pay_payable(
             g.actor, payable_id, body().get("method")))
 
+    @app.post("/api/procurement/payables/<int:payable_id>/approve")
+    def procurement_approve_payable(payable_id):
+        return reply(service("procurement").approve_payable(
+            g.actor, payable_id, body().get("note")))
+
     @app.get("/api/commercial")
     def commercial_overview():
         return reply(service("commercial").overview(g.actor))

@@ -40,8 +40,10 @@ def test_every_business_table_and_foreign_key_is_documented(db_conn):
                   "commercial_partners", "commercial_contracts", "commercial_campaigns",
                   "commercial_placements", "commercial_play_sessions", "commercial_events",
                   "commercial_reward_grants", "commercial_settlements",
-                  "commercial_settlement_lines"):
+                  "commercial_settlement_lines", "employee_profiles", "employee_store_assignments",
+                  "customer_store_links", "supplier_payable_approvals", "customer_email_tokens",
+                  "customer_mail_outbox", "customer_security_audit"):
         assert f"### {table}" in content
-    # 73 khóa ngoại đến migration 020 + 22 khóa ngoại của migration 024.
-    assert content.count(" — 0..") == 95
+    # 73 khóa ngoại đến migration 020 + 22 của 024 + 9 của 026 + 5 của 027.
+    assert content.count(" — 0..") == 109
     assert "password_hash" in content and "bcrypt" in content

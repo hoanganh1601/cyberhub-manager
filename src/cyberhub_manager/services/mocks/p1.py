@@ -15,7 +15,7 @@ from cyberhub_manager.domain.enums import (
 )
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.domain.models import Employee, Store
-from cyberhub_manager.domain.p1 import CustomerSession, EmployeeSummary, StoreSummary
+from cyberhub_manager.domain.p1 import CustomerSession, EmployeeSummary, StoreSummary, Permission, can
 from cyberhub_manager.security import hash_password
 from .portal import MemoryPortalRepositoryMixin
 from .loyalty import MemoryLoyaltyRepositoryMixin
@@ -102,7 +102,7 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
         if (
             target is None
             or target.status != "ACTIVE"
-            or employee.role != Role.ADMIN
+            or not can(employee.role, Permission.SWITCH_STORE)
             and employee.store_id != actor.store_id
         ):
             raise PermissionDeniedError()
@@ -180,6 +180,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
             if old is None:
                 self.data.employee_must_change_password[employee_id] = True
         if old:
+            if (old.store_id, old.username, str(old.role), str(old.status)) != (store_id, username, role, status):
+                self.data.employee_auth_versions[employee_id] = self.data.employee_auth_versions.get(employee_id, 0) + 1
             if (
                 employee_id not in self.data.employee_password_hashes
                 and old.username in self.data.employee_passwords

@@ -14,7 +14,6 @@ from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import (
     EmployeeStatus,
     PaymentMethod,
-    Role,
     TransactionType,
 )
 from cyberhub_manager.domain.exceptions import (
@@ -22,12 +21,12 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import AccountTransaction, Employee
+from cyberhub_manager.domain.p1 import Permission, can
 
 from .clock import MockClock
 from .scenarios import MockScenario, scenario_error
 from .store import MockDataStore
 
-MANAGER_ROLES = frozenset({Role.MANAGER, Role.ADMIN})
 CASH_METHODS = frozenset({PaymentMethod.CASH, PaymentMethod.TRANSFER})
 
 _PHONE_PATTERN = re.compile(r"0[0-9]{9}")
@@ -120,7 +119,7 @@ class MockServiceBase:
         if (
             employee is None
             or employee.status != EmployeeStatus.ACTIVE
-            or employee.store_id != actor.store_id and employee.role != Role.ADMIN
+            or employee.store_id != actor.store_id and not can(employee.role, Permission.SWITCH_STORE)
             or employee.role != actor.role
         ):
             raise PermissionDeniedError()
@@ -130,7 +129,7 @@ class MockServiceBase:
 
     def _require_manager(self, actor: EmployeeSession) -> Employee:
         employee = self._require_actor(actor)
-        if employee.role not in MANAGER_ROLES:
+        if not can(employee.role, Permission.MANAGE_MACHINES):
             raise PermissionDeniedError()
         return employee
 

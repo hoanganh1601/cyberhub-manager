@@ -21,6 +21,7 @@ import customtkinter as ctk
 from ..domain.dtos import MachineArchiveResult, MachineSummary
 from ..domain.enums import MachineArchiveAction, MachineStatus
 from ..domain.models import Machine
+from ..domain.p1 import Permission, can
 from .app_shell import ViewContext, role_label
 from .i18n import UIStrings
 from .background import TaskRunner, default_runner
@@ -35,7 +36,6 @@ from .dialogs.machine_dialog import MachineDialog
 from .feedback import notify_error, notify_success
 from .formatters import format_datetime
 from .messages import MSG_LOADING, MSG_NO_DATA, MSG_RETRY, get_user_friendly_error
-from .navigation import MANAGEMENT_ROLES
 from .state import ViewState
 from .table_kit import Page, bind_hover, build_pager
 from .table_kit import paginate as _paginate
@@ -255,7 +255,7 @@ class MachineManagementView(ctk.CTkFrame):
         self._build_table()
         self._build_footer()
 
-        if context.session.role not in MANAGEMENT_ROLES:
+        if not can(context.session.role, Permission.MANAGE_MACHINES):
             # Phòng thủ: App Shell đã chặn, nhưng view vẫn không tải dữ liệu cho STAFF.
             self._add_button.set_enabled(False)
             self._show_state(ViewState.ERROR, get_user_friendly_error("PERMISSION_DENIED"))

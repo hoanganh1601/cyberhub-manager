@@ -57,6 +57,7 @@ from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 from cyberhub_manager.domain.identifiers import new_transaction_code
+from cyberhub_manager.domain.p1 import Permission, can, separated_rbac, chain_director
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
@@ -489,7 +490,8 @@ class SessionService:
 
         current = operating_actor(conn,self._auth,actor)
         # Role lấy từ DB; actor khai role khác DB (vd. STAFF tự nhận MANAGER) bị từ chối.
-        if requested_actor.role != current.role or current.role not in SESSION_ROLES:
+        if (requested_actor.role != current.role or current.role not in SESSION_ROLES
+                or not can(current.role, Permission.OPERATE)):
             raise PermissionDeniedError()
         return current
 
@@ -517,6 +519,9 @@ class SessionService:
             raise _conflict("machine_id", MACHINE_BUSY)
 
         customer = self._get_customer(conn, customer_id)
+        if (separated_rbac() and not chain_director(current.role)
+                and not self._customers.has_store_link(conn, customer_id, current.store_id)):
+            raise NotFoundError(CUSTOMER_NOT_FOUND)
         if customer.status != CustomerStatus.ACTIVE:
             raise _conflict("customer_id", CUSTOMER_INACTIVE)
         # Khi mở phiên, khóa dòng account để số dư không đổi giữa lúc kiểm tra và insert.

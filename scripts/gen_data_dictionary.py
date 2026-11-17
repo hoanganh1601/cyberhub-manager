@@ -25,7 +25,10 @@ DEFAULT_DATABASE = "cyberhub_manager_test"
 TABLES = (
     "stores",
     "employees",
+    "employee_profiles",
+    "employee_store_assignments",
     "customers",
+    "customer_store_links",
     "accounts",
     "machines",
     "usage_sessions",
@@ -77,6 +80,10 @@ TABLES = (
     "commercial_reward_grants",
     "commercial_settlements",
     "commercial_settlement_lines",
+    "supplier_payable_approvals",
+    "customer_email_tokens",
+    "customer_mail_outbox",
+    "customer_security_audit",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -101,7 +108,7 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "full_name": "Họ tên.",
             "username": "Tên đăng nhập, duy nhất, 4–30 ký tự.",
             "password_hash": "Mật khẩu đã băm bcrypt; không bao giờ trả ra UI/DTO.",
-            "role": "`ADMIN` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác.",
+            "role": "`ADMIN` / `DIRECTOR` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác.",
             "status": "`ACTIVE` / `INACTIVE` / `LOCKED`. Chỉ ACTIVE đăng nhập được.",
             "auth_version": "Phiên bản xác thực; tăng khi đổi/đặt lại mật khẩu để thu hồi phiên cũ.",
             "must_change_password": "TRUE khi tài khoản đang dùng mật khẩu tạm và phải đổi trước khi thao tác.",
@@ -117,6 +124,7 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "code": "Mã khách hàng, duy nhất (`CUS-` + hex).",
             "full_name": "Họ tên, 2–100 ký tự.",
             "phone": "Số điện thoại 10 số bắt đầu bằng 0, duy nhất.",
+            "email": "Email đăng ký/kích hoạt tài khoản; NULL với tài khoản cũ chưa xác minh, UNIQUE nếu có.",
             "status": "`ACTIVE` / `INACTIVE`. Khách INACTIVE không được mở phiên mới.",
             "created_at": "Thời điểm tạo (UTC).",
             "updated_at": "Thời điểm sửa gần nhất (UTC).",
@@ -130,6 +138,8 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "customer_id": "Khách sở hữu tài khoản; UNIQUE nên mỗi khách tối đa một tài khoản.",
             "username": "Tên đăng nhập máy trạm, duy nhất, chữ/số/`_`/`.`, 4–30 ký tự.",
             "password_hash": "Mật khẩu đã băm bcrypt.",
+            "web_login_enabled": "FALSE khi tài khoản đăng ký tại quầy chưa kích hoạt email; TRUE mới cho đăng nhập web.",
+            "email_verified_at": "Thời điểm email được xác minh khi kích hoạt (UTC); NULL nếu chưa xác minh.",
             "balance": "Số dư sổ cái (VND), có dấu để hỗ trợ dữ liệu nợ. Cảnh báo âm trong phiên dùng số dư dự kiến; checkout P0 phải bù đủ để số dư cuối không âm. Mọi thay đổi phải kèm `account_transactions`.",
             "status": "`ACTIVE` / `LOCKED`. LOCKED không mở phiên được nhưng vẫn nạp tiền để trả nợ.",
             "created_at": "Thời điểm tạo (UTC).",
@@ -203,6 +213,67 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
 
 DESCRIPTIONS["accounts"][1].update({"bonus_balance":"Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt.","cash_balance":"Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính."})
 DESCRIPTIONS["accounts"][1]["auth_version"]="Phiên bản xác thực khách hàng; tăng khi đổi mật khẩu để thu hồi các phiên cũ."
+DESCRIPTIONS["employee_profiles"] = (
+    "Hồ sơ nhân sự độc lập với thông tin xác thực; DIRECTOR/MANAGER quản lý nghiệp vụ, ADMIN chỉ gắn/cấp tài khoản.",
+    {
+        "id": "Khóa chính.", "employee_id": "Tài khoản nhân viên được gắn; NULL khi mới tạo hồ sơ, UNIQUE khi đã cấp tài khoản.",
+        "code": "Mã hồ sơ nhân sự, duy nhất.", "home_store_id": "Cơ sở công tác chính.",
+        "full_name": "Họ tên nhân sự.", "employment_status": "`ACTIVE` / `INACTIVE`, tách khỏi trạng thái khóa đăng nhập.",
+        "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm sửa gần nhất (UTC).",
+    },
+)
+DESCRIPTIONS["employee_store_assignments"] = (
+    "Phân công bổ sung cho MANAGER được vận hành tại nhiều cơ sở; không thay đổi cơ sở chính trong hồ sơ.",
+    {
+        "employee_id": "Nhân viên được phân công; phần thứ nhất của khóa chính.",
+        "store_id": "Cơ sở được phép vận hành; phần thứ hai của khóa chính.",
+        "granted_by": "ADMIN đã cấp quyền phân công.", "granted_at": "Thời điểm cấp (UTC).",
+    },
+)
+DESCRIPTIONS["customer_store_links"] = (
+    "Phạm vi khách hàng tại từng cơ sở, suy ra từ giao dịch/phiên hoặc liên kết được xác minh tại quầy.",
+    {
+        "customer_id": "Khách hàng; phần thứ nhất của khóa chính.", "store_id": "Cơ sở liên quan; phần thứ hai của khóa chính.",
+        "source": "Nguồn chứng minh liên kết, ví dụ `INVOICE`, `SESSION` hoặc đăng ký tại quầy.",
+        "created_at": "Thời điểm lập liên kết (UTC).",
+    },
+)
+DESCRIPTIONS["supplier_payable_approvals"] = (
+    "Bản ghi duyệt công nợ nhà cung cấp; dùng kiểm soát phân tách người duyệt và người chi.",
+    {
+        "payable_id": "Công nợ được duyệt; khóa chính/FK nên mỗi công nợ được duyệt tối đa một lần.",
+        "approved_by": "Nhân viên phê duyệt, phải khác người thanh toán theo service trong chính sách tách quyền.",
+        "approved_at": "Thời điểm duyệt (UTC).", "note": "Ghi chú duyệt bắt buộc.",
+    },
+)
+DESCRIPTIONS["customer_email_tokens"] = (
+    "Token kích hoạt/đặt lại mật khẩu khách; chỉ lưu hash và nonce dẫn xuất, token thô không được lưu.",
+    {
+        "id": "Khóa chính.", "account_id": "Tài khoản khách nhận token.",
+        "purpose": "`ACTIVATE` hoặc `RESET`.", "token_hash": "SHA-256 token thô; UNIQUE, dùng tra cứu/xác thực.",
+        "nonce": "Nonce ngẫu nhiên dùng dẫn xuất token cho worker, không phải token thô.",
+        "expires_at": "Hạn sử dụng (UTC).", "used_at": "Thời điểm dùng thành công; NULL nếu chưa dùng.",
+        "created_at": "Thời điểm phát hành (UTC).",
+    },
+)
+DESCRIPTIONS["customer_mail_outbox"] = (
+    "Transactional outbox gửi email khách sau khi transaction đăng ký/reset đã commit.",
+    {
+        "id": "Khóa chính.", "token_id": "Token cần gửi; UNIQUE để tránh gửi trùng outbox.",
+        "status": "`PENDING` / `SENDING` / `SENT` / `FAILED`.", "attempts": "Số lần worker đã thử gửi.",
+        "next_attempt_at": "Thời điểm đủ điều kiện thử lại (UTC).", "sent_at": "Thời điểm gửi thành công (UTC).",
+        "last_error": "Thông báo lỗi rút gọn của lần gửi gần nhất.",
+    },
+)
+DESCRIPTIONS["customer_security_audit"] = (
+    "Audit bất biến cho thao tác kích hoạt, đặt lại mật khẩu và các sự kiện bảo mật khách.",
+    {
+        "id": "Khóa chính.", "account_id": "Tài khoản khách chịu tác động.",
+        "employee_id": "Nhân viên liên quan nếu thao tác tại quầy; NULL với luồng email tự phục vụ.",
+        "store_id": "Cơ sở liên quan nếu có; NULL với luồng web tự phục vụ.",
+        "action": "Tên sự kiện bảo mật.", "created_at": "Thời điểm ghi audit (UTC).",
+    },
+)
 DESCRIPTIONS["invoices"][1].update({
     "loyalty_eligible_amount":"Phí trả bằng tiền chính/tiền bù (không gồm bonus_used), chụp khi lập hóa đơn; chỉ cộng PAID vào xét hạng.",
     "loyalty_points":"Điểm chụp lúc lập hóa đơn; chỉ cộng PAID, VOID có hiệu lực 0 điểm. Không đổi ra tiền.",
@@ -639,7 +710,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: các migration `sql/001_*.sql` đến `sql/024_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/027_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")

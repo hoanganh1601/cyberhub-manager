@@ -12,7 +12,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.loyalty import LoyaltySettings
-from cyberhub_manager.domain.p1 import Promotion, ROLE_PERMISSIONS
+from cyberhub_manager.domain.p1 import Permission, Promotion, permissions_for
 from cyberhub_manager.services.invoice_export import invoice_csv, invoice_html
 from cyberhub_manager.web.serialization import customer_public, machine_public, serialize
 
@@ -29,7 +29,8 @@ def register_operations_routes(
     method,
     query_date,
     today,
-    manager_only,
+    revenue_reader,
+    require_permission,
     english,
     registry,
     demo,
@@ -38,7 +39,7 @@ def register_operations_routes(
 
     @app.get("/api/management")
     def management_overview():
-        return reply(dict(stores=g.services.management.list_stores(g.actor),permissions=sorted(str(p) for p in ROLE_PERMISSIONS[g.actor.role])))
+        return reply(dict(stores=g.services.management.list_stores(g.actor),permissions=sorted(str(p) for p in permissions_for(g.actor.role))))
 
     @app.post("/api/store/switch")
     def switch_store():
@@ -62,12 +63,35 @@ def register_operations_routes(
     def list_employees():
         return reply(g.services.management.list_employees(g.actor))
 
+    @app.get("/api/employee-profiles")
+    def list_employee_profiles():
+        return reply(g.services.management.list_employee_profiles(g.actor))
+
+    @app.post("/api/employee-profiles")
+    @app.patch("/api/employee-profiles/<int:profile_id>")
+    def save_employee_profile(profile_id=None):
+        d = body()
+        return reply(g.services.management.save_employee_profile(
+            g.actor, profile_id, integer(d, "store_id", minimum=1),
+            text(d, "full_name"), d.get("employment_status", "ACTIVE")))
+
+    @app.post("/api/employees/<int:employee_id>/store-assignments")
+    def set_manager_store_assignment(employee_id):
+        d = body()
+        return reply(g.services.management.set_manager_store_assignment(
+            g.actor, employee_id, integer(d, "store_id", minimum=1), d.get("enabled")))
+
+    @app.get("/api/employees/<int:employee_id>/store-assignments")
+    def list_manager_store_assignments(employee_id):
+        return reply(g.services.management.list_manager_store_assignments(g.actor, employee_id))
+
     @app.route("/api/employees",methods=["POST"])
     @app.route("/api/employees/<int:employee_id>",methods=["PATCH"])
     def save_employee(employee_id=None):
         d = body()
+        profile_id = integer(d, "profile_id", minimum=1) if d.get("profile_id") is not None else None
         return reply(g.services.management.save_employee(g.actor,employee_id,integer(d,"store_id",minimum=1),
-            text(d,"full_name"),text(d,"username"),d.get("role","STAFF"),d.get("status","ACTIVE"),d.get("password","")))
+            text(d,"full_name"),text(d,"username"),d.get("role","STAFF"),d.get("status","ACTIVE"),d.get("password",""),profile_id))
 
     @app.post("/api/employees/<int:employee_id>/reset-password")
     def reset_employee_password(employee_id):
@@ -249,7 +273,7 @@ def register_operations_routes(
         ])
 
     @app.post("/api/machines")
-    @manager_only
+    @require_permission(Permission.MANAGE_MACHINES)
     def create_machine():
         data = body()
         machine = g.services.machines.create_machine(
@@ -262,7 +286,7 @@ def register_operations_routes(
         return reply(machine_public(machine), 201)
 
     @app.patch("/api/machines/<int:machine_id>")
-    @manager_only
+    @require_permission(Permission.MANAGE_MACHINES)
     def update_machine(machine_id):
         data = body()
         return reply(
@@ -277,7 +301,7 @@ def register_operations_routes(
         )
 
     @app.post("/api/machines/<int:machine_id>/maintenance")
-    @manager_only
+    @require_permission(Permission.MANAGE_MACHINES)
     def maintenance(machine_id):
         enabled = body().get("enabled")
         if type(enabled) is not bool:
@@ -289,7 +313,7 @@ def register_operations_routes(
         )
 
     @app.post("/api/machines/<int:machine_id>/archive")
-    @manager_only
+    @require_permission(Permission.MANAGE_MACHINES)
     def archive(machine_id):
         return reply(g.services.machines.archive_machine(machine_id, g.actor))
 
@@ -310,6 +334,12 @@ def register_operations_routes(
             )
         )
 
+    @app.post("/api/customers/link-store")
+    def link_customer_store():
+        data = body()
+        return reply(customer_public(g.services.customers.link_customer_to_store(
+            text(data, "code"), text(data, "phone"))))
+
     @app.post("/api/customers")
     def create_customer():
         data = body()
@@ -325,6 +355,15 @@ def register_operations_routes(
             201,
         )
 
+    @app.post("/api/customers/register-counter")
+    def register_customer_at_counter():
+        if demo or g.services.customer_email is None:
+            raise PermissionDeniedError()
+        data = body()
+        return reply(g.services.customer_email.register_at_counter(
+            data.get("full_name"), data.get("phone"), data.get("email"),
+            data.get("username")), 201)
+
     @app.patch("/api/customers/<int:customer_id>")
     def update_customer(customer_id):
         data = body()
@@ -337,7 +376,7 @@ def register_operations_routes(
         )
 
     @app.post("/api/customers/<int:customer_id>/status")
-    @manager_only
+    @require_permission(Permission.LOCK_CUSTOMERS)
     def customer_status(customer_id):
         value = body().get("status")
         if value not in ("ACTIVE", "INACTIVE"):
@@ -431,7 +470,7 @@ def register_operations_routes(
         return reply(detail)
 
     @app.get("/api/revenue")
-    @manager_only
+    @revenue_reader
     def revenue():
         start = query_date("date_from", today() - timedelta(days=6))
         end = query_date("date_to", today())

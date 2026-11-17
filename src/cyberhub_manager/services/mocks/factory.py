@@ -67,6 +67,9 @@ def build_mock_services(
         admin_id = data.next_id("employee")
         data.employees[admin_id] = Employee(admin_id,data.make_code("employee",admin_id),"Quản trị CyberHub",1,"admin01",Role.ADMIN,EmployeeStatus.ACTIVE)
         data.employee_passwords["admin01"] = DEMO_PASSWORD
+        director_id = data.next_id("employee")
+        data.employees[director_id] = Employee(director_id,data.make_code("employee",director_id),"Giám đốc CyberHub",1,"giamdoc01",Role.DIRECTOR,EmployeeStatus.ACTIVE)
+        data.employee_passwords["giamdoc01"] = DEMO_PASSWORD
         store_id = data.next_id("store")
         data.stores[store_id] = Store(store_id,data.make_code("store",store_id),"CyberHub Hà Đông","Hà Đông, Hà Nội",StoreStatus.ACTIVE,clock.now(),clock.now())
         password_hash = hash_password(DEMO_PASSWORD)

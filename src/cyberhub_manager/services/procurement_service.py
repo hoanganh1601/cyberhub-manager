@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
 from cyberhub_manager.domain.exceptions import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.p1 import Permission, can, separated_rbac
 from cyberhub_manager.domain.procurement import parse_quantity_lines
 from cyberhub_manager.repositories.procurement_repository import ProcurementRepository
 
@@ -36,7 +36,22 @@ class ProcurementService(OperationalServiceBase):
                 can_approve=can(current.role,Permission.PROCUREMENT_APPROVE),
                 can_receive=can(current.role,Permission.PROCUREMENT_RECEIVE),
                 can_pay=can(current.role,Permission.PROCUREMENT_PAY),
+                can_approve_payment=can(current.role,Permission.PROCUREMENT_APPROVE_PAYMENT),
+                approval_required=separated_rbac(),
                 can_manage_suppliers=can(current.role,Permission.PROCUREMENT_MANAGE_SUPPLIERS))
+
+    def approve_payable(self, actor, payable_id, note):
+        note = _text(note, "note", 255)
+        with self._errors(), self._transaction() as conn:
+            current = self._actor(conn, actor, Permission.PROCUREMENT_APPROVE_PAYMENT)
+            payable = self._repo.payable(conn, payable_id, lock=True)
+            if payable is None or payable["store_id"] != current.store_id:
+                raise NotFoundError("Không tìm thấy công nợ")
+            if payable["status"] != "UNPAID" or self._repo.payable_approval(conn, payable_id):
+                raise ConflictError("Công nợ đã được duyệt hoặc thanh toán")
+            self._repo.approve_payable(conn, payable_id, current.employee_id, note)
+            self._audit.audit(conn, current, "SUPPLIER_PAYABLE_APPROVE", payable_id)
+            return self._repo.payable_approval(conn, payable_id)
 
     def save_supplier(self, actor, supplier_id=None, **data):
         code=_text(data.get("code"),"code",24); name=_text(data.get("name"),"name",120)
@@ -134,6 +149,12 @@ class ProcurementService(OperationalServiceBase):
         with self._errors(),self._transaction() as conn:
             current=self._actor(conn,actor,Permission.PROCUREMENT_PAY)
             payable=self._repo.payable(conn,payable_id,lock=True)
+            if separated_rbac() and payable is not None and payable["store_id"] == current.store_id:
+                approval = self._repo.payable_approval(conn, payable_id)
+                if approval is None:
+                    raise ConflictError("Công nợ chưa được phê duyệt")
+                if approval["approved_by"] == current.employee_id:
+                    raise PermissionDeniedError("Người duyệt không được tự thanh toán")
             if payable is None or payable["store_id"]!=current.store_id: raise NotFoundError("Không tìm thấy công nợ")
             if payable["status"]!="UNPAID": raise ConflictError("Công nợ đã được thanh toán")
             self._shifts.record_system_entry(conn,current,kind="EXPENSE",payment_method=method,amount=payable["amount"],

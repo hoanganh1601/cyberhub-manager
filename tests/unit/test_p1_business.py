@@ -251,12 +251,15 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
     }
     assert ROLE_PERMISSIONS[Role.STAFF] == pos | {
         Permission.OPERATE, Permission.EXPORT_INVOICE, Permission.INVENTORY_VIEW,
+        Permission.VIEW_CUSTOMERS, Permission.CREATE_CUSTOMERS,
+        Permission.EDIT_CUSTOMERS, Permission.OPERATE_WALLET,
         Permission.INVENTORY_COUNT,
         Permission.SHIFT_VIEW, Permission.SHIFT_OPERATE,
         Permission.MAINTENANCE_VIEW, Permission.MAINTENANCE_REPORT,
         Permission.MAINTENANCE_UPDATE,
     }
     assert ROLE_PERMISSIONS[Role.MANAGER] == ROLE_PERMISSIONS[Role.STAFF] | {
+        Permission.VIEW_REVENUE,
         Permission.MANAGE_MACHINES,
         Permission.LOCK_CUSTOMERS,
         Permission.MANAGE_EMPLOYEES,
@@ -273,12 +276,14 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
         Permission.PROCUREMENT_VIEW,
         Permission.PROCUREMENT_REQUEST,
         Permission.PROCUREMENT_APPROVE,
+        Permission.PROCUREMENT_APPROVE_PAYMENT,
         Permission.PROCUREMENT_RECEIVE,
         Permission.PROCUREMENT_PAY,
         Permission.PROCUREMENT_MANAGE_SUPPLIERS,
         Permission.COMMERCIAL_VIEW,
     }
     assert ROLE_PERMISSIONS[Role.ADMIN] == ROLE_PERMISSIONS[Role.MANAGER] | {
+        Permission.MANAGE_EMPLOYEE_CREDENTIALS,
         Permission.MANAGE_STORES,
         Permission.SWITCH_STORE,
         Permission.COMMERCIAL_MANAGE,

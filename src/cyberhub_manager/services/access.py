@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 from cyberhub_manager.domain.dtos import EmployeeSession
-from cyberhub_manager.domain.enums import Role
+from cyberhub_manager.domain.p1 import Permission, can
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.repositories.p1_repository import P1Repository
 
@@ -16,9 +16,12 @@ def operating_actor(
         raise PermissionDeniedError()
     if current.store_id == requested.store_id:
         return current
-    if current.role != Role.ADMIN:
-        raise PermissionDeniedError()
     stores = store_repo or P1Repository()
+    if not can(current.role, Permission.SWITCH_STORE):
+        if current.role.value != "MANAGER" or requested.store_id not in stores.assigned_store_ids(
+            conn, current.employee_id
+        ):
+            raise PermissionDeniedError()
     target = stores.store(conn, requested.store_id, lock="share")
     if target is None or target.status != "ACTIVE":
         raise PermissionDeniedError()
