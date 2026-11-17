@@ -374,6 +374,29 @@ let refreshTimer;
 const t = (key) => (copy[key] || [key, key])[state.lang === "en" ? 1 : 0];
 const money = (value) =>
   `${new Intl.NumberFormat(state.lang === "en" ? "en-US" : "vi-VN").format(Number(value) || 0)} VND`;
+const parseVndInput = (value) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits ? Number(digits) : 0;
+};
+const formatVndInput = (value) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  return String(Number(digits)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+function formatVndInputElement(input) {
+  const cursor = input.selectionStart ?? input.value.length;
+  const digitsBeforeCursor = input.value.slice(0, cursor).replace(/\D/g, "").length;
+  const formatted = formatVndInput(input.value);
+  input.value = formatted;
+  let position = 0;
+  let seenDigits = 0;
+  while (position < formatted.length && seenDigits < digitsBeforeCursor) {
+    if (/\d/.test(formatted[position])) seenDigits += 1;
+    position += 1;
+  }
+  input.setSelectionRange(position, position);
+  return parseVndInput(formatted);
+}
 const dt = (value) =>
   value
     ? new Intl.DateTimeFormat(state.lang === "en" ? "en-GB" : "vi-VN", {
@@ -827,7 +850,16 @@ function revenuePage() {
   );
 }
 function field(name, label, value = "", type = "text", extra = "") {
-  return `<label ${extra.includes("wide") ? 'class="wide"' : ""}><span>${t(label)} <span class="cyan">*</span></span><input class="input" name="${name}" value="${esc(value)}" type="${type}" ${type === "number" ? 'step="1" min="1"' : ""} ${type === "password" ? 'autocomplete="new-password"' : ""} required><span class="field-error" data-error="${name}"></span></label>`;
+  const inputType = type === "currency" ? "text" : type;
+  const inputValue = type === "currency" ? formatVndInput(value) : value;
+  const attributes = type === "number"
+    ? 'step="1" min="1"'
+    : type === "currency"
+      ? 'inputmode="numeric" autocomplete="off" maxlength="11" data-vnd-input'
+      : type === "password"
+        ? 'autocomplete="new-password"'
+        : "";
+  return `<label ${extra.includes("wide") ? 'class="wide"' : ""}><span>${t(label)} <span class="cyan">*</span></span><input class="input" name="${name}" value="${esc(inputValue)}" type="${inputType}" ${attributes} required><span class="field-error" data-error="${name}"></span></label>`;
 }
 function modal(
   title,
@@ -904,7 +936,7 @@ async function showTopup(id, returnOpen = null) {
   modal(
     "topup",
     "customersSub",
-    `<div class="form-card"><div class="row between"><strong>${esc(c.full_name)}</strong><span class="table-code">${esc(c.customer_code)}</span></div><div class="row between"><small>${t("balance")}</small><strong class="money">${money(c.balance)}</strong></div></div>${field("amount", "amount", "", "number")}<small>${t("amountHint")}</small><div class="quick-amounts">${[10000, 20000, 50000, 100000].map((amount) => `<button class="btn small" type="button" data-action="quick-amount" data-amount="${amount}">${new Intl.NumberFormat(state.lang).format(amount)}</button>`).join("")}</div><label><span>${t("paymentMethod")}</span><select name="method"><option value="CASH">${t("CASH")}</option><option value="TRANSFER">${t("TRANSFER")}</option></select></label><div class="notice info">${t("transferNote")}</div><label class="check-label"><input type="checkbox" name="received"><span>${t("receivedConfirm")}</span></label><div class="form-card row between"><span>${t("expectedBalance")}</span><strong class="money green" id="topup-balance">—</strong></div>`,
+    `<div class="form-card"><div class="row between"><strong>${esc(c.full_name)}</strong><span class="table-code">${esc(c.customer_code)}</span></div><div class="row between"><small>${t("balance")}</small><strong class="money">${money(c.balance)}</strong></div></div>${field("amount", "amount", "", "currency")}<small>${t("amountHint")}</small><div class="quick-amounts">${[10000, 20000, 50000, 100000].map((amount) => `<button class="btn small" type="button" data-action="quick-amount" data-amount="${amount}">${new Intl.NumberFormat(state.lang).format(amount)}</button>`).join("")}</div><label><span>${t("paymentMethod")}</span><select name="method"><option value="CASH">${t("CASH")}</option><option value="TRANSFER">${t("TRANSFER")}</option></select></label><div class="notice info">${t("transferNote")}</div><label class="check-label"><input type="checkbox" name="received"><span>${t("receivedConfirm")}</span></label><div class="form-card row between"><span>${t("expectedBalance")}</span><strong class="money green" id="topup-balance">—</strong></div>`,
     "topup",
     { id, balance: c.balance, returnOpen },
     "topup",
@@ -993,7 +1025,7 @@ function updateModalControls() {
   if (!modalContext || state.busy) return;
   const form = $("#modal-form");
   if (modalContext.action === "topup") {
-    const amount = Number(form.elements.amount.value);
+    const amount = parseVndInput(form.elements.amount.value);
     const valid =
       Number.isSafeInteger(amount) && amount > 0 && amount <= 100000000;
     $("#topup-balance").textContent = valid
@@ -1071,7 +1103,7 @@ async function submitModal(event) {
     if (context.action === "topup")
       result = await api(`/customers/${context.id}/topup`, {
         method: "POST",
-        body: { amount: Number(values.amount), method: values.method },
+        body: { amount: parseVndInput(values.amount), method: values.method },
       });
     if (
       context.action === "machine-create" ||
@@ -1147,6 +1179,7 @@ document.addEventListener("input", (event) => {
     state.tablePage = 1;
     renderPage();
   }
+  if (event.target.matches("[data-vnd-input]")) formatVndInputElement(event.target);
   if (event.target.closest("#modal")) updateModalControls();
 });
 document.addEventListener("change", (event) => {
@@ -1226,7 +1259,7 @@ document.addEventListener("click", async (event) => {
       await showTopup(id, { machineId: modalContext.id });
     }
     if (action === "quick-amount") {
-      $("[name=amount]", $("#modal")).value = button.dataset.amount;
+      $("[name=amount]", $("#modal")).value = formatVndInput(button.dataset.amount);
       updateModalControls();
     }
     if (action === "machine-create") showMachineForm();
