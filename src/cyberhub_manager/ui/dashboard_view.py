@@ -1,7 +1,7 @@
 """NG-03 — Dashboard tổng quan phòng máy theo Stitch export.
 
 - KPI, tab lọc theo trạng thái, lưới card 4 cột, chân trang "Đang hiển thị X/Y máy".
-- Tự làm mới mỗi 15 giây (docs/04_LINEAR_BACKLOG.md NG-03); shutdown() hủy lịch khi rời màn.
+- Tự làm mới mỗi 15 giây (history/docs/archive/04_LINEAR_BACKLOG.md NG-03); shutdown() hủy lịch khi rời màn.
 - Làm mới nền thất bại: giữ snapshot cũ và đánh dấu "chưa cập nhật" (07 mục 7).
 - Không tự tính phí/số dư: chỉ hiển thị số liệu service trả về (07 mục 4.2).
 - Mở phiên (NG-05): mở OpenSessionDialog, mở xong báo Toast và làm mới ngay.

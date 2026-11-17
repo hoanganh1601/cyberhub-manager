@@ -55,6 +55,10 @@ TABLES = (
     "inventory_counts",
     # Thông báo bền vững theo vòng đời đơn
     "customer_notification_events",
+    # Hoàn/hủy và khuyến mãi POS
+    "pos_order_reversals",
+    "menu_promotions",
+    "menu_order_pricing",
     # Đợt 2 — voucher và phần thưởng
     "reward_catalog",
     "customer_vouchers",
@@ -288,6 +292,25 @@ DESCRIPTIONS["customer_security_audit"] = (
         "action": "Tên sự kiện bảo mật.", "created_at": "Thời điểm ghi audit (UTC).",
     },
 )
+DESCRIPTIONS["pos_order_reversals"] = ("Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt.", {
+    "id":"Khóa chính.", "order_id":"Đơn POS; UNIQUE nên mỗi đơn có tối đa một yêu cầu hoàn/hủy.", "store_id":"Cơ sở xử lý.",
+    "requested_by":"Nhân viên đề nghị.", "reason":"Lý do bắt buộc.", "disposition":"`RESTOCK` hoặc `WASTE`.",
+    "status":"`PENDING` / `APPROVED` / `REJECTED`.", "decided_by":"Quản lý quyết định; NULL khi đang chờ.",
+    "decided_at":"Thời điểm quyết định (UTC).", "refund_amount":"Số tiền hoàn VND.", "refund_method":"`CASH` / `TRANSFER`.",
+    "refund_reference":"Tham chiếu giao dịch hoàn.", "created_at":"Thời điểm tạo (UTC).",
+})
+DESCRIPTIONS["menu_promotions"] = ("Chính sách khuyến mãi POS theo cơ sở; mỗi đơn chỉ chọn một ưu đãi xác định.", {
+    "id":"Khóa chính.", "store_id":"Cơ sở áp dụng.", "code":"Mã duy nhất trong cơ sở.",
+    "kind":"`BOGO` / `PLAY_DRINK` / `TIER_PERCENT`.", "item_id":"Món áp dụng; NULL khi ưu đãi không gắn một món.",
+    "value":"Giá trị cấu hình theo loại ưu đãi.", "minimum_tier":"Hạng tối thiểu nếu có.",
+    "starts_at":"Bắt đầu hiệu lực (UTC).", "ends_at":"Kết thúc hiệu lực (UTC).", "is_active":"Bật/tắt chính sách.",
+})
+DESCRIPTIONS["menu_order_pricing"] = ("Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán.", {
+    "order_id":"Đơn POS; khóa chính/FK.", "promotion_id":"Khuyến mãi được chọn; NULL nếu không áp dụng.",
+    "promotion_code":"Mã khuyến mãi chụp lại.", "promotion_kind":"Loại khuyến mãi chụp lại.",
+    "discount_amount":"Tổng giảm giá VND.", "final_amount":"Thành tiền sau giảm VND.",
+    "snapshot_json":"Chi tiết đầu vào và kết quả tính giá để audit.",
+})
 DESCRIPTIONS["cash_shifts"] = ("Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở.", {
     "id":"Khóa chính.", "code":"Mã ca duy nhất.", "store_id":"Cơ sở mở ca.", "employee_id":"Nhân viên chịu trách nhiệm ca.",
     "status":"`OPEN` / `PENDING_REVIEW` / `CLOSED`.", "opening_cash":"Tiền mặt đầu ca.", "expected_cash":"Tiền mặt hệ thống tính cuối ca.",

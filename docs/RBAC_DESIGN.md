@@ -82,7 +82,7 @@ Principal lấy từ session đã được kiểm tra lại với DB; `store_id`
 5. Chính sách hồ sơ khách dùng chung và mức dữ liệu STAFF/MANAGER được xem; đặc biệt lịch sử giao dịch, điện thoại và tài khoản khách liên cơ sở.
 6. Quyền tạo/sửa hồ sơ nhân sự của MANAGER: chỉ nhân viên tại cơ sở hay DIRECTOR duyệt trước; ai cho phép thay đổi trạng thái nghỉ việc.
 7. Phạm vi duyệt ngân sách/giá, hợp đồng quảng cáo và thanh toán công nợ; ngưỡng tiền và người phê duyệt thứ hai nếu cần. **Chưa có module ngân sách riêng** trong mã hiện tại.
-8. Thời điểm và chính sách bật đăng ký tại quầy qua email: khách cũ giữ đăng nhập thế nào, khi nào nhân viên được xem email, thời hạn token, nhà cung cấp email. Đây là **giai đoạn chức năng khác**, chưa triển khai trong RBAC này.
+8. Luồng đăng ký tại quầy qua email đã có nền tảng kỹ thuật ở migration `027`; trước vận hành thật vẫn phải phê duyệt nhà cung cấp SMTP, thời hạn token, chính sách nhân viên được xem email và quy trình hỗ trợ khi khách không nhận được thư. Khách cũ giữ quyền đăng nhập theo migration hiện tại.
 
 ## 6. Tiêu chí kiểm thử khi triển khai
 

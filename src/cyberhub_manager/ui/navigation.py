@@ -2,7 +2,7 @@
 
 Module này là logic thuần: không import Tk/CustomTkinter, không import service hay SQL,
 nên có thể test bằng pytest mà không cần cửa sổ.
-Thứ tự menu theo Stitch export (code.html); phân quyền theo docs/diagrams/ui_wireflow.md mục 3.
+Thứ tự menu theo Stitch export (code.html); phân quyền theo history/docs/diagrams/ui_wireflow.md mục 3.
 """
 
 from __future__ import annotations

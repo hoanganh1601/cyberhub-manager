@@ -1,7 +1,7 @@
 """Hợp đồng service dùng chung giữa service thật, mock và UI.
 
 Mọi Protocol ở đây chỉ mô tả chữ ký, kiểu trả về và exception đã thống nhất
-trong docs/07_DTO_UI_HANDOFF.md (mục 5, 6). Module không chứa logic nghiệp vụ,
+trong history/docs/reference/07_DTO_UI_HANDOFF.md (mục 5, 6). Module không chứa logic nghiệp vụ,
 không import UI, MySQL connector, config hay database.
 
 Ngoài các exception liệt kê ở từng hàm, mọi operation đều có thể raise

@@ -39,6 +39,9 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`inventory_movements`](#inventory_movements) | Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh. | 14 |
 | [`inventory_counts`](#inventory_counts) | Phiếu kiểm kê đề xuất; người khác có thẩm quyền phải phê duyệt trước khi tạo điều chỉnh kho. | 14 |
 | [`customer_notification_events`](#customer_notification_events) | Sổ sự kiện thông báo bền vững cho khách theo vòng đời đơn; khóa sự kiện chống phát trùng. | 8 |
+| [`pos_order_reversals`](#pos_order_reversals) | Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt. | 13 |
+| [`menu_promotions`](#menu_promotions) | Chính sách khuyến mãi POS theo cơ sở; mỗi đơn chỉ chọn một ưu đãi xác định. | 10 |
+| [`menu_order_pricing`](#menu_order_pricing) | Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán. | 7 |
 | [`reward_catalog`](#reward_catalog) | Danh mục phần thưởng; không có loại nào quy đổi tiền mặt. | 11 |
 | [`customer_vouchers`](#customer_vouchers) | Voucher của khách; điều kiện được chụp lúc phát, dùng một lần. | 19 |
 | [`voucher_events`](#voucher_events) | Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm. | 7 |
@@ -99,6 +102,8 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `stores` | 1 — 0..n | `menu_orders` | `menu_orders.store_id` → `stores.id` | Cơ sở của máy đang dùng. |
 | `stores` | 1 — 0..n | `inventory_ingredients` | `inventory_ingredients.store_id` → `stores.id` | Cửa hàng sở hữu nguyên liệu; cùng `id` tạo khóa tham chiếu ghép cho sổ kho. |
 | `stores` | 1 — 0..n | `customer_notification_events` | `customer_notification_events.store_id` → `stores.id` | Cửa hàng phát sinh thông báo. |
+| `stores` | 1 — 0..n | `pos_order_reversals` | `pos_order_reversals.store_id` → `stores.id` | Cơ sở xử lý. |
+| `stores` | 1 — 0..n | `menu_promotions` | `menu_promotions.store_id` → `stores.id` | Cơ sở áp dụng. |
 | `stores` | 0..1 — 0..n | `reward_catalog` | `reward_catalog.store_id` → `stores.id` | Cơ sở áp dụng; NULL = mọi cơ sở (chỉ ADMIN tạo). |
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.store_id` → `stores.id` | Cơ sở áp dụng (chụp từ danh mục); NULL = mọi cơ sở. |
 | `stores` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_store_id` → `stores.id` | Cơ sở nơi dùng. |
@@ -127,6 +132,8 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `employees` | 0..1 — 0..n | `inventory_movements` | `inventory_movements.employee_id` → `employees.id` | Nhân viên thực hiện hoặc phê duyệt; NULL với tác vụ hệ thống. |
 | `employees` | 0..1 — 0..n | `inventory_counts` | `inventory_counts.decided_by` → `employees.id` | Nhân viên khác phê duyệt/từ chối; NULL khi đang chờ. |
 | `employees` | 1 — 0..n | `inventory_counts` | `inventory_counts.proposed_by` → `employees.id` | Nhân viên đề xuất kiểm kê. |
+| `employees` | 0..1 — 0..n | `pos_order_reversals` | `pos_order_reversals.decided_by` → `employees.id` | Quản lý quyết định; NULL khi đang chờ. |
+| `employees` | 1 — 0..n | `pos_order_reversals` | `pos_order_reversals.requested_by` → `employees.id` | Nhân viên đề nghị. |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.issued_by` → `employees.id` | Nhân viên phát (NULL khi do hệ thống). |
 | `employees` | 0..1 — 0..n | `customer_vouchers` | `customer_vouchers.used_by` → `employees.id` | Nhân viên xác nhận. |
 | `employees` | 0..1 — 0..n | `voucher_events` | `voucher_events.employee_id` → `employees.id` | Nhân viên thực hiện. |
@@ -185,8 +192,11 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `menu_items` | 1 — 0..n | `menu_item_changes` | `menu_item_changes.item_id` → `menu_items.id` | Món bị thay đổi. |
 | `menu_items` | 1 — 0..n | `menu_order_items` | `menu_order_items.item_id` → `menu_items.id` | Món được gọi. |
 | `menu_items` | 1 — 0..n | `menu_item_recipes` | `menu_item_recipes.item_id` → `menu_items.id` | Món dùng nguyên liệu; phần thứ nhất của khóa chính. |
+| `menu_items` | 0..1 — 0..n | `menu_promotions` | `menu_promotions.item_id` → `menu_items.id` | Món áp dụng; NULL khi ưu đãi không gắn một món. |
 | `menu_orders` | 1 — 0..n | `menu_order_items` | `menu_order_items.order_id` → `menu_orders.id` | Yêu cầu gọi món. |
 | `menu_orders` | 0..1 — 0..n | `inventory_movements` | `inventory_movements.order_id` → `menu_orders.id` | Đơn POS liên quan; NULL với nhập/kiểm kê độc lập. |
+| `menu_orders` | 1 — 0..1 | `pos_order_reversals` | `pos_order_reversals.order_id` → `menu_orders.id` | Đơn POS; UNIQUE nên mỗi đơn có tối đa một yêu cầu hoàn/hủy. |
+| `menu_orders` | 1 — 0..1 | `menu_order_pricing` | `menu_order_pricing.order_id` → `menu_orders.id` | Đơn POS; khóa chính/FK. |
 | `menu_orders` | 0..1 — 0..1 | `customer_vouchers` | `customer_vouchers.used_order_id` → `menu_orders.id` | Yêu cầu gọi món được áp (voucher đồ ăn); UNIQUE. |
 | `menu_order_items` | 1 — 0..n | `menu_order_recipe_snapshots` | `menu_order_recipe_snapshots.order_id,item_id` → `menu_order_items.order_id,item_id` | Đơn chứa dòng món; thuộc khóa chính và FK ghép tới `menu_order_items`.; Món trong đơn; thuộc khóa chính và FK ghép tới `menu_order_items`. |
 | `inventory_ingredients` | 1 — 0..n | `menu_item_recipes` | `menu_item_recipes.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai của khóa chính. |
@@ -196,6 +206,7 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `inventory_ingredients` | 1 — 0..n | `purchase_request_lines` | `purchase_request_lines.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
 | `inventory_ingredients` | 1 — 0..n | `purchase_order_lines` | `purchase_order_lines.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
 | `inventory_ingredients` | 1 — 0..n | `goods_receipt_lines` | `goods_receipt_lines.ingredient_id` → `inventory_ingredients.id` | Nguyên liệu; phần thứ hai khóa chính. |
+| `menu_promotions` | 0..1 — 0..n | `menu_order_pricing` | `menu_order_pricing.promotion_id` → `menu_promotions.id` | Khuyến mãi được chọn; NULL nếu không áp dụng. |
 | `reward_catalog` | 1 — 0..n | `customer_vouchers` | `customer_vouchers.catalog_id` → `reward_catalog.id` | Phần thưởng gốc. |
 | `customer_vouchers` | 0..1 — 0..n | `voucher_events` | `voucher_events.voucher_id` → `customer_vouchers.id` | Voucher liên quan; NULL khi mã nhập không tồn tại. |
 | `customer_vouchers` | 1 — 0..1 | `loyalty_point_grants` | `loyalty_point_grants.voucher_id` → `customer_vouchers.id` | Voucher MEMBER_POINTS; UNIQUE. |
@@ -1019,6 +1030,94 @@ Ràng buộc:
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_customer_notification_account_created` (`account_id, created_at, id`)
+
+### pos_order_reversals
+
+Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `order_id` | `bigint unsigned` | Không | — | UK, FK → `menu_orders.id` | Đơn POS; UNIQUE nên mỗi đơn có tối đa một yêu cầu hoàn/hủy. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở xử lý. |
+| `requested_by` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên đề nghị. |
+| `reason` | `varchar(255)` | Không | — | — | Lý do bắt buộc. |
+| `disposition` | `varchar(8)` | Không | — | — | `RESTOCK` hoặc `WASTE`. |
+| `status` | `varchar(10)` | Không | `PENDING` | — | `PENDING` / `APPROVED` / `REJECTED`. |
+| `decided_by` | `bigint unsigned` | Có | — | FK → `employees.id` | Quản lý quyết định; NULL khi đang chờ. |
+| `decided_at` | `datetime` | Có | — | — | Thời điểm quyết định (UTC). |
+| `refund_amount` | `bigint unsigned` | Không | `0` | — | Số tiền hoàn VND. |
+| `refund_method` | `varchar(10)` | Có | — | — | `CASH` / `TRANSFER`. |
+| `refund_reference` | `varchar(100)` | Có | — | — | Tham chiếu giao dịch hoàn. |
+| `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm tạo (UTC). |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_pos_reversal_order` (`order_id`)
+- FOREIGN KEY `fk_pos_reversal_approver` (`decided_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_pos_reversal_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_pos_reversal_requester` (`requested_by`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_pos_reversal_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_pos_reversal_decision`: `(((status = 'PENDING') and (decided_by is null) and (decided_at is null)) or ((status <> 'PENDING') and (decided_by is not null) and (decided_at is not null)))`
+- CHECK `chk_pos_reversal_disposition`: `(disposition in ('RESTOCK','WASTE'))`
+- CHECK `chk_pos_reversal_method`: `((refund_method is null) or (refund_method in ('CASH','TRANSFER')))`
+- CHECK `chk_pos_reversal_status`: `(status in ('PENDING','APPROVED','REJECTED'))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_pos_reversal_store_status` (`store_id, status, id`)
+
+### menu_promotions
+
+Chính sách khuyến mãi POS theo cơ sở; mỗi đơn chỉ chọn một ưu đãi xác định.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `id` | `bigint unsigned` | Không | AUTO_INCREMENT | PK | Khóa chính. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở áp dụng. |
+| `code` | `varchar(30)` | Không | — | — | Mã duy nhất trong cơ sở. |
+| `kind` | `varchar(16)` | Không | — | — | `BOGO` / `PLAY_DRINK` / `TIER_PERCENT`. |
+| `item_id` | `bigint unsigned` | Có | — | FK → `menu_items.id` | Món áp dụng; NULL khi ưu đãi không gắn một món. |
+| `value` | `int unsigned` | Không | — | — | Giá trị cấu hình theo loại ưu đãi. |
+| `minimum_tier` | `varchar(12)` | Có | — | — | Hạng tối thiểu nếu có. |
+| `starts_at` | `datetime` | Không | — | — | Bắt đầu hiệu lực (UTC). |
+| `ends_at` | `datetime` | Không | — | — | Kết thúc hiệu lực (UTC). |
+| `is_active` | `tinyint(1)` | Không | `0` | — | Bật/tắt chính sách. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`id`)
+- UNIQUE `uq_menu_promo_store_code` (`store_id,code`)
+- FOREIGN KEY `fk_menu_promo_item` (`item_id`) → `menu_items` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_menu_promo_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- CHECK `chk_menu_promo_kind`: `(kind in ('BOGO','PLAY_DRINK','TIER_PERCENT'))`
+- CHECK `chk_menu_promo_period`: `(starts_at < ends_at)`
+- CHECK `chk_menu_promo_tier`: `((minimum_tier is null) or (minimum_tier in ('BRONZE','SILVER','GOLD','PLATINUM')))`
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_menu_promo_active` (`store_id, is_active, starts_at, ends_at`)
+
+### menu_order_pricing
+
+Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán.
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `order_id` | `bigint unsigned` | Không | — | PK, FK → `menu_orders.id` | Đơn POS; khóa chính/FK. |
+| `promotion_id` | `bigint unsigned` | Có | — | FK → `menu_promotions.id` | Khuyến mãi được chọn; NULL nếu không áp dụng. |
+| `promotion_code` | `varchar(30)` | Có | — | — | Mã khuyến mãi chụp lại. |
+| `promotion_kind` | `varchar(16)` | Có | — | — | Loại khuyến mãi chụp lại. |
+| `discount_amount` | `bigint unsigned` | Không | `0` | — | Tổng giảm giá VND. |
+| `final_amount` | `bigint unsigned` | Không | — | — | Thành tiền sau giảm VND. |
+| `snapshot_json` | `json` | Không | — | — | Chi tiết đầu vào và kết quả tính giá để audit. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`order_id`)
+- FOREIGN KEY `fk_menu_pricing_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+- FOREIGN KEY `fk_menu_pricing_promotion` (`promotion_id`) → `menu_promotions` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 
 ### reward_catalog
 
