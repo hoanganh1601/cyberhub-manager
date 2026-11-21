@@ -107,3 +107,59 @@ def test_role_change_revokes_existing_session(app):
                                       row.username, "MANAGER", row.status)
     with pytest.raises(PermissionDeniedError):
         services.management.validate_actor(staff)
+
+
+def test_personnel_profile_provisioning_and_manager_store_assignment(monkeypatch):
+    """Desktop and Web share this staged HR -> identity -> store-access workflow."""
+
+    monkeypatch.setenv("CYBERHUB_RBAC_POLICY", "separated")
+    services = build_mock_services(p1=True)
+    director = services.auth.login("giamdoc01", "demo123")
+    admin = services.auth.login("admin01", "demo123")
+    manager = services.auth.login("quanly01", "demo123")
+
+    other_store = services.management.save_store(
+        director, None, "RBAC-02", "CyberHub Secondary", "Hanoi", "ACTIVE"
+    )
+    profile = services.management.save_employee_profile(
+        director, None, other_store.id, "New Inventory Employee"
+    )
+    assert profile["employee_id"] is None
+
+    identity = services.management.save_employee(
+        admin,
+        None,
+        other_store.id,
+        profile["full_name"],
+        "inventory.new",
+        "INVENTORY",
+        "ACTIVE",
+        "Temporary!2026",
+        profile["id"],
+    )
+    linked = next(
+        item
+        for item in services.management.list_employee_profiles(admin)
+        if item["id"] == profile["id"]
+    )
+    assert linked["employee_id"] == identity.id
+
+    services.management.set_manager_store_assignment(
+        admin, manager.employee_id, other_store.id, True
+    )
+    assert services.management.list_manager_store_assignments(
+        admin, manager.employee_id
+    ) == [other_store.id]
+    with pytest.raises(PermissionDeniedError):
+        services.management.validate_actor(manager)
+    manager = services.auth.login("quanly01", "demo123")
+    switched = services.management.switch_store(manager, other_store.id)
+    assert switched.store_id == other_store.id
+    assert {store.id for store in services.management.list_stores(switched)} == {
+        manager.store_id,
+        other_store.id,
+    }
+    with pytest.raises(PermissionDeniedError):
+        services.management.set_manager_store_assignment(
+            director, manager.employee_id, other_store.id, False
+        )

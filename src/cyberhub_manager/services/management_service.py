@@ -163,9 +163,17 @@ class ManagementService:
             actor = self._actor(conn, actor)
             if chain_director(actor.role) or actor.role == Role.ADMIN:
                 return self._repo.list_stores(conn)
-            if actor.role == Role.MANAGER and separated_rbac() and not self._memory:
-                home = self._auth.get_active_session_by_id(conn, actor.employee_id)
-                allowed = {home.store_id} | self._repo.assigned_store_ids(conn, actor.employee_id)
+            if actor.role == Role.MANAGER and separated_rbac():
+                home_store_id = (
+                    next(
+                        employee.store_id
+                        for employee in self._repo.list_employees(conn)
+                        if employee.id == actor.employee_id
+                    )
+                    if self._memory
+                    else self._auth.get_active_session_by_id(conn, actor.employee_id).store_id
+                )
+                allowed = {home_store_id} | self._repo.assigned_store_ids(conn, actor.employee_id)
                 return [store for store in self._repo.list_stores(conn) if store.id in allowed]
             return self._repo.list_stores(conn, actor.store_id)
 
@@ -175,9 +183,17 @@ class ManagementService:
         with self._errors(), self._transaction() as conn:
             current = self._actor(conn, actor)
             if store_id != current.store_id and not can(current.role, Permission.SWITCH_STORE):
-                home = self._auth.get_active_session_by_id(conn, current.employee_id) if not self._memory else None
-                if (not separated_rbac() or current.role != Role.MANAGER or self._memory
-                        or store_id not in ({home.store_id} | self._repo.assigned_store_ids(conn, current.employee_id))):
+                home_store_id = (
+                    next(
+                        employee.store_id
+                        for employee in self._repo.list_employees(conn)
+                        if employee.id == current.employee_id
+                    )
+                    if self._memory
+                    else self._auth.get_active_session_by_id(conn, current.employee_id).store_id
+                )
+                if (not separated_rbac() or current.role != Role.MANAGER
+                        or store_id not in ({home_store_id} | self._repo.assigned_store_ids(conn, current.employee_id))):
                     raise PermissionDeniedError()
             store = self._repo.store(conn, store_id, lock="share")
             if store is None or store.status != "ACTIVE":
@@ -350,14 +366,14 @@ class ManagementService:
             if profile_id is not None:
                 if old is not None:
                     raise ValidationError(field_errors={"profile_id": "Chỉ gắn hồ sơ khi cấp tài khoản mới"})
-                if type(profile_id) is not int or profile_id <= 0 or self._memory:
+                if type(profile_id) is not int or profile_id <= 0:
                     raise ValidationError(field_errors={"profile_id": "Hồ sơ nhân sự không hợp lệ"})
                 profile = self._repo.employee_profile(conn, profile_id, lock=True)
                 if profile is None or profile["employee_id"] is not None:
                     raise ConflictError("Hồ sơ đã có tài khoản hoặc không tồn tại")
                 if (profile["home_store_id"], profile["full_name"], profile["employment_status"]) != (store_id, name, "ACTIVE"):
                     raise ValidationError(field_errors={"profile_id": "Thông tin phải khớp hồ sơ nhân sự đang làm việc"})
-            if separated_rbac() and credential_change and old is None and not self._memory and profile is None:
+            if separated_rbac() and credential_change and old is None and profile is None:
                 raise ValidationError(field_errors={"profile_id": "Chọn hồ sơ nhân sự trước khi cấp tài khoản"})
             if employee_id is not None and old is None:
                 raise NotFoundError()

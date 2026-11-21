@@ -18,8 +18,8 @@
 | Chuyển cơ sở thao tác `SWITCH_STORE` | A | D; M nếu được giao nhiều cơ sở | Kiểm tra phân công còn hiệu lực; S/K/I không chuyển tùy ý. [`access.py`](../src/cyberhub_manager/services/access.py) |
 | Tạo/sửa/ngừng cơ sở `MANAGE_STORES` | A | D | Chuỗi; chặn ngừng cơ sở còn phiên/chứng từ cần xử lý. Cấu hình kết nối/hạ tầng của cơ sở nếu phát sinh sau này thuộc A, chưa có màn riêng. |
 | Xem danh sách hồ sơ nhân viên `MANAGE_EMPLOYEES` | A, M | D, M; A chỉ dữ liệu tối thiểu phục vụ identity | D: chuỗi; M: cơ sở được giao; A không xem hồ sơ kinh doanh nhạy cảm mặc định. |
-| Tạo/sửa hồ sơ nhân sự (`save_employee` hiện gộp hồ sơ + account) | A, M (M chỉ STAFF cùng cơ sở) | D, M theo quyết định nhân sự `?` | **Phải tách Service contract**; không cho D/M đặt username, password, role, trạng thái khóa đăng nhập. |
-| Tạo/sửa/khóa tài khoản nhân viên, gán role (`save_employee`) | A; M tạo/sửa STAFF | A | Áp dụng theo hồ sơ được duyệt; A không tự cấp thêm role nghiệp vụ cho mình; giữ ít nhất một ADMIN. |
+| Tạo/sửa hồ sơ nhân sự (`save_employee_profile`) | D, M theo phạm vi cơ sở | D, M | Đã tách Service contract và UI Web/Desktop; D/M không được đặt username, password, role hoặc trạng thái khóa đăng nhập. |
+| Tạo/sửa/khóa tài khoản nhân viên, gán role (`save_employee`) | A trong chính sách `separated` | A | Tài khoản mới phải gắn hồ sơ nhân sự đang hoạt động và chưa có identity; giữ ít nhất một ADMIN. |
 | Reset mật khẩu nhân viên (`reset_employee_password`) | A | A | Không reset chính mình bằng luồng admin; audit, tăng `auth_version`, buộc đổi mật khẩu. |
 | Xem audit hệ thống hoặc cấu hình kỹ thuật | Chưa có quyền/API quản trị riêng | A **khi xây dựng** | Không tính là chức năng hiện hữu; chỉ nêu trong thiết kế, không đưa thành grant chạy được. |
 

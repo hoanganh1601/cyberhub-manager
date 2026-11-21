@@ -15,7 +15,14 @@ from cyberhub_manager.domain.enums import (
 )
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.domain.models import Employee, Store
-from cyberhub_manager.domain.p1 import CustomerSession, EmployeeSummary, StoreSummary, Permission, can
+from cyberhub_manager.domain.p1 import (
+    CustomerSession,
+    EmployeeSummary,
+    StoreSummary,
+    Permission,
+    can,
+    separated_rbac,
+)
 from cyberhub_manager.security import hash_password
 from .portal import MemoryPortalRepositoryMixin
 from .loyalty import MemoryLoyaltyRepositoryMixin
@@ -38,6 +45,19 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
         self.room_types = {}
         self.avatars={}
         self.order_notifications = []
+        self.employee_profiles = {
+            employee.id: {
+                "id": employee.id,
+                "employee_id": employee.id,
+                "code": employee.code,
+                "home_store_id": employee.store_id,
+                "full_name": employee.full_name,
+                "employment_status": "ACTIVE" if str(employee.status) == "ACTIVE" else "INACTIVE",
+            }
+            for employee in data.employees.values()
+        }
+        self.employee_store_assignments = {}
+        self._profile_seq = max(self.employee_profiles, default=0)
 
     @contextmanager
     def transaction(self):
@@ -62,6 +82,9 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.avatars,
                     self.data.loyalty_settings,
                     self.order_notifications,
+                    self.employee_profiles,
+                    self.employee_store_assignments,
+                    self._profile_seq,
                 )
             )
             try:
@@ -86,6 +109,9 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.avatars,
                     self.data.loyalty_settings,
                     self.order_notifications,
+                    self.employee_profiles,
+                    self.employee_store_assignments,
+                    self._profile_seq,
                 ) = snapshot
                 raise
 
@@ -99,11 +125,17 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
         ):
             raise PermissionDeniedError()
         target = self.store(None, actor.store_id)
+        assigned_manager = (
+            separated_rbac()
+            and employee.role == Role.MANAGER
+            and actor.store_id in self.assigned_store_ids(None, employee.id)
+        )
         if (
             target is None
             or target.status != "ACTIVE"
             or not can(employee.role, Permission.SWITCH_STORE)
             and employee.store_id != actor.store_id
+            and not assigned_manager
         ):
             raise PermissionDeniedError()
         self.data.operating_stores[employee.id] = target.id
@@ -162,7 +194,64 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
             if store_id is None or e.store_id == store_id
         ]
 
-    def save_employee(self, conn, employee_id, values, password_hash):
+    def assigned_store_ids(self, conn, employee_id):
+        return set(self.employee_store_assignments.get(employee_id, set()))
+
+    def set_store_assignment(self, conn, employee_id, store_id, granter_id, enabled):
+        assigned = self.employee_store_assignments.setdefault(employee_id, set())
+        if enabled:
+            assigned.add(store_id)
+        else:
+            assigned.discard(store_id)
+
+    def bump_auth_version(self, conn, employee_id):
+        self.data.employee_auth_versions[employee_id] = (
+            self.data.employee_auth_versions.get(employee_id, 0) + 1
+        )
+
+    def list_employee_profiles(self, conn, store_id=None):
+        return [
+            deepcopy(profile)
+            for profile in sorted(
+                self.employee_profiles.values(), key=lambda item: item["id"], reverse=True
+            )
+            if store_id is None or profile["home_store_id"] == store_id
+        ]
+
+    def employee_profile(self, conn, profile_id, lock=False):
+        profile = self.employee_profiles.get(profile_id)
+        return deepcopy(profile) if profile else None
+
+    def create_employee_profile(self, conn, code, store_id, full_name):
+        self._profile_seq += 1
+        self.employee_profiles[self._profile_seq] = {
+            "id": self._profile_seq,
+            "employee_id": None,
+            "code": code,
+            "home_store_id": store_id,
+            "full_name": full_name,
+            "employment_status": "ACTIVE",
+        }
+        return self._profile_seq
+
+    def update_employee_profile(self, conn, profile_id, store_id, full_name, status):
+        profile = self.employee_profiles[profile_id]
+        profile.update(
+            home_store_id=store_id,
+            full_name=full_name,
+            employment_status=status,
+        )
+        employee_id = profile.get("employee_id")
+        if employee_id in self.data.employees:
+            employee = self.data.employees[employee_id]
+            self.data.employees[employee_id] = replace(
+                employee, store_id=store_id, full_name=full_name
+            )
+
+    def link_employee_profile(self, conn, profile_id, employee_id):
+        self.employee_profiles[profile_id]["employee_id"] = employee_id
+
+    def save_employee(self, conn, employee_id, values, password_hash, profile_id=None):
         store_id, name, username, role, status = values
         old = self.data.employees.get(employee_id)
         employee_id = employee_id or self.data.next_id("employee")
@@ -190,6 +279,16 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.data.employee_passwords[old.username]
                 )
             self.data.employee_passwords.pop(old.username, None)
+        if profile_id is not None:
+            self.link_employee_profile(conn, profile_id, employee_id)
+        else:
+            profile = self.employee_profiles.get(employee_id)
+            if profile:
+                profile.update(
+                    home_store_id=store_id,
+                    full_name=name,
+                    employment_status="ACTIVE" if status == "ACTIVE" else "INACTIVE",
+                )
         return next(e for e in self.list_employees(conn) if e.id == employee_id)
 
     def reset_employee_password(self, conn, employee_id, password_hash):

@@ -3,9 +3,9 @@
 **Trạng thái:** Đang triển khai theo hai bước. Thiết kế ban đầu được khảo sát trên `develop` (`960beb1`); phần mã hiện tại đã thêm vai trò DIRECTOR và chính sách tách quyền tùy chọn. Quyền tài khoản đang hoạt động chưa bị thay đổi tự động.
 **Phạm vi:** Web, desktop, demo và MySQL hiện có. Tài liệu này đi cùng [ma trận quyền](RBAC_PERMISSION_MATRIX.md). Không đổi quyền của tài khoản đang hoạt động khi chỉ áp dụng tài liệu này.
 
-## 1. Đầu vào và hiện trạng đã kiểm tra
+## 1. Đầu vào và hiện trạng ban đầu đã kiểm tra
 
-Yêu cầu RBAC trong phiên làm việc là đầu vào chính. Đặc tả đính kèm về **đăng ký khách tại quầy và kích hoạt email** là đầu vào thứ hai. Các quyền email trong đặc tả là **tương lai**, không được coi là chức năng đã có.
+Phần này lưu kết quả audit tại mốc `960beb1` để giải thích lý do thiết kế. Trạng thái triển khai hiện tại nằm ở [mục 7](#7-trạng-thái-triển-khai-và-chuyển-đổi); không dùng bảng audit ban đầu để kết luận chức năng hiện nay còn thiếu.
 
 | Phát hiện | Bằng chứng trong mã nguồn | Tác động |
 | --- | --- | --- |
@@ -107,8 +107,8 @@ Principal lấy từ session đã được kiểm tra lại với DB; `store_id`
 - `sql/025_director_role.sql` chỉ mở rộng CHECK của `employees.role`; không sửa role, mật khẩu hay dữ liệu người dùng hiện có. Chạy `scripts/init_db.py` sau khi sao lưu cơ sở dữ liệu và kiểm tra thứ tự migration.
 - Mặc định `CYBERHUB_RBAC_POLICY=legacy`: ADMIN hiện tại vẫn dùng quyền cũ. `CYBERHUB_RBAC_POLICY=separated` giới hạn ADMIN vào quản trị thông tin xác thực nhân viên; DIRECTOR quản lý chính sách kinh doanh và xem báo cáo. Cả web, Service, demo và desktop dùng chung ma trận `permissions_for()`.
 - Quy trình chuyển đổi: kiểm kê tài khoản ADMIN hiện tại; phê duyệt người giữ vai trò ADMIN kỹ thuật và người cần tài khoản DIRECTOR; tạo tài khoản DIRECTOR riêng sau migration; xác minh đăng nhập và quyền API; sau đó mới bật `separated` và khởi động lại web. Không đổi role hàng loạt hoặc bật chính sách mới trước khi có tài khoản điều hành độc lập.
-- `employees` hiện vẫn là một bảng chứa cả hồ sơ và thông tin xác thực. Service đã chặn DIRECTOR/MANAGER sửa username, role, trạng thái đăng nhập và mật khẩu trong chính sách mới; ADMIN không được sửa hồ sơ nhân sự của tài khoản đã tồn tại. Đổi username, role, trạng thái hoặc cơ sở làm tăng `auth_version` và vô hiệu phiên cũ. Tạo hồ sơ mới hoàn toàn độc lập tài khoản vẫn cần migration tách bảng và quy trình phê duyệt riêng.
-- Quan hệ khách hàng với cơ sở, MANAGER nhiều cơ sở và phân tách trạng thái nghỉ việc với khóa đăng nhập chưa có mô hình dữ liệu. Không coi các phạm vi đó là đã giải quyết; cần chốt chính sách và migration trước khi dùng dữ liệu thực nhiều cơ sở.
+- Migration `026` đã bổ sung `employee_profiles` và `employee_store_assignments`. Service tách lệnh hồ sơ nhân sự khỏi lệnh cấp thông tin xác thực; DIRECTOR/MANAGER không sửa username, role, trạng thái đăng nhập hoặc mật khẩu, còn ADMIN không sửa hồ sơ việc làm. Thay đổi identity hoặc phân công làm tăng `auth_version` và vô hiệu phiên cũ.
+- Quan hệ khách hàng với cơ sở đã có `customer_store_links`; MANAGER nhiều cơ sở đã có danh sách phân công. Chính sách dữ liệu tối thiểu cho khách liên cơ sở vẫn cần được phê duyệt trước khi mở rộng báo cáo toàn chuỗi.
 - Kiểm thử: `tests/unit/test_rbac_separation.py` kiểm tra quyền, API, chống leo thang và chuyển cơ sở ở demo. Cần kiểm tra migration và quy trình đăng nhập trên bản sao MySQL trước khi cutover.
 
 ### Bàn giao triển khai hiện tại
@@ -120,11 +120,11 @@ Các phần sau đã có code, migration và kiểm thử MySQL trên database `
 - `026`: ca có điều chỉnh tiền phải chuyển sang chờ duyệt khi đóng; công nợ nhà cung cấp ở chính sách `separated` cần người duyệt và người thanh toán khác nhau.
 - `027`: đăng ký khách tại quầy bằng email, kích hoạt/đặt lại mật khẩu qua token dùng một lần có hạn, transactional outbox và worker SMTP. Tài khoản khách hiện có vẫn đăng nhập được; chỉ tài khoản mới theo luồng quầy phải kích hoạt.
 - `scripts/rbac_cutover.py`: dry-run mặc định; chỉ áp dụng mapping từng tài khoản đã có `approval_reference`, vẫn phải còn ADMIN kỹ thuật và DIRECTOR kinh doanh trước khi bật `separated`.
+- Desktop và Web đều có hai không gian riêng cho **Hồ sơ nhân sự** và **Tài khoản đăng nhập**. Desktop hỗ trợ tạo/sửa hồ sơ, cấp tài khoản từ hồ sơ chờ, reset mật khẩu tạm và giao/thu hồi cơ sở phụ của MANAGER qua cùng Service contract.
 
 Các phần cần hoàn thiện hoặc quyết định trước khi đưa vào vận hành thật:
 
 1. Lập và phê duyệt file mapping tài khoản thật, chạy `rbac_cutover.py` trên bản sao trước; không bật `CYBERHUB_RBAC_POLICY=separated` chỉ bằng suy đoán role hiện tại.
 2. Cấu hình SMTP, `CYBERHUB_EMAIL_TOKEN_SECRET` và `CYBERHUB_PUBLIC_URL` HTTPS; chạy worker outbox riêng. Chưa có cơ chế scheduler/service manager để tự khởi động worker khi deploy.
-3. UI Desktop mới phản ánh quyền tách ở mức menu/guard hiện có, nhưng chưa có màn hình riêng cho hồ sơ nhân sự, cấp tài khoản và phân công đa cơ sở như Web MySQL.
-4. Liên kết khách–cơ sở được backfill từ hóa đơn/phiên và được nhân viên xác minh bằng mã khách + số điện thoại. Cần thống nhất chính sách hiển thị dữ liệu tối thiểu cho khách liên cơ sở trước khi mở rộng sang báo cáo hoặc export toàn chuỗi.
-5. Chính sách duyệt chi mới chưa có hạn mức tiền, đính kèm chứng từ, hoặc luồng duyệt nhiều cấp. Đây là bước tiếp theo nếu dùng với công nợ thật.
+3. Liên kết khách–cơ sở được backfill từ hóa đơn/phiên và được nhân viên xác minh bằng mã khách + số điện thoại. Cần thống nhất chính sách hiển thị dữ liệu tối thiểu cho khách liên cơ sở trước khi mở rộng sang báo cáo hoặc export toàn chuỗi.
+4. Chính sách duyệt chi mới chưa có hạn mức tiền, đính kèm chứng từ, hoặc luồng duyệt nhiều cấp. Đây là bước tiếp theo nếu dùng với công nợ thật.
