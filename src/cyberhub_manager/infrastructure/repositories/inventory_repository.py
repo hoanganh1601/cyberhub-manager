@@ -12,32 +12,39 @@ class InventoryRepository:
             conn,
             "SELECT m.id,m.ingredient_id,i.name AS ingredient_name,i.unit,m.kind,"
             " m.quantity,m.on_hand_delta,m.reserved_delta,m.reference_code,m.note,"
-            " m.created_at,e.full_name AS employee_name"
+            " m.created_at,ep.full_name AS employee_name"
             " FROM inventory_movements m"
             " JOIN inventory_ingredients i ON i.id=m.ingredient_id"
             " LEFT JOIN employees e ON e.id=m.employee_id"
-            " WHERE m.store_id=%s ORDER BY m.created_at DESC,m.id DESC LIMIT %s",
+            " LEFT JOIN employee_profiles ep ON ep.id=e.profile_id"
+            " WHERE i.store_id=%s ORDER BY m.created_at DESC,m.id DESC LIMIT %s",
             (store_id, limit),
         )
 
     def list_counts(self, conn, store_id):
         return rows(
             conn,
-            "SELECT id, store_id, ingredient_id, expected_on_hand, expected_reserved,"
-            " expected_movement_id,"
-            " counted_on_hand, proposed_by, decided_by, status, reason, created_at,"
-            " decided_at FROM inventory_counts WHERE store_id = %s AND status = 'PENDING'"
-            " ORDER BY created_at DESC, id DESC LIMIT 100",
+            "SELECT c.id, i.store_id, c.ingredient_id, c.expected_on_hand, c.expected_reserved,"
+            " c.expected_movement_id,"
+            " c.counted_on_hand, c.proposed_by, c.decided_by, c.status, c.reason, c.created_at,"
+            " c.decided_at FROM inventory_counts c"
+            " JOIN inventory_ingredients i ON i.id = c.ingredient_id"
+            " WHERE i.store_id = %s AND c.status = 'PENDING'"
+            " ORDER BY c.created_at DESC, c.id DESC LIMIT 100",
             (store_id,),
         )
 
     def get_count(self, conn, count_id, *, lock=False):
+        if lock:
+            if not rows(conn, "SELECT id FROM inventory_counts WHERE id = %s FOR UPDATE", (count_id,)):
+                return None
         result = rows(
             conn,
-            "SELECT id, store_id, ingredient_id, request_id, expected_on_hand,"
-            " expected_reserved, expected_movement_id, counted_on_hand,"
-            " proposed_by, decided_by, status, reason"
-            " FROM inventory_counts WHERE id = %s" + (" FOR UPDATE" if lock else ""),
+            "SELECT c.id, i.store_id, c.ingredient_id, c.request_id, c.expected_on_hand,"
+            " c.expected_reserved, c.expected_movement_id, c.counted_on_hand,"
+            " c.proposed_by, c.decided_by, c.status, c.reason"
+            " FROM inventory_counts c JOIN inventory_ingredients i ON i.id = c.ingredient_id"
+            " WHERE c.id = %s",
             (count_id,),
         )
         return result[0] if result else None
@@ -64,11 +71,11 @@ class InventoryRepository:
             raise ConflictError("Số đếm thấp hơn lượng đã giữ cho đơn")
         count_id = execute(
             conn,
-            "INSERT INTO inventory_counts (store_id, ingredient_id, request_id,"
+            "INSERT INTO inventory_counts (ingredient_id, request_id,"
             " expected_on_hand, expected_reserved, expected_movement_id,"
             " counted_on_hand, proposed_by, reason)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (ingredient["store_id"], ingredient["id"], request_id,
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (ingredient["id"], request_id,
              ingredient["on_hand"], ingredient["reserved"],
              self._last_movement_id(conn, ingredient["id"]), counted_on_hand,
              employee_id, reason),
@@ -100,10 +107,10 @@ class InventoryRepository:
                     raise ConflictError("Tồn kho vừa thay đổi")
                 execute(
                     conn,
-                    "INSERT INTO inventory_movements (store_id, ingredient_id, employee_id,"
+                    "INSERT INTO inventory_movements (ingredient_id, employee_id,"
                     " kind, quantity, on_hand_delta, reserved_delta, idempotency_key, note)"
-                    " VALUES (%s, %s, %s, 'ADJUST', %s, %s, 0, %s, %s)",
-                    (ingredient["store_id"], ingredient["id"], employee_id,
+                    " VALUES (%s, %s, 'ADJUST', %s, %s, 0, %s, %s)",
+                    (ingredient["id"], employee_id,
                      abs(delta), delta, f"count:{count['id']}", count["reason"]),
                 )
         if execute(
@@ -130,8 +137,9 @@ class InventoryRepository:
                         employee_id, idempotency_key, kind):
         existing = rows(
             conn,
-            "SELECT store_id, ingredient_id, kind, quantity, reference_code, note, employee_id"
-            " FROM inventory_movements WHERE idempotency_key = %s FOR UPDATE",
+            "SELECT i.store_id, m.ingredient_id, m.kind, m.quantity, m.reference_code, m.note, m.employee_id"
+            " FROM inventory_movements m JOIN inventory_ingredients i ON i.id = m.ingredient_id"
+            " WHERE m.idempotency_key = %s FOR UPDATE",
             (idempotency_key,),
         )
         if existing:
@@ -154,10 +162,10 @@ class InventoryRepository:
             raise ConflictError("Tồn kho vừa thay đổi")
         execute(
             conn,
-            "INSERT INTO inventory_movements (store_id, ingredient_id, employee_id,"
+            "INSERT INTO inventory_movements (ingredient_id, employee_id,"
             " kind, quantity, on_hand_delta, reserved_delta, idempotency_key,"
-            " reference_code, note) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s, %s)",
-            (ingredient["store_id"], ingredient["id"], employee_id, kind,
+            " reference_code, note) VALUES (%s, %s, %s, %s, %s, 0, %s, %s, %s)",
+            (ingredient["id"], employee_id, kind,
              quantity, delta, idempotency_key, reference_code, note),
         )
         return True
@@ -165,7 +173,8 @@ class InventoryRepository:
     def item_tracking(self, conn, store_id):
         return rows(
             conn,
-            "SELECT id AS item_id, is_stock_tracked FROM menu_items WHERE store_id = %s",
+            "SELECT mi.id AS item_id, mi.is_stock_tracked FROM menu_items mi"
+            " JOIN menu_categories mc ON mc.id = mi.category_id WHERE mc.store_id = %s",
             (store_id,),
         )
 
@@ -202,8 +211,9 @@ class InventoryRepository:
         """Receive stock once; caller locks the ingredient before checking the key."""
         existing = rows(
             conn,
-            "SELECT store_id, ingredient_id, quantity, reference_code, note, employee_id"
-            " FROM inventory_movements WHERE idempotency_key = %s FOR UPDATE",
+            "SELECT i.store_id, m.ingredient_id, m.quantity, m.reference_code, m.note, m.employee_id"
+            " FROM inventory_movements m JOIN inventory_ingredients i ON i.id = m.ingredient_id"
+            " WHERE m.idempotency_key = %s FOR UPDATE",
             (idempotency_key,),
         )
         if existing:
@@ -222,10 +232,10 @@ class InventoryRepository:
         execute(
             conn,
             "INSERT INTO inventory_movements"
-            " (store_id, ingredient_id, employee_id, kind, quantity, on_hand_delta,"
+            " (ingredient_id, employee_id, kind, quantity, on_hand_delta,"
             " reserved_delta, idempotency_key, reference_code, note)"
-            " VALUES (%s, %s, %s, 'RECEIVE', %s, %s, 0, %s, %s, %s)",
-            (ingredient["store_id"], ingredient["id"], employee_id, quantity,
+            " VALUES (%s, %s, 'RECEIVE', %s, %s, 0, %s, %s, %s)",
+            (ingredient["id"], employee_id, quantity,
              quantity, idempotency_key, reference_code, note),
         )
         return True
@@ -272,13 +282,14 @@ class InventoryRepository:
 
     def _record(self, conn, *, store_id, ingredient_id, order_id, employee_id,
                 account_id, kind, quantity, on_hand_delta, reserved_delta, note=None):
+        _ = store_id
         execute(
             conn,
             "INSERT INTO inventory_movements"
-            " (store_id, ingredient_id, order_id, employee_id, account_id, kind,"
+            " (ingredient_id, order_id, employee_id, account_id, kind,"
             " quantity, on_hand_delta, reserved_delta, idempotency_key, note)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (store_id, ingredient_id, order_id, employee_id, account_id, kind,
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (ingredient_id, order_id, employee_id, account_id, kind,
              quantity, on_hand_delta, reserved_delta,
              f"order:{order_id}:{kind}:{ingredient_id}", note),
         )
@@ -290,7 +301,9 @@ class InventoryRepository:
         for line in sorted(lines, key=lambda entry: entry.item_id):
             item = rows(
                 conn,
-                "SELECT is_stock_tracked FROM menu_items WHERE id = %s AND store_id = %s FOR SHARE",
+                "SELECT mi.is_stock_tracked FROM menu_items mi"
+                " JOIN menu_categories mc ON mc.id = mi.category_id"
+                " WHERE mi.id = %s AND mc.store_id = %s FOR SHARE",
                 (line.item_id, store_id),
             )
             if not item:

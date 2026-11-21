@@ -79,17 +79,20 @@ def db():
 
         employee_ids = {}
         for role in Role:
+            profile_id = _execute(
+                conn,
+                "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+                (f"EMP-{role.value[:3]}-{token}", store_id, f"LI06 {role.value}"),
+            )
             employee_ids[role] = _execute(
                 conn,
                 """
                 INSERT INTO employees
-                    (code, store_id, full_name, username, password_hash, role)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (profile_id, username, password_hash, role)
+                VALUES (%s, %s, %s, %s)
                 """,
                 (
-                    f"EMP-{role.value[:3]}-{token}",
-                    store_id,
-                    f"LI06 {role.value}",
+                    profile_id,
                     f"li06.{role.value.lower()}.{token}",
                     "x",
                     role.value,
@@ -199,7 +202,12 @@ def db():
                 _execute(conn, "DELETE FROM accounts WHERE customer_id = %s", (cid,))
                 _execute(conn, "DELETE FROM customers WHERE id = %s", (cid,))
             for sid in store_ids:
-                _execute(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
+                _execute(
+                    conn,
+                    "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (sid,),
+                )
+                _execute(conn, "DELETE FROM employee_profiles WHERE home_store_id = %s", (sid,))
                 _execute(conn, "DELETE FROM stores WHERE id = %s", (sid,))
 
 

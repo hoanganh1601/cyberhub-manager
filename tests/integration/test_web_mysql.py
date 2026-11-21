@@ -80,7 +80,12 @@ def mysql_web(test_scenario):
                     "DELETE FROM cash_shifts WHERE store_id = %s", (records.store_id,)
                 )
                 cursor.execute(
-                    "DELETE FROM employees WHERE store_id = %s", (records.store_id,)
+                    "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (records.store_id,),
+                )
+                cursor.execute(
+                    "DELETE FROM employee_profiles WHERE home_store_id = %s",
+                    (records.store_id,),
                 )
                 cursor.execute("DELETE FROM stores WHERE id = %s", (records.store_id,))
             finally:

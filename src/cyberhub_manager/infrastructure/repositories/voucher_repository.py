@@ -227,10 +227,11 @@ class VoucherRepository:
             )
             for r in rows(
                 conn,
-                "SELECT e.id, e.voucher_id, v.code AS voucher_code, e.action, emp.full_name AS employee_name,"
+                "SELECT e.id, e.voucher_id, v.code AS voucher_code, e.action, ep.full_name AS employee_name,"
                 " e.reason, e.created_at FROM voucher_events AS e"
                 " LEFT JOIN customer_vouchers AS v ON v.id = e.voucher_id"
                 " LEFT JOIN employees AS emp ON emp.id = e.employee_id"
+                " LEFT JOIN employee_profiles AS ep ON ep.id = emp.profile_id"
                 " WHERE e.store_id = %s ORDER BY e.created_at DESC, e.id DESC LIMIT %s",
                 (store_id, limit),
             )

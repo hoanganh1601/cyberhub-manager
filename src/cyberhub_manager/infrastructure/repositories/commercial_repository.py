@@ -46,7 +46,8 @@ class CommercialRepository:
             ),
             "settlements": rows(
                 conn,
-                "SELECT s.*,c.code AS contract_code,p.name AS partner_name "
+                "SELECT s.*,(CAST(s.gross_amount AS SIGNED)+s.adjustment_amount) AS net_amount,"
+                "c.code AS contract_code,p.name AS partner_name "
                 "FROM commercial_settlements s "
                 "JOIN commercial_contracts c ON c.id=s.contract_id "
                 "JOIN commercial_partners p ON p.id=c.partner_id "
@@ -209,7 +210,8 @@ class CommercialRepository:
     def event_by_provider_id(self, conn, provider_event_id):
         result = rows(
             conn,
-            "SELECT e.*,g.id AS grant_id,g.status AS grant_status FROM commercial_events e "
+            "SELECT e.*,pl.campaign_id,g.id AS grant_id,g.status AS grant_status FROM commercial_events e "
+            "JOIN commercial_placements pl ON pl.id=e.placement_id "
             "LEFT JOIN commercial_reward_grants g ON g.event_id=e.id "
             "WHERE e.provider_event_id=%s",
             (provider_event_id,),
@@ -219,18 +221,21 @@ class CommercialRepository:
     def event_by_key(self, conn, event_key):
         result = rows(
             conn,
-            "SELECT * FROM commercial_events WHERE event_key=%s",
+            "SELECT e.*,pl.campaign_id FROM commercial_events e "
+            "JOIN commercial_placements pl ON pl.id=e.placement_id WHERE e.event_key=%s",
             (event_key,),
         )
         return result[0] if result else None
 
     def insert_event(self, conn, values):
+        # values[1] was redundant campaign_id (now derived via placement_id in 028).
+        normalized = (values[0], *values[2:])
         return execute(
             conn,
-            "INSERT INTO commercial_events(placement_id,campaign_id,play_session_id,"
+            "INSERT INTO commercial_events(placement_id,play_session_id,"
             "account_id,event_type,event_key,provider_event_id,verification_method,accepted,"
-            "occurred_at,verified_at,payload_digest) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            values,
+            "occurred_at,verified_at,payload_digest) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            normalized,
         )
 
     def complete_play_session(self, conn, session_id, completed_at):
@@ -281,26 +286,28 @@ class CommercialRepository:
         return result[0] if result else None
 
     def create_settlement(self, conn, values, lines):
+        # values[6] was derived net_amount; line[4] was derived amount (NF-01).
         settlement_id = execute(
             conn,
             "INSERT INTO commercial_settlements(contract_id,period_start,period_end,"
-            "gross_amount,adjustment_amount,adjustment_reason,net_amount,generated_by) "
-            "VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
-            values,
+            "gross_amount,adjustment_amount,adjustment_reason,generated_by) "
+            "VALUES(%s,%s,%s,%s,%s,%s,%s)",
+            (*values[:6], values[7]),
         )
         for line in lines:
             execute(
                 conn,
                 "INSERT INTO commercial_settlement_lines(settlement_id,placement_id,event_type,"
-                "units,unit_rate,amount) VALUES(%s,%s,%s,%s,%s,%s)",
-                (settlement_id, *line),
+                "units,unit_rate) VALUES(%s,%s,%s,%s,%s)",
+                (settlement_id, *line[:4]),
             )
         return settlement_id
 
     def settlement(self, conn, settlement_id, *, lock=False):
         result = rows(
             conn,
-            "SELECT * FROM commercial_settlements WHERE id=%s"
+            "SELECT s.*,(CAST(s.gross_amount AS SIGNED)+s.adjustment_amount) AS net_amount "
+            "FROM commercial_settlements s WHERE s.id=%s"
             + (" FOR UPDATE" if lock else ""),
             (settlement_id,),
         )

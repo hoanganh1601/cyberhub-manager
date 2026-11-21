@@ -140,7 +140,7 @@ def test_create_invoice_rolls_back(test_scenario):
             """
             SELECT code, session_id, usage_cost, settlement_amount,
                    total_amount, status
-            FROM invoices WHERE id = %s
+            FROM v_invoices WHERE id = %s
             """,
             (invoice_id,),
         )

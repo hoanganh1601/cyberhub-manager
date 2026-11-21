@@ -27,15 +27,19 @@ def auth_context():
         store_id = cursor.lastrowid
 
         cursor.execute(
+            "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+            (f"EM-{token}", store_id, "HA05 Test Manager"),
+        )
+        profile_id = cursor.lastrowid
+
+        cursor.execute(
             """
             INSERT INTO employees
-                (code, store_id, full_name, username, password_hash, role)
-            VALUES (%s, %s, %s, %s, %s, %s)
+                (profile_id, username, password_hash, role)
+            VALUES (%s, %s, %s, %s)
             """,
             (
-                f"EM-{token}",
-                store_id,
-                "HA05 Test Manager",
+                profile_id,
                 username,
                 password_hash,
                 "MANAGER",

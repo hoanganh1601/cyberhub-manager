@@ -35,10 +35,14 @@ class ProcurementRepository:
         return request_id
 
     def request(self, conn, request_id, *, lock=False):
-        result=rows(conn,"SELECT r.*,e.full_name AS requester_name,d.full_name AS decider_name "
+        if lock:
+            if not rows(conn,"SELECT id FROM purchase_requests WHERE id=%s FOR UPDATE",(request_id,)):
+                return None
+        result=rows(conn,"SELECT r.*,ep.full_name AS requester_name,dp.full_name AS decider_name "
                     "FROM purchase_requests r JOIN employees e ON e.id=r.requested_by "
-                    "LEFT JOIN employees d ON d.id=r.decided_by WHERE r.id=%s"+
-                    (" FOR UPDATE" if lock else ""),(request_id,))
+                    "JOIN employee_profiles ep ON ep.id=e.profile_id "
+                    "LEFT JOIN employees d ON d.id=r.decided_by "
+                    "LEFT JOIN employee_profiles dp ON dp.id=d.profile_id WHERE r.id=%s",(request_id,))
         return result[0] if result else None
 
     def request_lines(self, conn, request_id):
@@ -47,9 +51,11 @@ class ProcurementRepository:
                     "WHERE l.request_id=%s ORDER BY i.name,i.id",(request_id,))
 
     def list_requests(self, conn, store_id):
-        return rows(conn,"SELECT r.*,e.full_name AS requester_name,d.full_name AS decider_name "
+        return rows(conn,"SELECT r.*,ep.full_name AS requester_name,dp.full_name AS decider_name "
                     "FROM purchase_requests r JOIN employees e ON e.id=r.requested_by "
-                    "LEFT JOIN employees d ON d.id=r.decided_by WHERE r.store_id=%s "
+                    "JOIN employee_profiles ep ON ep.id=e.profile_id "
+                    "LEFT JOIN employees d ON d.id=r.decided_by "
+                    "LEFT JOIN employee_profiles dp ON dp.id=d.profile_id WHERE r.store_id=%s "
                     "ORDER BY r.created_at DESC,r.id DESC LIMIT 200",(store_id,))
 
     def decide_request(self, conn, request_id, employee_id, approve):
@@ -58,9 +64,9 @@ class ProcurementRepository:
 
     def create_order(self, conn, *, code, request, supplier_id, employee_id, expected_at, lines):
         total=sum(line["quantity"]*line["unit_cost"] for line in lines)
-        order_id=execute(conn,"INSERT INTO purchase_orders(code,store_id,request_id,supplier_id,created_by,expected_at,total_amount) "
-                         "VALUES(%s,%s,%s,%s,%s,%s,%s)",
-                         (code,request["store_id"],request["id"],supplier_id,employee_id,expected_at,total))
+        order_id=execute(conn,"INSERT INTO purchase_orders(code,request_id,supplier_id,created_by,expected_at,total_amount) "
+                         "VALUES(%s,%s,%s,%s,%s,%s)",
+                         (code,request["id"],supplier_id,employee_id,expected_at,total))
         for line in lines:
             execute(conn,"INSERT INTO purchase_order_lines(order_id,ingredient_id,quantity,unit_cost) VALUES(%s,%s,%s,%s)",
                     (order_id,line["ingredient_id"],line["quantity"],line["unit_cost"]))
@@ -68,9 +74,12 @@ class ProcurementRepository:
         return order_id
 
     def order(self, conn, order_id, *, lock=False):
-        result=rows(conn,"SELECT o.*,s.name AS supplier_name,s.payment_terms_days FROM purchase_orders o "
-                    "JOIN suppliers s ON s.id=o.supplier_id WHERE o.id=%s"+
-                    (" FOR UPDATE" if lock else ""),(order_id,))
+        if lock:
+            if not rows(conn,"SELECT id FROM purchase_orders WHERE id=%s FOR UPDATE",(order_id,)):
+                return None
+        result=rows(conn,"SELECT o.*,pr.store_id,s.name AS supplier_name,s.payment_terms_days FROM purchase_orders o "
+                    "JOIN purchase_requests pr ON pr.id=o.request_id "
+                    "JOIN suppliers s ON s.id=o.supplier_id WHERE o.id=%s",(order_id,))
         return result[0] if result else None
 
     def order_lines(self, conn, order_id, *, lock=False):
@@ -79,18 +88,24 @@ class ProcurementRepository:
                     (" FOR UPDATE" if lock else ""),(order_id,))
 
     def list_orders(self, conn, store_id):
-        return rows(conn,"SELECT o.*,s.name AS supplier_name FROM purchase_orders o JOIN suppliers s ON s.id=o.supplier_id "
-                    "WHERE o.store_id=%s ORDER BY o.ordered_at DESC,o.id DESC LIMIT 200",(store_id,))
+        return rows(conn,"SELECT o.*,pr.store_id,s.name AS supplier_name FROM purchase_orders o "
+                    "JOIN purchase_requests pr ON pr.id=o.request_id "
+                    "JOIN suppliers s ON s.id=o.supplier_id "
+                    "WHERE pr.store_id=%s ORDER BY o.ordered_at DESC,o.id DESC LIMIT 200",(store_id,))
 
     def receipt_by_request(self, conn, request_id, *, lock=False):
-        result=rows(conn,"SELECT * FROM goods_receipts WHERE request_id=%s"+
-                    (" FOR UPDATE" if lock else ""),(request_id,))
+        if lock:
+            if not rows(conn,"SELECT id FROM goods_receipts WHERE request_id=%s FOR UPDATE",(request_id,)):
+                return None
+        result=rows(conn,"SELECT r.*,pr.store_id FROM goods_receipts r "
+                    "JOIN purchase_orders o ON o.id=r.order_id "
+                    "JOIN purchase_requests pr ON pr.id=o.request_id WHERE r.request_id=%s",(request_id,))
         return result[0] if result else None
 
     def receive(self, conn, *, code, request_id, order, employee_id, note, lines):
-        receipt_id=execute(conn,"INSERT INTO goods_receipts(code,order_id,store_id,received_by,request_id,note,accepted_amount) "
-                           "VALUES(%s,%s,%s,%s,%s,%s,%s)",
-                           (code,order["id"],order["store_id"],employee_id,request_id,note,
+        receipt_id=execute(conn,"INSERT INTO goods_receipts(code,order_id,received_by,request_id,note,accepted_amount) "
+                           "VALUES(%s,%s,%s,%s,%s,%s)",
+                           (code,order["id"],employee_id,request_id,note,
                             sum(x["accepted_quantity"]*x["unit_cost"] for x in lines)))
         for line in lines:
             execute(conn,"INSERT INTO goods_receipt_lines(receipt_id,ingredient_id,accepted_quantity,damaged_quantity,missing_quantity,unit_cost) "
@@ -99,9 +114,9 @@ class ProcurementRepository:
             if line["accepted_quantity"]:
                 execute(conn,"UPDATE inventory_ingredients SET on_hand=on_hand+%s WHERE id=%s",
                         (line["accepted_quantity"],line["ingredient_id"]))
-                execute(conn,"INSERT INTO inventory_movements(store_id,ingredient_id,employee_id,kind,quantity,on_hand_delta,"
-                        "reserved_delta,idempotency_key,reference_code,note) VALUES(%s,%s,%s,'RECEIVE',%s,%s,0,%s,%s,%s)",
-                        (order["store_id"],line["ingredient_id"],employee_id,line["accepted_quantity"],line["accepted_quantity"],
+                execute(conn,"INSERT INTO inventory_movements(ingredient_id,employee_id,kind,quantity,on_hand_delta,"
+                        "reserved_delta,idempotency_key,reference_code,note) VALUES(%s,%s,'RECEIVE',%s,%s,0,%s,%s,%s)",
+                        (line["ingredient_id"],employee_id,line["accepted_quantity"],line["accepted_quantity"],
                          f"goods-receipt:{receipt_id}:{line['ingredient_id']}",code,note))
             execute(conn,"UPDATE purchase_order_lines SET received_quantity=received_quantity+%s,damaged_quantity=damaged_quantity+%s "
                     "WHERE order_id=%s AND ingredient_id=%s",
@@ -113,18 +128,28 @@ class ProcurementRepository:
         return receipt_id
 
     def create_payable(self, conn, *, receipt_id, order, amount, due_date):
-        return execute(conn,"INSERT INTO supplier_payables(receipt_id,supplier_id,store_id,amount,due_date) VALUES(%s,%s,%s,%s,%s)",
-                       (receipt_id,order["supplier_id"],order["store_id"],amount,due_date))
+        _ = order
+        return execute(conn,"INSERT INTO supplier_payables(receipt_id,amount,due_date) VALUES(%s,%s,%s)",
+                       (receipt_id,amount,due_date))
 
     def list_payables(self, conn, store_id):
-        return rows(conn,"SELECT p.*,s.name AS supplier_name,r.code AS receipt_code,"
+        return rows(conn,"SELECT p.*,o.supplier_id,pr.store_id,s.name AS supplier_name,r.code AS receipt_code,"
                     "a.approved_by,a.approved_at,a.note AS approval_note FROM supplier_payables p "
-                    "JOIN suppliers s ON s.id=p.supplier_id JOIN goods_receipts r ON r.id=p.receipt_id "
+                    "JOIN goods_receipts r ON r.id=p.receipt_id "
+                    "JOIN purchase_orders o ON o.id=r.order_id "
+                    "JOIN purchase_requests pr ON pr.id=o.request_id "
+                    "JOIN suppliers s ON s.id=o.supplier_id "
                     "LEFT JOIN supplier_payable_approvals a ON a.payable_id=p.id "
-                    "WHERE p.store_id=%s ORDER BY p.status,p.due_date,p.id",(store_id,))
+                    "WHERE pr.store_id=%s ORDER BY p.status,p.due_date,p.id",(store_id,))
 
     def payable(self, conn, payable_id, *, lock=False):
-        result=rows(conn,"SELECT * FROM supplier_payables WHERE id=%s"+(" FOR UPDATE" if lock else ""),(payable_id,))
+        if lock:
+            if not rows(conn,"SELECT id FROM supplier_payables WHERE id=%s FOR UPDATE",(payable_id,)):
+                return None
+        result=rows(conn,"SELECT p.*,o.supplier_id,pr.store_id FROM supplier_payables p "
+                    "JOIN goods_receipts r ON r.id=p.receipt_id "
+                    "JOIN purchase_orders o ON o.id=r.order_id "
+                    "JOIN purchase_requests pr ON pr.id=o.request_id WHERE p.id=%s",(payable_id,))
         return result[0] if result else None
 
     def payable_approval(self, conn, payable_id):

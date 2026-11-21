@@ -30,11 +30,16 @@ SECRET = "integration-secret-not-for-production"
 
 def _actor(conn, scenario, *, role: Role, name: str) -> EmployeeSession:
     token = uuid4().hex[:8]
+    profile_id = execute(
+        conn,
+        "INSERT INTO employee_profiles(code,home_store_id,full_name) VALUES(%s,%s,%s)",
+        (f"CM-{token}", scenario.store_id, name),
+    )
     employee_id = execute(
         conn,
-        "INSERT INTO employees(code,store_id,full_name,username,password_hash,role) "
-        "VALUES(%s,%s,%s,%s,'x',%s)",
-        (f"CM-{token}", scenario.store_id, name, f"cm.{token}", role.value),
+        "INSERT INTO employees(profile_id,username,password_hash,role) "
+        "VALUES(%s,%s,'x',%s)",
+        (profile_id, f"cm.{token}", role.value),
     )
     return EmployeeSession(
         employee_id,
@@ -180,7 +185,7 @@ def test_signed_event_is_idempotent_and_reconciled_once(db_conn, test_scenario):
     assert event_rows == [{"verification_method": "SERVER", "total": 1}]
     assert rows(
         db_conn,
-        "SELECT units,unit_rate,amount FROM commercial_settlement_lines "
+        "SELECT units,unit_rate,amount FROM v_commercial_settlement_lines "
         "WHERE settlement_id=%s",
         (settlement["id"],),
     ) == [{"units": 1, "unit_rate": 10_000, "amount": 10}]

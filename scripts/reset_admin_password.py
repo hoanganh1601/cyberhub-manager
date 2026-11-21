@@ -35,8 +35,9 @@ def reset_admin_password(conn, database: str, username: str, password: str) -> i
 
     matches = rows(
         conn,
-        """SELECT id,store_id FROM employees
-           WHERE username=%s AND role='ADMIN' AND status='ACTIVE'
+        """SELECT e.id,p.home_store_id AS store_id FROM employees e
+           JOIN employee_profiles p ON p.id=e.profile_id
+           WHERE e.username=%s AND e.role='ADMIN' AND e.status='ACTIVE'
            FOR UPDATE""",
         (username.strip(),),
     )

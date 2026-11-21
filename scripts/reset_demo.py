@@ -16,6 +16,7 @@ RESET_TABLES = (
     "accounts",
     "customers",
     "employees",
+    "employee_profiles",
     "stores",
 )
 

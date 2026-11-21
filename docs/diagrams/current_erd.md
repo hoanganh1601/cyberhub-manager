@@ -1,13 +1,16 @@
-# ERD hiện hành — đối chiếu migration 001–027
+# ERD hiện hành — đối chiếu migration 001–030 (chuẩn 3NF nghiêm ngặt)
 
-Nguồn: `sql/001_initial_schema.sql` → `sql/027_customer_email_activation.sql`, theo thứ tự [runner](../../scripts/init_db.py). 70 bảng nghiệp vụ dưới đây đã được đối chiếu bằng [data dictionary](data_dictionary.md) sinh từ `INFORMATION_SCHEMA` của MySQL test. Bảng kỹ thuật `schema_migrations` do runner tạo riêng.
+Nguồn: `sql/001_initial_schema.sql` → `sql/030_strict_integrity_checks_and_cross_store_guards.sql`, theo thứ tự [runner](../../scripts/init_db.py). 74 bảng nghiệp vụ dưới đây đã được đối chiếu bằng [data dictionary](data_dictionary.md) sinh từ `INFORMATION_SCHEMA` của MySQL test và chứng minh 3NF tại [DATABASE_3NF_PROOFS.md](../architecture/DATABASE_3NF_PROOFS.md). Bảng kỹ thuật `schema_migrations` do runner tạo riêng; 18 view `v_*` cung cấp các trường dẫn xuất cho báo cáo/đọc tương thích.
 
-Mỗi quan hệ có tên **cột FK của bảng con** sau dấu `:`; đường liên kết không thay thế định nghĩa NULL, UNIQUE, `ON DELETE` hay CHECK trong SQL. Bảng độc lập có khối riêng. PK mặc định `id`, ngoại trừ các bảng liệt kê dưới đây. Dùng [data dictionary](data_dictionary.md) để xem kiểu cột, index và ràng buộc đầy đủ.
+Mỗi quan hệ có tên **cột FK của bảng con** sau dấu `:`; đường liên kết không thay thế định nghĩa NULL, UNIQUE, `ON DELETE` hay CHECK/TRIGGER trong SQL. Bảng độc lập có khối riêng. PK mặc định `id`, ngoại trừ các bảng liệt kê dưới đây. Dùng [data dictionary](data_dictionary.md) để xem kiểu cột, index và ràng buộc đầy đủ.
 
 | Bảng | PK từ migration (các cột này cũng là FK nếu có quan hệ tương ứng trong sơ đồ) |
 |---|---|
 | `customer_avatars`, `game_wallets` | `account_id` |
 | `machine_room_types` | `machine_id` |
+| `active_usage_sessions` | `session_id` |
+| `active_employee_shifts` | `shift_id` |
+| `loyalty_policy_versions` | `version` |
 | `menu_item_images` | `item_id` |
 | `menu_order_pricing` | `order_id` |
 | `customer_notification_reads` | `(account_id, notification_key)` |
@@ -22,11 +25,12 @@ Mỗi quan hệ có tên **cột FK của bảng con** sau dấu `:`; đường 
 | `customer_store_links` | `(customer_id, store_id)` |
 | `supplier_payable_approvals` | `payable_id` |
 
-## Cửa hàng, định danh, phiên và tiền (14 bảng)
+## Cửa hàng, định danh, phiên và tiền (16 bảng)
 
 ```mermaid
 erDiagram
-    stores ||--o{ employees : store_id
+    stores ||--o{ employee_profiles : home_store_id
+    employee_profiles ||--o| employees : profile_id
     stores ||--o{ machines : store_id
     stores ||--o{ invoices : store_id
     stores o|--o{ promotions : store_id
@@ -36,6 +40,9 @@ erDiagram
     customers ||--o{ invoices : customer_id
     machines ||--o{ usage_sessions : machine_id
     machines ||--o| machine_room_types : machine_id
+    usage_sessions ||--o| active_usage_sessions : session_id
+    machines ||--o| active_usage_sessions : machine_id
+    customers ||--o| active_usage_sessions : customer_id
     employees ||--o{ usage_sessions : opened_by
     employees ||--o{ invoices : employee_id
     employees ||--o{ management_audit : employee_id
@@ -45,25 +52,20 @@ erDiagram
     usage_sessions ||--o| invoices : session_id
     usage_sessions o|--o{ account_transactions : session_id
     promotions o|--o{ account_transactions : promotion_id
-    loyalty_settings {
-        bigint id PK
-    }
+    loyalty_policy_versions ||--o{ loyalty_settings : current_version
+    loyalty_policy_versions ||--o{ invoices : loyalty_rule_version
 ```
 
-## Menu, đơn POS và kho (15 bảng)
+## Menu, đơn POS và kho (16 bảng)
 
 ```mermaid
 erDiagram
     stores ||--o{ menu_categories : store_id
-    stores ||--o{ menu_items : store_id
     menu_categories ||--o{ menu_items : category_id
     menu_items ||--o| menu_item_images : item_id
     menu_items ||--o{ menu_item_changes : item_id
     employees ||--o{ menu_item_changes : employee_id
-    stores ||--o{ menu_orders : store_id
-    accounts ||--o{ menu_orders : account_id
     usage_sessions ||--o{ menu_orders : session_id
-    machines ||--o{ menu_orders : machine_id
     menu_orders ||--o{ menu_order_items : order_id
     menu_items ||--o{ menu_order_items : item_id
     stores ||--o{ inventory_ingredients : store_id
@@ -71,16 +73,19 @@ erDiagram
     inventory_ingredients ||--o{ menu_item_recipes : ingredient_id
     menu_order_items ||--o{ menu_order_recipe_snapshots : "order_id,item_id"
     inventory_ingredients ||--o{ menu_order_recipe_snapshots : ingredient_id
-    inventory_ingredients ||--o{ inventory_movements : "store_id,ingredient_id"
-    inventory_ingredients ||--o{ inventory_counts : "store_id,ingredient_id"
+    inventory_ingredients ||--o{ inventory_movements : ingredient_id
+    inventory_ingredients ||--o{ inventory_counts : ingredient_id
     menu_orders ||--o{ inventory_movements : order_id
     accounts ||--o{ customer_notification_events : account_id
     stores ||--o{ customer_notification_events : store_id
     menu_orders ||--o| pos_order_reversals : order_id
     stores ||--o{ menu_promotions : store_id
     menu_items o|--o{ menu_promotions : item_id
+    menu_promotions ||--o{ menu_promotion_versions : promotion_id
+    menu_items o|--o{ menu_promotion_versions : item_id
     menu_orders ||--o| menu_order_pricing : order_id
-    menu_promotions o|--o{ menu_order_pricing : promotion_id
+    menu_promotion_versions o|--o{ menu_order_pricing : promotion_version_id
+    customer_vouchers o|--o{ menu_order_pricing : voucher_id
 ```
 
 ## Voucher, game và quảng cáo nhận thưởng (12 bảng)
@@ -105,14 +110,15 @@ erDiagram
     }
 ```
 
-## Ca/két, bảo trì và mua hàng (13 bảng)
+## Ca/két, bảo trì và mua hàng (14 bảng)
 
 ```mermaid
 erDiagram
     stores ||--o{ cash_shifts : store_id
     employees ||--o{ cash_shifts : employee_id
+    cash_shifts ||--o| active_employee_shifts : shift_id
+    employees ||--o| active_employee_shifts : employee_id
     cash_shifts ||--o{ cash_shift_entries : shift_id
-    stores ||--o{ machine_incidents : store_id
     machines ||--o{ machine_incidents : machine_id
     machine_incidents ||--o{ machine_incident_parts : incident_id
     machine_incidents ||--o{ machine_incident_events : incident_id
@@ -127,7 +133,6 @@ erDiagram
     purchase_orders ||--o{ goods_receipts : order_id
     goods_receipts ||--o{ goods_receipt_lines : receipt_id
     goods_receipts ||--o| supplier_payables : receipt_id
-    suppliers ||--o{ supplier_payables : supplier_id
 ```
 
 ## Đối tác thương mại (9 bảng)
@@ -141,18 +146,17 @@ erDiagram
     commercial_placements ||--o{ commercial_play_sessions : placement_id
     accounts ||--o{ commercial_play_sessions : account_id
     commercial_placements ||--o{ commercial_events : placement_id
-    commercial_campaigns ||--o{ commercial_events : campaign_id
     commercial_events ||--o| commercial_reward_grants : event_id
     commercial_contracts ||--o{ commercial_settlements : contract_id
     commercial_settlements ||--o{ commercial_settlement_lines : settlement_id
     commercial_placements ||--o{ commercial_settlement_lines : placement_id
 ```
 
-## RBAC theo cơ sở và email khách hàng (7 bảng mới ở migration 026–027)
+## RBAC theo cơ sở và email khách hàng (7 bảng mới ở migration 026–027, chuẩn hóa NF-03 ở 029)
 
 ```mermaid
 erDiagram
-    employees o|--o| employee_profiles : employee_id
+    employee_profiles ||--o| employees : profile_id
     stores ||--o{ employee_profiles : home_store_id
     employees ||--o{ employee_store_assignments : employee_id
     stores ||--o{ employee_store_assignments : store_id

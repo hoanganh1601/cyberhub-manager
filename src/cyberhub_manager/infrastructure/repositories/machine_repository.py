@@ -272,8 +272,8 @@ class MachineRepository:
             # Also guard against inconsistent machine/session states.
             cursor.execute(
                 """
-                SELECT 1 FROM usage_sessions
-                WHERE active_machine_id = %s
+                SELECT 1 FROM active_usage_sessions
+                WHERE machine_id = %s
                 LIMIT 1
                 """,
                 (machine_id,),

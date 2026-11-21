@@ -52,13 +52,16 @@ def bootstrap(conn, database, store_code, username, name, password):
     )
     if not stores:
         raise ValidationError("Choose an existing active store code")
+    profile_id = execute(
+        conn,
+        "INSERT INTO employee_profiles(code,home_store_id,full_name,employment_status) VALUES(%s,%s,%s,'ACTIVE')",
+        ("NV-" + uuid4().hex[:17], stores[0]["id"], name),
+    )
     employee_id = execute(
         conn,
-        "INSERT INTO employees(code,store_id,full_name,username,password_hash,role,status) VALUES(%s,%s,%s,%s,%s,'ADMIN','ACTIVE')",
+        "INSERT INTO employees(profile_id,username,password_hash,role,status) VALUES(%s,%s,%s,'ADMIN','ACTIVE')",
         (
-            "NV-" + uuid4().hex[:17],
-            stores[0]["id"],
-            name,
+            profile_id,
             username,
             hash_password(password),
         ),

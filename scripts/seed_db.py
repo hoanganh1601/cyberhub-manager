@@ -92,9 +92,10 @@ def seed_employees(
         for code, full_name, username, role in DEMO_EMPLOYEES:
             cursor.execute(
                 """
-                SELECT store_id, username
-                FROM employees
-                WHERE code = %s
+                SELECT p.home_store_id, e.username
+                FROM employee_profiles AS p
+                LEFT JOIN employees AS e ON e.profile_id = p.id
+                WHERE p.code = %s
                 """,
                 (code,),
             )
@@ -114,21 +115,33 @@ def seed_employees(
 
             cursor.execute(
                 """
-                INSERT INTO employees (
+                INSERT INTO employee_profiles (
                     code,
-                    store_id,
+                    home_store_id,
                     full_name,
+                    employment_status
+                )
+                VALUES (%s, %s, %s, %s)
+                """,
+                (code, store_id, full_name, "ACTIVE"),
+            )
+            profile_id = cursor.lastrowid
+            if profile_id is None:
+                raise RuntimeError(f"Cannot retrieve employee profile ID: {code}")
+
+            cursor.execute(
+                """
+                INSERT INTO employees (
+                    profile_id,
                     username,
                     password_hash,
                     role,
                     status
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
                 (
-                    code,
-                    store_id,
-                    full_name,
+                    profile_id,
                     username,
                     hash_password(demo_password),
                     role,

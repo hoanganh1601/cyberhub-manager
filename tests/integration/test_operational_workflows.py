@@ -17,10 +17,13 @@ def _actor(conn, scenario, *, role, name, scenario_staff=True):
         employee_id = scenario.employee_id
     else:
         token = uuid4().hex[:8]
+        profile_id = execute(conn,
+            "INSERT INTO employee_profiles(code,home_store_id,full_name) VALUES(%s,%s,%s)",
+            (f"OP-{token}", scenario.store_id, name))
         employee_id = execute(conn,
-            "INSERT INTO employees(code,store_id,full_name,username,password_hash,role) "
-            "VALUES(%s,%s,%s,%s,'x',%s)",
-            (f"OP-{token}",scenario.store_id,name,f"op.{token}",role.value))
+            "INSERT INTO employees(profile_id,username,password_hash,role) "
+            "VALUES(%s,%s,'x',%s)",
+            (profile_id, f"op.{token}", role.value))
     return EmployeeSession(employee_id,f"EMP-{employee_id}",name,f"user{employee_id}",
         scenario.store_id,"STORE","Test store",role,0)
 

@@ -92,25 +92,26 @@ def db():
                 "other_manager": "OMR",
             }[key]
 
+            profile_id = _execute(
+                conn,
+                "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+                (f"EMP-{code_suffix}-{token}", employee_store_id, f"LI05 {key}"),
+            )
             employee_id = _execute(
                 conn,
                 """
                 INSERT INTO employees
                     (
-                        code,
-                        store_id,
-                        full_name,
+                        profile_id,
                         username,
                         password_hash,
                         role,
                         status
                     )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
                 (
-                    f"EMP-{code_suffix}-{token}",
-                    employee_store_id,
-                    f"LI05 {key}",
+                    profile_id,
                     f"li05.{key}.{token}",
                     "x",
                     role.value,
@@ -261,7 +262,12 @@ def db():
             for sid in store_ids:
                 _execute(
                     conn,
-                    "DELETE FROM employees WHERE store_id = %s",
+                    "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (sid,),
+                )
+                _execute(
+                    conn,
+                    "DELETE FROM employee_profiles WHERE home_store_id = %s",
                     (sid,),
                 )
                 _execute(

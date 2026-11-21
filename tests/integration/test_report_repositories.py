@@ -43,14 +43,19 @@ def db():
             "INSERT INTO stores (code, name, address) VALUES (%s, %s, %s)",
             (f"ST-{token}", "LI08 Cửa hàng", "Test address"),
         )
+        profile_id = _execute(
+            conn,
+            "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+            (f"EMP-{token}", store_id, "LI08 Nhân viên"),
+        )
         employee_id = _execute(
             conn,
             """
             INSERT INTO employees
-                (code, store_id, full_name, username, password_hash, role)
-            VALUES (%s, %s, %s, %s, 'x', 'STAFF')
+                (profile_id, username, password_hash, role)
+            VALUES (%s, %s, 'x', 'STAFF')
             """,
-            (f"EMP-{token}", store_id, "LI08 Nhân viên", f"li08e.{token}"),
+            (profile_id, f"li08e.{token}"),
         )
         customer_id = _execute(
             conn,
@@ -128,6 +133,7 @@ def db():
             )
             _execute(conn, "DELETE FROM customers WHERE id = %s", (customer_id,))
             _execute(conn, "DELETE FROM employees WHERE id = %s", (employee_id,))
+            _execute(conn, "DELETE FROM employee_profiles WHERE id = %s", (profile_id,))
             _execute(conn, "DELETE FROM stores WHERE id = %s", (store_id,))
 
 

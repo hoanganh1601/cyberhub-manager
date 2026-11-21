@@ -19,7 +19,8 @@ class LoyaltyRepositoryMixin:
     def loyalty_settings(self, conn, lock=False):
         row = rows(
             conn,
-            "SELECT enabled,unit_amount,silver_spend,gold_spend,platinum_spend,version FROM loyalty_settings WHERE id=1"
+            "SELECT v.enabled,v.unit_amount,v.silver_spend,v.gold_spend,v.platinum_spend,v.version "
+            "FROM loyalty_settings s JOIN loyalty_policy_versions v ON v.version=s.current_version WHERE s.id=1"
             + (" FOR UPDATE" if lock else " FOR SHARE"),
         )[0]
         return LoyaltySettings(**{**row, "enabled": bool(row["enabled"])})
@@ -27,15 +28,21 @@ class LoyaltyRepositoryMixin:
     def save_loyalty_settings(self, conn, settings):
         execute(
             conn,
-            "UPDATE loyalty_settings SET enabled=%s,unit_amount=%s,silver_spend=%s,gold_spend=%s,platinum_spend=%s,version=%s WHERE id=1",
+            "INSERT INTO loyalty_policy_versions(version,enabled,unit_amount,silver_spend,gold_spend,platinum_spend) "
+            "VALUES(%s,%s,%s,%s,%s,%s)",
             (
+                settings.version,
                 settings.enabled,
                 settings.unit_amount,
                 settings.silver_spend,
                 settings.gold_spend,
                 settings.platinum_spend,
-                settings.version,
             ),
+        )
+        execute(
+            conn,
+            "UPDATE loyalty_settings SET current_version=%s WHERE id=1",
+            (settings.version,),
         )
 
     def loyalty_summary(self, conn, customer_id, current=False):
@@ -44,8 +51,10 @@ class LoyaltyRepositoryMixin:
             # REPEATABLE READ snapshot established before acquiring the wallet lock.
             awards = rows(
                 conn,
-                "SELECT loyalty_points,loyalty_eligible_amount FROM invoices "
-                "WHERE customer_id=%s AND status='PAID' FOR SHARE",
+                "SELECT GREATEST(0,i.usage_cost-i.bonus_used) AS loyalty_eligible_amount,"
+                "CASE WHEN v.enabled THEN FLOOR(GREATEST(0,i.usage_cost-i.bonus_used)/v.unit_amount) ELSE 0 END AS loyalty_points "
+                "FROM invoices i JOIN loyalty_policy_versions v ON v.version=i.loyalty_rule_version "
+                "WHERE i.customer_id=%s AND i.status='PAID' FOR SHARE",
                 (customer_id,),
             )
             return membership(
@@ -55,8 +64,10 @@ class LoyaltyRepositoryMixin:
             )
         totals = rows(
             conn,
-            "SELECT COALESCE(SUM(loyalty_points),0) AS points,COALESCE(SUM(loyalty_eligible_amount),0) AS eligible_spend "
-            "FROM invoices WHERE customer_id=%s AND status='PAID'",
+            "SELECT COALESCE(SUM(CASE WHEN v.enabled THEN FLOOR(GREATEST(0,i.usage_cost-i.bonus_used)/v.unit_amount) ELSE 0 END),0) AS points,"
+            "COALESCE(SUM(GREATEST(0,i.usage_cost-i.bonus_used)),0) AS eligible_spend "
+            "FROM invoices i JOIN loyalty_policy_versions v ON v.version=i.loyalty_rule_version "
+            "WHERE i.customer_id=%s AND i.status='PAID'",
             (customer_id,),
         )[0]
         return membership(
@@ -84,9 +95,11 @@ class LoyaltyRepositoryMixin:
         )[0]["total"]
         entries = rows(
             conn,
-            "SELECT i.id,i.code,i.status,i.loyalty_eligible_amount AS eligible_amount,i.loyalty_points AS points,"
-            "i.loyalty_unit AS unit_amount,i.loyalty_rule_version AS rule_version,i.created_at,s.name AS store_name "
-            "FROM invoices i JOIN stores s ON s.id=i.store_id WHERE i.customer_id=%s ORDER BY i.created_at DESC,i.id DESC LIMIT %s OFFSET %s",
+            "SELECT i.id,i.code,i.status,GREATEST(0,i.usage_cost-i.bonus_used) AS eligible_amount,"
+            "CASE WHEN v.enabled THEN FLOOR(GREATEST(0,i.usage_cost-i.bonus_used)/v.unit_amount) ELSE 0 END AS points,"
+            "v.unit_amount AS unit_amount,i.loyalty_rule_version AS rule_version,i.created_at,s.name AS store_name "
+            "FROM invoices i JOIN loyalty_policy_versions v ON v.version=i.loyalty_rule_version "
+            "JOIN stores s ON s.id=i.store_id WHERE i.customer_id=%s ORDER BY i.created_at DESC,i.id DESC LIMIT %s OFFSET %s",
             (customer_id, page_size, (page - 1) * page_size),
         )
         from datetime import timezone

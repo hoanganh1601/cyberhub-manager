@@ -90,15 +90,19 @@ def wallet_context():
         store_id = cursor.lastrowid
 
         cursor.execute(
+            "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+            ("EMP-" + token[:16], store_id, "HA06 Test Employee"),
+        )
+        profile_id = cursor.lastrowid
+
+        cursor.execute(
             """
             INSERT INTO employees
-                (code, store_id, full_name, username, password_hash, role)
-            VALUES (%s, %s, %s, %s, %s, %s)
+                (profile_id, username, password_hash, role)
+            VALUES (%s, %s, %s, %s)
             """,
             (
-                "EMP-" + token[:16],
-                store_id,
-                "HA06 Test Employee",
+                profile_id,
                 "ha06e." + token[:12],
                 password_hash,
                 "STAFF",
