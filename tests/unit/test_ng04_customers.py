@@ -9,13 +9,13 @@ import pytest
 
 from cyberhub_manager.domain.dtos import TransactionSummary
 from cyberhub_manager.domain.enums import CustomerStatus, PaymentMethod, Role, TransactionType
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.ui import customers_view as customers_module
-from cyberhub_manager.ui.app_shell import AppShell, ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.customers_view import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.presentation.desktop import customers_view as customers_module
+from cyberhub_manager.presentation.desktop.app_shell import AppShell, ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.customers_view import (
     CustomersView,
     balance_color,
     count_by_status,
@@ -24,11 +24,11 @@ from cyberhub_manager.ui.customers_view import (
     row_badge,
     transaction_line,
 )
-from cyberhub_manager.ui.navigation import NavKey
-from cyberhub_manager.ui.state import ViewState
-from cyberhub_manager.ui.table_kit import paginate
-from cyberhub_manager.ui.theme import STITCH_DANGER, STITCH_SUCCESS, STITCH_TEXT_MUTED, STITCH_WARNING
-from cyberhub_manager.ui.views import default_view_factories
+from cyberhub_manager.presentation.desktop.navigation import NavKey
+from cyberhub_manager.presentation.desktop.state import ViewState
+from cyberhub_manager.presentation.desktop.table_kit import paginate
+from cyberhub_manager.presentation.desktop.theme import STITCH_DANGER, STITCH_SUCCESS, STITCH_TEXT_MUTED, STITCH_WARNING
+from cyberhub_manager.presentation.desktop.views import default_view_factories
 
 RUNNER = ImmediateTaskRunner()
 
@@ -186,7 +186,7 @@ def test_action_buttons_open_dialogs(tk_root) -> None:
 def test_shell_registers_customers_view(tk_root) -> None:
     services, session = _login()
     with patch.object(customers_module, "default_runner", return_value=RUNNER), patch(
-        "cyberhub_manager.ui.dashboard_view.default_runner", return_value=RUNNER
+        "cyberhub_manager.presentation.desktop.dashboard_view.default_runner", return_value=RUNNER
     ):
         shell = AppShell(tk_root, services, session, on_logout=lambda: None, view_factories=default_view_factories())
         assert shell.navigate(NavKey.CUSTOMERS)

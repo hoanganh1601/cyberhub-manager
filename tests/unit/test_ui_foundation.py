@@ -25,7 +25,7 @@ from cyberhub_manager.domain.enums import (
     SessionStatus,
     StoreStatus,
 )
-from cyberhub_manager.ui.components import (
+from cyberhub_manager.presentation.desktop.components import (
     ActionButton,
     ConfirmDialog,
     DataTable,
@@ -36,12 +36,12 @@ from cyberhub_manager.ui.components import (
     TableRow,
     ToastManager,
 )
-from cyberhub_manager.ui.formatters import (
+from cyberhub_manager.presentation.desktop.formatters import (
     format_datetime,
     format_duration,
     format_money,
 )
-from cyberhub_manager.ui.messages import (
+from cyberhub_manager.presentation.desktop.messages import (
     MSG_PROCESSING,
     MSG_LOADING,
     MSG_NO_DATA,
@@ -61,8 +61,8 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
     ServiceUnavailableError,
 )
-from cyberhub_manager.ui.state import FormState, ViewState
-from cyberhub_manager.ui.theme import (
+from cyberhub_manager.presentation.desktop.state import FormState, ViewState
+from cyberhub_manager.presentation.desktop.theme import (
     ACCENT,
     BG_APP,
     BG_DANGER_SUBTLE,
@@ -801,9 +801,9 @@ def test_confirm_dialog_alert_mode(tk_root) -> None:
 # 10. TEST COMPONENT GALLERY ERROR PATHS (NG01-08)
 # ==============================================================================
 def test_gallery_conflict_error_handling_no_vietnamese(monkeypatch) -> None:
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_STAFF
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp, ACTOR_STAFF
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     alerts: list[str] = []
     toasts: list[tuple[str, str]] = []
@@ -832,9 +832,9 @@ def test_gallery_conflict_error_handling_no_vietnamese(monkeypatch) -> None:
 
 def test_gallery_unavailable_table_state_no_vietnamese() -> None:
     """Gallery khi tải bảng gặp UNAVAILABLE phải set trạng thái ERROR bằng tiếng Anh, không có tiếng Việt."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     dummy_app = MagicMock(spec=ComponentGalleryApp)
     dummy_app._services = build_mock_services(MockScenario.UNAVAILABLE)
@@ -857,9 +857,9 @@ def test_gallery_unavailable_table_state_no_vietnamese() -> None:
 
 def test_gallery_unavailable_machines_no_vietnamese(tk_root) -> None:
     """Gallery khi nạp danh sách máy gặp UNAVAILABLE phải hiện nhãn lỗi tiếng Anh."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     dummy_app = MagicMock(spec=ComponentGalleryApp)
     dummy_app._services = build_mock_services(MockScenario.UNAVAILABLE)
@@ -884,9 +884,9 @@ def test_gallery_validation_error_field_errors(tk_root, monkeypatch) -> None:
     """Scenario VALIDATION_ERROR: submit form tạo khách hàng phải hiện lỗi
     từng trường bằng tiếng Anh, bắn Toast tổng quát, giữ dữ liệu nhập
     và trả is_busy=False qua finally."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     captured_toasts: list[tuple[str, str]] = []
     monkeypatch.setattr(
@@ -942,9 +942,9 @@ def test_gallery_validation_error_field_errors(tk_root, monkeypatch) -> None:
 def test_gallery_conflict_submit_form_english_toast(tk_root, monkeypatch) -> None:
     """Scenario CONFLICT: submit form tạo khách hàng phải Toast lỗi tiếng Anh,
     hiện lỗi tại trường phone, giữ dữ liệu và trả is_busy=False."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     captured_toasts: list[tuple[str, str]] = []
     monkeypatch.setattr(
@@ -989,9 +989,9 @@ def test_gallery_conflict_submit_form_english_toast(tk_root, monkeypatch) -> Non
 def test_gallery_success_submit_form(tk_root, monkeypatch) -> None:
     """Scenario SUCCESS: submit form tạo khách hàng phải Toast thành công tiếng Anh,
     không có lỗi trường, và trả is_busy=False."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     captured_toasts: list[tuple[str, str]] = []
     monkeypatch.setattr(
@@ -1033,7 +1033,7 @@ def test_gallery_submit_handler_ignores_when_busy(tk_root) -> None:
     """Khi nút submit đang ở trạng thái busy (is_busy=True), việc gọi handler
     (chẳng hạn do nhấn phím Enter trên FormField) phải return ngay lập tức
     và không được gọi tiếp service create_customer."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp
 
     dummy_app = MagicMock(spec=ComponentGalleryApp)
     dummy_app._services = MagicMock()
@@ -1084,9 +1084,9 @@ def test_form_field_bind_return(tk_root) -> None:
 def test_gallery_maintenance_action_manager_success(monkeypatch) -> None:
     """Gallery gọi set_maintenance kết thúc bảo trì với quyền MANAGER:
     chuyển trạng thái máy về AVAILABLE và Toast thành công tiếng Anh."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_MANAGER
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp, ACTOR_MANAGER
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
     from cyberhub_manager.domain.enums import MachineStatus
 
     captured_toasts: list[tuple[str, str]] = []
@@ -1128,9 +1128,9 @@ def test_gallery_maintenance_action_manager_success(monkeypatch) -> None:
 def test_gallery_maintenance_action_staff_forbidden(monkeypatch) -> None:
     """Gallery khi actor là STAFF thực hiện thao tác bảo trì phải bị từ chối
     bởi ForbiddenError và hiển thị Toast lỗi tiếng Anh, không crash."""
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_STAFF
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp, ACTOR_STAFF
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     captured_toasts: list[tuple[str, str]] = []
     monkeypatch.setattr(
@@ -1156,9 +1156,9 @@ def test_gallery_maintenance_action_staff_forbidden(monkeypatch) -> None:
     assert not any(ord(c) > 127 for c in msg)
 
 def test_gallery_maintenance_action_cancel_keeps_machine_unchanged(monkeypatch) -> None:
-    from cyberhub_manager.ui.component_gallery import ComponentGalleryApp, ACTOR_MANAGER
-    from cyberhub_manager.services.mocks.factory import build_mock_services
-    from cyberhub_manager.services.mocks.scenarios import MockScenario
+    from cyberhub_manager.presentation.desktop.component_gallery import ComponentGalleryApp, ACTOR_MANAGER
+    from cyberhub_manager.application.services.mocks.factory import build_mock_services
+    from cyberhub_manager.application.services.mocks.scenarios import MockScenario
 
     confirm = MagicMock(return_value=False)
     toast = MagicMock()
@@ -1183,7 +1183,7 @@ def test_gallery_maintenance_action_cancel_keeps_machine_unchanged(monkeypatch) 
 def test_unified_app_shell_theme_tokens() -> None:
     """Unified App Shell tokens follow the approved 1280x720 design."""
 
-    from cyberhub_manager.ui import theme
+    from cyberhub_manager.presentation.desktop import theme
 
     assert theme.BG_TOPBAR == "#0D1626"
     assert theme.BG_CONTENT == "#080F1E"
@@ -1210,7 +1210,7 @@ def test_cyberhub_logo_is_packaged() -> None:
 
     from importlib.resources import files
 
-    logo = files("cyberhub_manager.ui.assets").joinpath(
+    logo = files("cyberhub_manager.presentation.desktop.assets").joinpath(
         "cyberhub_logo_dark.png"
     )
 
@@ -1218,7 +1218,7 @@ def test_cyberhub_logo_is_packaged() -> None:
     assert logo.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 def test_shell_translations_are_consistent() -> None:
-    from cyberhub_manager.ui.i18n import (
+    from cyberhub_manager.presentation.desktop.i18n import (
         normalize_language,
         translate,
     )

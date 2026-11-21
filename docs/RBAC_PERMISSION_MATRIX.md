@@ -13,9 +13,9 @@
 
 | Chức năng hiện có / điểm kiểm tra | Hiện tại | Đề xuất | Phạm vi và điều kiện |
 | --- | --- | --- | --- |
-| Đăng nhập/đăng xuất nhân viên; tự đổi mật khẩu | Nhân viên hợp lệ | Nhân viên hợp lệ | Bản thân; đổi mật khẩu cần mật khẩu hiện tại; giữ `auth_version`. [`auth_service.py`](../src/cyberhub_manager/services/auth_service.py) |
-| Xem danh sách cơ sở | `*` (A xem tất cả) | A: metadata tối thiểu; D: chuỗi; M: được giao; S/K/I: hiện tại | Không để quyền xem danh sách đồng nghĩa quyền vận hành. [`management_service.py`](../src/cyberhub_manager/services/management_service.py) |
-| Chuyển cơ sở thao tác `SWITCH_STORE` | A | D; M nếu được giao nhiều cơ sở | Kiểm tra phân công còn hiệu lực; S/K/I không chuyển tùy ý. [`access.py`](../src/cyberhub_manager/services/access.py) |
+| Đăng nhập/đăng xuất nhân viên; tự đổi mật khẩu | Nhân viên hợp lệ | Nhân viên hợp lệ | Bản thân; đổi mật khẩu cần mật khẩu hiện tại; giữ `auth_version`. [`auth_service.py`](../src/cyberhub_manager/application/services/auth_service.py) |
+| Xem danh sách cơ sở | `*` (A xem tất cả) | A: metadata tối thiểu; D: chuỗi; M: được giao; S/K/I: hiện tại | Không để quyền xem danh sách đồng nghĩa quyền vận hành. [`management_service.py`](../src/cyberhub_manager/application/services/management_service.py) |
+| Chuyển cơ sở thao tác `SWITCH_STORE` | A | D; M nếu được giao nhiều cơ sở | Kiểm tra phân công còn hiệu lực; S/K/I không chuyển tùy ý. [`access.py`](../src/cyberhub_manager/application/services/access.py) |
 | Tạo/sửa/ngừng cơ sở `MANAGE_STORES` | A | D | Chuỗi; chặn ngừng cơ sở còn phiên/chứng từ cần xử lý. Cấu hình kết nối/hạ tầng của cơ sở nếu phát sinh sau này thuộc A, chưa có màn riêng. |
 | Xem danh sách hồ sơ nhân viên `MANAGE_EMPLOYEES` | A, M | D, M; A chỉ dữ liệu tối thiểu phục vụ identity | D: chuỗi; M: cơ sở được giao; A không xem hồ sơ kinh doanh nhạy cảm mặc định. |
 | Tạo/sửa hồ sơ nhân sự (`save_employee_profile`) | D, M theo phạm vi cơ sở | D, M | Đã tách Service contract và UI Web/Desktop; D/M không được đặt username, password, role hoặc trạng thái khóa đăng nhập. |
@@ -23,7 +23,7 @@
 | Reset mật khẩu nhân viên (`reset_employee_password`) | A | A | Không reset chính mình bằng luồng admin; audit, tăng `auth_version`, buộc đổi mật khẩu. |
 | Xem audit hệ thống hoặc cấu hình kỹ thuật | Chưa có quyền/API quản trị riêng | A **khi xây dựng** | Không tính là chức năng hiện hữu; chỉ nêu trong thiết kế, không đưa thành grant chạy được. |
 
-Nguồn: [`management_service.py`](../src/cyberhub_manager/services/management_service.py), [`operations_routes.py`](../src/cyberhub_manager/web/operations_routes.py), [`sql/001_initial_schema.sql`](../sql/001_initial_schema.sql).
+Nguồn: [`management_service.py`](../src/cyberhub_manager/application/services/management_service.py), [`operations_routes.py`](../src/cyberhub_manager/presentation/web/operations_routes.py), [`sql/001_initial_schema.sql`](../sql/001_initial_schema.sql).
 
 ## 2. Khách hàng, ví, máy, phiên, hóa đơn và báo cáo
 
@@ -43,7 +43,7 @@ Nguồn: [`management_service.py`](../src/cyberhub_manager/services/management_s
 | Xem/thay đổi chính sách nạp tiền `MANAGE_PROMOTIONS` | A, M | D: chuỗi; M: cơ sở nếu được giao chính sách `?` | Không cho M sửa chính sách toàn chuỗi; giá trị ưu đãi cần audit. |
 | Xem/chỉnh cấu hình hạng thành viên (role cứng ADMIN) | A | D | Cấu hình kinh doanh toàn chuỗi; không thuộc cấu hình kỹ thuật. |
 
-Nguồn: [`customer_service.py`](../src/cyberhub_manager/services/customer_service.py), [`wallet_service.py`](../src/cyberhub_manager/services/wallet_service.py), [`machine_service.py`](../src/cyberhub_manager/services/machine_service.py), [`session_service.py`](../src/cyberhub_manager/services/session_service.py), [`report_service.py`](../src/cyberhub_manager/services/report_service.py), [`forecasting_routes.py`](../src/cyberhub_manager/web/forecasting_routes.py).
+Nguồn: [`customer_service.py`](../src/cyberhub_manager/application/services/customer_service.py), [`wallet_service.py`](../src/cyberhub_manager/application/services/wallet_service.py), [`machine_service.py`](../src/cyberhub_manager/application/services/machine_service.py), [`session_service.py`](../src/cyberhub_manager/application/services/session_service.py), [`report_service.py`](../src/cyberhub_manager/application/services/report_service.py), [`forecasting_routes.py`](../src/cyberhub_manager/presentation/web/forecasting_routes.py).
 
 ## 3. POS, menu, voucher, game, quảng cáo
 
@@ -65,7 +65,7 @@ Nguồn: [`customer_service.py`](../src/cyberhub_manager/services/customer_servi
 | Xem Game Center/ads quản trị `OPERATE` | A, M, S | D, M, S theo dữ liệu cần xem | Cơ sở; K/I không được cấp tự động. |
 | Khách chơi game/xem ads/đổi thưởng | C | C | Chỉ tài khoản mình, server tính thưởng; không cấp quyền nhân viên. |
 
-Nguồn: [`menu_order_service.py`](../src/cyberhub_manager/services/menu_order_service.py), [`menu_catalog_service.py`](../src/cyberhub_manager/services/menu_catalog_service.py), [`voucher_service.py`](../src/cyberhub_manager/services/voucher_service.py), [`game_service.py`](../src/cyberhub_manager/services/game_service.py), [`ad_service.py`](../src/cyberhub_manager/services/ad_service.py).
+Nguồn: [`menu_order_service.py`](../src/cyberhub_manager/application/services/menu_order_service.py), [`menu_catalog_service.py`](../src/cyberhub_manager/application/services/menu_catalog_service.py), [`voucher_service.py`](../src/cyberhub_manager/application/services/voucher_service.py), [`game_service.py`](../src/cyberhub_manager/application/services/game_service.py), [`ad_service.py`](../src/cyberhub_manager/application/services/ad_service.py).
 
 ## 4. Kho, ca, bảo trì và mua hàng
 
@@ -89,7 +89,7 @@ Nguồn: [`menu_order_service.py`](../src/cyberhub_manager/services/menu_order_s
 | Thanh toán công nợ `PROCUREMENT_PAY` | A, M | M; D nếu vượt ngưỡng `?` | Cần ca thu chi; **chưa có người duyệt thanh toán riêng**. |
 | Quản lý nhà cung cấp `PROCUREMENT_MANAGE_SUPPLIERS` | A, M | D, M | D cho chính sách toàn chuỗi; M cho NCC cơ sở. |
 
-Nguồn: [`menu_inventory_service.py`](../src/cyberhub_manager/services/menu_inventory_service.py), [`cash_shift_service.py`](../src/cyberhub_manager/services/cash_shift_service.py), [`maintenance_service.py`](../src/cyberhub_manager/services/maintenance_service.py), [`procurement_service.py`](../src/cyberhub_manager/services/procurement_service.py).
+Nguồn: [`menu_inventory_service.py`](../src/cyberhub_manager/application/services/menu_inventory_service.py), [`cash_shift_service.py`](../src/cyberhub_manager/application/services/cash_shift_service.py), [`maintenance_service.py`](../src/cyberhub_manager/application/services/maintenance_service.py), [`procurement_service.py`](../src/cyberhub_manager/application/services/procurement_service.py).
 
 ## 5. Đối tác thương mại, trợ lý và cổng khách hàng
 
@@ -104,7 +104,7 @@ Nguồn: [`menu_inventory_service.py`](../src/cyberhub_manager/services/menu_inv
 | Khách xem/sửa hồ sơ của mình, tự đổi mật khẩu, lịch sử, đơn và hóa đơn | C | C | Bản thân; không trộn với role nhân viên. |
 | Khách tự đăng ký bằng mật khẩu rồi vào cổng ngay | Khách chưa đăng nhập | Giữ đến khi duyệt chuyển sang email `?` | Hiện chưa xác minh email; không đổi trải nghiệm khách cũ âm thầm. |
 
-Nguồn: [`commercial_service.py`](../src/cyberhub_manager/services/commercial_service.py), [`assistant.py`](../src/cyberhub_manager/web/assistant.py), [`assistant_context.py`](../src/cyberhub_manager/web/assistant_context.py), [`application.py`](../src/cyberhub_manager/web/application.py), [`portal_phase2.py`](../src/cyberhub_manager/services/portal_phase2.py).
+Nguồn: [`commercial_service.py`](../src/cyberhub_manager/application/services/commercial_service.py), [`assistant.py`](../src/cyberhub_manager/presentation/web/assistant.py), [`assistant_context.py`](../src/cyberhub_manager/presentation/web/assistant_context.py), [`application.py`](../src/cyberhub_manager/presentation/web/application.py), [`portal_phase2.py`](../src/cyberhub_manager/application/services/portal_phase2.py).
 
 ## 6. Quyền chưa tồn tại trong source: không cấp ở giai đoạn này
 

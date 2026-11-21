@@ -20,10 +20,10 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.voucher import RewardType, VoucherAction, VoucherSource, VoucherState
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.services.voucher_service import REJECT_MESSAGES
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.voucher_service import REJECT_MESSAGES
 
 NOW = datetime(2026, 10, 18, 9, tzinfo=timezone.utc)
 

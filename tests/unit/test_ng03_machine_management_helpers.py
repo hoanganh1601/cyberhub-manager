@@ -6,9 +6,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.ui.machine_management_view import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.presentation.desktop.machine_management_view import (
     current_session_cells,
     format_short_duration,
     format_updated_ago,

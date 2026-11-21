@@ -27,10 +27,10 @@ TEST_DATABASE = "cyberhub_manager_test"
 
 from mysql.connector import cursor as py_cursor  # noqa: E402
 
-from cyberhub_manager.database import connection  # noqa: E402
+from cyberhub_manager.infrastructure.database import connection  # noqa: E402
 from cyberhub_manager.domain.dtos import InvoiceFilters  # noqa: E402
 from cyberhub_manager.domain.enums import PaymentMethod  # noqa: E402
-from cyberhub_manager.security import hash_password  # noqa: E402
+from cyberhub_manager.infrastructure.security import hash_password  # noqa: E402
 
 try:
     from mysql.connector import cursor_cext
@@ -232,7 +232,7 @@ def _benchmark(conn, args) -> int:
     print(f"Seed: {info['customers']} khách, {info['sessions']} phiên/hóa đơn, "
           f"{info['transactions']} giao dịch ({time.perf_counter() - t0:.1f}s)")
 
-    from cyberhub_manager.services.bootstrap import create_service_bundle
+    from cyberhub_manager.application.services.bootstrap import create_service_bundle
 
     state = {"actor": None}
     svc = create_service_bundle(actor_provider=lambda: state["actor"])

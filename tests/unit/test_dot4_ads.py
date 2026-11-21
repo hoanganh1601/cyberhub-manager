@@ -15,7 +15,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.game import LedgerReason
-from cyberhub_manager.services.ad_service import (
+from cyberhub_manager.application.services.ad_service import (
     ADS_PAUSED,
     ALREADY_HANDLED,
     CAP_REACHED,
@@ -26,10 +26,10 @@ from cyberhub_manager.services.ad_service import (
     WALLET_LOCKED,
     sign_callback,
 )
-from cyberhub_manager.services.game_service import LIMIT_REACHED
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.game_service import LIMIT_REACHED
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
 
 NOW = datetime(2026, 10, 18, 9, tzinfo=timezone.utc)
 SECRET = "unit-test-ssv-secret"

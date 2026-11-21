@@ -6,16 +6,16 @@ import socket
 
 import pytest
 
-from cyberhub_manager.ai.chunking import MarkdownChunker
-from cyberhub_manager.ai.documents import KnowledgeDocumentLoader
-from cyberhub_manager.ai.errors import (
+from cyberhub_manager.application.ai.chunking import MarkdownChunker
+from cyberhub_manager.infrastructure.ai.documents import KnowledgeDocumentLoader
+from cyberhub_manager.domain.ai.errors import (
     InvalidProviderResponseError,
     ProviderError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-from cyberhub_manager.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
-from cyberhub_manager.ai.providers import (
+from cyberhub_manager.application.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
+from cyberhub_manager.domain.ai.providers import (
     EmbeddingProvider,
     LLMProvider,
     validate_embedding,

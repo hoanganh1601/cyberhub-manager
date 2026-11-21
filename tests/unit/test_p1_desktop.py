@@ -2,10 +2,10 @@
 
 from dataclasses import replace
 import pytest
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.app_shell import ViewContext
-from cyberhub_manager.ui.p1_views import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.app_shell import ViewContext
+from cyberhub_manager.presentation.desktop.p1_views import (
     ManagementView,
     ManagementForm,
     CustomerPortalView,

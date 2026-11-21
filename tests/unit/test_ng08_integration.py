@@ -27,30 +27,30 @@ from cyberhub_manager.domain.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.ui import feedback as feedback_module
-from cyberhub_manager.ui.app_shell import AppShell, PlaceholderView, ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.customers_view import CustomersView
-from cyberhub_manager.ui.dashboard_view import DashboardView
-from cyberhub_manager.ui.dialogs import checkout_dialog as checkout_module
-from cyberhub_manager.ui.dialogs.checkout_dialog import CheckoutDialog
-from cyberhub_manager.ui.dialogs.customer_dialog import CustomerDialog
-from cyberhub_manager.ui.dialogs.open_session_dialog import ELIGIBLE, OpenSessionDialog
-from cyberhub_manager.ui.dialogs.topup_dialog import TopUpDialog
-from cyberhub_manager.ui.invoices_view import InvoicesView
-from cyberhub_manager.ui.machine_management_view import MachineManagementView
-from cyberhub_manager.ui.messages import MSG_OPERATION_FAILED
-from cyberhub_manager.ui.navigation import NAV_ITEMS, NavKey
-from cyberhub_manager.ui.reports_view import ReportsView
-from cyberhub_manager.ui.state import ViewState
-from cyberhub_manager.ui.views import default_view_factories
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.presentation.desktop import feedback as feedback_module
+from cyberhub_manager.presentation.desktop.app_shell import AppShell, PlaceholderView, ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.customers_view import CustomersView
+from cyberhub_manager.presentation.desktop.dashboard_view import DashboardView
+from cyberhub_manager.presentation.desktop.dialogs import checkout_dialog as checkout_module
+from cyberhub_manager.presentation.desktop.dialogs.checkout_dialog import CheckoutDialog
+from cyberhub_manager.presentation.desktop.dialogs.customer_dialog import CustomerDialog
+from cyberhub_manager.presentation.desktop.dialogs.open_session_dialog import ELIGIBLE, OpenSessionDialog
+from cyberhub_manager.presentation.desktop.dialogs.topup_dialog import TopUpDialog
+from cyberhub_manager.presentation.desktop.invoices_view import InvoicesView
+from cyberhub_manager.presentation.desktop.machine_management_view import MachineManagementView
+from cyberhub_manager.presentation.desktop.messages import MSG_OPERATION_FAILED
+from cyberhub_manager.presentation.desktop.navigation import NAV_ITEMS, NavKey
+from cyberhub_manager.presentation.desktop.reports_view import ReportsView
+from cyberhub_manager.presentation.desktop.state import ViewState
+from cyberhub_manager.presentation.desktop.views import default_view_factories
 
 RUNNER = ImmediateTaskRunner()
-UI_DIR = Path(__file__).resolve().parents[2] / "src" / "cyberhub_manager" / "ui"
+UI_DIR = Path(__file__).resolve().parents[2] / "src" / "cyberhub_manager" / "presentation" / "desktop"
 # Câu lỗi nội bộ (tiếng Việt) của mock service — không bao giờ được hiện ra giao diện.
 INTERNAL_MESSAGES = ("Không tải được dữ liệu", "Dịch vụ hiện không khả dụng", "Traceback", "SELECT ", "mysql")
 VIEWS = {
@@ -188,7 +188,7 @@ def _shell(tk_root, username: str = "quanly01"):
     modules = ("dashboard_view", "customers_view", "invoices_view", "reports_view", "machine_management_view")
     with ExitStack() as stack:
         for module in modules:
-            stack.enter_context(patch(f"cyberhub_manager.ui.{module}.default_runner", return_value=RUNNER))
+            stack.enter_context(patch(f"cyberhub_manager.presentation.desktop.{module}.default_runner", return_value=RUNNER))
         shell = AppShell(tk_root, services, session, on_logout=lambda: None, view_factories=default_view_factories())
         try:
             yield shell, services

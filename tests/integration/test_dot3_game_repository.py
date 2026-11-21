@@ -6,7 +6,7 @@ import pytest
 from mysql.connector import Error as MySQLError
 
 from cyberhub_manager.domain.game import DEFAULT_GAME, LedgerReason
-from cyberhub_manager.repositories.game_repository import GameRepository
+from cyberhub_manager.infrastructure.repositories.game_repository import GameRepository
 
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
 

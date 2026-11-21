@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from .enums import SessionStatus
-from .exceptions import ConflictError, ValidationError
-from .model_base import (
+from cyberhub_manager.domain.enums import SessionStatus
+from cyberhub_manager.domain.exceptions import ConflictError, ValidationError
+from cyberhub_manager.domain.model_base import (
     Entity,
     _require_datetime,
     _require_positive_amount,

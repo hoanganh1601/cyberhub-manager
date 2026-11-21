@@ -8,16 +8,16 @@ from datetime import date, timedelta
 import pytest
 
 from cyberhub_manager.domain.exceptions import NotFoundError, ValidationError
-from cyberhub_manager.services.forecasting.dashboard import ForecastDashboardService
-from cyberhub_manager.services.forecasting.dataset import (
+from cyberhub_manager.application.services.forecasting.dashboard import ForecastDashboardService
+from cyberhub_manager.application.services.forecasting.dataset import (
     DailyObservation,
     ForecastDataset,
     generate_demo_dataset,
 )
-from cyberhub_manager.services.forecasting.evaluation import evaluate_predictions
-from cyberhub_manager.services.forecasting.features import build_feature_rows
-from cyberhub_manager.services.forecasting.predictor import ForecastPredictor
-from cyberhub_manager.services.forecasting.trainer import ForecastTrainer
+from cyberhub_manager.application.services.forecasting.evaluation import evaluate_predictions
+from cyberhub_manager.application.services.forecasting.features import build_feature_rows
+from cyberhub_manager.application.services.forecasting.predictor import ForecastPredictor
+from cyberhub_manager.application.services.forecasting.trainer import ForecastTrainer
 
 
 def test_demo_dataset_is_deterministic_contiguous_and_explicitly_simulated():

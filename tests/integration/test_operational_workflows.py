@@ -6,10 +6,10 @@ import pytest
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError
-from cyberhub_manager.repositories.sql import execute, rows
-from cyberhub_manager.services.cash_shift_service import CashShiftService
-from cyberhub_manager.services.maintenance_service import MaintenanceService
-from cyberhub_manager.services.procurement_service import ProcurementService
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
+from cyberhub_manager.application.services.cash_shift_service import CashShiftService
+from cyberhub_manager.application.services.maintenance_service import MaintenanceService
+from cyberhub_manager.application.services.procurement_service import ProcurementService
 
 
 def _actor(conn, scenario, *, role, name, scenario_staff=True):

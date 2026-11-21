@@ -30,8 +30,8 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Account, Customer, Machine, UsageSession
-from cyberhub_manager.services.contracts import ReportServiceProtocol
-from cyberhub_manager.services.report_service import (
+from cyberhub_manager.application.services.contracts import ReportServiceProtocol
+from cyberhub_manager.application.services.report_service import (
     INCONSISTENT_INVOICE,
     DATE_FROM_REQUIRED,
     DATE_INVALID,

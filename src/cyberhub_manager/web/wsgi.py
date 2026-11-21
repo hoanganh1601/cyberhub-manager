@@ -1,5 +1,4 @@
-"""Production entrypoint: gunicorn cyberhub_manager.web.wsgi:app."""
+"""Compatibility entry point for existing gunicorn configurations."""
+from cyberhub_manager.presentation.web.wsgi import app
 
-from . import create_app
-
-app = create_app()
+__all__ = ["app"]

@@ -8,14 +8,14 @@ import pytest
 from mysql.connector import errorcode
 from mysql.connector.errors import DatabaseError, InterfaceError
 
-from cyberhub_manager.database import transaction as transaction_module
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database import transaction as transaction_module
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.exceptions import (
     AuthenticationError,
     InsufficientBalanceError,
     ServiceUnavailableError,
 )
-from cyberhub_manager.services.auth_service import AuthService
+from cyberhub_manager.application.services.auth_service import AuthService
 
 def server_lost() -> InterfaceError:
     """Mỗi lần một exception mới để traceback của test này không dính sang test khác."""
@@ -124,7 +124,7 @@ def test_mysql_down_during_login_logs_one_warning_without_traceback(conn, logs) 
         AuthService(auth_repo=_LostConnectionAuthRepo()).login("demo.manager", "demo123")
     [record] = _noisy(logs)
     assert record.levelno == logging.WARNING
-    assert record.name == "cyberhub_manager.services.db_errors"
+    assert record.name == "cyberhub_manager.infrastructure.db_errors"
     assert all(r.exc_info is None for r in logs.records)
 
 

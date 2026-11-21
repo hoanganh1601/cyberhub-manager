@@ -11,10 +11,10 @@ import json
 import os
 from pathlib import Path
 
-from cyberhub_manager.config import load_settings
-from cyberhub_manager.database.connection import get_connection
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.security import verify_password
+from cyberhub_manager.infrastructure.config import load_settings
+from cyberhub_manager.infrastructure.database.connection import get_connection
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.security import verify_password
 
 
 ALLOWED_TARGETS = {"ADMIN", "DIRECTOR", "MANAGER"}

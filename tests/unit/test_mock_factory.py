@@ -24,9 +24,9 @@ from cyberhub_manager.domain.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from cyberhub_manager.services import contracts
-from cyberhub_manager.services.contracts import ServiceBundle
-from cyberhub_manager.services.mocks import (
+from cyberhub_manager.application.services import contracts
+from cyberhub_manager.application.services.contracts import ServiceBundle
+from cyberhub_manager.application.services.mocks import (
     AFFECTED_OPERATIONS,
     DEMO_PASSWORD,
     MockClock,
@@ -259,11 +259,11 @@ def test_outputs_do_not_expose_password_fields() -> None:
 def test_mock_package_does_not_load_mysql_env_or_ui() -> None:
     script = (
         "import sys\n"
-        "from cyberhub_manager.services.mocks import build_mock_services\n"
+        "from cyberhub_manager.application.services.mocks import build_mock_services\n"
         "build_mock_services()\n"
         "forbidden = ('mysql', 'dotenv', 'customtkinter', 'tkinter',\n"
-        "             'cyberhub_manager.config', 'cyberhub_manager.database',\n"
-        "             'cyberhub_manager.ui')\n"
+        "             'cyberhub_manager.infrastructure.config', 'cyberhub_manager.infrastructure.database',\n"
+        "             'cyberhub_manager.presentation.desktop')\n"
         "loaded = sorted(m for m in sys.modules if m.startswith(forbidden))\n"
         "print(','.join(loaded))\n"
     )

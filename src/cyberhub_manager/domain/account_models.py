@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import re
 
-from .enums import AccountStatus, CustomerStatus
-from .exceptions import ValidationError
-from .model_base import (
+from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus
+from cyberhub_manager.domain.exceptions import ValidationError
+from cyberhub_manager.domain.model_base import (
     Entity,
     Person,
     _require_non_blank,

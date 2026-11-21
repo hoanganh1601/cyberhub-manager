@@ -7,7 +7,7 @@ import hmac
 from enum import StrEnum
 from urllib.parse import urlsplit
 
-from .exceptions import ValidationError
+from cyberhub_manager.domain.exceptions import ValidationError
 
 
 SAFE_IFRAME_SANDBOX = "allow-scripts allow-pointer-lock"

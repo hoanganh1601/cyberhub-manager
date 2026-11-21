@@ -5,8 +5,8 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from cyberhub_manager.ai.errors import ContextBudgetError, InsufficientContextError, InvalidProviderResponseError
-from cyberhub_manager.ai.grounded import GroundedJSONLLMProvider
+from cyberhub_manager.domain.ai.errors import ContextBudgetError, InsufficientContextError, InvalidProviderResponseError
+from cyberhub_manager.domain.ai.grounded import GroundedJSONLLMProvider
 
 QUOTE = "Số dư tối thiểu đủ 30 phút theo đơn giá máy."
 PROMPT = f'<request><authorized_context><document ref="S1">{QUOTE}</document></authorized_context></request>'

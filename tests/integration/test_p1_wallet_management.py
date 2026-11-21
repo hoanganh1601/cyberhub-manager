@@ -7,13 +7,13 @@ import pytest
 from cyberhub_manager.domain.enums import Role, PaymentMethod
 from cyberhub_manager.domain.p1 import Promotion, CustomerSession
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.p1_repository import P1Repository, rows, execute
-from cyberhub_manager.services.wallet_service import WalletService
-from cyberhub_manager.services.session_service import SessionService
-from cyberhub_manager.services.management_service import ManagementService
-from cyberhub_manager.services.portal_service import PortalService
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository, rows, execute
+from cyberhub_manager.application.services.wallet_service import WalletService
+from cyberhub_manager.application.services.session_service import SessionService
+from cyberhub_manager.application.services.management_service import ManagementService
+from cyberhub_manager.application.services.portal_service import PortalService
 
 
 def test_p1_real_money_receipt_and_customer_history(db_conn, test_scenario):

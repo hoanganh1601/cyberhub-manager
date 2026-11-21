@@ -22,8 +22,8 @@ def main(argv=None):
     os.environ.update(CYBERHUB_ASSISTANT_ENABLED="true", CYBERHUB_ASSISTANT_PROVIDER="gemini",
                       CYBERHUB_WEB_MODE=args.mode,
                       CYBERHUB_ASSISTANT_AUDIT_PATH=str(runtime / "assistant" / "audit.sqlite3"))
-    from cyberhub_manager.web import create_app
-    from cyberhub_manager.ai.errors import ProviderAuthenticationError, ProviderError, ProviderRateLimitError
+    from cyberhub_manager.presentation.web import create_app
+    from cyberhub_manager.domain.ai.errors import ProviderAuthenticationError, ProviderError, ProviderRateLimitError
 
     print("Gemini API: sending approved knowledge to Google to build the retrieval index.", flush=True)
     print("Questions and authorized context will be sent to Google. Free-tier quotas apply.", flush=True)

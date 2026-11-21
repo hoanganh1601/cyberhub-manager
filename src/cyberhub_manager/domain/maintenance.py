@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from .exceptions import ConflictError
+from cyberhub_manager.domain.exceptions import ConflictError
 
 
 class IncidentStatus(StrEnum):

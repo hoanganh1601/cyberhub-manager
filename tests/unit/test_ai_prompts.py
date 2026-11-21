@@ -6,15 +6,15 @@ import socket
 
 import pytest
 
-from cyberhub_manager.ai.chunking import MarkdownChunker
-from cyberhub_manager.ai.errors import (
+from cyberhub_manager.application.ai.chunking import MarkdownChunker
+from cyberhub_manager.domain.ai.errors import (
     ContextBudgetError, InsufficientContextError, InvalidContextError, InvalidQuestionError,
     KnowledgeAccessError, KnowledgeIndexUnavailableError,
 )
-from cyberhub_manager.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
-from cyberhub_manager.ai.models import AIAccessContext, KnowledgeDocument
-from cyberhub_manager.ai.prompts import RAGPromptBuilder
-from cyberhub_manager.ai.retrieval import CosineKnowledgeIndex, KnowledgeRetriever
+from cyberhub_manager.application.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
+from cyberhub_manager.domain.ai.models import AIAccessContext, KnowledgeDocument
+from cyberhub_manager.application.ai.prompts import RAGPromptBuilder
+from cyberhub_manager.application.ai.retrieval import CosineKnowledgeIndex, KnowledgeRetriever
 
 
 @pytest.fixture(autouse=True)
@@ -220,7 +220,7 @@ def test_invalid_xml_characters_in_question_or_document_fail_closed(control):
 
 
 def test_index_revocation_while_formatting_prevents_returning_prompt(monkeypatch):
-    import cyberhub_manager.ai.prompts as module
+    import cyberhub_manager.application.ai.prompts as module
     retriever, builder, index = prepared()
     chunks = retriever.search(question="question", access=actor())
     original = module._serialize

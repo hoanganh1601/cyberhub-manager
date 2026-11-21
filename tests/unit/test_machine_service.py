@@ -24,8 +24,8 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Account, Customer, Machine, UsageSession
-from cyberhub_manager.services.contracts import MachineServiceProtocol
-from cyberhub_manager.services.machine_service import MachineService
+from cyberhub_manager.application.services.contracts import MachineServiceProtocol
+from cyberhub_manager.application.services.machine_service import MachineService
 
 STORE_ID = 1
 OTHER_STORE_ID = 2

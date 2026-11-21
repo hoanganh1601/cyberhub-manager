@@ -6,13 +6,13 @@ from unittest.mock import patch
 import pytest
 
 from cyberhub_manager.domain.dtos import DailyRevenue
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.ui.app_shell import ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.reports_view import ReportsView
-from cyberhub_manager.ui.revenue_analysis import calendar_average, revenue_buckets
-from cyberhub_manager.ui.state import ViewState
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.presentation.desktop.app_shell import ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.reports_view import ReportsView
+from cyberhub_manager.presentation.desktop.revenue_analysis import calendar_average, revenue_buckets
+from cyberhub_manager.presentation.desktop.state import ViewState
 
 
 @pytest.mark.parametrize("grain", ["day", "week", "month"])

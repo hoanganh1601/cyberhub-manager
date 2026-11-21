@@ -5,10 +5,10 @@ from datetime import datetime, timezone, timedelta, date
 from uuid import uuid4
 
 
-from cyberhub_manager.database import connection
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.session_repository import SessionRepository
-from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
+from cyberhub_manager.infrastructure.database import connection
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
+from cyberhub_manager.infrastructure.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.domain.enums import PaymentMethod, InvoiceStatus
 
 def test_insert_usage_payment_transaction_rolls_back(test_scenario):

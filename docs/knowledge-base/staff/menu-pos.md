@@ -25,6 +25,6 @@ Khách chỉ đặt món khi đang có phiên chơi tại cơ sở. Nhân viên 
 
 ## Nguồn đối chiếu
 
-- `src/cyberhub_manager/services/menu_service.py`
+- `src/cyberhub_manager/application/services/menu_service.py`
 - `src/cyberhub_manager/domain/menu.py`
 - `docs/features/POS_INVENTORY_LIFECYCLE.md`

@@ -920,7 +920,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     os.environ["MYSQL_DATABASE"] = args.database
-    from cyberhub_manager.database.connection import get_connection
+    from cyberhub_manager.infrastructure.database.connection import get_connection
 
     conn = get_connection()
     try:

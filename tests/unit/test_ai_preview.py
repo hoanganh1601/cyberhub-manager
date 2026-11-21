@@ -7,7 +7,7 @@ import pytest
 
 pytest.importorskip("flask")
 
-from cyberhub_manager.ai.preview import create_preview_app
+from cyberhub_manager.presentation.assistant_preview import create_preview_app
 
 
 @pytest.fixture
@@ -54,12 +54,12 @@ def test_preview_reuses_packaged_theme_fonts_logo_and_static_ui(client):
 def test_preview_imports_headless_without_initializing_tk_or_ai_models():
     code = """
 import sys
-from cyberhub_manager.ai.preview import create_preview_app
+from cyberhub_manager.presentation.assistant_preview import create_preview_app
 app = create_preview_app({'TESTING': True})
 assert app.test_client().get('/').status_code == 200
 assert 'tkinter' not in sys.modules
-assert 'cyberhub_manager.ai.service' not in sys.modules
-assert 'cyberhub_manager.ai.documents' not in sys.modules
+assert 'cyberhub_manager.application.ai.service' not in sys.modules
+assert 'cyberhub_manager.infrastructure.ai.documents' not in sys.modules
 """
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stderr

@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from cyberhub_manager.ai import (
+from cyberhub_manager.application.ai import (
     AIAccessContext,
     AssistantAnswer,
     Citation,

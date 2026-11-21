@@ -6,9 +6,9 @@ import pytest
 
 pytest.importorskip("flask")
 
-from cyberhub_manager.database.transaction import transaction
-from cyberhub_manager.security import hash_password
-from cyberhub_manager.web import create_app
+from cyberhub_manager.infrastructure.database.transaction import transaction
+from cyberhub_manager.infrastructure.security import hash_password
+from cyberhub_manager.presentation.web import create_app
 
 
 def execute(sql, params=()):
@@ -101,7 +101,7 @@ def signed_in(app, username, password):
 
 def test_mysql_actor_lookup_outage_is_safe_and_session_can_recover(mysql_web, monkeypatch, caplog):
     from mysql.connector import OperationalError
-    from cyberhub_manager.repositories.auth_repository import AuthRepository
+    from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 
     app, records, username, password, token, customer_ids = mysql_web
     c, csrf = signed_in(app, username, password)

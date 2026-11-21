@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from cyberhub_manager.ai.evaluation import evaluate, load_questions
+from cyberhub_manager.application.ai.evaluation import evaluate, load_questions
 
 
 def main() -> None:

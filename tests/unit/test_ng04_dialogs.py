@@ -7,13 +7,13 @@ from unittest.mock import patch
 import pytest
 
 from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus, PaymentMethod
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.ui import customers_view as customers_module
-from cyberhub_manager.ui.app_shell import ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.customers_view import CustomersView
-from cyberhub_manager.ui.dialogs.customer_dialog import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.presentation.desktop import customers_view as customers_module
+from cyberhub_manager.presentation.desktop.app_shell import ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.customers_view import CustomersView
+from cyberhub_manager.presentation.desktop.dialogs.customer_dialog import (
     INVALID_PHONE,
     INVALID_USERNAME,
     PASSWORD_MISMATCH,
@@ -21,15 +21,15 @@ from cyberhub_manager.ui.dialogs.customer_dialog import (
     CustomerDialog,
     validate_customer_form,
 )
-from cyberhub_manager.ui.dialogs.customer_lock_dialog import CustomerLockDialog
-from cyberhub_manager.ui.dialogs.topup_dialog import (
+from cyberhub_manager.presentation.desktop.dialogs.customer_lock_dialog import CustomerLockDialog
+from cyberhub_manager.presentation.desktop.dialogs.topup_dialog import (
     INVALID_AMOUNT,
     MAX_EXCEEDED,
     TopUpDialog,
     parse_amount,
     validate_amount,
 )
-from cyberhub_manager.ui.theme import STITCH_DANGER
+from cyberhub_manager.presentation.desktop.theme import STITCH_DANGER
 
 RUNNER = ImmediateTaskRunner()
 
@@ -48,7 +48,7 @@ def _customer(services, code: str):
 @pytest.fixture(autouse=True)
 def _silence_toasts():
     """Toast thật cần cửa sổ hiển thị; trong test chỉ ghi lại lời gọi."""
-    with patch("cyberhub_manager.ui.components.toast.ToastManager.show") as toast:
+    with patch("cyberhub_manager.presentation.desktop.components.toast.ToastManager.show") as toast:
         yield toast
 
 
@@ -254,7 +254,7 @@ def test_cancel_lock_changes_nothing(tk_root) -> None:
 def test_staff_lock_is_rejected_by_service(tk_root) -> None:
     services, _, context = _login("nhanvien01")
     dialog = CustomerLockDialog(tk_root, context, _customer(services, "KH001"), runner=RUNNER)
-    with patch("cyberhub_manager.ui.dialogs.customer_lock_dialog.notify_error") as notify:
+    with patch("cyberhub_manager.presentation.desktop.dialogs.customer_lock_dialog.notify_error") as notify:
         dialog.submit()
     notify.assert_called_once()
     assert dialog.winfo_exists() and not dialog.is_submitting

@@ -11,12 +11,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from cyberhub_manager.app import create_service_bundle
+from cyberhub_manager.presentation.desktop_app import create_service_bundle
 from cyberhub_manager.domain.exceptions import AuthenticationError, ServiceUnavailableError
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.login_view import LoginView
-from cyberhub_manager.ui.theme import load_stitch_fonts
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.login_view import LoginView
+from cyberhub_manager.presentation.desktop.theme import load_stitch_fonts
 
 
 @pytest.fixture
@@ -180,11 +180,11 @@ def test_login_shell_logout_lifecycle_in_separate_process():
     # A dedicated process exercises the CTk root without creating multiple Tcl roots
     # in the shared UI test process on Windows.
     source = """
-from cyberhub_manager.app import CyberHubApp
-from cyberhub_manager.ui.app_shell import AppShell
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.login_view import LoginView
-from cyberhub_manager.ui.navigation import NavKey
+from cyberhub_manager.presentation.desktop_app import CyberHubApp
+from cyberhub_manager.presentation.desktop.app_shell import AppShell
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.login_view import LoginView
+from cyberhub_manager.presentation.desktop.navigation import NavKey
 app = CyberHubApp(mock=True, runner=ImmediateTaskRunner())
 app.update()
 login = app.current_view

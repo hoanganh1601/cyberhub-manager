@@ -5,9 +5,9 @@ from datetime import datetime
 from enum import StrEnum
 import os
 
-from .enums import Role
-from .exceptions import ValidationError
-from .loyalty import TIERS, audience_matches
+from cyberhub_manager.domain.enums import Role
+from cyberhub_manager.domain.exceptions import ValidationError
+from cyberhub_manager.domain.loyalty import TIERS, audience_matches
 
 
 class Permission(StrEnum):

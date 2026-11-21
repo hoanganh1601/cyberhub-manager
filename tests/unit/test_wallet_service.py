@@ -23,9 +23,9 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Account, Customer
-from cyberhub_manager.services import db_errors
-from cyberhub_manager.services.contracts import WalletServiceProtocol
-from cyberhub_manager.services.wallet_service import (
+from cyberhub_manager.infrastructure import db_errors
+from cyberhub_manager.application.services.contracts import WalletServiceProtocol
+from cyberhub_manager.application.services.wallet_service import (
     MAX_TOP_UP_AMOUNT,
     WalletService,
     new_transaction_code,

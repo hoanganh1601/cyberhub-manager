@@ -11,8 +11,8 @@ from pathlib import Path
 
 from PIL import ImageGrab
 
-from cyberhub_manager.app import CyberHubApp
-from cyberhub_manager.ui.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop_app import CyberHubApp
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
 
 
 def main() -> None:

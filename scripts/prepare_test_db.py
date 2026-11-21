@@ -132,7 +132,7 @@ def create_database_if_missing(settings, database: str) -> None:
 
 def run_test_migrations(database: str) -> None:
     require_test_database(database)
-    from cyberhub_manager.database import connection
+    from cyberhub_manager.infrastructure.database import connection
 
     os.environ["MYSQL_DATABASE"] = database
     # Pool cũ có thể đang trỏ vào database khác.
@@ -175,7 +175,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         require_test_database(database)
         # load_settings bắt buộc có MYSQL_DATABASE; luôn trỏ vào database test.
         os.environ["MYSQL_DATABASE"] = database
-        from cyberhub_manager.config import load_settings
+        from cyberhub_manager.infrastructure.config import load_settings
 
         settings = load_settings()
         print(

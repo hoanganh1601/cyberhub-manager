@@ -9,16 +9,16 @@ from unittest.mock import patch
 import pytest
 
 from cyberhub_manager.domain.enums import InvoiceStatus, MachineStatus, PaymentMethod, TransactionType
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.ui import dashboard_view as dashboard_module
-from cyberhub_manager.ui import feedback as feedback_module
-from cyberhub_manager.ui.app_shell import ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.dashboard_view import DashboardView
-from cyberhub_manager.ui.dialogs import checkout_dialog as checkout_module
-from cyberhub_manager.ui.dialogs.checkout_dialog import (
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.presentation.desktop import dashboard_view as dashboard_module
+from cyberhub_manager.presentation.desktop import feedback as feedback_module
+from cyberhub_manager.presentation.desktop.app_shell import ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.dashboard_view import DashboardView
+from cyberhub_manager.presentation.desktop.dialogs import checkout_dialog as checkout_module
+from cyberhub_manager.presentation.desktop.dialogs.checkout_dialog import (
     READY,
     CheckoutDialog,
     change_due,
@@ -27,7 +27,7 @@ from cyberhub_manager.ui.dialogs.checkout_dialog import (
     service_now,
     transfer_content,
 )
-from cyberhub_manager.ui.dialogs.payment_success_dialog import PaymentSuccessDialog, confirmation_lines
+from cyberhub_manager.presentation.desktop.dialogs.payment_success_dialog import PaymentSuccessDialog, confirmation_lines
 
 RUNNER = ImmediateTaskRunner()
 

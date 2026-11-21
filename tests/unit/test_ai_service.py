@@ -12,20 +12,20 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from cyberhub_manager.ai.audit import LoggingAssistantAuditSink
-from cyberhub_manager.ai.chunking import MarkdownChunker
-from cyberhub_manager.ai.documents import KnowledgeDocumentLoader
-from cyberhub_manager.ai.errors import (
+from cyberhub_manager.domain.ai.audit import LoggingAssistantAuditSink
+from cyberhub_manager.application.ai.chunking import MarkdownChunker
+from cyberhub_manager.infrastructure.ai.documents import KnowledgeDocumentLoader
+from cyberhub_manager.domain.ai.errors import (
     InvalidProviderResponseError, InvalidQuestionError, ProviderBusyError,
     ProviderError, ProviderTimeoutError, ProviderUnavailableError,
 )
-from cyberhub_manager.ai.fakes import (
+from cyberhub_manager.application.ai.fakes import (
     FakeEmbeddingProvider, FakeLLMProvider, InMemoryAssistantAuditSink,
 )
-from cyberhub_manager.ai.models import AIAccessContext, KnowledgeDocument
-from cyberhub_manager.ai.retrieval import CosineKnowledgeIndex, KnowledgeRetriever
-from cyberhub_manager.ai.runner import BoundedProviderRunner
-from cyberhub_manager.ai.service import RAGAssistantService
+from cyberhub_manager.domain.ai.models import AIAccessContext, KnowledgeDocument
+from cyberhub_manager.application.ai.retrieval import CosineKnowledgeIndex, KnowledgeRetriever
+from cyberhub_manager.application.ai.runner import BoundedProviderRunner
+from cyberhub_manager.application.ai.service import RAGAssistantService
 
 VALID_ANSWER = "Tiền bù phải bằng đúng số tiền còn thiếu. [S1]"
 QUESTION = "Tiền bù phải bằng bao nhiêu?"
@@ -411,7 +411,7 @@ def test_actual_timeout_returns_no_late_answer_and_busy_requests_are_bounded(mon
 
 @pytest.mark.parametrize("stage", ["embedding", "generation"])
 def test_one_deadline_covers_embedding_and_generation(monkeypatch, stage):
-    import cyberhub_manager.ai.service as module
+    import cyberhub_manager.application.ai.service as module
     now = [100.0]
     monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: now[0]))
     ctx = prepared(timeout_seconds=5)

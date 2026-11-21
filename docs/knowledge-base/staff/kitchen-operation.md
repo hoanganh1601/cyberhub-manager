@@ -38,5 +38,5 @@ không trừ kho lần thứ hai. Bếp không tự điều chỉnh các bút to
 ## Nguồn đối chiếu
 
 - `src/cyberhub_manager/domain/p1.py` — Permission của KITCHEN
-- `src/cyberhub_manager/services/menu_service.py` — Chuyển trạng thái đơn
+- `src/cyberhub_manager/application/services/menu_service.py` — Chuyển trạng thái đơn
 - `docs/features/POS_INVENTORY_LIFECYCLE.md` — Vòng đời đơn và tồn kho

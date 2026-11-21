@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("flask")
 
-from cyberhub_manager.web import create_app  # noqa: E402
+from cyberhub_manager.presentation.web import create_app  # noqa: E402
 
 
 @pytest.fixture

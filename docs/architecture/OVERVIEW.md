@@ -1,6 +1,27 @@
 # Kiến trúc hiện hành
 
-CyberHub có hai giao diện: desktop CustomTkinter và web Flask. Cả hai dùng các service nghiệp vụ trong `src/cyberhub_manager/services/`. Web có cổng nhân viên tại `/` và cổng khách hàng tại `/customer`; frontend gọi API trong `web/`. Demo dùng service và dữ liệu trong bộ nhớ; chế độ MySQL dùng repository và transaction thật.
+CyberHub dùng layered architecture gồm bốn tầng. Desktop CustomTkinter và web Flask dùng chung Application và Domain. Các phụ thuộc được kiểm tra bằng AST trong `tests/unit/test_layered_architecture.py`, bao gồm cả import nằm trong hàm.
+
+```text
+src/cyberhub_manager/
+├── presentation/          # Flask routes, HTML/CSS/JS, desktop widgets
+│   ├── web/
+│   ├── desktop/
+│   └── desktop_app.py
+├── application/           # Use cases, quyền truy cập, điều phối transaction
+│   ├── services/          # POS, kho, ca, mua hàng, nhân sự…
+│   │   ├── forecasting/   # Dữ liệu mô hình, train/evaluate/predict
+│   │   └── mocks/         # Test doubles và kịch bản demo theo hợp đồng service
+│   ├── ai/                # Retrieval, prompts, orchestration RAG
+│   └── runtime.py         # Startup và chuyển lỗi cho presentation
+├── infrastructure/        # SQL, MySQL pool, Gemini, SQLite, bcrypt, Pillow
+│   ├── repositories/
+│   ├── database/
+│   └── ai/
+└── domain/                # Entity, value object, DTO, quy tắc, lỗi, hợp đồng AI
+```
+
+Đây là layered architecture cổ điển: Application được phép dùng Infrastructure. Dependency inversion toàn bộ repository chưa phải quy ước của mô hình này. `app.py` và `web/` ở gốc chỉ là entry point tương thích, không chứa nghiệp vụ.
 
 ```mermaid
 flowchart LR
@@ -21,13 +42,16 @@ flowchart LR
 
 | Lớp | Vị trí | Trách nhiệm |
 |---|---|---|
-| Web | `web/application.py`, `web/operations_routes.py`, `web/feature_routes.py`, `web/business_routes.py`, `web/forecasting_routes.py` | Session, CSRF, JSON và chuyển yêu cầu vào service. Không tự tính tiền hoặc sửa kho. |
-| Desktop | `ui/`, `app.py` | Hiển thị và gọi service qua cùng hợp đồng. |
-| Composition | `services/bootstrap.py`, `web/demo.py` | Ghép service thật hoặc tạo workspace demo. |
-| Nghiệp vụ | `services/`, `domain/` | Kiểm tra actor, cửa hàng, trạng thái, số tiền và quyền. |
-| Dữ liệu | `repositories/`, `database/transaction.py` | Truy vấn MySQL trong transaction do service điều khiển. |
-| Cấu hình | `config.py`, `web/config.py`, `.env.example` | Kết nối, chế độ chạy, khóa phiên và các cờ tùy chọn. |
-| AI | `ai/`, `services/forecasting/` | RAG theo nguồn được duyệt và dự báo offline; độc lập với giao dịch tiền/kho. |
+| Presentation | `presentation/web/`, `presentation/desktop/` | Session, CSRF, JSON, hiển thị; gọi Application và dùng DTO/enum Domain. Không gọi Infrastructure hoặc chạy SQL. |
+| Application | `application/services/`, `application/ai/` | Kiểm tra actor/cơ sở, thực thi use case, điều phối transaction và adapter. Không import Flask/Tk hoặc chạy SQL. |
+| Infrastructure | `infrastructure/repositories/`, `infrastructure/database/`, `infrastructure/ai/` | Persistence, provider và thư viện kỹ thuật. Không import Application hoặc Presentation. Trả DTO Domain hoặc dữ liệu cơ bản. |
+| Domain | `domain/` | Quy tắc nghiệp vụ và kiểu dữ liệu. Không import ba tầng còn lại hoặc framework/vendor lưu trữ. |
+
+Service nhận repository và transaction qua constructor để kiểm thử. Composition hiện nằm trong `application/services/bootstrap.py`; các constructor mặc định vẫn cung cấp adapter thật. Không khởi tạo connection/model/network khi chỉ import Domain.
+
+SQL tổng hợp dự báo đặt tại `infrastructure/repositories/forecast_repository.py`; adapter sklearn tại `infrastructure/forecast_models.py`. Quy tắc chọn mô hình và time split ở Application. Kiểu chính sách và provider protocol RAG ở `domain/ai/`; HTTP Gemini, tải tài liệu và SQLite ở Infrastructure.
+
+Entry point mới: `python -m cyberhub_manager.presentation.web --port 8000`. Lệnh cũ `python -m cyberhub_manager.web --port 8000` vẫn hoạt động. Static files, templates, font và logo đóng gói theo package Presentation mới. Artifact dự báo đã lưu bằng module cũ được đọc qua unpickler tương thích; chỉ dùng artifact tin cậy do dự án sinh.
 
 ## Ranh giới cần giữ khi sửa code
 

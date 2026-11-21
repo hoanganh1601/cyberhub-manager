@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import pytest
 
 from cyberhub_manager.domain.exceptions import AuthenticationError, ServiceUnavailableError
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.login_view import LoginView
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.login_view import LoginView
 
 
 @pytest.mark.parametrize("language", ["vi", "en"])

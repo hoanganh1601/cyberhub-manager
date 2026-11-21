@@ -9,8 +9,8 @@ Schema MySQL được định nghĩa trong `sql/001_*.sql` đến `sql/027_*.sql
 | Quan hệ tổng quan theo migration | [ERD hiện hành](../diagrams/current_erd.md) |
 | Cột, kiểu, index sau khi kết nối MySQL | `INFORMATION_SCHEMA` và file [data dictionary](../diagrams/data_dictionary.md) được sinh từ DB |
 | SQL gốc | `sql/` |
-| Truy vấn ứng dụng | `src/cyberhub_manager/repositories/` |
-| Giao dịch | `src/cyberhub_manager/database/transaction.py` |
+| Truy vấn ứng dụng | `src/cyberhub_manager/infrastructure/repositories/` |
+| Giao dịch | `src/cyberhub_manager/infrastructure/database/transaction.py` |
 
 **Trạng thái kiểm chứng:** data dictionary hiện bao phủ 70/70 bảng nghiệp vụ qua migration `027` và được sinh từ `INFORMATION_SCHEMA` của `cyberhub_manager_test`. Integration test sẽ báo lỗi nếu schema, mô tả cột hoặc file sinh ra lệch nhau. ERD hiện hành là bản tổng quan dễ đọc; SQL và dictionary vẫn là nguồn chi tiết cho kiểu, index và ràng buộc.
 

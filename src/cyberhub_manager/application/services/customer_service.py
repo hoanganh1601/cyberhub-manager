@@ -1,0 +1,336 @@
+"""LI-03 — Linh: CustomerService tạo, xem, tìm, sửa và đổi trạng thái khách.
+
+Service chỉ làm việc qua CustomerRepository, AccountRepository và
+database.transaction.transaction(); UI không gọi repository hay SQL trực tiếp.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
+from typing import Any
+from uuid import uuid4
+
+from cyberhub_manager.infrastructure.database.transaction import transaction
+from cyberhub_manager.application.services.access import operating_actor
+from cyberhub_manager.domain.dtos import CustomerSummary, EmployeeSession
+from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus
+from cyberhub_manager.domain.exceptions import (
+    NotFoundError,
+    PermissionDeniedError,
+    ValidationError,
+)
+from cyberhub_manager.domain.models import Customer
+from cyberhub_manager.domain.p1 import Permission, can, separated_rbac, chain_director
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository
+from cyberhub_manager.infrastructure.security import hash_password
+from cyberhub_manager.infrastructure.db_errors import retry_on_transient, translate_db_errors
+
+ActorProvider = Callable[[], EmployeeSession | None]
+
+# "CUS-"/"ACC-" + 16 ký tự hex = 20 ký tự, vừa cột code VARCHAR(20).
+CUSTOMER_CODE_PREFIX = "CUS-"
+ACCOUNT_CODE_PREFIX = "ACC-"
+CODE_HEX_LENGTH = 16
+
+MIN_PASSWORD_LENGTH = 6
+MAX_PASSWORD_BYTES = 72  # bcrypt chỉ nhận tối đa 72 byte UTF-8.
+
+PHONE_TAKEN = "Số điện thoại đã được sử dụng"
+USERNAME_TAKEN = "Tên đăng nhập đã được sử dụng"
+
+# Tên UNIQUE constraint trong sql/001_initial_schema.sql -> field lỗi cho UI.
+_DUPLICATES = {
+    "uq_customers_phone": ("phone", PHONE_TAKEN),
+    "uq_accounts_username": ("username", USERNAME_TAKEN),
+}
+
+_PHONE_PATTERN = re.compile(r"0[0-9]{9}")
+_USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_.]{4,30}")
+
+
+# ----- Validate từng trường, trả thông báo lỗi hoặc None --------------------
+
+
+def _clean(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _full_name_error(value: str) -> str | None:
+    if not 2 <= len(value) <= 100:
+        return "Họ tên phải có từ 2 đến 100 ký tự"
+    return None
+
+
+def _phone_error(value: str) -> str | None:
+    if _PHONE_PATTERN.fullmatch(value) is None:
+        return "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0"
+    return None
+
+
+def _username_error(value: str) -> str | None:
+    if _USERNAME_PATTERN.fullmatch(value) is None:
+        return (
+            "Tên đăng nhập phải dài 4-30 ký tự và chỉ gồm "
+            "chữ, số, dấu gạch dưới hoặc dấu chấm"
+        )
+    return None
+
+
+def _password_error(value: object) -> str | None:
+    if not isinstance(value, str) or len(value) < MIN_PASSWORD_LENGTH:
+        return "Mật khẩu phải có ít nhất 6 ký tự"
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        return "Mật khẩu quá dài"
+    return None
+
+
+def _raise_if_errors(errors: dict[str, str | None]) -> None:
+    """Gom mọi lỗi trường vào một ValidationError để UI đánh dấu cùng lúc."""
+
+    field_errors = {field: message for field, message in errors.items() if message}
+    if field_errors:
+        raise ValidationError(field_errors=field_errors)
+
+
+def _is_positive_id(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _new_code(prefix: str) -> str:
+    return prefix + uuid4().hex[:CODE_HEX_LENGTH]
+
+
+class CustomerService:
+    """Triển khai CustomerServiceProtocol trên MySQL."""
+
+    def __init__(
+        self,
+        customer_repo: CustomerRepository | None = None,
+        account_repo: AccountRepository | None = None,
+        auth_repo: AuthRepository | None = None,
+        actor_provider: ActorProvider | None = None,
+        transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
+    ) -> None:
+        self._customers = customer_repo or CustomerRepository()
+        self._accounts = account_repo or AccountRepository()
+        self._auth = auth_repo or AuthRepository()
+        self._actor_provider = actor_provider
+        self._transaction = transaction_factory
+
+    @retry_on_transient
+    def create_customer(
+        self,
+        full_name: str,
+        phone: str,
+        username: str,
+        password: str,
+    ) -> Customer:
+        if separated_rbac():
+            raise PermissionDeniedError("Đăng ký tại quầy cần email kích hoạt; nhân viên không đặt mật khẩu khách")
+        return self._create_customer(full_name, phone, username, password, require_actor=True)
+
+    @retry_on_transient
+    def register_customer(
+        self,
+        full_name: str,
+        phone: str,
+        username: str,
+        password: str,
+    ) -> Customer:
+        """Create a zero-balance customer account without employee privileges."""
+        return self._create_customer(full_name, phone, username, password, require_actor=False)
+
+    def _create_customer(
+        self,
+        full_name: str,
+        phone: str,
+        username: str,
+        password: str,
+        *,
+        require_actor: bool,
+    ) -> Customer:
+        full_name = _clean(full_name)
+        phone = _clean(phone)
+        username = _clean(username)
+        _raise_if_errors(
+            {
+                "full_name": _full_name_error(full_name),
+                "phone": _phone_error(phone),
+                "username": _username_error(username),
+                "password": _password_error(password),
+            }
+        )
+        # Hash trước khi mở transaction để không giữ connection trong lúc bcrypt chạy.
+        password_hash = hash_password(password)
+
+        with self._database() as conn:
+            # Customer và account cùng một transaction: lỗi ở account thì rollback cả customer.
+            actor = self._require_actor(conn, permission=Permission.CREATE_CUSTOMERS) if require_actor else None
+            customer_id = self._customers.create(
+                conn,
+                code=_new_code(CUSTOMER_CODE_PREFIX),
+                full_name=full_name,
+                phone=phone,
+            )
+            self._accounts.create(
+                conn,
+                code=_new_code(ACCOUNT_CODE_PREFIX),
+                customer_id=customer_id,
+                username=username,
+                password_hash=password_hash,
+            )
+            if actor is not None and separated_rbac():
+                self._customers.link_store(conn, customer_id, actor.store_id, "COUNTER")
+            return self._get_customer(conn, customer_id, actor)
+
+    def get_customer(self, customer_id: int) -> Customer:
+        with self._database() as conn:
+            actor = self._require_actor(conn, permission=Permission.VIEW_CUSTOMERS)
+            return self._get_customer(conn, customer_id, actor)
+
+    def search_customers(self, keyword: str) -> list[CustomerSummary]:
+        with self._database() as conn:
+            actor = self._require_actor(conn, permission=Permission.VIEW_CUSTOMERS)
+            scope = actor.store_id if separated_rbac() and not chain_director(actor.role) else None
+            return self._customers.search(conn, _clean(keyword), scope) if scope is not None else self._customers.search(conn, _clean(keyword))
+
+    @retry_on_transient
+    def update_customer(
+        self,
+        customer_id: int,
+        full_name: str,
+        phone: str,
+    ) -> Customer:
+        full_name = _clean(full_name)
+        phone = _clean(phone)
+        _raise_if_errors(
+            {
+                "full_name": _full_name_error(full_name),
+                "phone": _phone_error(phone),
+            }
+        )
+
+        with self._database() as conn:
+            actor = self._require_actor(conn, permission=Permission.EDIT_CUSTOMERS)
+            self._get_customer(conn, customer_id, actor)
+            # Không dựa vào rowcount: MySQL trả 0 khi dữ liệu mới giống dữ liệu cũ.
+            self._customers.update_profile(
+                conn, customer_id, full_name=full_name, phone=phone
+            )
+            return self._get_customer(conn, customer_id, actor)
+
+    @retry_on_transient
+    def set_customer_status(
+        self,
+        customer_id: int,
+        status: CustomerStatus,
+        actor: EmployeeSession,
+    ) -> Customer:
+        if not isinstance(status, CustomerStatus):
+            raise ValidationError(
+                field_errors={
+                    "status": "Trạng thái khách hàng không hợp lệ"
+                }
+            )
+
+        account_status = (
+            AccountStatus.ACTIVE
+            if status == CustomerStatus.ACTIVE
+            else AccountStatus.LOCKED
+        )
+
+        with self._database() as conn:
+            current = self._require_actor(
+                conn,
+                actor,
+                manager_only=True,
+            )
+
+            customer = self._get_customer(conn, customer_id, current)
+
+            # Update customer and account atomically.
+            self._customers.set_status(
+                conn,
+                customer.id,
+                status,
+            )
+            self._accounts.set_status(
+                conn,
+                customer.account.id,
+                account_status,
+            )
+
+            return self._get_customer(conn, customer.id, current)
+
+    def link_customer_to_store(self, code: str, phone: str) -> Customer:
+        """At-counter visit requires two customer-provided identifiers."""
+        with self._database() as conn:
+            actor = self._require_actor(conn, permission=Permission.CREATE_CUSTOMERS)
+            customer_id = self._customers.customer_id_by_code_phone(conn, _clean(code), _clean(phone))
+            customer = self._customers.get_by_id(conn, customer_id) if customer_id else None
+            if customer is None:
+                raise NotFoundError("Không tìm thấy khách hàng với thông tin đã cung cấp")
+            self._customers.link_store(conn, customer_id, actor.store_id, "VISIT")
+            self._customers.audit_store_link(conn, actor.employee_id, actor.store_id, customer_id)
+            return customer
+
+    def _require_actor(
+        self,
+        conn: Any,
+        requested_actor: EmployeeSession | None = None,
+        *,
+        manager_only: bool = False,
+        permission: Permission | None = None,
+    ) -> EmployeeSession:
+        """Validate the current actor against the active database record."""
+
+        actor = (
+            self._actor_provider()
+            if self._actor_provider is not None
+            else None
+        )
+
+        if (
+            not isinstance(actor, EmployeeSession)
+            or not _is_positive_id(actor.employee_id)
+            or not _is_positive_id(actor.store_id)
+        ):
+            raise PermissionDeniedError()
+
+        if requested_actor is not None and (
+            not isinstance(requested_actor, EmployeeSession)
+            or requested_actor.employee_id != actor.employee_id
+            or requested_actor.store_id != actor.store_id
+        ):
+            raise PermissionDeniedError()
+
+        current_actor = operating_actor(conn,self._auth,actor)
+
+        if manager_only and not can(current_actor.role, Permission.LOCK_CUSTOMERS):
+            raise PermissionDeniedError()
+        if separated_rbac() and permission and not can(current_actor.role, permission):
+            raise PermissionDeniedError()
+
+        return current_actor
+
+    @contextmanager
+    def _database(self) -> Iterator[Any]:
+        """Mở transaction và đổi lỗi MySQL thành lỗi nghiệp vụ theo contract."""
+
+        with translate_db_errors(duplicates=_DUPLICATES):
+            with self._transaction() as conn:
+                yield conn
+
+    def _get_customer(self, conn: Any, customer_id: int, actor=None) -> Customer:
+        if _is_positive_id(customer_id):
+            customer = self._customers.get_by_id(conn, customer_id)
+            if customer is not None:
+                if (actor is not None and separated_rbac() and not chain_director(actor.role)
+                        and not self._customers.has_store_link(conn, customer_id, actor.store_id)):
+                    raise NotFoundError("Không tìm thấy khách hàng trong cơ sở hiện tại")
+                return customer
+        raise NotFoundError("Không tìm thấy khách hàng")

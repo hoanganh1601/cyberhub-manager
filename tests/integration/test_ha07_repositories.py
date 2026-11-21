@@ -4,10 +4,10 @@ import pytest
 from uuid import uuid4
 from datetime import datetime, timezone, timedelta
 
-from cyberhub_manager.repositories.session_repository import SessionRepository
-from cyberhub_manager.database import connection
+from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
+from cyberhub_manager.infrastructure.database import connection
 from cyberhub_manager.domain.enums import MachineStatus, MachineArchiveAction, SessionStatus
-from cyberhub_manager.repositories.machine_repository import MachineRepository
+from cyberhub_manager.infrastructure.repositories.machine_repository import MachineRepository
 from cyberhub_manager.domain.exceptions import ConflictError
 
 def test_create_and_get_machine_can_roll_back(test_scenario):

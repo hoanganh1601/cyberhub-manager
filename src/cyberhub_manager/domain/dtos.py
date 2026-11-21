@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from .enums import (
+from cyberhub_manager.domain.enums import (
     AccountStatus,
     CustomerStatus,
     InvoiceStatus,

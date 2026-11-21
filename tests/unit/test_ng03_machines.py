@@ -11,26 +11,26 @@ import pytest
 from cyberhub_manager.domain.dtos import MachineArchiveResult
 from cyberhub_manager.domain.enums import MachineArchiveAction, MachineStatus, Role
 from cyberhub_manager.domain.exceptions import ServiceUnavailableError
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.ui import dashboard_view as dashboard_module
-from cyberhub_manager.ui import feedback as feedback_module
-from cyberhub_manager.ui import machine_management_view as management_module
-from cyberhub_manager.ui.app_shell import AppShell, ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner, ThreadTaskRunner
-from cyberhub_manager.ui.components.stitch_machine_card import card_action
-from cyberhub_manager.ui.dashboard_view import DashboardView, filter_machines, summarize
-from cyberhub_manager.ui.dialogs.machine_dialog import MachineDialog, parse_positive_int
-from cyberhub_manager.ui.machine_management_view import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.presentation.desktop import dashboard_view as dashboard_module
+from cyberhub_manager.presentation.desktop import feedback as feedback_module
+from cyberhub_manager.presentation.desktop import machine_management_view as management_module
+from cyberhub_manager.presentation.desktop.app_shell import AppShell, ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner, ThreadTaskRunner
+from cyberhub_manager.presentation.desktop.components.stitch_machine_card import card_action
+from cyberhub_manager.presentation.desktop.dashboard_view import DashboardView, filter_machines, summarize
+from cyberhub_manager.presentation.desktop.dialogs.machine_dialog import MachineDialog, parse_positive_int
+from cyberhub_manager.presentation.desktop.machine_management_view import (
     MachineManagementView,
     archive_message,
     machine_actions,
 )
-from cyberhub_manager.ui.navigation import NavKey
-from cyberhub_manager.ui.state import ViewState
-from cyberhub_manager.ui.theme import STITCH_DANGER, STITCH_INPUT_BORDER
-from cyberhub_manager.ui.views import default_view_factories
+from cyberhub_manager.presentation.desktop.navigation import NavKey
+from cyberhub_manager.presentation.desktop.state import ViewState
+from cyberhub_manager.presentation.desktop.theme import STITCH_DANGER, STITCH_INPUT_BORDER
+from cyberhub_manager.presentation.desktop.views import default_view_factories
 
 RUNNER = ImmediateTaskRunner()
 
@@ -368,7 +368,7 @@ def test_dialog_maps_conflict_to_code_field(tk_root) -> None:
     dialog.fields["code"].set_value("PC01")
     dialog.fields["name"].set_value("Trùng mã")
     dialog.fields["hourly_rate"].set_value("10000")
-    with patch("cyberhub_manager.ui.dialogs.machine_dialog.ToastManager.show"):
+    with patch("cyberhub_manager.presentation.desktop.dialogs.machine_dialog.ToastManager.show"):
         dialog.submit()
     assert dialog.winfo_exists()
     assert dialog.fields["code"]._error_label.cget("text") == "Machine code already exists."

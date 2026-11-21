@@ -22,8 +22,8 @@ from cyberhub_manager.domain.models import (
     Store,
     UsageSession,
 )
-from cyberhub_manager.services.mocks.clock import DEFAULT_NOW
-from cyberhub_manager.services.mocks.store import (
+from cyberhub_manager.application.services.mocks.clock import DEFAULT_NOW
+from cyberhub_manager.application.services.mocks.store import (
     MockDataStore,
     copy_customer,
     local_date,

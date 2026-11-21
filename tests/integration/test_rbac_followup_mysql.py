@@ -7,11 +7,11 @@ from uuid import uuid4
 import pytest
 
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.customer_email_repository import CustomerEmailRepository
-from cyberhub_manager.repositories.management_repository import ManagementRepositoryMixin
-from cyberhub_manager.services.access import operating_actor
-from cyberhub_manager.services.customer_email_service import CustomerEmailService, token_from_nonce
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.customer_email_repository import CustomerEmailRepository
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepositoryMixin
+from cyberhub_manager.application.services.access import operating_actor
+from cyberhub_manager.application.services.customer_email_service import CustomerEmailService, token_from_nonce
 
 
 @pytest.fixture

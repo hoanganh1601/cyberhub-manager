@@ -1,6 +1,6 @@
 """Reset demo data only in explicitly allowed databases."""
 from mysql.connector.pooling import PooledMySQLConnection
-from cyberhub_manager.database.connection import get_connection
+from cyberhub_manager.infrastructure.database.connection import get_connection
 
 ALLOWED_RESET_DATABASES = frozenset({
     "cyberhub_manager_migration_test",

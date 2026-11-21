@@ -20,21 +20,21 @@ import customtkinter as ctk
 from PIL import ImageGrab
 
 from cyberhub_manager.domain.enums import PaymentMethod
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.ui.app_shell import AppShell, ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.dialogs import checkout_dialog as checkout_module
-from cyberhub_manager.ui.dialogs.checkout_dialog import CheckoutDialog
-from cyberhub_manager.ui.dialogs.customer_dialog import CustomerDialog
-from cyberhub_manager.ui.dialogs.customer_lock_dialog import CustomerLockDialog
-from cyberhub_manager.ui.dialogs.open_session_dialog import OpenSessionDialog
-from cyberhub_manager.ui.dialogs.payment_success_dialog import PaymentSuccessDialog
-from cyberhub_manager.ui.dialogs.topup_dialog import TopUpDialog
-from cyberhub_manager.ui.navigation import NavKey
-from cyberhub_manager.ui.theme import SHELL_HEIGHT, SHELL_WIDTH, load_stitch_fonts, setup_theme
-from cyberhub_manager.ui.views import default_view_factories
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.presentation.desktop.app_shell import AppShell, ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.dialogs import checkout_dialog as checkout_module
+from cyberhub_manager.presentation.desktop.dialogs.checkout_dialog import CheckoutDialog
+from cyberhub_manager.presentation.desktop.dialogs.customer_dialog import CustomerDialog
+from cyberhub_manager.presentation.desktop.dialogs.customer_lock_dialog import CustomerLockDialog
+from cyberhub_manager.presentation.desktop.dialogs.open_session_dialog import OpenSessionDialog
+from cyberhub_manager.presentation.desktop.dialogs.payment_success_dialog import PaymentSuccessDialog
+from cyberhub_manager.presentation.desktop.dialogs.topup_dialog import TopUpDialog
+from cyberhub_manager.presentation.desktop.navigation import NavKey
+from cyberhub_manager.presentation.desktop.theme import SHELL_HEIGHT, SHELL_WIDTH, load_stitch_fonts, setup_theme
+from cyberhub_manager.presentation.desktop.views import default_view_factories
 
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "history" / "docs" / "screenshots" / "ng09"
 RUNNER = ImmediateTaskRunner()

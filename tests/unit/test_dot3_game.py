@@ -17,16 +17,16 @@ from cyberhub_manager.domain.exceptions import (
 )
 from cyberhub_manager.domain.game import SUSPICIOUS_LIMIT, LedgerReason
 from cyberhub_manager.domain.voucher import VoucherSource
-from cyberhub_manager.services.game_service import (
+from cyberhub_manager.application.services.game_service import (
     AUTO_LOCKED,
     GAME_PAUSED,
     LIMIT_REACHED,
     TOO_FAST,
     WALLET_LOCKED,
 )
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
 
 NOW = datetime(2026, 10, 18, 9, tzinfo=timezone.utc)
 

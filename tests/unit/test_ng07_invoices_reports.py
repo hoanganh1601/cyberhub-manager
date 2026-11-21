@@ -12,17 +12,17 @@ import pytest
 from cyberhub_manager.domain.dtos import DailyRevenue, InvoiceFilters
 from cyberhub_manager.domain.enums import InvoiceStatus
 from cyberhub_manager.domain.exceptions import ValidationError
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.ui import feedback as feedback_module
-from cyberhub_manager.ui import invoices_view as invoices_module
-from cyberhub_manager.ui import reports_view as reports_module
-from cyberhub_manager.ui.app_shell import AppShell, ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.invoices_view import InvoicesView, count_by_status, invoice_badge, invoice_totals
-from cyberhub_manager.ui.navigation import NavKey
-from cyberhub_manager.ui.report_filters import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.presentation.desktop import feedback as feedback_module
+from cyberhub_manager.presentation.desktop import invoices_view as invoices_module
+from cyberhub_manager.presentation.desktop import reports_view as reports_module
+from cyberhub_manager.presentation.desktop.app_shell import AppShell, ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.invoices_view import InvoicesView, count_by_status, invoice_badge, invoice_totals
+from cyberhub_manager.presentation.desktop.navigation import NavKey
+from cyberhub_manager.presentation.desktop.report_filters import (
     DATE_INVALID,
     DATE_ORDER,
     DATE_REQUIRED,
@@ -33,10 +33,10 @@ from cyberhub_manager.ui.report_filters import (
     service_now,
     validate_range,
 )
-from cyberhub_manager.ui.reports_view import NO_REVENUE, ReportsView, newest_first, share_percent, summarize_revenue
-from cyberhub_manager.ui.state import ViewState
-from cyberhub_manager.ui.theme import STITCH_DANGER, STITCH_SUCCESS
-from cyberhub_manager.ui.views import default_view_factories
+from cyberhub_manager.presentation.desktop.reports_view import NO_REVENUE, ReportsView, newest_first, share_percent, summarize_revenue
+from cyberhub_manager.presentation.desktop.state import ViewState
+from cyberhub_manager.presentation.desktop.theme import STITCH_DANGER, STITCH_SUCCESS
+from cyberhub_manager.presentation.desktop.views import default_view_factories
 
 RUNNER = ImmediateTaskRunner()
 TODAY = date(2026, 10, 18)  # MockClock mặc định: 09:00 UTC 18/10/2026 = 16:00 giờ Việt Nam
@@ -290,7 +290,7 @@ def test_shell_registers_invoices_and_reports(tk_root, username: str) -> None:
     services, session, _ = _login(username)
     with patch.object(invoices_module, "default_runner", return_value=RUNNER), patch.object(
         reports_module, "default_runner", return_value=RUNNER
-    ), patch("cyberhub_manager.ui.dashboard_view.default_runner", return_value=RUNNER):
+    ), patch("cyberhub_manager.presentation.desktop.dashboard_view.default_runner", return_value=RUNNER):
         shell = AppShell(tk_root, services, session, on_logout=lambda: None, view_factories=factories)
         assert shell.navigate(NavKey.INVOICES)
         assert isinstance(shell.current_view, InvoicesView)

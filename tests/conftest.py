@@ -21,8 +21,8 @@ from uuid import uuid4
 import pytest
 from mysql.connector import Error as MySQLError
 
-from cyberhub_manager.config import load_settings
-from cyberhub_manager.database import connection
+from cyberhub_manager.infrastructure.config import load_settings
+from cyberhub_manager.infrastructure.database import connection
 
 TEST_DATABASE = "cyberhub_manager_test"
 INTEGRATION_DIR = Path(__file__).resolve().parent / "integration"

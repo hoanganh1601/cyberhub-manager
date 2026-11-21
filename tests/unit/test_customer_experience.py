@@ -8,8 +8,8 @@ import pytest
 from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
 from cyberhub_manager.domain.p1 import Promotion
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
 
 NOW = datetime(2026, 10, 18, 9, tzinfo=timezone.utc)
 

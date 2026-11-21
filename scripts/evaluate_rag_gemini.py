@@ -11,13 +11,13 @@ import time
 
 from dotenv import load_dotenv
 
-from cyberhub_manager.ai.documents import KnowledgeDocumentLoader
-from cyberhub_manager.ai.evaluation import load_questions
-from cyberhub_manager.ai.fakes import InMemoryAssistantAuditSink
-from cyberhub_manager.ai.gemini import DEFAULT_LLM_MODEL, GeminiEmbeddingProvider, GeminiLLMProvider, GeminiTransport
-from cyberhub_manager.ai.models import AIAccessContext
-from cyberhub_manager.ai.runtime import LiveKnowledgeRetriever
-from cyberhub_manager.ai.service import RAGAssistantService
+from cyberhub_manager.infrastructure.ai.documents import KnowledgeDocumentLoader
+from cyberhub_manager.application.ai.evaluation import load_questions
+from cyberhub_manager.application.ai.fakes import InMemoryAssistantAuditSink
+from cyberhub_manager.infrastructure.ai.gemini import DEFAULT_LLM_MODEL, GeminiEmbeddingProvider, GeminiLLMProvider, GeminiTransport
+from cyberhub_manager.domain.ai.models import AIAccessContext
+from cyberhub_manager.application.ai.runtime import LiveKnowledgeRetriever
+from cyberhub_manager.application.ai.service import RAGAssistantService
 
 
 def main(argv=None):

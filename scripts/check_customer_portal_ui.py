@@ -12,7 +12,7 @@ from threading import Thread
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server, WSGIRequestHandler
 
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 class QuietHandler(WSGIRequestHandler):

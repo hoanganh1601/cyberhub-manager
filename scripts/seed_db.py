@@ -4,8 +4,8 @@ from getpass import getpass
 
 from mysql.connector.pooling import PooledMySQLConnection
 
-from cyberhub_manager.database.connection import get_connection
-from cyberhub_manager.security import hash_password
+from cyberhub_manager.infrastructure.database.connection import get_connection
+from cyberhub_manager.infrastructure.security import hash_password
 
 
 DEMO_STORE_CODE = "DEMO_STORE_01"

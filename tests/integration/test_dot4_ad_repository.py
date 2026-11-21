@@ -7,8 +7,8 @@ import pytest
 from mysql.connector import Error as MySQLError
 
 from cyberhub_manager.domain.ad import AdMode, AdRewardType, AdStatus
-from cyberhub_manager.repositories.ad_repository import AdRepository
-from cyberhub_manager.repositories.game_repository import GameRepository
+from cyberhub_manager.infrastructure.repositories.ad_repository import AdRepository
+from cyberhub_manager.infrastructure.repositories.game_repository import GameRepository
 
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
 DAY = NOW.date()

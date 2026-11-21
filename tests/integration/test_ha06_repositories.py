@@ -12,10 +12,10 @@ from cyberhub_manager.domain.enums import (
     TransactionType,
 )
 from mysql.connector.errors import IntegrityError
-from cyberhub_manager.database import connection
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.customer_repository import CustomerRepository
-from cyberhub_manager.security import hash_password
+from cyberhub_manager.infrastructure.database import connection
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository
+from cyberhub_manager.infrastructure.security import hash_password
 
 
 def test_create_customer_and_account_can_roll_back():

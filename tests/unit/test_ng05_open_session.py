@@ -11,15 +11,15 @@ import pytest
 from cyberhub_manager.domain.dtos import OpenSessionPreview
 from cyberhub_manager.domain.enums import MachineStatus, PaymentMethod
 from cyberhub_manager.domain.exceptions import ConflictError, ServiceUnavailableError
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.ui import dashboard_view as dashboard_module
-from cyberhub_manager.ui import feedback as feedback_module
-from cyberhub_manager.ui.app_shell import ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.dashboard_view import DashboardView
-from cyberhub_manager.ui.dialogs import open_session_dialog as open_module
-from cyberhub_manager.ui.dialogs.open_session_dialog import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.presentation.desktop import dashboard_view as dashboard_module
+from cyberhub_manager.presentation.desktop import feedback as feedback_module
+from cyberhub_manager.presentation.desktop.app_shell import ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.dashboard_view import DashboardView
+from cyberhub_manager.presentation.desktop.dialogs import open_session_dialog as open_module
+from cyberhub_manager.presentation.desktop.dialogs.open_session_dialog import (
     BLOCKED,
     CHECKING,
     ELIGIBLE,

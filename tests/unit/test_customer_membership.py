@@ -15,9 +15,9 @@ from cyberhub_manager.domain.exceptions import (
     ConflictError,
     NotFoundError,
 )
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.avatar import normalize_avatar
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.infrastructure.avatar import normalize_avatar
 
 
 @pytest.fixture

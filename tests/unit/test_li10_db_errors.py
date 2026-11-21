@@ -21,8 +21,8 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ServiceUnavailableError,
 )
-from cyberhub_manager.services import db_errors
-from cyberhub_manager.services.db_errors import (
+from cyberhub_manager.infrastructure import db_errors
+from cyberhub_manager.infrastructure.db_errors import (
     DbErrorKind,
     classify,
     constraint_name,

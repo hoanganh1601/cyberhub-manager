@@ -19,8 +19,8 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.repositories.sql import execute, rows
-from cyberhub_manager.services.commercial_service import CommercialService
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
+from cyberhub_manager.application.services.commercial_service import CommercialService
 
 
 NOW = datetime(2026, 11, 16, 9, 0, tzinfo=timezone.utc)

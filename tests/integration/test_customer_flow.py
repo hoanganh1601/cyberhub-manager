@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus, Role
 from cyberhub_manager.domain.exceptions import (
@@ -19,10 +19,10 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.security import hash_password
-from cyberhub_manager.services.auth_service import AuthService
-from cyberhub_manager.services.customer_service import CustomerService
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.security import hash_password
+from cyberhub_manager.application.services.auth_service import AuthService
+from cyberhub_manager.application.services.customer_service import CustomerService
 
 TEST_DATABASE = "cyberhub_manager_test"
 PASSWORD = "secret123"

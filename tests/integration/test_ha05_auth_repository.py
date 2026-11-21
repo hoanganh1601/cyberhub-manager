@@ -2,10 +2,10 @@
 from uuid import uuid4
 
 import pytest
-from cyberhub_manager.database import connection
+from cyberhub_manager.infrastructure.database import connection
 from cyberhub_manager.domain.enums import Role
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.security import hash_password
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.security import hash_password
 
 @pytest.fixture
 def auth_context():

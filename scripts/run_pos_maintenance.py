@@ -8,7 +8,7 @@ import time
 
 from dotenv import load_dotenv
 
-from cyberhub_manager.services.menu_service import MenuService
+from cyberhub_manager.application.services.menu_service import MenuService
 
 
 def main(argv=None):

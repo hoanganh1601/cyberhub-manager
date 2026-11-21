@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.enums import (
     AccountStatus,
     PaymentMethod,
@@ -22,11 +22,11 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.customer_repository import CustomerRepository
-from cyberhub_manager.security import hash_password
-from cyberhub_manager.services.wallet_service import WalletService
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository
+from cyberhub_manager.infrastructure.security import hash_password
+from cyberhub_manager.application.services.wallet_service import WalletService
 
 TEST_DATABASE = "cyberhub_manager_test"
 EMPLOYEE_NAME = "LI04 Test Employee"

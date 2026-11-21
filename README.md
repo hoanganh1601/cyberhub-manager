@@ -355,7 +355,7 @@ Quy tắc bắt buộc:
 - Service sở hữu use case, authorization và transaction boundary.
 - Repository chỉ nhận connection từ caller, chạy SQL và map dữ liệu.
 - `database.transaction.transaction()` là cơ chế commit/rollback chuẩn.
-- Cấu hình web nằm tại `web/config.py`; `.env` thật và `runtime/` không commit.
+- Cấu hình web nằm tại `presentation/web/config.py`; cấu trúc bốn tầng xem [kiến trúc hiện hành](docs/architecture/OVERVIEW.md). `.env` thật và `runtime/` không commit.
 
 ## Tài liệu dự án
 

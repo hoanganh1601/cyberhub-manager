@@ -59,4 +59,4 @@ qua các lần đăng nhập; không dùng số liệu mẫu để kết luận 
 
 - `history/docs/features/CUSTOMER_PORTAL_PHASE2.md` — Hồ sơ và mật khẩu
 - `history/docs/features/CUSTOMER_PORTAL_PHASE3.md` — Avatar và hồ sơ
-- `src/cyberhub_manager/services/customer_service.py` — Đăng ký và xác thực dữ liệu
+- `src/cyberhub_manager/application/services/customer_service.py` — Đăng ký và xác thực dữ liệu

@@ -10,27 +10,27 @@ import pytest
 
 from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.dtos import InvoiceFilters
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.ui.app_shell import AppShell, ViewContext
-from cyberhub_manager.ui.background import ImmediateTaskRunner
-from cyberhub_manager.ui.customers_view import CustomersView
-from cyberhub_manager.ui.dashboard_view import DashboardView
-from cyberhub_manager.ui.dialogs.checkout_dialog import CheckoutDialog
-from cyberhub_manager.ui.dialogs.customer_dialog import CustomerDialog
-from cyberhub_manager.ui.dialogs.customer_lock_dialog import CustomerLockDialog
-from cyberhub_manager.ui.dialogs.machine_dialog import MachineDialog
-from cyberhub_manager.ui.dialogs.open_session_dialog import OpenSessionDialog
-from cyberhub_manager.ui.dialogs.payment_success_dialog import PaymentSuccessDialog
-from cyberhub_manager.ui.dialogs.topup_dialog import TopUpDialog
-from cyberhub_manager.ui.formatters import format_duration, format_money
-from cyberhub_manager.ui.i18n import UIStrings
-from cyberhub_manager.ui.invoices_view import InvoicesView
-from cyberhub_manager.ui.machine_management_view import MachineManagementView
-from cyberhub_manager.ui.navigation import NavKey
-from cyberhub_manager.ui.reports_view import ReportsView
-from cyberhub_manager.ui.ui_copy import ENGLISH
-from cyberhub_manager.ui.views import default_view_factories
-from cyberhub_manager.ui.window_position import centered_bounds
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.presentation.desktop.app_shell import AppShell, ViewContext
+from cyberhub_manager.presentation.desktop.background import ImmediateTaskRunner
+from cyberhub_manager.presentation.desktop.customers_view import CustomersView
+from cyberhub_manager.presentation.desktop.dashboard_view import DashboardView
+from cyberhub_manager.presentation.desktop.dialogs.checkout_dialog import CheckoutDialog
+from cyberhub_manager.presentation.desktop.dialogs.customer_dialog import CustomerDialog
+from cyberhub_manager.presentation.desktop.dialogs.customer_lock_dialog import CustomerLockDialog
+from cyberhub_manager.presentation.desktop.dialogs.machine_dialog import MachineDialog
+from cyberhub_manager.presentation.desktop.dialogs.open_session_dialog import OpenSessionDialog
+from cyberhub_manager.presentation.desktop.dialogs.payment_success_dialog import PaymentSuccessDialog
+from cyberhub_manager.presentation.desktop.dialogs.topup_dialog import TopUpDialog
+from cyberhub_manager.presentation.desktop.formatters import format_duration, format_money
+from cyberhub_manager.presentation.desktop.i18n import UIStrings
+from cyberhub_manager.presentation.desktop.invoices_view import InvoicesView
+from cyberhub_manager.presentation.desktop.machine_management_view import MachineManagementView
+from cyberhub_manager.presentation.desktop.navigation import NavKey
+from cyberhub_manager.presentation.desktop.reports_view import ReportsView
+from cyberhub_manager.presentation.desktop.ui_copy import ENGLISH
+from cyberhub_manager.presentation.desktop.views import default_view_factories
+from cyberhub_manager.presentation.desktop.window_position import centered_bounds
 
 RUNNER = ImmediateTaskRunner()
 

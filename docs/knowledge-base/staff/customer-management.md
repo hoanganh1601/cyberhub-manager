@@ -51,6 +51,6 @@ số dư hoặc giao dịch của khách để trả trong chat.
 
 ## Nguồn đối chiếu
 
-- `src/cyberhub_manager/services/customer_service.py`
+- `src/cyberhub_manager/application/services/customer_service.py`
 - `history/docs/reference/P1_DESKTOP_WEB.md` — Quy tắc nghiệp vụ và Phân quyền
 - `sql/001_initial_schema.sql` — customers, accounts

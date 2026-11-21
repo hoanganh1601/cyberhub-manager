@@ -6,7 +6,7 @@ import inspect
 
 import pytest
 
-from cyberhub_manager.services import (
+from cyberhub_manager.application.services import (
     auth_service,
     customer_service,
     machine_service,
@@ -14,12 +14,12 @@ from cyberhub_manager.services import (
     session_service,
     wallet_service,
 )
-from cyberhub_manager.services.auth_service import AuthService
-from cyberhub_manager.services.customer_service import CustomerService
-from cyberhub_manager.services.machine_service import MachineService
-from cyberhub_manager.services.report_service import ReportService
-from cyberhub_manager.services.session_service import SessionService
-from cyberhub_manager.services.wallet_service import WalletService
+from cyberhub_manager.application.services.auth_service import AuthService
+from cyberhub_manager.application.services.customer_service import CustomerService
+from cyberhub_manager.application.services.machine_service import MachineService
+from cyberhub_manager.application.services.report_service import ReportService
+from cyberhub_manager.application.services.session_service import SessionService
+from cyberhub_manager.application.services.wallet_service import WalletService
 
 # Mỗi thao tác ghi nằm trọn trong một transaction nên chạy lại an toàn sau deadlock.
 WRITES = {

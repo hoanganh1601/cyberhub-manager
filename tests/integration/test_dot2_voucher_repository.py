@@ -6,8 +6,8 @@ import pytest
 from mysql.connector import Error as MySQLError
 
 from cyberhub_manager.domain.voucher import RewardType, VoucherAction, VoucherSource, VoucherStatus
-from cyberhub_manager.repositories.p1_repository import P1Repository
-from cyberhub_manager.repositories.voucher_repository import VoucherRepository
+from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+from cyberhub_manager.infrastructure.repositories.voucher_repository import VoucherRepository
 
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
 

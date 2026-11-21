@@ -5,12 +5,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from cyberhub_manager.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
-from cyberhub_manager.ai.models import AIAccessContext, DynamicAssistantSource, KnowledgeDocument
-from cyberhub_manager.ai.policy_store import AssistantLimits
-from cyberhub_manager.ai.retrieval import KnowledgeRetriever
-from cyberhub_manager.ai.service import RAGAssistantService
-from cyberhub_manager.web import create_app
+from cyberhub_manager.application.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
+from cyberhub_manager.domain.ai.models import AIAccessContext, DynamicAssistantSource, KnowledgeDocument
+from cyberhub_manager.infrastructure.ai.policy_store import AssistantLimits
+from cyberhub_manager.application.ai.retrieval import KnowledgeRetriever
+from cyberhub_manager.application.ai.service import RAGAssistantService
+from cyberhub_manager.presentation.web import create_app
 
 
 @pytest.fixture

@@ -6,14 +6,14 @@ import argparse
 from datetime import date, timedelta
 from pathlib import Path
 
-from cyberhub_manager.database.transaction import transaction
-from cyberhub_manager.services.forecasting.dataset import (
+from cyberhub_manager.infrastructure.database.transaction import transaction
+from cyberhub_manager.application.services.forecasting.dataset import (
     ForecastDataset,
     generate_demo_dataset,
     load_mysql_dataset,
 )
-from cyberhub_manager.services.forecasting.predictor import ForecastPredictor
-from cyberhub_manager.services.forecasting.trainer import ForecastTrainer
+from cyberhub_manager.application.services.forecasting.predictor import ForecastPredictor
+from cyberhub_manager.application.services.forecasting.trainer import ForecastTrainer
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

@@ -8,11 +8,11 @@ import pytest
 from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import ValidationError, PermissionDeniedError
 from cyberhub_manager.domain.p1 import CustomerSession, Promotion
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.p1_repository import P1Repository, execute, rows
-from cyberhub_manager.services.portal_service import PortalService
-from cyberhub_manager.services.session_service import SessionService
-from cyberhub_manager.services.wallet_service import WalletService
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository, execute, rows
+from cyberhub_manager.application.services.portal_service import PortalService
+from cyberhub_manager.application.services.session_service import SessionService
+from cyberhub_manager.application.services.wallet_service import WalletService
 
 
 def services(conn, scenario, now):

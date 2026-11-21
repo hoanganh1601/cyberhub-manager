@@ -1,7 +1,7 @@
 """Phase 2 HTTP ownership, password session revocation and classification permissions."""
 
 import pytest
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 @pytest.fixture

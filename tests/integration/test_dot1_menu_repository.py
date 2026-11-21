@@ -7,7 +7,7 @@ import pytest
 from mysql.connector import Error as MySQLError
 
 from cyberhub_manager.domain.menu import MenuChangeField, MenuOrderLine, MenuOrderStatus, MenuPage
-from cyberhub_manager.repositories.menu_repository import MenuRepository
+from cyberhub_manager.infrastructure.repositories.menu_repository import MenuRepository
 
 
 def _execute(conn, sql, params=()):

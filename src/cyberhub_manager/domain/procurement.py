@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from .exceptions import ValidationError
+from cyberhub_manager.domain.exceptions import ValidationError
 
 
 class PurchaseRequestStatus(StrEnum):

@@ -12,8 +12,8 @@ from cyberhub_manager.domain.exceptions import (
     AuthenticationError,
 )
 from cyberhub_manager.domain.usage_analysis import analyze_usage
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.clock import MockClock
 
 NOW = datetime(2026, 11, 8, 9, tzinfo=timezone.utc)
 

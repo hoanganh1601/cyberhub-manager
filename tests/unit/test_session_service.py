@@ -37,9 +37,9 @@ from cyberhub_manager.domain.models import (
     Machine,
     UsageSession,
 )
-from cyberhub_manager.services import db_errors
-from cyberhub_manager.services.contracts import SessionServiceProtocol
-from cyberhub_manager.services.session_service import (
+from cyberhub_manager.infrastructure import db_errors
+from cyberhub_manager.application.services.contracts import SessionServiceProtocol
+from cyberhub_manager.application.services.session_service import (
     ACCOUNT_LOCKED,
     ALREADY_CHECKED_OUT,
     BALANCE_CHANGED,

@@ -14,8 +14,8 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database import connection
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.enums import (
     InvoiceStatus,
     PaymentMethod,
@@ -29,12 +29,12 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
     ServiceUnavailableError,
 )
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
-from cyberhub_manager.repositories.machine_repository import MachineRepository
-from cyberhub_manager.repositories.session_repository import SessionRepository
-from cyberhub_manager.services.session_service import (
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.invoice_repository import InvoiceRepository
+from cyberhub_manager.infrastructure.repositories.machine_repository import MachineRepository
+from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
+from cyberhub_manager.application.services.session_service import (
     NO_ACTIVE_SESSION,
     SessionService,
 )
