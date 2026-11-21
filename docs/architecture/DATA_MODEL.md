@@ -1,24 +1,18 @@
-# Dữ liệu và migration
+# Current database model
 
-Schema MySQL được định nghĩa trong `sql/001_*.sql` đến `sql/027_*.sql`. `scripts/init_db.py` áp dụng file theo thứ tự tên và lưu checksum trong `schema_migrations`; không sửa migration đã chạy để tránh sai checksum. Với thay đổi schema, thêm file số tiếp theo.
+The application schema contains **22 business tables**. `schema_migrations` is technical metadata and is not included in that count. See the [current ERD](../diagrams/current_erd.md) for entities, attributes, and relationships.
 
-## Tìm dữ liệu ở đâu
+## Table groups
 
-| Cần xem | Nguồn |
+| Group | Tables |
 |---|---|
-| Quan hệ tổng quan theo migration | [ERD hiện hành](../diagrams/current_erd.md) |
-| Cột, kiểu, index sau khi kết nối MySQL | `INFORMATION_SCHEMA` và file [data dictionary](../diagrams/data_dictionary.md) được sinh từ DB |
-| SQL gốc | `sql/` |
-| Truy vấn ứng dụng | `src/cyberhub_manager/repositories/` |
-| Giao dịch | `src/cyberhub_manager/database/transaction.py` |
+| Core | `stores`, `employees`, `customers`, `accounts`, `machines`, `usage_sessions`, `account_transactions`, `invoices` |
+| Administration | `promotions`, `management_audit`, `machine_room_types`, `employee_profiles`, `employee_store_assignments` |
+| Menu and POS | `menu_categories`, `menu_items`, `menu_orders`, `menu_order_items`, `pos_order_reversals`, `menu_promotions`, `menu_order_pricing` |
+| Customer notifications | `customer_notification_events`, `customer_notification_reads` |
 
-**Trạng thái kiểm chứng:** data dictionary hiện bao phủ 70/70 bảng nghiệp vụ qua migration `027` và được sinh từ `INFORMATION_SCHEMA` của `cyberhub_manager_test`. Integration test sẽ báo lỗi nếu schema, mô tả cột hoặc file sinh ra lệch nhau. ERD hiện hành là bản tổng quan dễ đọc; SQL và dictionary vẫn là nguồn chi tiết cho kiểu, index và ràng buộc.
+## Migrations
 
-## Khi thêm bảng hoặc cột
+Migrations 028 and 029 establish the earlier 24-table scope and remove loyalty/tier-based promotion fields. Migration `030_scope_to_20_tables.sql` drops `customer_email_tokens`, `customer_mail_outbox`, `customer_security_audit`, and `customer_store_links`. Email activation/recovery, customer security event history, and customer-to-store history are outside the reduced project.
 
-1. Thêm migration mới trong `sql/`, giữ nguyên các migration cũ.
-2. Cập nhật repository và service trong cùng thay đổi; kiểm tra trường hợp rollback, quyền và cửa hàng.
-3. Chạy migration trên `cyberhub_manager_test`, đối chiếu `INFORMATION_SCHEMA`, rồi chạy integration test tương ứng.
-4. Cập nhật ERD hiện hành. Chỉ tái sinh dictionary khi generator đã bao phủ bảng mới và kết nối đúng DB test.
-
-MySQL sản xuất/demo có dữ liệu thật và database test là hai cơ sở riêng. Không chạy seed hoặc test ghi dữ liệu trên database đang dùng để trình diễn.
+The four removed tables and their data are permanently deleted when migration 030 is applied. Migration 031 then adds the two order-status notification tables. Back up any existing database before migrating. A fresh database is initialized with `python scripts/init_db.py`; the resulting schema has 22 business tables plus `schema_migrations`.

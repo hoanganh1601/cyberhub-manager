@@ -23,7 +23,7 @@ def main(argv=None):
     while True:
         try:
             result = service.maintain_holds()
-            logging.info("POS holds: warned=%s expired=%s", result["warned"], result["expired"])
+            logging.info("POS holds: expired=%s", result["expired"])
         except Exception:
             logging.exception("POS hold maintenance failed; next run will retry")
             if args.once:

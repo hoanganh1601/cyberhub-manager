@@ -1,0 +1,211 @@
+@misc{Ericsson2026,
+  author       = {{Ericsson}},
+  title        = {Mobile Network Traffic Q2 2026},
+  year         = {2026},
+  organization = {Ericsson Mobility Report}
+}
+
+@ARTICLE{10319671,
+  author={Lu, Zhilin and Li, Rongpeng and Lu, Kun and Chen, Xianfu and Hossain, Ekram and Zhao, Zhifeng and Zhang, Honggang},
+  journal={IEEE Communications Surveys \& Tutorials}, 
+  title={Semantics-Empowered Communications: A Tutorial-Cum-Survey}, 
+  year={2024},
+  volume={26},
+  number={1},
+  pages={41-79},
+  abstract={Along with the springing up of the semantics-empowered communication (SemCom) research, it is now witnessing an unprecedentedly growing interest towards a wide range of aspects (e.g., theories, applications, metrics and implementations) in both academia and industry. In this work, we primarily aim to provide a comprehensive survey on both the background and research taxonomy, as well as a detailed technical tutorial. Specifically, we start by reviewing the literature and answering the “what” and “why” questions in semantic transmissions. Afterwards, we present the ecosystems of SemCom, including history, theories, metrics, datasets and toolkits, on top of which the taxonomy for research directions is presented. Furthermore, we propose to categorize the critical enabling techniques by explicit and implicit reasoning-based methods, and elaborate on how they evolve and contribute to modern content \& channel semantics-empowered communications. Besides reviewing and summarizing the latest efforts in SemCom, we discuss the relations with other communication levels (e.g., conventional communications) from a holistic and unified viewpoint. Subsequently, in order to facilitate future developments and industrial applications, we also highlight advanced practical techniques for boosting semantic accuracy, robustness, and large-scale scalability, just to mention a few. Finally, we discuss the technical challenges that shed light on future research opportunities.},
+  keywords={Semantics;Integrated circuits;Taxonomy;Surveys;Tutorials;Measurement;History;Semantic communications;tutorial-cum survey;semantic information theory;semantic similarity metrics;semantic transmission and reasoning;enabling techniques;challenges and opportunities},
+  doi={10.1109/COMST.2023.3333342},
+  ISSN={1553-877X},
+  month={Firstquarter},
+}
+@ARTICLE{9398576,
+  author={Xie, Huiqiang and Qin, Zhijin and Li, Geoffrey Ye and Juang, Biing-Hwang},
+  journal={IEEE Transactions on Signal Processing}, 
+  title={Deep Learning Enabled Semantic Communication Systems}, 
+  year={2021},
+  volume={69},
+  number={},
+  pages={2663-2675},
+  abstract={Recently, deep learned enabled end-to-end communication systems have been developed to merge all physical layer blocks in the traditional communication systems, which make joint transceiver optimization possible. Powered by deep learning, natural language processing has achieved great success in analyzing and understanding a large amount of language texts. Inspired by research results in both areas, we aim to provide a new view on communication systems from the semantic level. Particularly, we propose a deep learning based semantic communication system, named DeepSC, for text transmission. Based on the Transformer, the DeepSC aims at maximizing the system capacity and minimizing the semantic errors by recovering the meaning of sentences, rather than bit- or symbol-errors in traditional communications. Moreover, transfer learning is used to ensure the DeepSC applicable to different communication environments and to accelerate the model training process. To justify the performance of semantic communications accurately, we also initialize a new metric, named sentence similarity. Compared with the traditional communication system without considering semantic information exchange, the proposed DeepSC is more robust to channel variation and is able to achieve better performance, especially in the low signal-to-noise (SNR) regime, as demonstrated by the extensive simulation results.},
+  keywords={Semantics;Communication systems;Receivers;Transmitters;Task analysis;Encoding;Training;Deep learning;end-to-end communication;semantic communication;transfer learning;Transformer},
+  doi={10.1109/TSP.2021.3071210},
+  ISSN={1941-0476},
+  month={},
+}
+@ARTICLE{9252948,
+  author={Xie, Huiqiang and Qin, Zhijin},
+  journal={IEEE Journal on Selected Areas in Communications}, 
+  title={A Lite Distributed Semantic Communication System for Internet of Things}, 
+  year={2021},
+  volume={39},
+  number={1},
+  pages={142-153},
+  abstract={The rapid development of deep learning (DL) and widespread applications of Internet-of-Things (IoT) have made the devices smarter than before, and enabled them to perform more intelligent tasks. However, it is challenging for any IoT device to train and run DL models independently due to its limited computing capability. In this paper, we consider an IoT network where the cloud/edge platform performs the DL based semantic communication (DeepSC) model training and updating while IoT devices perform data collection and transmission based on the trained model. To make it affordable for IoT devices, we propose a lite distributed semantic communication system based on DL, named L-DeepSC, for text transmission with low complexity, where the data transmission from the IoT devices to the cloud/edge works at the semantic level to improve transmission efficiency. Particularly, by pruning the model redundancy and lowering the weight resolution, the L-DeepSC becomes affordable for IoT devices and the bandwidth required for model weight transmission between IoT devices and the cloud/edge is reduced significantly. Through analyzing the effects of fading channels in forward-propagation and back-propagation during the training of L-DeepSC, we develop a channel state information (CSI) aided training processing to decrease the effects of fading channels on transmission. Meanwhile, we tailor the semantic constellation to make it implementable on capacity-limited IoT devices. Simulation demonstrates that the proposed L-DeepSC achieves competitive performance compared with traditional methods, especially in the low signal-to-noise (SNR) region. In particular, while it can reach as large as $40\times $ compression ratio without performance degradation.},
+  keywords={Performance evaluation;Fading channels;Training;Computational modeling;Semantics;Internet of Things;Signal to noise ratio;Internet of Things;neural network compression;pruning;quantization;semantic communication},
+  doi={10.1109/JSAC.2020.3036968},
+  ISSN={1558-0008},
+  month={Jan},
+}
+@ARTICLE{9953076,
+  author={Huang, Danlan and Gao, Feifei and Tao, Xiaoming and Du, Qiyuan and Lu, Jianhua},
+  journal={IEEE Journal on Selected Areas in Communications}, 
+  title={Toward Semantic Communications: Deep Learning-Based Image Semantic Coding}, 
+  year={2023},
+  volume={41},
+  number={1},
+  pages={55-71},
+  abstract={Semantic communications has received growing interest since it can remarkably reduce the amount of data to be transmitted without missing critical information. Most existing works explore the semantic encoding and transmission for text and apply techniques in Natural Language Processing (NLP) to interpret the meaning of the text. In this paper, we conceive the semantic communications for image data that is much more richer in semantics and bandwidth sensitive. We propose an reinforcement learning based adaptive semantic coding (RL-ASC) approach that encodes images beyond pixel level. Firstly, we define the semantic concept of image data that includes the category, spatial arrangement, and visual feature as the representation unit, and propose a convolutional semantic encoder to extract semantic concepts. Secondly, we propose the image reconstruction criterion that evolves from the traditional pixel similarity to semantic similarity and perceptual performance. Thirdly, we design a novel RL-based semantic bit allocation model, whose reward is the increase in rate-semantic-perceptual performance after encoding a certain semantic concept with adaptive quantization level. Thus, the task-related information is preserved and reconstructed properly while less important data is discarded. Finally, we propose the Generative Adversarial Nets (GANs) based semantic decoder that fuses both locally and globally features via an attention module. Experimental results demonstrate that the proposed RL-ASC is noise robust and could reconstruct visually pleasant and semantic consistent image in low bit rate condition.},
+  keywords={Semantics;Image coding;Task analysis;Image reconstruction;Bit rate;Feature extraction;Image communication;Semantic communications;image semantic coding;generative adversarial nets (GANs);reinforcement learning (RL);rate-semantic-perceptual criterion},
+  doi={10.1109/JSAC.2022.3221999},
+  ISSN={1558-0008},
+  month={Jan},
+}
+@ARTICLE{10110357,
+  author={Ma, Shuai and Qiao, Weining and Wu, Youlong and Li, Hang and Shi, Guangming and Gao, Dahua and Shi, Yuanming and Li, Shiyin and Al-Dhahir, Naofal},
+  journal={IEEE Transactions on Wireless Communications}, 
+  title={Task-Oriented Explainable Semantic Communications}, 
+  year={2023},
+  volume={22},
+  number={12},
+  pages={9248-9262},
+  abstract={Semantic communications utilize the transceiver computing resources to alleviate scarce transmission resources, such as bandwidth and energy. Although the conventional deep learning (DL) based designs may achieve certain transmission efficiency, the uninterpretability issue of extracted features is the major challenge in the development of semantic communications. In this paper, we propose an explainable and robust semantic communication framework by incorporating the well-established bit-level communication system, which not only extracts and disentangles features into independent and semantically interpretable features, but also only selects task-relevant features for transmission, instead of all extracted features. Based on this framework, we derive the optimal input for rate-distortion-perception theory, and derive both lower and upper bounds on the semantic channel capacity. Furthermore, based on the  $\beta $ -variational autoencoder ( $\beta $ -VAE), we propose a practical explainable semantic communication system design, which simultaneously achieves semantic features selection and is robust against semantic channel noise. We further design a real-time wireless mobile semantic communication proof-of-concept prototype. Our simulations and experiments demonstrate that our proposed explainable semantic communications system can significantly improve transmission efficiency, and also verify the effectiveness of our proposed robust semantic transmission scheme.},
+  keywords={Semantics;Feature extraction;Wireless communication;Task analysis;Electronic mail;Data mining;Communication systems;Explainable semantic communications;feature selection;semantic communications prototype},
+  doi={10.1109/TWC.2023.3269444},
+  ISSN={1558-2248},
+  month={Dec},
+}
+@INPROCEEDINGS{10901733,
+  author={Peng, Xiang and Qin, Zhijin and Tao, Xiaoming and Lu, Jianhua and Letaief, Khaled B.},
+  booktitle={GLOBECOM 2024 - 2024 IEEE Global Communications Conference}, 
+  title={A Robust Semantic Communication System for Image Transmission}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={2154-2159},
+  abstract={Semantic communications have gained significant attention as a promising approach to address the transmission bottleneck, especially with the continuous development of 6G techniques. Distinct from the well investigated physical channel impairments, this paper focuses on semantic impairments in images, particularly those arising from adversarial perturbations. Specifically, we propose a novel metric for quantifying the intensity of semantic impairment and develop a semantic impairment dataset. Furthermore, we introduce a deep learning enabled semantic communication system, termed as DeepSC-RI, to enhance the robustness of image transmission, which incorporates a multi-scale semantic extractor with a dual-branch architecture for extracting semantics with varying granularity, thereby improving the robustness of the system. The fine-grained branch incorporates a semantic importance evaluation module to identify and prioritize crucial semantics, while the coarse-grained branch adopts a hierarchical approach for capturing the robust semantics. These two streams of semantics are seamlessly integrated via an advanced cross-attention-based semantic fusion module. Experimental results demonstrate the superior performance of DeepSC-RI under various levels of semantic impairment intensity.},
+  keywords={Measurement;Image communication;Perturbation methods;Semantics;Rician channels;Semantic communication;Transformers;Robustness;Streams;Signal to noise ratio;Semantic communications;semantic impairments;image transmission;multi-scale Vision Transformer},
+  doi={10.1109/GLOBECOM52923.2024.10901733},
+  ISSN={2576-6813},
+  month={Dec},
+}
+@ARTICLE{9778241,
+  author={McEnroe, Patrick and Wang, Shen and Liyanage, Madhusanka},
+  journal={IEEE Internet of Things Journal}, 
+  title={A Survey on the Convergence of Edge Computing and AI for UAVs: Opportunities and Challenges}, 
+  year={2022},
+  volume={9},
+  number={17},
+  pages={15435-15459},
+  abstract={The latest 5G mobile networks have enabled many exciting Internet of Things (IoT) applications that employ unmanned aerial vehicles (UAVs/drones). The success of most UAV-based IoT applications is heavily dependent on artificial intelligence (AI) technologies, for instance, computer vision and path planning. These AI methods must process data and provide decisions while ensuring low latency and low energy consumption. However, the existing cloud-based AI paradigm finds it difficult to meet these strict UAV requirements. Edge AI, which runs AI on-device or on edge servers close to users, can be suitable for improving UAV-based IoT services. This article provides a comprehensive analysis of the impact of edge AI on key UAV technical aspects (i.e., autonomous navigation, formation control, power management, security and privacy, computer vision, and communication) and applications (i.e., delivery systems, civil infrastructure inspection, precision agriculture, search and rescue (SAR) operations, acting as aerial wireless base stations (BSs), and drone light shows). As guidance for researchers and practitioners, this article also explores UAV-based edge AI implementation challenges, lessons learned, and future research directions.},
+  keywords={Artificial intelligence;Edge computing;Autonomous aerial vehicles;Servers;Internet of Things;Cloud computing;Task analysis;Artificial intelligence (AI);edge AI;edge computing;edge intelligence;Internet of Things (IoT);MEC;unmanned aerial vehicle (UAV)},
+  doi={10.1109/JIOT.2022.3176400},
+  ISSN={2327-4662},
+  month={Sep.},
+}
+
+@article{Bourtsoulatze2019,
+  author  = {Bourtsoulatze, Eirina and Kurka, David Burth and G{\"u}nd{\"u}z, Deniz},
+  title   = {Deep Joint Source-Channel Coding for Wireless Image Transmission},
+  journal = {IEEE Transactions on Cognitive Communications and Networking},
+  volume  = {5},
+  number  = {3},
+  pages   = {567--579},
+  year    = {2019},
+  doi     = {10.1109/TCCN.2019.2919300}
+}
+
+@article{Polyanskiy2010,
+  author  = {Polyanskiy, Yury and Poor, H. Vincent and Verd{\'u}, Sergio},
+  title   = {Channel Coding Rate in the Finite Blocklength Regime},
+  journal = {IEEE Transactions on Information Theory},
+  volume  = {56},
+  number  = {5},
+  pages   = {2307--2359},
+  year    = {2010},
+  doi     = {10.1109/TIT.2010.2043769}
+}
+
+@inproceedings{Shannon1959,
+  author    = {Shannon, Claude E.},
+  title     = {Coding Theorems for a Discrete Source with a Fidelity Criterion},
+  booktitle = {IRE National Convention Record},
+  volume    = {7},
+  number    = {4},
+  pages     = {142--163},
+  year      = {1959}
+}
+
+@article{Gunduz2025,
+  author  = {G{\"u}nd{\"u}z, Deniz and Wigger, Mich{\`e}le A. and
+             Tung, Tze-Yang and Zhang, Ping and Xiao, Yong},
+  title   = {Joint Source-Channel Coding: Fundamentals and Recent
+             Progress in Practical Designs},
+  journal = {Proceedings of the IEEE},
+  volume  = {113},
+  number  = {9},
+  pages   = {888--919},
+  year    = {2025},
+  doi     = {10.1109/JPROC.2024.3477331}
+}
+@article{Swaszek1995,
+  author  = {Swaszek, Peter F. and DiCicco, Peter},
+  title   = {More on the Error Recovery for Variable-Length Codes},
+  journal = {IEEE Transactions on Information Theory},
+  volume  = {41},
+  number  = {6},
+  pages   = {2064--2071},
+  year    = {1995},
+  doi     = {10.1109/18.476338}
+}
+
+@article{Xu2022ADJSCC,
+  author  = {Xu, Jialong and Ai, Bo and Chen, Wei and Yang, Ang
+             and Sun, Peng and Rodrigues, Miguel},
+  title   = {Wireless Image Transmission Using Deep Source Channel
+             Coding With Attention Modules},
+  journal = {IEEE Transactions on Circuits and Systems for Video Technology},
+  volume  = {32},
+  number  = {4},
+  pages   = {2315--2328},
+  year    = {2022},
+  doi     = {10.1109/TCSVT.2021.3082521}
+}
+@article{Wallace1992,
+  author  = {Wallace, Gregory K.},
+  title   = {The JPEG Still Picture Compression Standard},
+  journal = {IEEE Transactions on Consumer Electronics},
+  volume  = {38},
+  number  = {1},
+  pages   = {xviii--xxxiv},
+  year    = {1992},
+  doi     = {10.1109/30.125072}
+}
+
+@article{Skodras2001,
+  author  = {Skodras, Athanassios and Christopoulos, Charilaos
+             and Ebrahimi, Touradj},
+  title   = {The JPEG 2000 Still Image Compression Standard},
+  journal = {IEEE Signal Processing Magazine},
+  volume  = {18},
+  number  = {5},
+  pages   = {36--58},
+  year    = {2001},
+  doi     = {10.1109/79.952804}
+}
+
+@misc{BellardBPG,
+  author       = {Bellard, Fabrice},
+  title        = {BPG Image Format},
+  howpublished = {BPG Project Documentation},
+  note         = {Based on a subset of the HEVC standard}
+}
+@article{Xu2023VisualProtection,
+  author  = {Xu, Jialong and Ai, Bo and Chen, Wei and Wang, Ning
+             and Rodrigues, Miguel},
+  title   = {Deep Joint Source-Channel Coding for Image Transmission
+             With Visual Protection},
+  journal = {IEEE Transactions on Cognitive Communications and Networking},
+  year    = {2023},
+  doi     = {10.1109/TCCN.2023.3306851}
+}

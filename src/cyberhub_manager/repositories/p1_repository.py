@@ -2,7 +2,6 @@
 
 from cyberhub_manager.domain.p1 import CustomerSession
 
-from .loyalty_repository import LoyaltyRepositoryMixin
 from .management_repository import ManagementRepositoryMixin
 from .portal_repository import PortalRepositoryMixin
 from .sql import execute, rows, utc
@@ -14,7 +13,6 @@ from .sql import execute, rows, utc
 class P1Repository(
     ManagementRepositoryMixin,
     PortalRepositoryMixin,
-    LoyaltyRepositoryMixin,
 ):
     """Stable facade retained while capability-specific repositories evolve."""
 

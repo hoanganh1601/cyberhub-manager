@@ -363,8 +363,6 @@ class ManagementForm(StitchDialog):
                     for key in ("full_name", "username", "store_id", "role", "status"):
                         values.setdefault(key, getattr(self.item, key))
                 return service.save_employee(actor, entity_id, **values)
-            if self.item:
-                values.update(minimum_tier=self.item.minimum_tier,minimum_points=self.item.minimum_points,target_customer_id=self.item.target_customer_id)
             return service.save_promotion(actor, Promotion(id=entity_id or 0, **values))
 
         self.runner.submit(self, call, self._saved, self._error)

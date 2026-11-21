@@ -1,0 +1,213 @@
+% ==========================================
+% 1. CẤU HÌNH NGÔN NGỮ, PHÔNG CHỮ & KÍCH THƯỚC
+% ==========================================
+\usepackage[utf8]{inputenc}
+\usepackage{newunicodechar}
+\newunicodechar{μ}{\ensuremath{\mu}}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese]{babel}
+\usepackage{times}
+\usepackage{fontsize}
+\changefontsize{13pt}
+\usepackage{amsmath}
+\usepackage{setspace}
+\onehalfspacing
+
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    top=25mm,
+    bottom=25mm,
+    left=30mm,
+    right=20mm
+}
+
+\usepackage{indentfirst}
+\setlength{\parindent}{1.27cm}
+\setlength{\parskip}{6pt}
+
+% ==========================================
+% 2. ĐỒ HỌA, BẢNG BIỂU, CODE, LINK
+% ==========================================
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{fit}
+\usepackage{tikz-cd}
+\usepackage{multicol}
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{placeins}
+\graphicspath{{images/}}
+
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{makecell}
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+\usepackage{enumitem}
+\usepackage{xurl}
+\usepackage[noprefix]{nomencl}
+\makenomenclature
+
+\usepackage{titletoc}
+\usepackage{titlesec}
+
+\newcommand{\conclusionsection}[1]{%
+    \vspace{1em}
+    {\large\bfseries #1\par}
+    \vspace{0.5em}
+}
+
+\newcommand{\conclusionsubsection}[1]{%
+    \vspace{0.7em}
+    {\normalsize\bfseries #1\par}
+    \vspace{0.3em}
+}
+
+% ==========================================
+% TÀI LIỆU THAM KHẢO
+% ==========================================
+\usepackage[
+    backend=biber,
+    style=ieee,
+    sorting=none
+]{biblatex}
+
+\DeclareLanguageMapping{vietnamese}{english}
+
+\addbibresource{references.bib}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,
+    urlcolor=blue,
+    citecolor=black
+}
+
+% ==========================================
+% 3. TÊN HIỂN THỊ, MỤC LỤC & DANH MỤC
+% ==========================================
+\addto\captionsvietnamese{
+  \renewcommand{\contentsname}{MỤC LỤC}
+  \renewcommand{\listtablename}{DANH MỤC BẢNG}
+  \renewcommand{\listfigurename}{DANH MỤC HÌNH VẼ}
+  \renewcommand{\bibname}{TÀI LIỆU THAM KHẢO}
+}
+
+\renewcommand{\nomname}{DANH MỤC THUẬT NGỮ VIẾT TẮT}
+
+\titlecontents{chapter}
+  [0pt]
+  {\vspace{0.5em}\bfseries}
+  {CHƯƠNG \thecontentslabel:\quad}
+  {}
+  {\titlerule*[0.5pc]{.}\contentspage}
+
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{2}
+
+% ==========================================
+% 4. ĐỊNH DẠNG TIÊU ĐỀ
+% ==========================================
+\titleformat{\chapter}[block]
+  {\normalfont\fontfamily{ptm}\fontsize{16pt}{20pt}\selectfont\bfseries\centering}
+  {CHƯƠNG \thechapter.\ }
+  {0pt}
+  {\MakeUppercase}
+
+\titlespacing*{\chapter}{0pt}{-20pt}{24pt}
+
+\titleformat{\section}
+  {\normalfont\fontfamily{ptm}\fontsize{13pt}{\baselineskip}\selectfont\bfseries}
+  {\thesection\quad}
+  {0pt}
+  {}
+
+\titleformat{\subsection}
+  {\normalfont\fontfamily{ptm}\fontsize{13pt}{\baselineskip}\selectfont\bfseries}
+  {\thesubsection\quad}
+  {0pt}
+  {}
+
+\renewcommand{\thesubsubsection}{\alph{subsubsection}}
+
+\titleformat{\subsubsection}
+  {\normalfont\fontfamily{ptm}\fontsize{13pt}{\baselineskip}\selectfont\bfseries}
+  {\thesubsubsection)\quad}
+  {0pt}
+  {}
+
+% ==========================================
+% 5. DANH SÁCH
+% ==========================================
+\setlist[itemize,1]{
+    label={-},
+    leftmargin=1.8cm,
+    itemindent=0pt,
+    labelsep=0.5em,
+    topsep=0pt,
+    itemsep=0pt
+}
+
+% ==========================================
+% 6. CODE LISTING
+% ==========================================
+\lstdefinestyle{terminal}{
+    basicstyle=\ttfamily\footnotesize,
+    backgroundcolor=\color{black!90},
+    keywordstyle=\color{green!70},
+    stringstyle=\color{yellow},
+    commentstyle=\color{gray},
+    frame=single,
+    rulecolor=\color{black},
+    breaklines=true,
+    showstringspaces=false,
+    xleftmargin=6pt,
+    xrightmargin=6pt,
+    framesep=4pt
+}
+
+\lstdefinestyle{codestyle}{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\bfseries\color{blue!70!black},
+    commentstyle=\itshape\color{gray},
+    stringstyle=\color{orange!80!black},
+    backgroundcolor=\color{gray!8},
+    frame=single,
+    rulecolor=\color{gray!40},
+    breaklines=true,
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=6pt,
+    xleftmargin=12pt,
+    captionpos=b
+}
+
+% ==========================================
+% 7. MACRO TỰ ĐỊNH NGHĨA
+% ==========================================
+\newcommand{\todofigure}[3]{%
+\begin{figure}[h]
+    \centering
+    \fbox{
+        \begin{minipage}[c][0.22\textheight][c]{0.82\textwidth}
+            \centering
+            \textbf{TODO: Bổ sung hình minh họa}\\[0.5em]
+            \texttt{\detokenize{#1}}
+        \end{minipage}
+    }
+    \caption{#2}
+    \label{#3}
+\end{figure}
+}

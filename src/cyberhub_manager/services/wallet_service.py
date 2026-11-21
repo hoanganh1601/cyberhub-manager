@@ -16,7 +16,6 @@ from cyberhub_manager.domain.identifiers import (
     new_transaction_code,
 )
 from cyberhub_manager.domain.p1 import Permission, can, quote_top_up, separated_rbac, chain_director
-from cyberhub_manager.domain.loyalty import personalized
 from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.services.access import operating_actor
 
@@ -115,10 +114,9 @@ class WalletService:
 
     def _customer_quote(self,conn,customer,amount,store_id):
         policies=self._promotions.list_promotions(conn,store_id,lock='share')
-        if str(customer.status)!='ACTIVE' or str(customer.account.status)!='ACTIVE':
-            policies=[p for p in policies if not personalized(p)]
-        member=self._promotions.loyalty_summary(conn,customer.id,current=True) if any(personalized(p) for p in policies) else None
-        return quote_top_up(amount,policies,store_id,self._clock(),customer_id=customer.id,member=member)
+        if str(customer.status) != "ACTIVE" or str(customer.account.status) != "ACTIVE":
+            policies = []
+        return quote_top_up(amount, policies, store_id, self._clock())
 
     @retry_on_transient
     def top_up(
@@ -202,9 +200,6 @@ class WalletService:
         if _is_positive_id(customer_id):
             customer = self._customers.get_by_id(conn, customer_id)
             if customer is not None:
-                if (actor is not None and separated_rbac() and not chain_director(actor.role)
-                        and not self._customers.has_store_link(conn, customer_id, actor.store_id)):
-                    raise NotFoundError("Không tìm thấy khách hàng trong cơ sở hiện tại")
                 return customer
         raise NotFoundError("Không tìm thấy khách hàng")
 

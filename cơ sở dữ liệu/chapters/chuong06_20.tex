@@ -1,0 +1,107 @@
+\chapter{Truy vấn cơ sở dữ liệu}
+
+\section{Mục tiêu và quy ước}
+Các câu truy vấn dưới đây minh họa cách khai thác các quan hệ trong mô hình 20 bảng. Đây là truy vấn mẫu theo lược đồ báo cáo, không khẳng định là câu lệnh đang được ứng dụng gọi nguyên văn. Các cột thời gian được nhóm theo giá trị lưu trong database; khi báo cáo theo ngày Việt Nam cần quy đổi múi giờ phù hợp.
+
+\section{Số máy theo cửa hàng và trạng thái}
+\textbf{Mục tiêu:} thống kê số máy đang được ghi nhận ở mỗi cửa hàng.
+\begin{lstlisting}[language=SQL]
+SELECT s.name AS store_name,
+       m.status,
+       COUNT(*) AS machine_count
+FROM stores AS s
+JOIN machines AS m ON m.store_id = s.id
+GROUP BY s.id, s.name, m.status
+ORDER BY s.name, m.status;
+\end{lstlisting}
+Khóa ngoại \texttt{machines.store\_id} nối mỗi máy với cửa hàng. Nhóm theo cửa hàng và trạng thái để đếm số máy trong từng nhóm.
+
+\section{Các phiên sử dụng đang hoạt động}
+\textbf{Mục tiêu:} xem khách hàng, máy và thời điểm bắt đầu của các phiên chưa kết thúc.
+\begin{lstlisting}[language=SQL]
+SELECT us.id AS session_id,
+       c.full_name AS customer_name,
+       m.code AS machine_code,
+       us.started_at
+FROM usage_sessions AS us
+JOIN customers AS c ON c.id = us.customer_id
+JOIN machines AS m ON m.id = us.machine_id
+WHERE us.status = 'ACTIVE'
+ORDER BY us.started_at;
+\end{lstlisting}
+Truy vấn nối phiên với khách và máy; điều kiện trạng thái chỉ lấy phiên đang hoạt động.
+
+\section{Số phiên và tổng chi phí theo khách hàng}
+\textbf{Mục tiêu:} tổng hợp mức sử dụng máy theo khách, kể cả khách chưa có phiên.
+\begin{lstlisting}[language=SQL]
+SELECT c.id,
+       c.full_name,
+       COUNT(us.id) AS session_count,
+       COALESCE(SUM(us.cost), 0) AS total_usage_cost
+FROM customers AS c
+LEFT JOIN usage_sessions AS us ON us.customer_id = c.id
+GROUP BY c.id, c.full_name
+ORDER BY total_usage_cost DESC, c.full_name;
+\end{lstlisting}
+\texttt{LEFT JOIN} giữ lại khách chưa có phiên; \texttt{COALESCE} hiển thị tổng bằng 0 nếu chưa phát sinh chi phí.
+
+\section{Doanh thu sử dụng máy theo ngày}
+\textbf{Mục tiêu:} tổng hợp số hóa đơn đã thanh toán và doanh thu sử dụng máy.
+\begin{lstlisting}[language=SQL]
+SELECT DATE(issued_at) AS invoice_date,
+       COUNT(*) AS invoice_count,
+       SUM(usage_cost) AS usage_revenue
+FROM invoices
+WHERE status = 'PAID'
+GROUP BY DATE(issued_at)
+ORDER BY invoice_date;
+\end{lstlisting}
+Chỉ hóa đơn trạng thái \texttt{PAID} được tính. Truy vấn dùng \texttt{usage\_cost} để đo doanh thu phiên máy; nếu hóa đơn bao gồm thêm mặt hàng, cần xác định quy tắc doanh thu riêng.
+
+\section{Top món được gọi nhiều nhất}
+\textbf{Mục tiêu:} xếp hạng món theo tổng số lượng trong các đơn chưa bị hủy.
+\begin{lstlisting}[language=SQL]
+SELECT moi.item_id,
+       moi.item_name,
+       SUM(moi.quantity) AS quantity_ordered,
+       COUNT(DISTINCT mo.id) AS order_count
+FROM menu_order_items AS moi
+JOIN menu_orders AS mo ON mo.id = moi.order_id
+WHERE mo.status <> 'CANCELLED'
+GROUP BY moi.item_id, moi.item_name
+ORDER BY quantity_ordered DESC, moi.item_name
+LIMIT 10;
+\end{lstlisting}
+Bảng chi tiết giữ tên món tại thời điểm đặt. Vì vậy, kết quả phản ánh tên snapshot trong đơn, kể cả khi tên danh mục hiện tại đã thay đổi.
+
+\section{Doanh số POS theo cửa hàng}
+\textbf{Mục tiêu:} tính tổng tiền cuối cùng của các đơn không bị hủy.
+\begin{lstlisting}[language=SQL]
+SELECT s.name AS store_name,
+       COUNT(mo.id) AS order_count,
+       SUM(COALESCE(mop.final_amount, mo.total_amount)) AS sales_amount
+FROM stores AS s
+JOIN menu_orders AS mo ON mo.store_id = s.id
+LEFT JOIN menu_order_pricing AS mop ON mop.order_id = mo.id
+WHERE mo.status <> 'CANCELLED'
+GROUP BY s.id, s.name
+ORDER BY sales_amount DESC;
+\end{lstlisting}
+Nếu đơn có bản ghi tính giá, truy vấn dùng \texttt{final\_amount}; nếu chưa có, dùng tổng tiền ghi trên đơn. Cần thống nhất quy tắc trạng thái thanh toán khi triển khai báo cáo doanh thu thực tế.
+
+\section{Nhân viên được phân công theo cửa hàng}
+\textbf{Mục tiêu:} xem danh sách nhân viên đang được phân công cho từng cửa hàng.
+\begin{lstlisting}[language=SQL]
+SELECT s.name AS store_name,
+       e.full_name,
+       e.role,
+       esa.granted_at
+FROM employee_store_assignments AS esa
+JOIN employees AS e ON e.id = esa.employee_id
+JOIN stores AS s ON s.id = esa.store_id
+ORDER BY s.name, e.full_name;
+\end{lstlisting}
+Bảng liên kết cho phép một nhân viên làm tại nhiều cửa hàng và một cửa hàng có nhiều nhân viên.
+
+\section{Kết luận chương}
+Các truy vấn minh họa những thao tác JOIN, GROUP BY, tổng hợp và lọc trên các bảng thuộc phạm vi 20 bảng. Khi dùng với database thật, cần đối chiếu lại tên cột, kiểu dữ liệu, quy tắc trạng thái và dữ liệu hiện có.

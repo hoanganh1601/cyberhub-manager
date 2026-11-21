@@ -11,12 +11,10 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 
 from cyberhub_manager.domain.menu import (
     MenuCategory,
     MenuItem,
-    MenuItemChange,
     MenuOrder,
     MenuOrderLine,
     MenuOrderStatus,
@@ -69,34 +67,27 @@ class MemoryMenuRepository:
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.categories: dict[int, MenuCategory] = {}
         self.items: dict[int, MenuItem] = {}
-        self.images: dict[int, bytes] = {}
-        self.changes: list[MenuItemChange] = []
         self.orders: dict[int, MenuOrder] = {}
         self.promotions: dict[int, dict] = {}
         self.order_pricing: dict[int, dict] = {}
         self.reversals: dict[int, dict] = {}
-        self.inventory_repo = None
-        self.voucher_repo = None
-        self._ids = {"category": 0, "item": 0, "order": 0, "reversal": 0, "promotion": 0}
+        self.notifications: dict[int, dict] = {}
+        self._ids = {"category": 0, "item": 0, "order": 0, "reversal": 0,
+                     "promotion": 0, "notification": 0}
 
     # ----- Transaction ---------------------------------------------------------
     @contextmanager
     def transaction(self):
         with self.p1.transaction() as conn:
             snapshot = deepcopy(
-                (self.categories, self.items, self.images, self.changes, self.orders,
-                 self.promotions, self.order_pricing, self.reversals, self._ids)
-            )
-            inventory_snapshot = (
-                self.inventory_repo.snapshot_state() if self.inventory_repo is not None else None
+                (self.categories, self.items, self.orders, self.promotions,
+                 self.order_pricing, self.reversals, self.notifications, self._ids)
             )
             try:
                 yield conn
             except Exception:
-                (self.categories, self.items, self.images, self.changes, self.orders,
-                 self.promotions, self.order_pricing, self.reversals, self._ids) = snapshot
-                if self.inventory_repo is not None:
-                    self.inventory_repo.restore_state(inventory_snapshot)
+                (self.categories, self.items, self.orders, self.promotions,
+                 self.order_pricing, self.reversals, self.notifications, self._ids) = snapshot
                 raise
 
     def _next(self, kind: str) -> int:
@@ -119,13 +110,12 @@ class MemoryMenuRepository:
                         )
             now = self.clock()
             by_name = {item.name: item.id for item in self.items.values() if item.store_id == store_id}
-            for code, kind, item_id, value, tier in (
-                ("DEMO_NUOC_5000", "PLAY_DRINK", by_name["Coca"], 5000, None),
-                ("DEMO_MUA3_TRA2", "BOGO", by_name["Coca"], 1, None),
-                ("DEMO_VIP_10", "TIER_PERCENT", None, 10, "GOLD"),
+            for code, kind, item_id, value in (
+                ("DEMO_NUOC_5000", "PLAY_DRINK", by_name["Coca"], 5000),
+                ("DEMO_MUA3_TRA2", "BOGO", by_name["Coca"], 1),
             ):
                 self.save_promotion(None, store_id, None, code, kind, item_id, value,
-                                    tier, now-timedelta(days=1), now+timedelta(days=365), True)
+                                    now-timedelta(days=1), now+timedelta(days=365), True)
 
     def seed_pos_orders(self) -> None:
         """Populate one employee demo workspace with orders in every POS state."""
@@ -222,25 +212,6 @@ class MemoryMenuRepository:
         self.items[item_id] = replace(self.items[item_id], is_available=available, updated_at=self.clock())
 
     # ----- Ảnh -----------------------------------------------------------------------
-    def save_image(self, conn, item_id, data, digest):
-        self.images[item_id] = data
-        self.items[item_id] = replace(self.items[item_id], image_version=digest[:12])
-
-    def get_image(self, conn, item_id):
-        return self.images.get(item_id)
-
-    # ----- Lịch sử -----------------------------------------------------------------------
-    def record_change(self, conn, *, item_id, employee_id, field, old_value, new_value):
-        employee = self.data.employees.get(employee_id)
-        self.changes.append(
-            MenuItemChange(item_id, employee_id, employee.full_name if employee else "", field,
-                           old_value, new_value, self.clock())
-        )
-
-    def item_changes(self, conn, item_id, limit=50):
-        return [c for c in reversed(self.changes) if c.item_id == item_id][:limit]
-
-    # ----- Phiên đang chơi ---------------------------------------------------------------
     def active_session(self, conn, customer_id):
         session = next(
             (s for s in self.data.sessions.values() if s.customer_id == customer_id and s.is_active()),
@@ -264,6 +235,7 @@ class MemoryMenuRepository:
             MenuOrderStatus.NEW, sum(line.amount for line in lines), note, tuple(lines), self.clock(),
             reservation_expires_at=expires_at,
         )
+        self.record_order_status_notification(None, order_id, MenuOrderStatus.NEW.value)
         return order_id
 
     def list_promotions(self, conn, store_id):
@@ -278,26 +250,17 @@ class MemoryMenuRepository:
         return dict(value) if value else None
 
     def save_promotion(self, conn, store_id, promotion_id, code, kind, item_id,
-                       value, minimum_tier, starts_at, ends_at, is_active):
+                       value, starts_at, ends_at, is_active):
         if promotion_id is None:
             promotion_id = self._next("promotion")
         self.promotions[promotion_id] = dict(id=promotion_id, store_id=store_id,
             code=code, kind=kind, item_id=item_id, value=value,
-            minimum_tier=minimum_tier, starts_at=starts_at, ends_at=ends_at,
+            starts_at=starts_at, ends_at=ends_at,
             is_active=is_active)
         return promotion_id
 
     def save_order_pricing(self, conn, order_id, pricing):
         self.order_pricing[order_id] = deepcopy(pricing)
-
-    def apply_voucher_pricing(self, conn, order, voucher_code, discount):
-        pricing = self.order_pricing.setdefault(order.id, dict(discount_amount=0,
-            promotion_code=None, snapshot={"gross_amount": order.total_amount}))
-        pricing["final_amount"] = max(0, order.total_amount-discount)
-        pricing["snapshot"]["voucher"] = {"code": voucher_code, "discount_amount": discount}
-        pricing["snapshot"]["applied_source"] = "VOUCHER"
-        pricing["snapshot"]["effective_discount_amount"] = discount
-        pricing["snapshot"]["final_amount"] = pricing["final_amount"]
 
     def list_orders(self, conn, store_id, status, limit=100):
         found = [o for o in self.orders.values() if o.store_id == store_id and (status is None or o.status == status)]
@@ -312,6 +275,44 @@ class MemoryMenuRepository:
                        key=lambda o: (o.created_at, o.id), reverse=True)
         return [self._with_discount(o) for o in found[:limit]]
 
+    def record_order_status_notification(self, conn, order_id, status):
+        order = self.orders.get(order_id)
+        if order is None or order.status.value != status:
+            return
+        if any(n["order_id"] == order_id and n["order_status"] == status
+               for n in self.notifications.values()):
+            return
+        event_id = self._next("notification")
+        self.notifications[event_id] = dict(
+            event_id=event_id,
+            account_id=order.account_id,
+            order_id=order.id,
+            order_code=order.code,
+            order_status=status,
+            created_at=self.clock(),
+            read_at=None,
+        )
+
+    def customer_notifications(self, conn, account_id, limit=20):
+        found = sorted(
+            (n for n in self.notifications.values() if n["account_id"] == account_id),
+            key=lambda n: (n["created_at"], n["event_id"]),
+            reverse=True,
+        )
+        return [dict(n) for n in found[:limit]]
+
+    def customer_unread_notification_count(self, conn, account_id):
+        return sum(1 for n in self.notifications.values()
+                   if n["account_id"] == account_id and n["read_at"] is None)
+
+    def mark_customer_notification_read(self, conn, account_id, event_id):
+        event = self.notifications.get(event_id)
+        if event is None or event["account_id"] != account_id:
+            return False
+        if event["read_at"] is None:
+            event["read_at"] = self.clock()
+        return True
+
     def get_order(self, conn, order_id, *, lock=False):
         order = self.orders.get(order_id)
         return self._with_discount(order) if order else None
@@ -322,51 +323,14 @@ class MemoryMenuRepository:
                  and o.reservation_expires_at <= before_utc)
         return [o.id for o in sorted(found, key=lambda o: (o.reservation_expires_at, o.id))[:limit]]
 
-    def record_hold_warning(self, conn, order, created_at):
-        key = f"menu-order:{order.id}:EXPIRING"
-        if any(event["notification_key"] == key for event in self.p1.order_notifications):
-            return False
-        self.p1.order_notifications.append(dict(
-            id=len(self.p1.order_notifications) + 1, notification_key=key,
-            account_id=order.account_id, store_id=order.store_id,
-            kind="MENU_ORDER_EXPIRING", code=order.code,
-            amount=max(0, order.total_amount - order.discount_amount), created_at=created_at))
-        return True
-
-    def record_unavailable_notification(self, conn, account_id, store_id, created_at):
-        self.p1.order_notifications.append(dict(
-            id=len(self.p1.order_notifications)+1,
-            notification_key=f"menu-item-unavailable:{uuid4().hex}",
-            account_id=account_id, store_id=store_id, kind="MENU_ITEM_UNAVAILABLE",
-            code="MENU", amount=0, created_at=created_at))
-
-    def record_order_notification(self, conn, order, status, created_at):
-        key = f"menu-order:{order.id}:{status.value}"
-        if any(event["notification_key"] == key for event in self.p1.order_notifications):
-            return
-        self.p1.order_notifications.append(
-            dict(
-                id=len(self.p1.order_notifications) + 1,
-                notification_key=key,
-                account_id=order.account_id,
-                store_id=order.store_id,
-                kind=f"MENU_ORDER_{status.value}",
-                code=order.code,
-                amount=max(0, order.total_amount - order.discount_amount),
-                created_at=created_at,
-            )
-        )
-
     def _with_discount(self, order):
-        discount = 0
-        if self.voucher_repo is not None:
-            discount = sum(min(order.total_amount, v["value"])
-                           for v in self.voucher_repo.vouchers.values()
-                           if v["used_order_id"] == order.id and v["status"] == "USED")
         pricing = self.order_pricing.get(order.id, {})
-        promotion_discount = pricing.get("discount_amount", 0)
-        return replace(order, discount_amount=min(max(discount, promotion_discount), order.total_amount),
-                       promotion_code=pricing.get("promotion_code") if discount <= promotion_discount else None)
+        discount = min(order.total_amount, pricing.get("discount_amount", 0))
+        return replace(
+            order,
+            discount_amount=discount,
+            promotion_code=pricing.get("promotion_code"),
+        )
 
     def finish_order(self, conn, order_id, status, employee_id, *, reason=None):
         order = self.orders.get(order_id)
@@ -380,6 +344,7 @@ class MemoryMenuRepository:
         self.orders[order_id] = replace(
             order, status=status, handled_by=employee_id, cancel_reason=reason,
         )
+        self.record_order_status_notification(conn, order_id, status.value)
         return True
 
     def pay_order(self, conn, order_id, method, employee_id, paid_at):
@@ -389,6 +354,7 @@ class MemoryMenuRepository:
         self.orders[order_id] = replace(order, status=MenuOrderStatus.PAID,
                                         payment_method=method, paid_at=paid_at, paid_by=employee_id,
                                         handled_by=employee_id)
+        self.record_order_status_notification(conn, order_id, MenuOrderStatus.PAID.value)
         return True
 
     def get_reversal(self, conn, order_id, *, lock=False):
@@ -426,6 +392,7 @@ class MemoryMenuRepository:
             return False
         self.orders[order.id] = replace(current, status=target, handled_by=employee_id,
                                         cancel_reason=reason)
+        self.record_order_status_notification(conn, order.id, target.value)
         return True
 
     def paid_order_report(self, conn, store_id, start_utc, before_utc):

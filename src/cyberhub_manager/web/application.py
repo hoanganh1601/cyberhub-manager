@@ -42,8 +42,6 @@ from cyberhub_manager.web.config import configure_web_app
 from cyberhub_manager.web.serialization import serialize
 from cyberhub_manager.web.feature_routes import register_feature_routes
 from cyberhub_manager.web.operations_routes import register_operations_routes
-from cyberhub_manager.web.business_routes import register_business_routes
-from cyberhub_manager.web.forecasting_routes import register_forecasting_routes
 
 UTC = timezone.utc
 LOCAL = timezone(timedelta(hours=7))
@@ -134,14 +132,12 @@ def create_app(config: dict | None = None) -> Flask:
                     "Invalid request token. Please reload the page.",
                     403,
                 )
-        if request.path not in ("/api/login", "/api/register", "/api/customer-email/activate",
-                                "/api/customer-email/request-reset", "/api/customer-email/reset",
-                                "/api/customer-email/resend"):
+        if request.path not in ("/api/login", "/api/register"):
             g.actor = current_actor()
             customer_route = request.path.startswith("/api/portal/")
             if customer_route and g.customer is None:
                 raise PermissionDeniedError()
-            allowed_customer = g.customer is not None and (customer_route or request.path in ("/api/session","/api/logout", "/api/assistant/messages"))
+            allowed_customer = g.customer is not None and (customer_route or request.path in ("/api/session","/api/logout"))
             if g.actor is None and request.path != "/api/session" and not allowed_customer:
                 return error(
                     "AUTH_REQUIRED",
@@ -178,52 +174,6 @@ def create_app(config: dict | None = None) -> Flask:
                 if not credential_path:
                     raise PermissionDeniedError()
         return None
-
-    from .assistant import register_assistant
-    if "ASSISTANT_ENABLED" not in (config or {}) and (
-        not app.config["TESTING"] or (config or {}).get("ASSISTANT_FROM_ENV")
-    ):
-        from cyberhub_manager.ai.runtime import configure_assistant
-        configure_assistant(app)
-    register_assistant(app)
-
-    @app.get("/activate")
-    @app.get("/reset-password")
-    def customer_email_page():
-        response = send_from_directory(app.static_folder, "customer_email.html")
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Cache-Control"] = "no-store"
-        return response
-
-    @app.post("/api/customer-email/activate")
-    def activate_customer_email():
-        if demo:
-            raise PermissionDeniedError()
-        data = body()
-        if data.get("password") != data.get("confirmation"):
-            raise ValidationError(field_errors={"confirmation": "Mật khẩu xác nhận không khớp"})
-        return reply(real_services.customer_email.activate(data.get("token"), data.get("password")))
-
-    @app.post("/api/customer-email/request-reset")
-    def request_customer_reset():
-        if demo:
-            raise PermissionDeniedError()
-        return reply(real_services.customer_email.request_reset(body().get("email")))
-
-    @app.post("/api/customer-email/resend")
-    def resend_customer_activation():
-        if demo:
-            raise PermissionDeniedError()
-        return reply(real_services.customer_email.resend_activation(body().get("email")))
-
-    @app.post("/api/customer-email/reset")
-    def reset_customer_password():
-        if demo:
-            raise PermissionDeniedError()
-        data = body()
-        if data.get("password") != data.get("confirmation"):
-            raise ValidationError(field_errors={"confirmation": "Mật khẩu xác nhận không khớp"})
-        return reply(real_services.customer_email.reset_password(data.get("token"), data.get("password")))
 
     @app.teardown_request
     def release_workspace(_exc):
@@ -280,17 +230,10 @@ def create_app(config: dict | None = None) -> Flask:
             "date_from": "Enter a valid start date.",
             "date_to": "Enter a valid end date on or after the start date.",
             "page": "Select a valid page.",
-            "keys": "These notifications are no longer available. Please refresh.",
             "current_password": "Enter the correct current password.",
             "new_password": "Use a different password with at least 6 characters and at most 72 UTF-8 bytes.",
             "confirmation": "Enter the new password again, exactly as above.",
             "room_type": "Choose a valid room category.",
-            "avatar": "Choose a static JPEG, PNG or WebP image up to 2 MB and 16 megapixels.",
-            "minimum_tier": "Choose a valid membership tier.",
-            "minimum_points": "Enter a whole point threshold from 0 to 1,000,000,000.",
-            "target_customer_id": "Select an existing customer or all eligible customers.",
-            "unit_amount": "Enter a positive whole VND amount per point.",
-            "platinum_spend": "Tier thresholds must be positive and strictly increasing.",
         }
         return reply(
             dict(
@@ -393,11 +336,11 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("index.html", assistant_enabled=app.config.get("ASSISTANT_ENABLED", False))
+        return render_template("index.html")
 
     @app.get("/customer")
     def customer_portal_page():
-        return render_template("index.html",customer_portal=True, assistant_enabled=app.config.get("ASSISTANT_ENABLED", False))
+        return render_template("index.html", customer_portal=True)
 
     @app.get("/healthz")
     def health():
@@ -541,12 +484,6 @@ def create_app(config: dict | None = None) -> Flask:
         app,
         reply=reply,
         body=body,
-        error=error,
-        real_services=real_services,
     )
-
-    register_business_routes(app, reply=reply, body=body)
-
-    register_forecasting_routes(app, reply=reply, revenue_reader=revenue_reader)
 
     return app

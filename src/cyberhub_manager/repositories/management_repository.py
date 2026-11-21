@@ -174,8 +174,8 @@ class ManagementRepositoryMixin:
     def list_promotions(self, conn, store_id=None, lock=False):
         result = rows(
             conn,
-            "SELECT id,code,name,store_id,minimum_amount,bonus_percent,starts_at,ends_at,is_active,"
-            "minimum_tier,minimum_points,target_customer_id FROM promotions"
+            "SELECT id,code,name,store_id,minimum_amount,bonus_percent,starts_at,ends_at,is_active "
+            "FROM promotions"
             + (" WHERE store_id=%s OR store_id IS NULL" if store_id else "")
             + " ORDER BY minimum_amount DESC,id DESC"
             + (" FOR SHARE" if lock == "share" else " FOR UPDATE" if lock else ""),
@@ -203,16 +203,12 @@ class ManagementRepositoryMixin:
             policy.starts_at.astimezone(timezone.utc).replace(tzinfo=None),
             policy.ends_at.astimezone(timezone.utc).replace(tzinfo=None),
             policy.is_active,
-            policy.minimum_tier,
-            policy.minimum_points,
-            policy.target_customer_id,
         )
         if policy.id:
             execute(
                 conn,
                 "UPDATE promotions SET code=%s,name=%s,store_id=%s,minimum_amount=%s,bonus_percent=%s,"
-                "starts_at=%s,ends_at=%s,is_active=%s,minimum_tier=%s,minimum_points=%s,"
-                "target_customer_id=%s WHERE id=%s",
+                "starts_at=%s,ends_at=%s,is_active=%s WHERE id=%s",
                 (*fields, policy.id),
             )
             entity_id = policy.id
@@ -220,8 +216,7 @@ class ManagementRepositoryMixin:
             entity_id = execute(
                 conn,
                 "INSERT INTO promotions(code,name,store_id,minimum_amount,bonus_percent,starts_at,ends_at,"
-                "is_active,minimum_tier,minimum_points,target_customer_id) "
-                "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "is_active) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
                 fields,
             )
         return next(item for item in self.list_promotions(conn) if item.id == entity_id)

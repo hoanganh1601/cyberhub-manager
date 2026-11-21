@@ -19,7 +19,6 @@ def create_service_bundle(
 
     from .auth_service import AuthService
     from .customer_service import CustomerService
-    from .customer_email_service import CustomerEmailService
     from .machine_service import MachineService
     from .report_service import ReportService
     from .session_service import SessionService
@@ -27,35 +26,18 @@ def create_service_bundle(
     from .management_service import ManagementService
     from .portal_service import PortalService
     from .menu_service import MenuService
-    from .voucher_service import VoucherService
-    from .game_service import GameService
-    from .ad_service import AdService
     from .identity_service import IdentityService
-    from .cash_shift_service import CashShiftService
-    from .maintenance_service import MaintenanceService
-    from .procurement_service import ProcurementService
-    from .commercial_service import CommercialService
-
-    shifts = CashShiftService()
     customers = CustomerService(actor_provider=actor_provider)
 
     return ServiceBundle(
         auth=AuthService(),
         customers=customers,
-        wallet=WalletService(actor_provider=actor_provider, shift_service=shifts),
+        wallet=WalletService(actor_provider=actor_provider),
         machines=MachineService(actor_provider=actor_provider),
-        sessions=SessionService(actor_provider=actor_provider, shift_service=shifts),
+        sessions=SessionService(actor_provider=actor_provider),
         reports=ReportService(actor_provider=actor_provider),
         identity=IdentityService(),
         management=ManagementService(actor_provider=actor_provider),
         portal=PortalService(),
-        menu=MenuService(actor_provider=actor_provider, shift_service=shifts),
-        vouchers=(vouchers := VoucherService(actor_provider=actor_provider)),
-        games=GameService(vouchers=vouchers, actor_provider=actor_provider),
-        ads=AdService(vouchers=vouchers, actor_provider=actor_provider),
-        shifts=shifts,
-        maintenance=MaintenanceService(),
-        procurement=ProcurementService(shifts=shifts),
-        commercial=CommercialService(),
-        customer_email=CustomerEmailService(customers),
+        menu=MenuService(actor_provider=actor_provider),
     )

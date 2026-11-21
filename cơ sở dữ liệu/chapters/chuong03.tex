@@ -1,0 +1,589 @@
+\chapter{Chuyển lược đồ E--R sang mô hình quan hệ}
+
+\section{Cơ sở ánh xạ}
+
+Schema MySQL của CyberHub Manager gồm 70 bảng nghiệp vụ được khai báo qua migration 001--027. Chương này trình bày từng bảng dưới dạng quan hệ, liệt kê đầy đủ cột và các khóa chính, khóa duy nhất, khóa ngoại được khai báo. Kiểu dữ liệu, giá trị mặc định, CHECK và chỉ mục chi tiết đã được mô tả tại Chương 2 và trong các migration SQL.
+
+\begin{itemize}
+
+\item Mỗi bảng là một quan hệ; các cột là thuộc tính của quan hệ.
+
+\item Khóa chính đơn hoặc ghép được lấy nguyên trạng từ DDL.
+
+\item Khóa ngoại giữ quan hệ giữa các bảng; cột nullable phản ánh khả năng chưa có đối tượng liên quan.
+
+\item Các bảng liên kết như \texttt{menu\_order\_items} và \texttt{purchase\_order\_lines} dùng khóa chính ghép đúng theo migration.
+
+\end{itemize}
+
+\section{Danh sách lược đồ quan hệ}
+
+\subsection{Cửa hàng, nhân sự và kiểm toán}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{stores}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{name}, \texttt{address}, \texttt{status}, \texttt{created\_at}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_stores\_code} (\texttt{code}).
+
+\item[\texttt{employees}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{store\_id}, \texttt{full\_name}, \texttt{username}, \texttt{password\_hash}, \texttt{role}, \texttt{status}, \texttt{created\_at}, \texttt{updated\_at}, \texttt{auth\_version}, \texttt{must\_change\_password}, \texttt{password\_changed\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_employees\_code} (\texttt{code}); UNIQUE \texttt{uq\_employees\_username} (\texttt{username}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_employees\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{employee\_profiles}] \textbf{Cột:} \texttt{id}, \texttt{employee\_id}, \texttt{code}, \texttt{home\_store\_id}, \texttt{full\_name}, \texttt{employment\_status}, \texttt{created\_at}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_employee\_profiles\_code} (\texttt{code}); UNIQUE \texttt{uq\_employee\_profiles\_employee} (\texttt{employee\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_employee\_profiles\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_employee\_profiles\_store} (\texttt{home\_store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{employee\_store\_assignments}] \textbf{Cột:} \texttt{employee\_id}, \texttt{store\_id}, \texttt{granted\_by}, \texttt{granted\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{employee\_id,store\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_employee\_assignments\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_employee\_assignments\_granter} (\texttt{granted\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_employee\_assignments\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{management\_audit}] \textbf{Cột:} \texttt{id}, \texttt{employee\_id}, \texttt{store\_id}, \texttt{action}, \texttt{entity\_id}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_management\_audit\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_management\_audit\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE RESTRICT.
+
+\end{description}
+
+\subsection{Khách hàng, tài khoản và bảo mật}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{customers}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{full\_name}, \texttt{phone}, \texttt{status}, \texttt{created\_at}, \texttt{updated\_at}, \texttt{email}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_customers\_code} (\texttt{code}); UNIQUE \texttt{uq\_customers\_email} (\texttt{email}); UNIQUE \texttt{uq\_customers\_phone} (\texttt{phone}).
+
+\item[\texttt{customer\_store\_links}] \textbf{Cột:} \texttt{customer\_id}, \texttt{store\_id}, \texttt{source}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{customer\_id,store\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_links\_customer} (\texttt{customer\_id}) $\rightarrow$ \texttt{customers} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_customer\_links\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{accounts}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{customer\_id}, \texttt{username}, \texttt{password\_hash}, \texttt{balance}, \texttt{status}, \texttt{created\_at}, \texttt{updated\_at}, \texttt{bonus\_balance}, \texttt{cash\_balance}, \texttt{auth\_version}, \texttt{web\_login\_enabled}, \texttt{email\_verified\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_accounts\_code} (\texttt{code}); UNIQUE \texttt{uq\_accounts\_customer} (\texttt{customer\_id}); UNIQUE \texttt{uq\_accounts\_username} (\texttt{username}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_accounts\_customer} (\texttt{customer\_id}) $\rightarrow$ \texttt{customers} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{customer\_avatars}] \textbf{Cột:} \texttt{account\_id}, \texttt{image\_data}, \texttt{digest}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{account\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_avatar\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE CASCADE.
+
+\item[\texttt{customer\_notification\_reads}] \textbf{Cột:} \texttt{account\_id}, \texttt{notification\_key}, \texttt{read\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{account\_id,notification\_key}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_notification\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE RESTRICT.
+
+\item[\texttt{customer\_notification\_events}] \textbf{Cột:} \texttt{id}, \texttt{notification\_key}, \texttt{account\_id}, \texttt{store\_id}, \texttt{kind}, \texttt{code}, \texttt{amount}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_customer\_notification\_event\_key} (\texttt{notification\_key}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_notification\_event\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_customer\_notification\_event\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{customer\_email\_tokens}] \textbf{Cột:} \texttt{id}, \texttt{account\_id}, \texttt{purpose}, \texttt{token\_hash}, \texttt{nonce}, \texttt{expires\_at}, \texttt{used\_at}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_customer\_email\_token\_hash} (\texttt{token\_hash}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_email\_token\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{customer\_mail\_outbox}] \textbf{Cột:} \texttt{id}, \texttt{token\_id}, \texttt{status}, \texttt{attempts}, \texttt{next\_attempt\_at}, \texttt{sent\_at}, \texttt{last\_error}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_customer\_mail\_outbox\_token} (\texttt{token\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_mail\_outbox\_token} (\texttt{token\_id}) $\rightarrow$ \texttt{customer\_email\_tokens} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{customer\_security\_audit}] \textbf{Cột:} \texttt{id}, \texttt{account\_id}, \texttt{employee\_id}, \texttt{store\_id}, \texttt{action}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_security\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_customer\_security\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_customer\_security\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\end{description}
+
+\subsection{Máy trạm, phiên sử dụng và bảo trì}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{machines}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{store\_id}, \texttt{name}, \texttt{status}, \texttt{hourly\_rate}, \texttt{is\_active}, \texttt{created\_at}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_machines\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_machines\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{machine\_room\_types}] \textbf{Cột:} \texttt{machine\_id}, \texttt{room\_type}.
+
+Khóa chính: PRIMARY KEY (\texttt{machine\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_machine\_room\_machine} (\texttt{machine\_id}) $\rightarrow$ \texttt{machines} (\texttt{id}) ON UPDATE RESTRICT ON DELETE CASCADE.
+
+\item[\texttt{usage\_sessions}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{customer\_id}, \texttt{machine\_id}, \texttt{opened\_by}, \texttt{closed\_by}, \texttt{started\_at}, \texttt{ended\_at}, \texttt{hourly\_rate}, \texttt{cost}, \texttt{status}, \texttt{active\_machine\_id}, \texttt{active\_customer\_id}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_usage\_sessions\_active\_customer} (\texttt{active\_customer\_id}); UNIQUE \texttt{uq\_usage\_sessions\_active\_machine} (\texttt{active\_machine\_id}); UNIQUE \texttt{uq\_usage\_sessions\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_usage\_sessions\_closed\_by} (\texttt{closed\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_usage\_sessions\_customer} (\texttt{customer\_id}) $\rightarrow$ \texttt{customers} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_usage\_sessions\_machine} (\texttt{machine\_id}) $\rightarrow$ \texttt{machines} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_usage\_sessions\_opened\_by} (\texttt{opened\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{machine\_incidents}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{store\_id}, \texttt{machine\_id}, \texttt{reported\_by}, \texttt{assigned\_to}, \texttt{severity}, \texttt{status}, \texttt{title}, \texttt{description}, \texttt{resolution}, \texttt{labor\_cost}, \texttt{parts\_cost}, \texttt{reported\_at}, \texttt{started\_at}, \texttt{completed\_at}, \texttt{verified\_at}, \texttt{verified\_by}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_machine\_incidents\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_incidents\_assignee} (\texttt{assigned\_to}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_incidents\_machine} (\texttt{machine\_id}) $\rightarrow$ \texttt{machines} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_incidents\_reporter} (\texttt{reported\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_incidents\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_incidents\_verifier} (\texttt{verified\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{machine\_incident\_parts}] \textbf{Cột:} \texttt{id}, \texttt{incident\_id}, \texttt{name}, \texttt{quantity}, \texttt{unit\_cost}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_incident\_parts\_incident} (\texttt{incident\_id}) $\rightarrow$ \texttt{machine\_incidents} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{machine\_incident\_events}] \textbf{Cột:} \texttt{id}, \texttt{incident\_id}, \texttt{employee\_id}, \texttt{from\_status}, \texttt{to\_status}, \texttt{note}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_incident\_events\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_incident\_events\_incident} (\texttt{incident\_id}) $\rightarrow$ \texttt{machine\_incidents} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\end{description}
+
+\subsection{Giao dịch, hóa đơn và ca tiền mặt}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{account\_transactions}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{account\_id}, \texttt{employee\_id}, \texttt{session\_id}, \texttt{type}, \texttt{amount}, \texttt{method}, \texttt{created\_at}, \texttt{store\_id}, \texttt{promotion\_id}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_account\_transactions\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_account\_transactions\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_account\_transactions\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_account\_transactions\_session} (\texttt{session\_id}) $\rightarrow$ \texttt{usage\_sessions} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_transactions\_promotion} (\texttt{promotion\_id}) $\rightarrow$ \texttt{promotions} (\texttt{id}) ON UPDATE NO ACTION ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_transactions\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE RESTRICT.
+
+\item[\texttt{invoices}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{session\_id}, \texttt{customer\_id}, \texttt{employee\_id}, \texttt{store\_id}, \texttt{usage\_cost}, \texttt{settlement\_amount}, \texttt{total\_amount}, \texttt{status}, \texttt{created\_at}, \texttt{bonus\_used}, \texttt{loyalty\_eligible\_amount}, \texttt{loyalty\_points}, \texttt{loyalty\_unit}, \texttt{loyalty\_rule\_version}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_invoices\_code} (\texttt{code}); UNIQUE \texttt{uq\_invoices\_session} (\texttt{session\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_invoices\_customer} (\texttt{customer\_id}) $\rightarrow$ \texttt{customers} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_invoices\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_invoices\_session} (\texttt{session\_id}) $\rightarrow$ \texttt{usage\_sessions} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_invoices\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{cash\_shifts}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{store\_id}, \texttt{employee\_id}, \texttt{status}, \texttt{opening\_cash}, \texttt{expected\_cash}, \texttt{counted\_cash}, \texttt{variance}, \texttt{opened\_at}, \texttt{submitted\_at}, \texttt{closed\_at}, \texttt{reviewed\_by}, \texttt{review\_note}, \texttt{active\_employee\_id}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_cash\_shifts\_active\_employee} (\texttt{active\_employee\_id}); UNIQUE \texttt{uq\_cash\_shifts\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_cash\_shifts\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_cash\_shifts\_reviewer} (\texttt{reviewed\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_cash\_shifts\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{cash\_shift\_entries}] \textbf{Cột:} \texttt{id}, \texttt{shift\_id}, \texttt{store\_id}, \texttt{employee\_id}, \texttt{kind}, \texttt{payment\_method}, \texttt{amount}, \texttt{source\_type}, \texttt{source\_id}, \texttt{note}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_cash\_shift\_entries\_source} (\texttt{source\_type,source\_id,payment\_method}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_cash\_entries\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_cash\_entries\_shift} (\texttt{shift\_id}) $\rightarrow$ \texttt{cash\_shifts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_cash\_entries\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\end{description}
+
+\subsection{Thực đơn và bán hàng POS}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{menu\_categories}] \textbf{Cột:} \texttt{id}, \texttt{store\_id}, \texttt{page}, \texttt{name}, \texttt{sort\_order}, \texttt{is\_active}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_menu\_categories\_store\_name} (\texttt{store\_id,name}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_categories\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{menu\_items}] \textbf{Cột:} \texttt{id}, \texttt{store\_id}, \texttt{category\_id}, \texttt{name}, \texttt{description}, \texttt{price}, \texttt{sort\_order}, \texttt{is\_visible}, \texttt{is\_available}, \texttt{created\_at}, \texttt{updated\_at}, \texttt{is\_stock\_tracked}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_menu\_items\_store\_name} (\texttt{store\_id,name}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_items\_category} (\texttt{category\_id}) $\rightarrow$ \texttt{menu\_categories} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_items\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{menu\_item\_images}] \textbf{Cột:} \texttt{item\_id}, \texttt{image\_data}, \texttt{digest}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{item\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_item\_images\_item} (\texttt{item\_id}) $\rightarrow$ \texttt{menu\_items} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{menu\_item\_changes}] \textbf{Cột:} \texttt{id}, \texttt{item\_id}, \texttt{employee\_id}, \texttt{field}, \texttt{old\_value}, \texttt{new\_value}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_item\_changes\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_item\_changes\_item} (\texttt{item\_id}) $\rightarrow$ \texttt{menu\_items} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{menu\_orders}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{store\_id}, \texttt{account\_id}, \texttt{session\_id}, \texttt{machine\_id}, \texttt{note}, \texttt{total\_amount}, \texttt{status}, \texttt{handled\_by}, \texttt{payment\_method}, \texttt{paid\_at}, \texttt{paid\_by}, \texttt{created\_at}, \texttt{reservation\_expires\_at}, \texttt{updated\_at}, \texttt{cancel\_reason}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_menu\_orders\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_orders\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_orders\_handled\_by} (\texttt{handled\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_orders\_machine} (\texttt{machine\_id}) $\rightarrow$ \texttt{machines} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_orders\_paid\_by} (\texttt{paid\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_orders\_session} (\texttt{session\_id}) $\rightarrow$ \texttt{usage\_sessions} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_orders\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{menu\_order\_items}] \textbf{Cột:} \texttt{order\_id}, \texttt{item\_id}, \texttt{item\_name}, \texttt{unit\_price}, \texttt{quantity}.
+
+Khóa chính: PRIMARY KEY (\texttt{order\_id,item\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_order\_items\_item} (\texttt{item\_id}) $\rightarrow$ \texttt{menu\_items} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_menu\_order\_items\_order} (\texttt{order\_id}) $\rightarrow$ \texttt{menu\_orders} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{menu\_promotions}] \textbf{Cột:} \texttt{id}, \texttt{store\_id}, \texttt{code}, \texttt{kind}, \texttt{item\_id}, \texttt{value}, \texttt{minimum\_tier}, \texttt{starts\_at}, \texttt{ends\_at}, \texttt{is\_active}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_menu\_promo\_store\_code} (\texttt{store\_id,code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_promo\_item} (\texttt{item\_id}) $\rightarrow$ \texttt{menu\_items} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_menu\_promo\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{menu\_order\_pricing}] \textbf{Cột:} \texttt{order\_id}, \texttt{promotion\_id}, \texttt{promotion\_code}, \texttt{promotion\_kind}, \texttt{discount\_amount}, \texttt{final\_amount}, \texttt{snapshot\_json}.
+
+Khóa chính: PRIMARY KEY (\texttt{order\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_pricing\_order} (\texttt{order\_id}) $\rightarrow$ \texttt{menu\_orders} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_menu\_pricing\_promotion} (\texttt{promotion\_id}) $\rightarrow$ \texttt{menu\_promotions} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{pos\_order\_reversals}] \textbf{Cột:} \texttt{id}, \texttt{order\_id}, \texttt{store\_id}, \texttt{requested\_by}, \texttt{reason}, \texttt{disposition}, \texttt{status}, \texttt{decided\_by}, \texttt{decided\_at}, \texttt{refund\_amount}, \texttt{refund\_method}, \texttt{refund\_reference}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_pos\_reversal\_order} (\texttt{order\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_pos\_reversal\_approver} (\texttt{decided\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_pos\_reversal\_order} (\texttt{order\_id}) $\rightarrow$ \texttt{menu\_orders} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_pos\_reversal\_requester} (\texttt{requested\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_pos\_reversal\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\end{description}
+
+\subsection{Kho nguyên liệu và định lượng}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{inventory\_ingredients}] \textbf{Cột:} \texttt{id}, \texttt{store\_id}, \texttt{code}, \texttt{name}, \texttt{unit}, \texttt{on\_hand}, \texttt{reserved}, \texttt{reorder\_point}, \texttt{is\_active}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_inventory\_ingredients\_store\_code} (\texttt{store\_id,code}); UNIQUE \texttt{uq\_inventory\_ingredients\_store\_id} (\texttt{store\_id,id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_inventory\_ingredients\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{menu\_item\_recipes}] \textbf{Cột:} \texttt{item\_id}, \texttt{ingredient\_id}, \texttt{quantity\_per\_unit}.
+
+Khóa chính: PRIMARY KEY (\texttt{item\_id,ingredient\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_item\_recipes\_ingredient} (\texttt{ingredient\_id}) $\rightarrow$ \texttt{inventory\_ingredients} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_menu\_item\_recipes\_item} (\texttt{item\_id}) $\rightarrow$ \texttt{menu\_items} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{menu\_order\_recipe\_snapshots}] \textbf{Cột:} \texttt{order\_id}, \texttt{item\_id}, \texttt{ingredient\_id}, \texttt{quantity}.
+
+Khóa chính: PRIMARY KEY (\texttt{order\_id,item\_id,ingredient\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_menu\_order\_recipe\_snapshots\_ingredient} (\texttt{ingredient\_id}) $\rightarrow$ \texttt{inventory\_ingredients} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_menu\_order\_recipe\_snapshots\_line} (\texttt{order\_id,item\_id}) $\rightarrow$ \texttt{menu\_order\_items} (\texttt{order\_id,item\_id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{inventory\_movements}] \textbf{Cột:} \texttt{id}, \texttt{store\_id}, \texttt{ingredient\_id}, \texttt{order\_id}, \texttt{employee\_id}, \texttt{account\_id}, \texttt{kind}, \texttt{quantity}, \texttt{on\_hand\_delta}, \texttt{reserved\_delta}, \texttt{idempotency\_key}, \texttt{reference\_code}, \texttt{note}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_inventory\_movements\_key} (\texttt{idempotency\_key}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_inventory\_movements\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_inventory\_movements\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_inventory\_movements\_ingredient} (\texttt{store\_id,ingredient\_id}) $\rightarrow$ \texttt{inventory\_ingredients} (\texttt{store\_id,id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_inventory\_movements\_order} (\texttt{order\_id}) $\rightarrow$ \texttt{menu\_orders} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{inventory\_counts}] \textbf{Cột:} \texttt{id}, \texttt{store\_id}, \texttt{ingredient\_id}, \texttt{request\_id}, \texttt{expected\_on\_hand}, \texttt{expected\_reserved}, \texttt{expected\_movement\_id}, \texttt{counted\_on\_hand}, \texttt{proposed\_by}, \texttt{decided\_by}, \texttt{status}, \texttt{reason}, \texttt{created\_at}, \texttt{decided\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_inventory\_counts\_request} (\texttt{request\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_inventory\_counts\_decider} (\texttt{decided\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_inventory\_counts\_ingredient} (\texttt{store\_id,ingredient\_id}) $\rightarrow$ \texttt{inventory\_ingredients} (\texttt{store\_id,id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_inventory\_counts\_proposer} (\texttt{proposed\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\end{description}
+
+\subsection{Khuyến mãi, voucher và thành viên}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{promotions}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{name}, \texttt{store\_id}, \texttt{minimum\_amount}, \texttt{bonus\_percent}, \texttt{starts\_at}, \texttt{ends\_at}, \texttt{is\_active}, \texttt{created\_at}, \texttt{minimum\_tier}, \texttt{minimum\_points}, \texttt{target\_customer\_id}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_promotion\_target\_customer} (\texttt{target\_customer\_id}) $\rightarrow$ \texttt{customers} (\texttt{id}) ON UPDATE NO ACTION ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_promotions\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE RESTRICT.
+
+\item[\texttt{loyalty\_settings}] \textbf{Cột:} \texttt{id}, \texttt{enabled}, \texttt{unit\_amount}, \texttt{silver\_spend}, \texttt{gold\_spend}, \texttt{platinum\_spend}, \texttt{version}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+\item[\texttt{reward\_catalog}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{name}, \texttt{store\_id}, \texttt{reward\_type}, \texttt{value}, \texttt{min\_order\_amount}, \texttt{valid\_days}, \texttt{coin\_cost}, \texttt{is\_active}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_reward\_catalog\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_reward\_catalog\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{customer\_vouchers}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{catalog\_id}, \texttt{account\_id}, \texttt{store\_id}, \texttt{reward\_type}, \texttt{value}, \texttt{min\_order\_amount}, \texttt{status}, \texttt{source}, \texttt{source\_ref}, \texttt{issued\_by}, \texttt{issued\_at}, \texttt{expires\_at}, \texttt{used\_at}, \texttt{used\_by}, \texttt{used\_store\_id}, \texttt{used\_order\_id}, \texttt{revoked\_reason}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_customer\_vouchers\_code} (\texttt{code}); UNIQUE \texttt{uq\_customer\_vouchers\_order} (\texttt{used\_order\_id}); UNIQUE \texttt{uq\_customer\_vouchers\_source} (\texttt{source,source\_ref}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_customer\_vouchers\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_customer\_vouchers\_catalog} (\texttt{catalog\_id}) $\rightarrow$ \texttt{reward\_catalog} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_customer\_vouchers\_issued\_by} (\texttt{issued\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_customer\_vouchers\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_customer\_vouchers\_used\_by} (\texttt{used\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_customer\_vouchers\_used\_order} (\texttt{used\_order\_id}) $\rightarrow$ \texttt{menu\_orders} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_customer\_vouchers\_used\_store} (\texttt{used\_store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{voucher\_events}] \textbf{Cột:} \texttt{id}, \texttt{voucher\_id}, \texttt{action}, \texttt{employee\_id}, \texttt{store\_id}, \texttt{reason}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_voucher\_events\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_voucher\_events\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_voucher\_events\_voucher} (\texttt{voucher\_id}) $\rightarrow$ \texttt{customer\_vouchers} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{loyalty\_point\_grants}] \textbf{Cột:} \texttt{id}, \texttt{customer\_id}, \texttt{voucher\_id}, \texttt{points}, \texttt{employee\_id}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_loyalty\_point\_grants\_voucher} (\texttt{voucher\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_loyalty\_point\_grants\_customer} (\texttt{customer\_id}) $\rightarrow$ \texttt{customers} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_loyalty\_point\_grants\_employee} (\texttt{employee\_id}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_loyalty\_point\_grants\_voucher} (\texttt{voucher\_id}) $\rightarrow$ \texttt{customer\_vouchers} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\end{description}
+
+\subsection{Trò chơi và xu trò chơi}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{games}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{name}, \texttt{is\_active}, \texttt{daily\_limit}, \texttt{min\_interval\_seconds}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_games\_code} (\texttt{code}).
+
+\item[\texttt{game\_prizes}] \textbf{Cột:} \texttt{id}, \texttt{game\_id}, \texttt{sort\_order}, \texttt{label}, \texttt{coins}, \texttt{weight}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_game\_prizes\_slot} (\texttt{game\_id,sort\_order}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_game\_prizes\_game} (\texttt{game\_id}) $\rightarrow$ \texttt{games} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{game\_wallets}] \textbf{Cột:} \texttt{account\_id}, \texttt{balance}, \texttt{is\_locked}, \texttt{locked\_reason}, \texttt{locked\_at}, \texttt{suspicious\_count}, \texttt{suspicious\_on}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{account\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_game\_wallets\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{game\_sessions}] \textbf{Cột:} \texttt{id}, \texttt{account\_id}, \texttt{game\_id}, \texttt{prize\_index}, \texttt{prize\_label}, \texttt{coins}, \texttt{played\_on}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_game\_sessions\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_game\_sessions\_game} (\texttt{game\_id}) $\rightarrow$ \texttt{games} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\item[\texttt{game\_coin\_ledger}] \textbf{Cột:} \texttt{id}, \texttt{account\_id}, \texttt{delta}, \texttt{reason}, \texttt{ref}, \texttt{balance\_after}, \texttt{voucher\_id}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_game\_coin\_ledger\_ref} (\texttt{reason,ref}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_game\_coin\_ledger\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_game\_coin\_ledger\_voucher} (\texttt{voucher\_id}) $\rightarrow$ \texttt{customer\_vouchers} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\end{description}
+
+\subsection{Quảng cáo nhận thưởng}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{ad\_settings}] \textbf{Cột:} \texttt{id}, \texttt{enabled}, \texttt{mode}, \texttt{daily\_cap}, \texttt{reward\_type}, \texttt{reward\_amount}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+\item[\texttt{ad\_creatives}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{title}, \texttt{body}, \texttt{cta}, \texttt{duration\_seconds}, \texttt{is\_active}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_ad\_creatives\_code} (\texttt{code}).
+
+\item[\texttt{ad\_reward\_events}] \textbf{Cột:} \texttt{id}, \texttt{token}, \texttt{account\_id}, \texttt{creative\_id}, \texttt{provider}, \texttt{reward\_type}, \texttt{reward\_amount}, \texttt{status}, \texttt{played\_on}, \texttt{issued\_at}, \texttt{min\_complete\_at}, \texttt{expires\_at}, \texttt{completed\_at}, \texttt{provider\_txn\_id}, \texttt{reject\_reason}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_ad\_reward\_events\_token} (\texttt{token}); UNIQUE \texttt{uq\_ad\_reward\_events\_txn} (\texttt{provider\_txn\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_ad\_reward\_events\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT;\par FOREIGN KEY \texttt{fk\_ad\_reward\_events\_creative} (\texttt{creative\_id}) $\rightarrow$ \texttt{ad\_creatives} (\texttt{id}) ON UPDATE RESTRICT ON DELETE RESTRICT.
+
+\end{description}
+
+\subsection{Nhà cung cấp và mua hàng}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{suppliers}] \textbf{Cột:} \texttt{id}, \texttt{store\_id}, \texttt{code}, \texttt{name}, \texttt{phone}, \texttt{email}, \texttt{address}, \texttt{payment\_terms\_days}, \texttt{is\_active}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_suppliers\_store\_code} (\texttt{store\_id,code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_suppliers\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{purchase\_requests}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{store\_id}, \texttt{requested\_by}, \texttt{status}, \texttt{reason}, \texttt{decided\_by}, \texttt{decided\_at}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_purchase\_requests\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_purchase\_requests\_decider} (\texttt{decided\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_purchase\_requests\_requester} (\texttt{requested\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_purchase\_requests\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{purchase\_request\_lines}] \textbf{Cột:} \texttt{request\_id}, \texttt{ingredient\_id}, \texttt{quantity}.
+
+Khóa chính: PRIMARY KEY (\texttt{request\_id,ingredient\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_purchase\_request\_lines\_ingredient} (\texttt{ingredient\_id}) $\rightarrow$ \texttt{inventory\_ingredients} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_purchase\_request\_lines\_request} (\texttt{request\_id}) $\rightarrow$ \texttt{purchase\_requests} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{purchase\_orders}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{store\_id}, \texttt{request\_id}, \texttt{supplier\_id}, \texttt{created\_by}, \texttt{status}, \texttt{ordered\_at}, \texttt{expected\_at}, \texttt{total\_amount}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_purchase\_orders\_code} (\texttt{code}); UNIQUE \texttt{uq\_purchase\_orders\_request} (\texttt{request\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_purchase\_orders\_creator} (\texttt{created\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_purchase\_orders\_request} (\texttt{request\_id}) $\rightarrow$ \texttt{purchase\_requests} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_purchase\_orders\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_purchase\_orders\_supplier} (\texttt{supplier\_id}) $\rightarrow$ \texttt{suppliers} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{purchase\_order\_lines}] \textbf{Cột:} \texttt{order\_id}, \texttt{ingredient\_id}, \texttt{quantity}, \texttt{unit\_cost}, \texttt{received\_quantity}, \texttt{damaged\_quantity}.
+
+Khóa chính: PRIMARY KEY (\texttt{order\_id,ingredient\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_purchase\_order\_lines\_ingredient} (\texttt{ingredient\_id}) $\rightarrow$ \texttt{inventory\_ingredients} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_purchase\_order\_lines\_order} (\texttt{order\_id}) $\rightarrow$ \texttt{purchase\_orders} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{goods\_receipts}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{order\_id}, \texttt{store\_id}, \texttt{received\_by}, \texttt{request\_id}, \texttt{note}, \texttt{received\_at}, \texttt{accepted\_amount}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_goods\_receipts\_code} (\texttt{code}); UNIQUE \texttt{uq\_goods\_receipts\_request} (\texttt{request\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_goods\_receipts\_order} (\texttt{order\_id}) $\rightarrow$ \texttt{purchase\_orders} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_goods\_receipts\_receiver} (\texttt{received\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_goods\_receipts\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{goods\_receipt\_lines}] \textbf{Cột:} \texttt{receipt\_id}, \texttt{ingredient\_id}, \texttt{accepted\_quantity}, \texttt{damaged\_quantity}, \texttt{missing\_quantity}, \texttt{unit\_cost}.
+
+Khóa chính: PRIMARY KEY (\texttt{receipt\_id,ingredient\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_goods\_receipt\_lines\_ingredient} (\texttt{ingredient\_id}) $\rightarrow$ \texttt{inventory\_ingredients} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_goods\_receipt\_lines\_receipt} (\texttt{receipt\_id}) $\rightarrow$ \texttt{goods\_receipts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{supplier\_payables}] \textbf{Cột:} \texttt{id}, \texttt{receipt\_id}, \texttt{supplier\_id}, \texttt{store\_id}, \texttt{amount}, \texttt{paid\_amount}, \texttt{due\_date}, \texttt{status}, \texttt{paid\_at}, \texttt{paid\_by}, \texttt{payment\_method}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_supplier\_payables\_receipt} (\texttt{receipt\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_supplier\_payables\_employee} (\texttt{paid\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_supplier\_payables\_receipt} (\texttt{receipt\_id}) $\rightarrow$ \texttt{goods\_receipts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_supplier\_payables\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_supplier\_payables\_supplier} (\texttt{supplier\_id}) $\rightarrow$ \texttt{suppliers} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{supplier\_payable\_approvals}] \textbf{Cột:} \texttt{payable\_id}, \texttt{approved\_by}, \texttt{approved\_at}, \texttt{note}.
+
+Khóa chính: PRIMARY KEY (\texttt{payable\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_payable\_approval\_employee} (\texttt{approved\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_payable\_approval\_payable} (\texttt{payable\_id}) $\rightarrow$ \texttt{supplier\_payables} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\end{description}
+
+\subsection{Đối tác thương mại}
+
+\begin{description}[leftmargin=3.6cm,labelwidth=3.4cm,style=nextline]
+
+\item[\texttt{commercial\_partners}] \textbf{Cột:} \texttt{id}, \texttt{code}, \texttt{name}, \texttt{partner\_type}, \texttt{status}, \texttt{callback\_secret\_ref}, \texttt{contact\_name}, \texttt{contact\_email}, \texttt{created\_at}, \texttt{updated\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_partners\_code} (\texttt{code}).
+
+\item[\texttt{commercial\_contracts}] \textbf{Cột:} \texttt{id}, \texttt{partner\_id}, \texttt{code}, \texttt{status}, \texttt{revenue\_model}, \texttt{rate\_amount}, \texttt{currency}, \texttt{starts\_on}, \texttt{ends\_on}, \texttt{created\_by}, \texttt{approved\_by}, \texttt{approved\_at}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_contracts\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_contracts\_approver} (\texttt{approved\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_contracts\_creator} (\texttt{created\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_contracts\_partner} (\texttt{partner\_id}) $\rightarrow$ \texttt{commercial\_partners} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{commercial\_campaigns}] \textbf{Cột:} \texttt{id}, \texttt{contract\_id}, \texttt{code}, \texttt{name}, \texttt{kind}, \texttt{status}, \texttt{starts\_at}, \texttt{ends\_at}, \texttt{budget\_amount}, \texttt{reward\_type}, \texttt{reward\_amount}, \texttt{created\_by}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_campaigns\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_campaigns\_contract} (\texttt{contract\_id}) $\rightarrow$ \texttt{commercial\_contracts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_campaigns\_creator} (\texttt{created\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{commercial\_placements}] \textbf{Cột:} \texttt{id}, \texttt{campaign\_id}, \texttt{store\_id}, \texttt{code}, \texttt{placement\_type}, \texttt{surface}, \texttt{embed\_url}, \texttt{allowed\_origin}, \texttt{sandbox\_policy}, \texttt{legacy\_game\_id}, \texttt{legacy\_ad\_creative\_id}, \texttt{status}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_placements\_code} (\texttt{code}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_placements\_ad} (\texttt{legacy\_ad\_creative\_id}) $\rightarrow$ \texttt{ad\_creatives} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_placements\_campaign} (\texttt{campaign\_id}) $\rightarrow$ \texttt{commercial\_campaigns} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_placements\_game} (\texttt{legacy\_game\_id}) $\rightarrow$ \texttt{games} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_placements\_store} (\texttt{store\_id}) $\rightarrow$ \texttt{stores} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{commercial\_play\_sessions}] \textbf{Cột:} \texttt{id}, \texttt{placement\_id}, \texttt{account\_id}, \texttt{token\_hash}, \texttt{status}, \texttt{reward\_type}, \texttt{reward\_amount}, \texttt{issued\_at}, \texttt{expires\_at}, \texttt{completed\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_play\_sessions\_token} (\texttt{token\_hash}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_play\_sessions\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_play\_sessions\_placement} (\texttt{placement\_id}) $\rightarrow$ \texttt{commercial\_placements} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{commercial\_events}] \textbf{Cột:} \texttt{id}, \texttt{placement\_id}, \texttt{campaign\_id}, \texttt{play\_session\_id}, \texttt{account\_id}, \texttt{event\_type}, \texttt{event\_key}, \texttt{provider\_event\_id}, \texttt{verification\_method}, \texttt{accepted}, \texttt{occurred\_at}, \texttt{verified\_at}, \texttt{payload\_digest}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_events\_key} (\texttt{event\_key}); UNIQUE \texttt{uq\_commercial\_events\_provider} (\texttt{provider\_event\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_events\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_events\_campaign} (\texttt{campaign\_id}) $\rightarrow$ \texttt{commercial\_campaigns} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_events\_placement} (\texttt{placement\_id}) $\rightarrow$ \texttt{commercial\_placements} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_events\_session} (\texttt{play\_session\_id}) $\rightarrow$ \texttt{commercial\_play\_sessions} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{commercial\_reward\_grants}] \textbf{Cột:} \texttt{id}, \texttt{event\_id}, \texttt{account\_id}, \texttt{reward\_type}, \texttt{reward\_amount}, \texttt{status}, \texttt{attempts}, \texttt{created\_at}, \texttt{applied\_at}, \texttt{failure\_reason}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_reward\_grants\_event} (\texttt{event\_id}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_reward\_grants\_account} (\texttt{account\_id}) $\rightarrow$ \texttt{accounts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_reward\_grants\_event} (\texttt{event\_id}) $\rightarrow$ \texttt{commercial\_events} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{commercial\_settlements}] \textbf{Cột:} \texttt{id}, \texttt{contract\_id}, \texttt{period\_start}, \texttt{period\_end}, \texttt{gross\_amount}, \texttt{adjustment\_amount}, \texttt{adjustment\_reason}, \texttt{net\_amount}, \texttt{status}, \texttt{generated\_by}, \texttt{reviewed\_by}, \texttt{reviewed\_at}, \texttt{paid\_at}, \texttt{created\_at}.
+
+Khóa chính: PRIMARY KEY (\texttt{id}).
+
+Khóa duy nhất: UNIQUE \texttt{uq\_commercial\_settlements\_period} (\texttt{contract\_id,period\_start,period\_end}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_settlements\_contract} (\texttt{contract\_id}) $\rightarrow$ \texttt{commercial\_contracts} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_settlements\_generator} (\texttt{generated\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_settlements\_reviewer} (\texttt{reviewed\_by}) $\rightarrow$ \texttt{employees} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\item[\texttt{commercial\_settlement\_lines}] \textbf{Cột:} \texttt{settlement\_id}, \texttt{placement\_id}, \texttt{event\_type}, \texttt{units}, \texttt{unit\_rate}, \texttt{amount}.
+
+Khóa chính: PRIMARY KEY (\texttt{settlement\_id,placement\_id,event\_type}).
+
+Khóa ngoại: FOREIGN KEY \texttt{fk\_commercial\_settlement\_lines\_placement} (\texttt{placement\_id}) $\rightarrow$ \texttt{commercial\_placements} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION;\par FOREIGN KEY \texttt{fk\_commercial\_settlement\_lines\_settlement} (\texttt{settlement\_id}) $\rightarrow$ \texttt{commercial\_settlements} (\texttt{id}) ON UPDATE NO ACTION ON DELETE NO ACTION.
+
+\end{description}
+
+\section{Ràng buộc toàn vẹn vật lý}
+
+Các khai báo trên được hiện thực bằng kiểu cột, PRIMARY KEY, UNIQUE, FOREIGN KEY, CHECK và INDEX trong migration. Những quy tắc chỉ được kiểm tra tại service không được diễn giải thành ràng buộc database nếu DDL không khai báo chúng. Bảng \texttt{schema\_migrations} là bảng kỹ thuật do runner tạo, không thuộc danh sách 70 bảng nghiệp vụ.
+
+\section{Kết luận chương}
+
+Mô hình quan hệ của báo cáo bám theo tên cột và khóa của schema sau migration 027. File \texttt{docs/diagrams/data\_dictionary.md} cung cấp mô tả cột và quan hệ; file \texttt{docs/diagrams/cyberhub\_manager.dbml} có thể dùng để dựng sơ đồ vật lý đầy đủ.

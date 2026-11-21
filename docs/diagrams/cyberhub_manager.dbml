@@ -1,0 +1,1604 @@
+// CyberHub Manager — DBML sinh từ docs/diagrams/data_dictionary.md.
+// Dictionary phản ánh schema MySQL sau các migration 001–027.
+// Bảng schema_migrations do migration runner tạo riêng nên không nằm trong 70 bảng nghiệp vụ.
+
+// Cửa hàng net. Nhân viên, máy và hóa đơn đều thuộc một cửa hàng.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_stores_address_not_blank: (char_length(trim(address)) > 0)
+// CHECK chk_stores_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_stores_name_not_blank: (char_length(trim(name)) > 0)
+// CHECK chk_stores_status: (status in ('ACTIVE','INACTIVE'))
+Table stores {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  name varchar(100) [not null]
+  address varchar(255) [not null]
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+
+  indexes {
+  (code) [unique, name: 'uq_stores_code']
+  }
+}
+
+// Nhân viên đăng nhập ứng dụng; vai trò quyết định quyền thao tác.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_employees_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_employees_full_name_not_blank: (char_length(trim(full_name)) > 0)
+// CHECK chk_employees_password_hash_not_blank: (char_length(trim(password_hash)) > 0)
+// CHECK chk_employees_role: (role in ('ADMIN','DIRECTOR','MANAGER','STAFF','KITCHEN','INVENTORY'))
+// CHECK chk_employees_status: (status in ('ACTIVE','INACTIVE','LOCKED'))
+// CHECK chk_employees_username_length: (char_length(username) between 4 and 30)
+Table employees {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  store_id bigint [not null]
+  full_name varchar(100) [not null]
+  username varchar(30) [not null]
+  password_hash varchar(255) [not null]
+  role varchar(20) [not null]
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+  auth_version int [not null, default: 0]
+  must_change_password tinyint(1) [not null, default: 0]
+  password_changed_at datetime
+
+  indexes {
+  (code) [unique, name: 'uq_employees_code']
+  (username) [unique, name: 'uq_employees_username']
+  (store_id, status) [name: 'idx_employees_store_status']
+  }
+}
+
+// Hồ sơ nhân sự độc lập với thông tin xác thực; DIRECTOR/MANAGER quản lý nghiệp vụ, ADMIN chỉ gắn/cấp tài khoản.
+// DDL: sql/026_rbac_operational_boundaries.sql
+// CHECK chk_employee_profiles_status: (employment_status in ('ACTIVE','INACTIVE'))
+Table employee_profiles {
+  id bigint [not null, pk, increment]
+  employee_id bigint
+  code varchar(20) [not null]
+  home_store_id bigint [not null]
+  full_name varchar(100) [not null]
+  employment_status varchar(10) [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+
+  indexes {
+  (code) [unique, name: 'uq_employee_profiles_code']
+  (employee_id) [unique, name: 'uq_employee_profiles_employee']
+  }
+}
+
+// Phân công bổ sung cho MANAGER được vận hành tại nhiều cơ sở; không thay đổi cơ sở chính trong hồ sơ.
+// DDL: sql/026_rbac_operational_boundaries.sql
+Table employee_store_assignments {
+  employee_id bigint [not null]
+  store_id bigint [not null]
+  granted_by bigint [not null]
+  granted_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (employee_id, store_id) [pk]
+  }
+}
+
+// Thông tin cá nhân của khách chơi.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_customers_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_customers_full_name_length: (char_length(trim(full_name)) between 2 and 100)
+// CHECK chk_customers_phone_format: regexp_like(phone,'^0[0-9]{9}$','c')
+// CHECK chk_customers_status: (status in ('ACTIVE','INACTIVE'))
+Table customers {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  full_name varchar(100) [not null]
+  phone char(10) [not null]
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+  email varchar(254)
+
+  indexes {
+  (code) [unique, name: 'uq_customers_code']
+  (email) [unique, name: 'uq_customers_email']
+  (phone) [unique, name: 'uq_customers_phone']
+  (full_name) [name: 'idx_customers_full_name']
+  }
+}
+
+// Phạm vi khách hàng tại từng cơ sở, suy ra từ giao dịch/phiên hoặc liên kết được xác minh tại quầy.
+// DDL: sql/026_rbac_operational_boundaries.sql
+Table customer_store_links {
+  customer_id bigint [not null]
+  store_id bigint [not null]
+  source varchar(24) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (customer_id, store_id) [pk]
+  }
+}
+
+// Tài khoản đăng nhập máy trạm và ví tiền của khách; mỗi khách đúng một tài khoản.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_accounts_bonus_nonnegative: (bonus_balance >= 0)
+// CHECK chk_accounts_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_accounts_password_hash_not_blank: ((password_hash is null) or (char_length(trim(password_hash)) > 0))
+// CHECK chk_accounts_status: (status in ('ACTIVE','LOCKED'))
+// CHECK chk_accounts_username_format: regexp_like(username,'^[A-Za-z0-9_.]{4,30}$','c')
+Table accounts {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  customer_id bigint [not null]
+  username varchar(30) [not null]
+  password_hash varchar(255)
+  balance bigint [not null, default: 0]
+  status varchar(20) [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+  bonus_balance bigint [not null, default: 0]
+  cash_balance bigint
+  auth_version bigint [not null, default: 0]
+  web_login_enabled tinyint(1) [not null, default: 1]
+  email_verified_at datetime
+
+  indexes {
+  (code) [unique, name: 'uq_accounts_code']
+  (customer_id) [unique, name: 'uq_accounts_customer']
+  (username) [unique, name: 'uq_accounts_username']
+  }
+}
+
+// Máy trạm của cửa hàng và trạng thái hiện tại.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_machines_archived_not_in_use: ((is_active = true) or (status <> 'IN_USE'))
+// CHECK chk_machines_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_machines_hourly_rate: (hourly_rate > 0)
+// CHECK chk_machines_is_active: (is_active in (false,true))
+// CHECK chk_machines_name_not_blank: (char_length(trim(name)) > 0)
+// CHECK chk_machines_status: (status in ('AVAILABLE','IN_USE','MAINTENANCE'))
+Table machines {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  store_id bigint [not null]
+  name varchar(100) [not null]
+  status varchar(20) [not null, default: 'AVAILABLE']
+  hourly_rate bigint [not null]
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+
+  indexes {
+  (code) [unique, name: 'uq_machines_code']
+  (store_id, is_active, status) [name: 'idx_machines_store_active_status']
+  }
+}
+
+// Một lần khách dùng một máy, từ lúc mở đến lúc checkout.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_usage_sessions_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_usage_sessions_cost: ((cost is null) or (cost >= 0))
+// CHECK chk_usage_sessions_hourly_rate: (hourly_rate > 0)
+// CHECK chk_usage_sessions_state: (((status = 'ACTIVE') and (ended_at is null) and (cost is null)) or ((status = 'COMPLETED') and (ended_at is not null) and (cost is not null)) or ((status = 'CANCELLED') and (ended_at is not null)))
+// CHECK chk_usage_sessions_status: (status in ('ACTIVE','COMPLETED','CANCELLED'))
+// CHECK chk_usage_sessions_time_order: ((ended_at is null) or (ended_at >= started_at))
+Table usage_sessions {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  customer_id bigint [not null]
+  machine_id bigint [not null]
+  opened_by bigint [not null]
+  closed_by bigint
+  started_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  ended_at datetime
+  hourly_rate bigint [not null]
+  cost bigint
+  status varchar(20) [not null, default: 'ACTIVE']
+  active_machine_id bigint
+  active_customer_id bigint
+
+  indexes {
+  (active_customer_id) [unique, name: 'uq_usage_sessions_active_customer']
+  (active_machine_id) [unique, name: 'uq_usage_sessions_active_machine']
+  (code) [unique, name: 'uq_usage_sessions_code']
+  (customer_id, started_at) [name: 'idx_usage_sessions_customer_started_at']
+  (machine_id, started_at) [name: 'idx_usage_sessions_machine_started_at']
+  (status, started_at) [name: 'idx_usage_sessions_status_started_at']
+  }
+}
+
+// Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_account_transactions_amount: (((type in ('TOP_UP','PROMOTION','DEBT_SETTLEMENT')) and (amount > 0)) or ((type = 'USAGE_PAYMENT') and (amount < 0)))
+// CHECK chk_account_transactions_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_account_transactions_method: (method in ('CASH','TRANSFER','ACCOUNT_BALANCE','PROMOTION'))
+// CHECK chk_account_transactions_type: (type in ('TOP_UP','PROMOTION','USAGE_PAYMENT','DEBT_SETTLEMENT'))
+// CHECK chk_account_transactions_type_method: (((type in ('TOP_UP','DEBT_SETTLEMENT')) and (method in ('CASH','TRANSFER'))) or ((type = 'USAGE_PAYMENT') and (method = 'ACCOUNT_BALANCE')) or ((type = 'PROMOTION') and (method = 'PROMOTION')))
+Table account_transactions {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  account_id bigint [not null]
+  employee_id bigint [not null]
+  session_id bigint
+  type varchar(20) [not null]
+  amount bigint [not null]
+  method varchar(20) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  store_id bigint
+  promotion_id bigint
+
+  indexes {
+  (code) [unique, name: 'uq_account_transactions_code']
+  (account_id, created_at) [name: 'idx_account_transactions_account_created_at']
+  }
+}
+
+// Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử.
+// DDL: sql/001_initial_schema.sql
+// CHECK chk_invoice_loyalty: ((loyalty_eligible_amount >= 0) and (loyalty_points >= 0) and (loyalty_unit > 0))
+// CHECK chk_invoices_bonus_used: ((bonus_used >= 0) and (bonus_used <= usage_cost))
+// CHECK chk_invoices_code_not_blank: (char_length(trim(code)) > 0)
+// CHECK chk_invoices_money: ((usage_cost >= 0) and (settlement_amount >= 0) and (total_amount >= 0))
+// CHECK chk_invoices_settlement: (settlement_amount <= usage_cost)
+// CHECK chk_invoices_status: (status in ('PAID','VOID'))
+// CHECK chk_invoices_total: (total_amount = usage_cost)
+Table invoices {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  session_id bigint [not null]
+  customer_id bigint [not null]
+  employee_id bigint [not null]
+  store_id bigint [not null]
+  usage_cost bigint [not null]
+  settlement_amount bigint [not null, default: 0]
+  total_amount bigint [not null]
+  status varchar(20) [not null, default: 'PAID']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  bonus_used bigint [not null, default: 0]
+  loyalty_eligible_amount bigint [not null, default: 0]
+  loyalty_points bigint [not null, default: 0]
+  loyalty_unit bigint [not null, default: 10000]
+  loyalty_rule_version int [not null, default: 1]
+
+  indexes {
+  (code) [unique, name: 'uq_invoices_code']
+  (session_id) [unique, name: 'uq_invoices_session']
+  (customer_id, created_at) [name: 'idx_invoices_customer_created_at']
+  (store_id, status, created_at) [name: 'idx_invoices_store_status_created_at']
+  }
+}
+
+// Chính sách thưởng theo mốc nạp, phạm vi và thời gian.
+// DDL: sql/003_p1_management_wallet.sql
+// CHECK chk_promotion_points: ((minimum_points >= 0) and (minimum_points <= 1000000000))
+// CHECK chk_promotion_tier: (minimum_tier in ('BRONZE','SILVER','GOLD','PLATINUM'))
+// CHECK chk_promotions_amount: ((minimum_amount > 0) and (minimum_amount <= 100000000))
+// CHECK chk_promotions_percent: (bonus_percent between 0 and 100)
+// CHECK chk_promotions_period: (ends_at > starts_at)
+Table promotions {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  name varchar(100) [not null]
+  store_id bigint
+  minimum_amount bigint [not null]
+  bonus_percent int [not null]
+  starts_at datetime [not null]
+  ends_at datetime [not null]
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  minimum_tier varchar(10) [not null, default: 'BRONZE']
+  minimum_points bigint [not null, default: 0]
+  target_customer_id bigint
+
+  indexes {
+  (code) [unique, name: 'code']
+  (store_id, is_active, minimum_amount) [name: 'ix_promotions_eligible']
+  }
+}
+
+// Lịch sử thay đổi quản trị, không lưu mật khẩu.
+// DDL: sql/003_p1_management_wallet.sql
+Table management_audit {
+  id bigint [not null, pk, increment]
+  employee_id bigint [not null]
+  store_id bigint [not null]
+  action varchar(40) [not null]
+  entity_id bigint [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+// Trạng thái đã đọc thông báo riêng của từng tài khoản khách; không thay đổi sổ tiền.
+// DDL: sql/004_customer_notifications.sql
+Table customer_notification_reads {
+  account_id bigint [not null]
+  notification_key varchar(100) [not null]
+  read_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (account_id, notification_key) [pk]
+  }
+}
+
+// Phân loại máy theo phòng thường/VIP; máy chưa gán thuộc phòng thường.
+// DDL: sql/005_customer_phase2.sql
+// CHECK chk_machine_room_type: (room_type in ('STANDARD','VIP','COUPLE','SUPER_VIP'))
+Table machine_room_types {
+  machine_id bigint [not null, pk]
+  room_type varchar(10) [not null]
+}
+
+// Cấu hình toàn hệ thống, một dòng id=1; chỉ Admin được sửa, có version chống ghi đè.
+// DDL: sql/006_customer_membership_avatar.sql
+// CHECK chk_loyalty_singleton: (id = 1)
+// CHECK chk_loyalty_tiers: ((silver_spend > 0) and (gold_spend > silver_spend) and (platinum_spend > gold_spend))
+// CHECK chk_loyalty_unit: ((unit_amount > 0) and (unit_amount <= 100000000))
+Table loyalty_settings {
+  id tinyint [not null, pk]
+  enabled tinyint(1) [not null, default: 1]
+  unit_amount bigint [not null, default: 10000]
+  silver_spend bigint [not null, default: 1000000]
+  gold_spend bigint [not null, default: 3000000]
+  platinum_spend bigint [not null, default: 5000000]
+  version int [not null, default: 1]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+}
+
+// Ảnh đại diện riêng theo tài khoản; WebP 512×512 đã chuẩn hóa, không giữ tên file hay metadata gốc.
+// DDL: sql/006_customer_membership_avatar.sql
+Table customer_avatars {
+  account_id bigint [not null, pk]
+  image_data mediumblob [not null]
+  digest char(64) [not null]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+}
+
+// Nhóm món theo cơ sở, xếp vào trang Đồ ăn (FOOD) hoặc Đồ uống (DRINK).
+// DDL: sql/007_menu.sql
+// CHECK chk_menu_categories_name: (char_length(trim(name)) > 0)
+// CHECK chk_menu_categories_page: (page in ('FOOD','DRINK'))
+// CHECK chk_menu_categories_sort: (sort_order between 0 and 9999)
+Table menu_categories {
+  id bigint [not null, pk, increment]
+  store_id bigint [not null]
+  page varchar(10) [not null]
+  name varchar(60) [not null]
+  sort_order int [not null, default: 0]
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (store_id, name) [unique, name: 'uq_menu_categories_store_name']
+  (store_id, page, sort_order) [name: 'idx_menu_categories_store_page']
+  }
+}
+
+// Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món.
+// DDL: sql/007_menu.sql
+// CHECK chk_menu_items_name: (char_length(trim(name)) > 0)
+// CHECK chk_menu_items_price: (price between 1000 and 10000000)
+// CHECK chk_menu_items_sort: (sort_order between 0 and 9999)
+Table menu_items {
+  id bigint [not null, pk, increment]
+  store_id bigint [not null]
+  category_id bigint [not null]
+  name varchar(80) [not null]
+  description varchar(200) [not null, default: '']
+  price bigint [not null]
+  sort_order int [not null, default: 0]
+  is_visible tinyint(1) [not null, default: 1]
+  is_available tinyint(1) [not null, default: 1]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+  is_stock_tracked tinyint(1) [not null, default: 0]
+
+  indexes {
+  (store_id, name) [unique, name: 'uq_menu_items_store_name']
+  (store_id, category_id, sort_order) [name: 'idx_menu_items_store_category']
+  }
+}
+
+// Ảnh món đã chuẩn hóa (WebP 512×512, không metadata).
+// DDL: sql/007_menu.sql
+Table menu_item_images {
+  item_id bigint [not null, pk]
+  image_data mediumblob [not null]
+  digest char(64) [not null]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+}
+
+// Lịch sử thay đổi giá, tên, nhóm, ảnh và trạng thái bán; chỉ thêm, không sửa.
+// DDL: sql/007_menu.sql
+// CHECK chk_menu_item_changes_field: (field in ('CREATE','NAME','CATEGORY','PRICE','AVAILABLE','VISIBLE','IMAGE'))
+Table menu_item_changes {
+  id bigint [not null, pk, increment]
+  item_id bigint [not null]
+  employee_id bigint [not null]
+  field varchar(20) [not null]
+  old_value varchar(200)
+  new_value varchar(200)
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (item_id, created_at) [name: 'idx_menu_item_changes_item']
+  }
+}
+
+// Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi.
+// DDL: sql/007_menu.sql
+// CHECK chk_menu_orders_handled: (((status = 'NEW') and (handled_by is null)) or ((status = 'CANCELLED') and (handled_by is null) and (cancel_reason = 'AUTO_EXPIRED')) or ((status <> 'NEW') and (handled_by is not null)))
+// CHECK chk_menu_orders_payment: (((status in ('PAID','REFUNDED')) and (payment_method in ('CASH','TRANSFER')) and (paid_at is not null) and (paid_by is not null)) or ((status not in ('PAID','REFUNDED')) and (payment_method is null) and (paid_at is null) and (paid_by is null)))
+// CHECK chk_menu_orders_status: (status in ('NEW','PREPARING','SERVED','PAID','CANCELLED','REFUNDED'))
+// CHECK chk_menu_orders_total: (total_amount > 0)
+Table menu_orders {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  store_id bigint [not null]
+  account_id bigint [not null]
+  session_id bigint [not null]
+  machine_id bigint [not null]
+  note varchar(200) [not null, default: '']
+  total_amount bigint [not null]
+  status varchar(12) [not null, default: 'NEW']
+  handled_by bigint
+  payment_method varchar(10)
+  paid_at datetime
+  paid_by bigint
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  reservation_expires_at datetime
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+  cancel_reason varchar(255)
+
+  indexes {
+  (code) [unique, name: 'uq_menu_orders_code']
+  (account_id, created_at) [name: 'idx_menu_orders_account']
+  (status, reservation_expires_at, id) [name: 'idx_menu_orders_hold_expiry']
+  (store_id, paid_at) [name: 'idx_menu_orders_paid_at']
+  (store_id, status, created_at) [name: 'idx_menu_orders_store_status']
+  }
+}
+
+// Từng món trong yêu cầu gọi món, với tên và giá chụp lúc đặt.
+// DDL: sql/007_menu.sql
+// CHECK chk_menu_order_items_price: (unit_price between 1000 and 10000000)
+// CHECK chk_menu_order_items_quantity: (quantity between 1 and 20)
+Table menu_order_items {
+  order_id bigint [not null]
+  item_id bigint [not null]
+  item_name varchar(80) [not null]
+  unit_price bigint [not null]
+  quantity int [not null]
+
+  indexes {
+  (order_id, item_id) [pk]
+  }
+}
+
+// Nguyên liệu tồn kho theo từng cửa hàng; lượng khả dụng bằng tồn thực tế trừ lượng đã giữ chỗ.
+// DDL: sql/013_inventory.sql
+// CHECK chk_inventory_ingredients_balance: ((on_hand >= 0) and (reserved >= 0) and (reserved <= on_hand) and (reorder_point >= 0))
+// CHECK chk_inventory_ingredients_unit: (unit in ('g','ml','each'))
+Table inventory_ingredients {
+  id bigint [not null, pk, increment]
+  store_id bigint [not null]
+  code varchar(32) [not null]
+  name varchar(100) [not null]
+  unit varchar(4) [not null]
+  on_hand bigint [not null, default: 0]
+  reserved bigint [not null, default: 0]
+  reorder_point bigint [not null, default: 0]
+  is_active tinyint(1) [not null, default: 1]
+
+  indexes {
+  (store_id, code) [unique, name: 'uq_inventory_ingredients_store_code']
+  (store_id, id) [unique, name: 'uq_inventory_ingredients_store_id']
+  }
+}
+
+// Công thức hiện hành của món có theo dõi kho.
+// DDL: sql/013_inventory.sql
+// CHECK chk_menu_item_recipes_quantity: (quantity_per_unit > 0)
+Table menu_item_recipes {
+  item_id bigint [not null]
+  ingredient_id bigint [not null]
+  quantity_per_unit bigint [not null]
+
+  indexes {
+  (item_id, ingredient_id) [pk]
+  }
+}
+
+// Ảnh chụp nhu cầu nguyên liệu của từng dòng đơn, giúp đổi công thức sau này không làm sai giữ/xuất kho cũ.
+// DDL: sql/013_inventory.sql
+// CHECK chk_menu_order_recipe_snapshots_quantity: (quantity > 0)
+Table menu_order_recipe_snapshots {
+  order_id bigint [not null]
+  item_id bigint [not null]
+  ingredient_id bigint [not null]
+  quantity bigint [not null]
+
+  indexes {
+  (order_id, item_id, ingredient_id) [pk]
+  }
+}
+
+// Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh.
+// DDL: sql/013_inventory.sql
+// CHECK chk_inventory_movements_kind: (kind in ('RECEIVE','RESERVE','RELEASE','CONSUME','WASTE','RETURN','ADJUST','ISSUE'))
+// CHECK chk_inventory_movements_quantity: (quantity > 0)
+Table inventory_movements {
+  id bigint [not null, pk, increment]
+  store_id bigint [not null]
+  ingredient_id bigint [not null]
+  order_id bigint
+  employee_id bigint
+  account_id bigint
+  kind varchar(10) [not null]
+  quantity bigint [not null]
+  on_hand_delta bigint [not null, default: 0]
+  reserved_delta bigint [not null, default: 0]
+  idempotency_key varchar(100) [not null]
+  reference_code varchar(60)
+  note varchar(255)
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (idempotency_key) [unique, name: 'uq_inventory_movements_key']
+  (ingredient_id, id) [name: 'idx_inventory_movements_ingredient_id']
+  (store_id, created_at, id) [name: 'idx_inventory_movements_store_time']
+  }
+}
+
+// Phiếu kiểm kê đề xuất; người khác có thẩm quyền phải phê duyệt trước khi tạo điều chỉnh kho.
+// DDL: sql/014_inventory_counting.sql
+// CHECK chk_inventory_counts_quantities: ((expected_on_hand >= 0) and (expected_reserved >= 0) and (counted_on_hand >= 0))
+// CHECK chk_inventory_counts_status: (status in ('PENDING','APPROVED','REJECTED'))
+Table inventory_counts {
+  id bigint [not null, pk, increment]
+  store_id bigint [not null]
+  ingredient_id bigint [not null]
+  request_id char(32) [not null]
+  expected_on_hand bigint [not null]
+  expected_reserved bigint [not null]
+  expected_movement_id bigint [not null]
+  counted_on_hand bigint [not null]
+  proposed_by bigint [not null]
+  decided_by bigint
+  status varchar(10) [not null, default: 'PENDING']
+  reason varchar(255) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  decided_at datetime
+
+  indexes {
+  (request_id) [unique, name: 'uq_inventory_counts_request']
+  (store_id, status, created_at, id) [name: 'idx_inventory_counts_store_status']
+  }
+}
+
+// Sổ sự kiện thông báo bền vững cho khách theo vòng đời đơn; khóa sự kiện chống phát trùng.
+// DDL: sql/015_menu_order_notifications.sql
+Table customer_notification_events {
+  id bigint [not null, pk, increment]
+  notification_key varchar(100) [not null]
+  account_id bigint [not null]
+  store_id bigint [not null]
+  kind varchar(40) [not null]
+  code varchar(20) [not null]
+  amount int [not null, default: 0]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (notification_key) [unique, name: 'uq_customer_notification_event_key']
+  (account_id, created_at, id) [name: 'idx_customer_notification_account_created']
+  }
+}
+
+// Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt.
+// DDL: sql/018_pos_reversals.sql
+// CHECK chk_pos_reversal_decision: (((status = 'PENDING') and (decided_by is null) and (decided_at is null)) or ((status <> 'PENDING') and (decided_by is not null) and (decided_at is not null)))
+// CHECK chk_pos_reversal_disposition: (disposition in ('RESTOCK','WASTE'))
+// CHECK chk_pos_reversal_method: ((refund_method is null) or (refund_method in ('CASH','TRANSFER')))
+// CHECK chk_pos_reversal_status: (status in ('PENDING','APPROVED','REJECTED'))
+Table pos_order_reversals {
+  id bigint [not null, pk, increment]
+  order_id bigint [not null]
+  store_id bigint [not null]
+  requested_by bigint [not null]
+  reason varchar(255) [not null]
+  disposition varchar(8) [not null]
+  status varchar(10) [not null, default: 'PENDING']
+  decided_by bigint
+  decided_at datetime
+  refund_amount bigint [not null, default: 0]
+  refund_method varchar(10)
+  refund_reference varchar(100)
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (order_id) [unique, name: 'uq_pos_reversal_order']
+  (store_id, status, id) [name: 'idx_pos_reversal_store_status']
+  }
+}
+
+// Chính sách khuyến mãi POS theo cơ sở; mỗi đơn chỉ chọn một ưu đãi xác định.
+// DDL: sql/019_pos_promotions.sql
+// CHECK chk_menu_promo_kind: (kind in ('BOGO','PLAY_DRINK','TIER_PERCENT'))
+// CHECK chk_menu_promo_period: (starts_at < ends_at)
+// CHECK chk_menu_promo_tier: ((minimum_tier is null) or (minimum_tier in ('BRONZE','SILVER','GOLD','PLATINUM')))
+Table menu_promotions {
+  id bigint [not null, pk, increment]
+  store_id bigint [not null]
+  code varchar(30) [not null]
+  kind varchar(16) [not null]
+  item_id bigint
+  value int [not null]
+  minimum_tier varchar(12)
+  starts_at datetime [not null]
+  ends_at datetime [not null]
+  is_active tinyint(1) [not null, default: 0]
+
+  indexes {
+  (store_id, code) [unique, name: 'uq_menu_promo_store_code']
+  (store_id, is_active, starts_at, ends_at) [name: 'idx_menu_promo_active']
+  }
+}
+
+// Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán.
+// DDL: sql/019_pos_promotions.sql
+Table menu_order_pricing {
+  order_id bigint [not null, pk]
+  promotion_id bigint
+  promotion_code varchar(30)
+  promotion_kind varchar(16)
+  discount_amount bigint [not null, default: 0]
+  final_amount bigint [not null]
+  snapshot_json json [not null]
+}
+
+// Danh mục phần thưởng; không có loại nào quy đổi tiền mặt.
+// DDL: sql/008_vouchers.sql
+// CHECK chk_reward_catalog_coin: ((coin_cost is null) or (coin_cost between 1 and 1000000))
+// CHECK chk_reward_catalog_days: (valid_days between 1 and 365)
+// CHECK chk_reward_catalog_min_order: (min_order_amount between 0 and 10000000)
+// CHECK chk_reward_catalog_name: (char_length(trim(name)) > 0)
+// CHECK chk_reward_catalog_type: (reward_type in ('FOOD_DISCOUNT','FREE_DRINK','PLAYTIME_CREDIT','MEMBER_POINTS'))
+// CHECK chk_reward_catalog_value: (value between 1 and 1000000)
+Table reward_catalog {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  name varchar(80) [not null]
+  store_id bigint
+  reward_type varchar(20) [not null]
+  value bigint [not null]
+  min_order_amount bigint [not null, default: 0]
+  valid_days int [not null]
+  coin_cost bigint
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (code) [unique, name: 'uq_reward_catalog_code']
+  }
+}
+
+// Voucher của khách; điều kiện được chụp lúc phát, dùng một lần.
+// DDL: sql/008_vouchers.sql
+// CHECK chk_customer_vouchers_period: (expires_at > issued_at)
+// CHECK chk_customer_vouchers_source: (source in ('MANUAL','GAME','AD'))
+// CHECK chk_customer_vouchers_status: (status in ('ISSUED','USED','REVOKED'))
+// CHECK chk_customer_vouchers_type: (reward_type in ('FOOD_DISCOUNT','FREE_DRINK','PLAYTIME_CREDIT','MEMBER_POINTS'))
+// CHECK chk_customer_vouchers_used: (((status = 'USED') and (used_at is not null) and (used_by is not null) and (used_store_id is not null)) or ((status <> 'USED') and (used_at is null) and (used_by is null) and (used_order_id is null)))
+// CHECK chk_customer_vouchers_value: (value between 1 and 1000000)
+Table customer_vouchers {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  catalog_id bigint [not null]
+  account_id bigint [not null]
+  store_id bigint
+  reward_type varchar(20) [not null]
+  value bigint [not null]
+  min_order_amount bigint [not null, default: 0]
+  status varchar(10) [not null, default: 'ISSUED']
+  source varchar(10) [not null]
+  source_ref varchar(64)
+  issued_by bigint
+  issued_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  expires_at datetime [not null]
+  used_at datetime
+  used_by bigint
+  used_store_id bigint
+  used_order_id bigint
+  revoked_reason varchar(200)
+
+  indexes {
+  (code) [unique, name: 'uq_customer_vouchers_code']
+  (used_order_id) [unique, name: 'uq_customer_vouchers_order']
+  (source, source_ref) [unique, name: 'uq_customer_vouchers_source']
+  (account_id, status, expires_at) [name: 'idx_customer_vouchers_account']
+  }
+}
+
+// Nhật ký phát hành, sử dụng, khóa và cả lần bị từ chối; chỉ thêm.
+// DDL: sql/008_vouchers.sql
+// CHECK chk_voucher_events_action: (action in ('ISSUE','REDEEM','REVOKE','REJECT'))
+Table voucher_events {
+  id bigint [not null, pk, increment]
+  voucher_id bigint
+  action varchar(10) [not null]
+  employee_id bigint
+  store_id bigint
+  reason varchar(200) [not null, default: '']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (store_id, created_at) [name: 'idx_voucher_events_store']
+  (voucher_id, created_at) [name: 'idx_voucher_events_voucher']
+  }
+}
+
+// Điểm thành viên tặng qua voucher; cộng vào điểm, không đổi hạng.
+// DDL: sql/008_vouchers.sql
+// CHECK chk_loyalty_point_grants_points: (points between 1 and 1000000)
+Table loyalty_point_grants {
+  id bigint [not null, pk, increment]
+  customer_id bigint [not null]
+  voucher_id bigint [not null]
+  points bigint [not null]
+  employee_id bigint [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (voucher_id) [unique, name: 'uq_loyalty_point_grants_voucher']
+  (customer_id) [name: 'idx_loyalty_point_grants_customer']
+  }
+}
+
+// Cấu hình trò chơi (giai đoạn đầu: vòng quay may mắn), dùng chung mọi cơ sở.
+// DDL: sql/009_games.sql
+// CHECK chk_games_daily_limit: (daily_limit between 1 and 20)
+// CHECK chk_games_interval: (min_interval_seconds between 1 and 60)
+Table games {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  name varchar(60) [not null]
+  is_active tinyint(1) [not null, default: 1]
+  daily_limit int [not null]
+  min_interval_seconds int [not null]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+
+  indexes {
+  (code) [unique, name: 'uq_games_code']
+  }
+}
+
+// Các ô thưởng trên vòng quay và tỉ lệ trúng tương đối.
+// DDL: sql/009_games.sql
+// CHECK chk_game_prizes_coins: (coins between 0 and 1000)
+// CHECK chk_game_prizes_label: (char_length(trim(label)) > 0)
+// CHECK chk_game_prizes_weight: (weight between 1 and 1000)
+Table game_prizes {
+  id bigint [not null, pk, increment]
+  game_id bigint [not null]
+  sort_order int [not null]
+  label varchar(40) [not null]
+  coins int [not null]
+  weight int [not null]
+
+  indexes {
+  (game_id, sort_order) [unique, name: 'uq_game_prizes_slot']
+  }
+}
+
+// Ví xu game của tài khoản; xu không phải tiền và không phải điểm thành viên.
+// DDL: sql/009_games.sql
+// CHECK chk_game_wallets_balance: (balance >= 0)
+// CHECK chk_game_wallets_lock: (((is_locked = true) and (locked_reason is not null) and (locked_at is not null)) or ((is_locked = false) and (locked_reason is null) and (locked_at is null)))
+Table game_wallets {
+  account_id bigint [not null, pk]
+  balance bigint [not null, default: 0]
+  is_locked tinyint(1) [not null, default: 0]
+  locked_reason varchar(200)
+  locked_at datetime
+  suspicious_count int [not null, default: 0]
+  suspicious_on date
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+}
+
+// Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại.
+// DDL: sql/009_games.sql
+// CHECK chk_game_sessions_coins: (coins between 0 and 1000)
+Table game_sessions {
+  id bigint [not null, pk, increment]
+  account_id bigint [not null]
+  game_id bigint [not null]
+  prize_index int [not null]
+  prize_label varchar(40) [not null]
+  coins int [not null]
+  played_on date [not null]
+  created_at datetime [not null]
+
+  indexes {
+  (account_id, played_on) [name: 'idx_game_sessions_account_day']
+  (game_id, created_at) [name: 'idx_game_sessions_game_time']
+  }
+}
+
+// Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm.
+// DDL: sql/009_games.sql
+// CHECK chk_game_coin_ledger_balance: (balance_after >= 0)
+// CHECK chk_game_coin_ledger_delta: (delta <> 0)
+// CHECK chk_game_coin_ledger_reason: (reason in ('PLAY','REDEEM','AD','ADJUST'))
+Table game_coin_ledger {
+  id bigint [not null, pk, increment]
+  account_id bigint [not null]
+  delta bigint [not null]
+  reason varchar(10) [not null]
+  ref varchar(64) [not null]
+  balance_after bigint [not null]
+  voucher_id bigint
+  created_at datetime [not null]
+
+  indexes {
+  (reason, ref) [unique, name: 'uq_game_coin_ledger_ref']
+  (account_id, created_at) [name: 'idx_game_coin_ledger_account']
+  }
+}
+
+// Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất).
+// DDL: sql/010_ad_rewards.sql
+// CHECK chk_ad_settings_cap: (daily_cap between 1 and 10)
+// CHECK chk_ad_settings_mode: (mode in ('HOUSE','NETWORK'))
+// CHECK chk_ad_settings_reward: (((reward_type = 'EXTRA_SPIN') and (reward_amount between 1 and 3)) or ((reward_type = 'COINS') and (reward_amount between 1 and 100)))
+// CHECK chk_ad_settings_singleton: (id = 1)
+Table ad_settings {
+  id tinyint [not null, pk]
+  enabled tinyint(1) [not null, default: 1]
+  mode varchar(10) [not null, default: 'HOUSE']
+  daily_cap int [not null, default: 3]
+  reward_type varchar(12) [not null, default: 'EXTRA_SPIN']
+  reward_amount int [not null, default: 1]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+}
+
+// Nội dung quảng cáo nội bộ do CyberHub tự soạn.
+// DDL: sql/010_ad_rewards.sql
+// CHECK chk_ad_creatives_duration: (duration_seconds between 5 and 60)
+// CHECK chk_ad_creatives_title: (char_length(trim(title)) > 0)
+Table ad_creatives {
+  id bigint [not null, pk, increment]
+  code varchar(20) [not null]
+  title varchar(80) [not null]
+  body varchar(300) [not null]
+  cta varchar(40) [not null, default: '']
+  duration_seconds int [not null]
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (code) [unique, name: 'uq_ad_creatives_code']
+  }
+}
+
+// Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game.
+// DDL: sql/010_ad_rewards.sql
+// CHECK chk_ad_reward_events_done: (((status = 'COMPLETED') and (completed_at is not null) and (reject_reason is null)) or ((status = 'REJECTED') and (reject_reason is not null)) or ((status = 'ISSUED') and (completed_at is null)))
+// CHECK chk_ad_reward_events_period: ((min_complete_at >= issued_at) and (expires_at > min_complete_at))
+// CHECK chk_ad_reward_events_provider: (provider in ('HOUSE','NETWORK'))
+// CHECK chk_ad_reward_events_reward: ((reward_type in ('EXTRA_SPIN','COINS')) and (reward_amount > 0))
+// CHECK chk_ad_reward_events_status: (status in ('ISSUED','COMPLETED','REJECTED'))
+Table ad_reward_events {
+  id bigint [not null, pk, increment]
+  token char(32) [not null]
+  account_id bigint [not null]
+  creative_id bigint
+  provider varchar(10) [not null]
+  reward_type varchar(12) [not null]
+  reward_amount int [not null]
+  status varchar(10) [not null, default: 'ISSUED']
+  played_on date [not null]
+  issued_at datetime [not null]
+  min_complete_at datetime [not null]
+  expires_at datetime [not null]
+  completed_at datetime
+  provider_txn_id varchar(80)
+  reject_reason varchar(40)
+
+  indexes {
+  (token) [unique, name: 'uq_ad_reward_events_token']
+  (provider_txn_id) [unique, name: 'uq_ad_reward_events_txn']
+  (account_id, played_on, status) [name: 'idx_ad_reward_events_account_day']
+  (played_on) [name: 'idx_ad_reward_events_day']
+  }
+}
+
+// Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở.
+// DDL: sql/021_cash_shifts.sql
+// CHECK chk_cash_shifts_close: (((status = 'OPEN') and (expected_cash is null) and (counted_cash is null) and (variance is null) and (submitted_at is null) and (closed_at is null)) or ((status = 'PENDING_REVIEW') and (expected_cash is not null) and (counted_cash is not null) and (variance is not null) and (submitted_at is not null) and (closed_at is null)) or ((status = 'CLOSED') and (expected_cash is not null) and (counted_cash is not null) and (variance is not null) and (submitted_at is not null) and (closed_at is not null)))
+// CHECK chk_cash_shifts_status: (status in ('OPEN','PENDING_REVIEW','CLOSED'))
+Table cash_shifts {
+  id bigint [not null, pk, increment]
+  code varchar(24) [not null]
+  store_id bigint [not null]
+  employee_id bigint [not null]
+  status varchar(16) [not null, default: 'OPEN']
+  opening_cash bigint [not null]
+  expected_cash bigint
+  counted_cash bigint
+  variance bigint
+  opened_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  submitted_at datetime
+  closed_at datetime
+  reviewed_by bigint
+  review_note varchar(255)
+  active_employee_id bigint
+
+  indexes {
+  (active_employee_id) [unique, name: 'uq_cash_shifts_active_employee']
+  (code) [unique, name: 'uq_cash_shifts_code']
+  (store_id, opened_at, id) [name: 'idx_cash_shifts_store_time']
+  }
+}
+
+// Sổ bất biến thu, chi, hoàn và điều chỉnh theo ca; chống ghi trùng bằng nguồn nghiệp vụ.
+// DDL: sql/021_cash_shifts.sql
+// CHECK chk_cash_entries_amount: (amount > 0)
+// CHECK chk_cash_entries_kind: (kind in ('RECEIPT','EXPENSE','REFUND','ADJUSTMENT_IN','ADJUSTMENT_OUT'))
+// CHECK chk_cash_entries_method: (payment_method in ('CASH','TRANSFER'))
+Table cash_shift_entries {
+  id bigint [not null, pk, increment]
+  shift_id bigint [not null]
+  store_id bigint [not null]
+  employee_id bigint [not null]
+  kind varchar(12) [not null]
+  payment_method varchar(10) [not null]
+  amount bigint [not null]
+  source_type varchar(24) [not null]
+  source_id varchar(64) [not null]
+  note varchar(255) [not null, default: '']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (source_type, source_id, payment_method) [unique, name: 'uq_cash_shift_entries_source']
+  (shift_id, created_at, id) [name: 'idx_cash_entries_shift_time']
+  }
+}
+
+// Phiếu sự cố và vòng đời bảo trì máy từ báo lỗi đến nghiệm thu.
+// DDL: sql/022_machine_incidents.sql
+// CHECK chk_incidents_cost: ((labor_cost <= 1000000000) and (parts_cost <= 1000000000))
+// CHECK chk_incidents_severity: (severity in ('LOW','MEDIUM','HIGH','CRITICAL'))
+// CHECK chk_incidents_status: (status in ('REPORTED','ASSIGNED','IN_PROGRESS','WAITING_PARTS','COMPLETED','VERIFIED','CANCELLED'))
+Table machine_incidents {
+  id bigint [not null, pk, increment]
+  code varchar(24) [not null]
+  store_id bigint [not null]
+  machine_id bigint [not null]
+  reported_by bigint [not null]
+  assigned_to bigint
+  severity varchar(10) [not null]
+  status varchar(20) [not null, default: 'REPORTED']
+  title varchar(120) [not null]
+  description varchar(1000) [not null]
+  resolution varchar(1000)
+  labor_cost bigint [not null, default: 0]
+  parts_cost bigint [not null, default: 0]
+  reported_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  started_at datetime
+  completed_at datetime
+  verified_at datetime
+  verified_by bigint
+
+  indexes {
+  (code) [unique, name: 'uq_machine_incidents_code']
+  (machine_id, reported_at, id) [name: 'idx_incidents_machine_history']
+  (store_id, status, reported_at) [name: 'idx_incidents_store_status']
+  }
+}
+
+// Linh kiện sử dụng cho một phiếu sửa máy.
+// DDL: sql/022_machine_incidents.sql
+// CHECK chk_incident_parts_cost: (unit_cost <= 1000000000)
+// CHECK chk_incident_parts_quantity: (quantity between 1 and 1000)
+Table machine_incident_parts {
+  id bigint [not null, pk, increment]
+  incident_id bigint [not null]
+  name varchar(120) [not null]
+  quantity int [not null]
+  unit_cost bigint [not null]
+}
+
+// Lịch sử chuyển trạng thái sự cố máy, chỉ thêm.
+// DDL: sql/022_machine_incidents.sql
+Table machine_incident_events {
+  id bigint [not null, pk, increment]
+  incident_id bigint [not null]
+  employee_id bigint [not null]
+  from_status varchar(20)
+  to_status varchar(20) [not null]
+  note varchar(500) [not null, default: '']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (incident_id, created_at, id) [name: 'idx_incident_events_history']
+  }
+}
+
+// Nhà cung cấp theo cơ sở và điều khoản thanh toán.
+// DDL: sql/023_procurement.sql
+// CHECK chk_suppliers_terms: (payment_terms_days <= 365)
+Table suppliers {
+  id bigint [not null, pk, increment]
+  store_id bigint [not null]
+  code varchar(24) [not null]
+  name varchar(120) [not null]
+  phone varchar(20)
+  email varchar(120)
+  address varchar(255)
+  payment_terms_days int [not null, default: 0]
+  is_active tinyint(1) [not null, default: 1]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (store_id, code) [unique, name: 'uq_suppliers_store_code']
+  }
+}
+
+// Đề nghị nhập hàng có người lập và người quyết định.
+// DDL: sql/023_procurement.sql
+// CHECK chk_purchase_requests_decision: (((status = 'PENDING') and (decided_by is null) and (decided_at is null)) or ((status <> 'PENDING') and (decided_by is not null) and (decided_at is not null)))
+// CHECK chk_purchase_requests_status: (status in ('PENDING','APPROVED','REJECTED','ORDERED'))
+Table purchase_requests {
+  id bigint [not null, pk, increment]
+  code varchar(24) [not null]
+  store_id bigint [not null]
+  requested_by bigint [not null]
+  status varchar(12) [not null, default: 'PENDING']
+  reason varchar(255) [not null]
+  decided_by bigint
+  decided_at datetime
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (code) [unique, name: 'uq_purchase_requests_code']
+  }
+}
+
+// Nguyên liệu và số lượng trong đề nghị nhập.
+// DDL: sql/023_procurement.sql
+// CHECK chk_purchase_request_lines_quantity: (quantity > 0)
+Table purchase_request_lines {
+  request_id bigint [not null]
+  ingredient_id bigint [not null]
+  quantity bigint [not null]
+
+  indexes {
+  (request_id, ingredient_id) [pk]
+  }
+}
+
+// Đơn mua hàng tạo từ đề nghị đã duyệt và gắn nhà cung cấp.
+// DDL: sql/023_procurement.sql
+// CHECK chk_purchase_orders_status: (status in ('OPEN','PARTIALLY_RECEIVED','RECEIVED','CANCELLED'))
+// CHECK chk_purchase_orders_total: (total_amount > 0)
+Table purchase_orders {
+  id bigint [not null, pk, increment]
+  code varchar(24) [not null]
+  store_id bigint [not null]
+  request_id bigint [not null]
+  supplier_id bigint [not null]
+  created_by bigint [not null]
+  status varchar(20) [not null, default: 'OPEN']
+  ordered_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  expected_at datetime
+  total_amount bigint [not null]
+
+  indexes {
+  (code) [unique, name: 'uq_purchase_orders_code']
+  (request_id) [unique, name: 'uq_purchase_orders_request']
+  }
+}
+
+// Dòng đơn mua và tiến độ nhận theo nguyên liệu.
+// DDL: sql/023_procurement.sql
+// CHECK chk_purchase_order_lines_quantity: ((quantity > 0) and (unit_cost > 0))
+// CHECK chk_purchase_order_lines_received: ((received_quantity + damaged_quantity) <= quantity)
+Table purchase_order_lines {
+  order_id bigint [not null]
+  ingredient_id bigint [not null]
+  quantity bigint [not null]
+  unit_cost bigint [not null]
+  received_quantity bigint [not null, default: 0]
+  damaged_quantity bigint [not null, default: 0]
+
+  indexes {
+  (order_id, ingredient_id) [pk]
+  }
+}
+
+// Phiếu nhận hàng idempotent, tạo nhập kho và công nợ theo số lượng đạt.
+// DDL: sql/023_procurement.sql
+Table goods_receipts {
+  id bigint [not null, pk, increment]
+  code varchar(24) [not null]
+  order_id bigint [not null]
+  store_id bigint [not null]
+  received_by bigint [not null]
+  request_id char(32) [not null]
+  note varchar(255) [not null, default: '']
+  received_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  accepted_amount bigint [not null]
+
+  indexes {
+  (code) [unique, name: 'uq_goods_receipts_code']
+  (request_id) [unique, name: 'uq_goods_receipts_request']
+  }
+}
+
+// Chi tiết hàng đạt, hỏng và thiếu trong một lần nhận.
+// DDL: sql/023_procurement.sql
+// CHECK chk_goods_receipt_lines_quantity: (((accepted_quantity + damaged_quantity) + missing_quantity) > 0)
+Table goods_receipt_lines {
+  receipt_id bigint [not null]
+  ingredient_id bigint [not null]
+  accepted_quantity bigint [not null]
+  damaged_quantity bigint [not null, default: 0]
+  missing_quantity bigint [not null, default: 0]
+  unit_cost bigint [not null]
+
+  indexes {
+  (receipt_id, ingredient_id) [pk]
+  }
+}
+
+// Công nợ phát sinh từ phiếu nhận hàng và trạng thái thanh toán.
+// DDL: sql/023_procurement.sql
+// CHECK chk_supplier_payables_amount: ((amount > 0) and (paid_amount <= amount))
+// CHECK chk_supplier_payables_method: ((payment_method is null) or (payment_method in ('CASH','TRANSFER')))
+// CHECK chk_supplier_payables_status: (status in ('UNPAID','PAID'))
+Table supplier_payables {
+  id bigint [not null, pk, increment]
+  receipt_id bigint [not null]
+  supplier_id bigint [not null]
+  store_id bigint [not null]
+  amount bigint [not null]
+  paid_amount bigint [not null, default: 0]
+  due_date date [not null]
+  status varchar(10) [not null, default: 'UNPAID']
+  paid_at datetime
+  paid_by bigint
+  payment_method varchar(10)
+
+  indexes {
+  (receipt_id) [unique, name: 'uq_supplier_payables_receipt']
+  (store_id, status, due_date) [name: 'idx_supplier_payables_due']
+  }
+}
+
+// Đối tác cung cấp game hoặc mạng quảng cáo.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_partners_status: (status in ('ACTIVE','SUSPENDED','TERMINATED'))
+// CHECK chk_commercial_partners_type: (partner_type in ('GAME','AD_NETWORK','BOTH'))
+Table commercial_partners {
+  id bigint [not null, pk, increment]
+  code varchar(24) [not null]
+  name varchar(120) [not null]
+  partner_type varchar(12) [not null]
+  status varchar(12) [not null, default: 'ACTIVE']
+  callback_secret_ref varchar(80)
+  contact_name varchar(100)
+  contact_email varchar(120)
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`] // ON UPDATE CURRENT_TIMESTAMP
+
+  indexes {
+  (code) [unique, name: 'uq_commercial_partners_code']
+  }
+}
+
+// Hợp đồng thương mại có maker-checker và mô hình tính doanh thu.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_contracts_approval: (((status = 'DRAFT') and (approved_by is null) and (approved_at is null)) or ((status <> 'DRAFT') and (approved_by is not null) and (approved_at is not null)))
+// CHECK chk_commercial_contracts_currency: (currency = 'VND')
+// CHECK chk_commercial_contracts_model: (revenue_model in ('CPM','CPC','CPA','FIXED'))
+// CHECK chk_commercial_contracts_period: (ends_on >= starts_on)
+// CHECK chk_commercial_contracts_status: (status in ('DRAFT','ACTIVE','SUSPENDED','EXPIRED','TERMINATED'))
+Table commercial_contracts {
+  id bigint [not null, pk, increment]
+  partner_id bigint [not null]
+  code varchar(24) [not null]
+  status varchar(12) [not null, default: 'DRAFT']
+  revenue_model varchar(8) [not null]
+  rate_amount bigint [not null]
+  currency char(3) [not null, default: 'VND']
+  starts_on date [not null]
+  ends_on date [not null]
+  created_by bigint [not null]
+  approved_by bigint
+  approved_at datetime
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (code) [unique, name: 'uq_commercial_contracts_code']
+  }
+}
+
+// Chiến dịch game/quảng cáo thuộc một hợp đồng đã duyệt.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_campaigns_kind: (kind in ('AD','GAME'))
+// CHECK chk_commercial_campaigns_period: (ends_at > starts_at)
+// CHECK chk_commercial_campaigns_reward: (((reward_type = 'NONE') and (reward_amount = 0)) or ((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0)))
+// CHECK chk_commercial_campaigns_status: (status in ('DRAFT','ACTIVE','PAUSED','ENDED'))
+Table commercial_campaigns {
+  id bigint [not null, pk, increment]
+  contract_id bigint [not null]
+  code varchar(24) [not null]
+  name varchar(120) [not null]
+  kind varchar(8) [not null]
+  status varchar(10) [not null, default: 'DRAFT']
+  starts_at datetime [not null]
+  ends_at datetime [not null]
+  budget_amount bigint
+  reward_type varchar(12) [not null, default: 'NONE']
+  reward_amount int [not null, default: 0]
+  created_by bigint [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (code) [unique, name: 'uq_commercial_campaigns_code']
+  }
+}
+
+// Vị trí phát game/quảng cáo, có thể giới hạn theo cửa hàng.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_placements_embed: (((placement_type = 'GAME') and (embed_url is not null) and (allowed_origin is not null)) or (placement_type = 'AD'))
+// CHECK chk_commercial_placements_status: (status in ('ACTIVE','INACTIVE'))
+// CHECK chk_commercial_placements_surface: (surface in ('PORTAL_BANNER','REWARDED_AD','GAME_CENTER'))
+// CHECK chk_commercial_placements_type: (placement_type in ('AD','GAME'))
+Table commercial_placements {
+  id bigint [not null, pk, increment]
+  campaign_id bigint [not null]
+  store_id bigint
+  code varchar(32) [not null]
+  placement_type varchar(8) [not null]
+  surface varchar(24) [not null]
+  embed_url varchar(500)
+  allowed_origin varchar(255)
+  sandbox_policy varchar(120) [not null, default: 'allow-scripts allow-pointer-lock']
+  legacy_game_id bigint
+  legacy_ad_creative_id bigint
+  status varchar(10) [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (code) [unique, name: 'uq_commercial_placements_code']
+  (store_id, status) [name: 'idx_commercial_placements_store']
+  }
+}
+
+// Phiên chơi ngoài có token một lần và hạn sử dụng.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_play_sessions_period: (expires_at > issued_at)
+// CHECK chk_commercial_play_sessions_reward: (((reward_type = 'NONE') and (reward_amount = 0)) or ((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0)))
+// CHECK chk_commercial_play_sessions_status: (status in ('ISSUED','COMPLETED','EXPIRED','REJECTED'))
+Table commercial_play_sessions {
+  id bigint [not null, pk, increment]
+  placement_id bigint [not null]
+  account_id bigint [not null]
+  token_hash char(64) [not null]
+  status varchar(10) [not null, default: 'ISSUED']
+  reward_type varchar(12) [not null]
+  reward_amount int [not null]
+  issued_at datetime [not null]
+  expires_at datetime [not null]
+  completed_at datetime
+
+  indexes {
+  (token_hash) [unique, name: 'uq_commercial_play_sessions_token']
+  (account_id, status, issued_at) [name: 'idx_commercial_play_sessions_account']
+  }
+}
+
+// Sổ sự kiện impression/start/complete/click, chống ghi trùng.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_events_complete: ((event_type <> 'COMPLETE') or (verification_method in ('SERVER','SSV')))
+// CHECK chk_commercial_events_type: (event_type in ('IMPRESSION','START','COMPLETE','CLICK'))
+// CHECK chk_commercial_events_verification: (verification_method in ('CLIENT','SERVER','SSV'))
+// CHECK chk_commercial_events_verified: (((verification_method = 'CLIENT') and (verified_at is null)) or ((verification_method in ('SERVER','SSV')) and (verified_at is not null)))
+Table commercial_events {
+  id bigint [not null, pk, increment]
+  placement_id bigint [not null]
+  campaign_id bigint [not null]
+  play_session_id bigint
+  account_id bigint
+  event_type varchar(10) [not null]
+  event_key varchar(80) [not null]
+  provider_event_id varchar(100)
+  verification_method varchar(8) [not null]
+  accepted tinyint(1) [not null, default: 1]
+  occurred_at datetime [not null]
+  verified_at datetime
+  payload_digest char(64)
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (event_key) [unique, name: 'uq_commercial_events_key']
+  (provider_event_id) [unique, name: 'uq_commercial_events_provider']
+  (campaign_id, event_type, accepted, occurred_at) [name: 'idx_commercial_events_campaign']
+  }
+}
+
+// Outbox phần thưởng; callback không được cộng xu/phát voucher trực tiếp.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_reward_grants_reward: ((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0))
+// CHECK chk_commercial_reward_grants_status: (status in ('PENDING','APPLIED','FAILED'))
+Table commercial_reward_grants {
+  id bigint [not null, pk, increment]
+  event_id bigint [not null]
+  account_id bigint [not null]
+  reward_type varchar(12) [not null]
+  reward_amount int [not null]
+  status varchar(10) [not null, default: 'PENDING']
+  attempts int [not null, default: 0]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  applied_at datetime
+  failure_reason varchar(255)
+
+  indexes {
+  (event_id) [unique, name: 'uq_commercial_reward_grants_event']
+  (status, created_at) [name: 'idx_commercial_reward_grants_pending']
+  }
+}
+
+// Kỳ đối soát doanh thu có maker-checker.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_settlements_adjustment: (((adjustment_amount = 0) and (adjustment_reason is null)) or ((adjustment_amount <> 0) and (char_length(trim(adjustment_reason)) >= 5)))
+// CHECK chk_commercial_settlements_amount: (net_amount = (gross_amount + adjustment_amount))
+// CHECK chk_commercial_settlements_period: (period_end >= period_start)
+// CHECK chk_commercial_settlements_status: (status in ('DRAFT','APPROVED','PAID','VOID'))
+Table commercial_settlements {
+  id bigint [not null, pk, increment]
+  contract_id bigint [not null]
+  period_start date [not null]
+  period_end date [not null]
+  gross_amount bigint [not null]
+  adjustment_amount bigint [not null, default: 0]
+  adjustment_reason varchar(255)
+  net_amount bigint [not null]
+  status varchar(10) [not null, default: 'DRAFT']
+  generated_by bigint [not null]
+  reviewed_by bigint
+  reviewed_at datetime
+  paid_at datetime
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (contract_id, period_start, period_end) [unique, name: 'uq_commercial_settlements_period']
+  }
+}
+
+// Dòng snapshot đối soát theo vị trí và loại sự kiện.
+// DDL: sql/024_commercial_partners.sql
+// CHECK chk_commercial_settlement_lines_event: (event_type in ('IMPRESSION','CLICK','COMPLETE','FIXED'))
+Table commercial_settlement_lines {
+  settlement_id bigint [not null]
+  placement_id bigint [not null]
+  event_type varchar(10) [not null]
+  units bigint [not null]
+  unit_rate bigint [not null]
+  amount bigint [not null]
+
+  indexes {
+  (settlement_id, placement_id, event_type) [pk]
+  }
+}
+
+// Bản ghi duyệt công nợ nhà cung cấp; dùng kiểm soát phân tách người duyệt và người chi.
+// DDL: sql/026_rbac_operational_boundaries.sql
+Table supplier_payable_approvals {
+  payable_id bigint [not null, pk]
+  approved_by bigint [not null]
+  approved_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  note varchar(255) [not null]
+}
+
+// Token kích hoạt/đặt lại mật khẩu khách; chỉ lưu hash và nonce dẫn xuất, token thô không được lưu.
+// DDL: sql/027_customer_email_activation.sql
+// CHECK chk_customer_email_token_purpose: (purpose in ('ACTIVATE','RESET'))
+Table customer_email_tokens {
+  id bigint [not null, pk, increment]
+  account_id bigint [not null]
+  purpose varchar(12) [not null]
+  token_hash char(64) [not null]
+  nonce char(64) [not null]
+  expires_at datetime [not null]
+  used_at datetime
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+  (token_hash) [unique, name: 'uq_customer_email_token_hash']
+  (account_id, purpose, created_at) [name: 'idx_customer_email_token_account']
+  }
+}
+
+// Transactional outbox gửi email khách sau khi transaction đăng ký/reset đã commit.
+// DDL: sql/027_customer_email_activation.sql
+// CHECK chk_customer_mail_outbox_status: (status in ('PENDING','SENDING','SENT','FAILED'))
+Table customer_mail_outbox {
+  id bigint [not null, pk, increment]
+  token_id bigint [not null]
+  status varchar(12) [not null, default: 'PENDING']
+  attempts int [not null, default: 0]
+  next_attempt_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  sent_at datetime
+  last_error varchar(120)
+
+  indexes {
+  (token_id) [unique, name: 'uq_customer_mail_outbox_token']
+  (status, next_attempt_at) [name: 'idx_customer_mail_outbox_due']
+  }
+}
+
+// Audit bất biến cho thao tác kích hoạt, đặt lại mật khẩu và các sự kiện bảo mật khách.
+// DDL: sql/027_customer_email_activation.sql
+Table customer_security_audit {
+  id bigint [not null, pk, increment]
+  account_id bigint [not null]
+  employee_id bigint
+  store_id bigint
+  action varchar(40) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Ref fk_employees_store: employees.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_employee_profiles_employee: employee_profiles.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_employee_profiles_store: employee_profiles.home_store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_employee_assignments_employee: employee_store_assignments.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_employee_assignments_granter: employee_store_assignments.granted_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_employee_assignments_store: employee_store_assignments.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_links_customer: customer_store_links.customer_id > customers.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_links_store: customer_store_links.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_accounts_customer: accounts.customer_id > customers.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_machines_store: machines.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_usage_sessions_closed_by: usage_sessions.closed_by > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_usage_sessions_customer: usage_sessions.customer_id > customers.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_usage_sessions_machine: usage_sessions.machine_id > machines.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_usage_sessions_opened_by: usage_sessions.opened_by > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_account_transactions_account: account_transactions.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_account_transactions_employee: account_transactions.employee_id > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_account_transactions_session: account_transactions.session_id > usage_sessions.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_transactions_promotion: account_transactions.promotion_id > promotions.id // ON UPDATE NO ACTION ON DELETE RESTRICT
+Ref fk_transactions_store: account_transactions.store_id > stores.id // ON UPDATE NO ACTION ON DELETE RESTRICT
+Ref fk_invoices_customer: invoices.customer_id > customers.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_invoices_employee: invoices.employee_id > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_invoices_session: invoices.session_id > usage_sessions.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_invoices_store: invoices.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_promotion_target_customer: promotions.target_customer_id > customers.id // ON UPDATE NO ACTION ON DELETE RESTRICT
+Ref fk_promotions_store: promotions.store_id > stores.id // ON UPDATE NO ACTION ON DELETE RESTRICT
+Ref fk_management_audit_employee: management_audit.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE RESTRICT
+Ref fk_management_audit_store: management_audit.store_id > stores.id // ON UPDATE NO ACTION ON DELETE RESTRICT
+Ref fk_customer_notification_account: customer_notification_reads.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE RESTRICT
+Ref fk_machine_room_machine: machine_room_types.machine_id > machines.id // ON UPDATE RESTRICT ON DELETE CASCADE
+Ref fk_customer_avatar_account: customer_avatars.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE CASCADE
+Ref fk_menu_categories_store: menu_categories.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_items_category: menu_items.category_id > menu_categories.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_items_store: menu_items.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_item_images_item: menu_item_images.item_id > menu_items.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_item_changes_employee: menu_item_changes.employee_id > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_item_changes_item: menu_item_changes.item_id > menu_items.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_orders_account: menu_orders.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_orders_handled_by: menu_orders.handled_by > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_orders_machine: menu_orders.machine_id > machines.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_orders_paid_by: menu_orders.paid_by > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_orders_session: menu_orders.session_id > usage_sessions.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_orders_store: menu_orders.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_order_items_item: menu_order_items.item_id > menu_items.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_menu_order_items_order: menu_order_items.order_id > menu_orders.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_inventory_ingredients_store: inventory_ingredients.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_item_recipes_ingredient: menu_item_recipes.ingredient_id > inventory_ingredients.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_item_recipes_item: menu_item_recipes.item_id > menu_items.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_order_recipe_snapshots_ingredient: menu_order_recipe_snapshots.ingredient_id > inventory_ingredients.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_order_recipe_snapshots_line: menu_order_recipe_snapshots.(order_id, item_id) > menu_order_items.(order_id, item_id) // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_inventory_movements_account: inventory_movements.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_inventory_movements_employee: inventory_movements.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_inventory_movements_ingredient: inventory_movements.(store_id, ingredient_id) > inventory_ingredients.(store_id, id) // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_inventory_movements_order: inventory_movements.order_id > menu_orders.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_inventory_counts_decider: inventory_counts.decided_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_inventory_counts_ingredient: inventory_counts.(store_id, ingredient_id) > inventory_ingredients.(store_id, id) // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_inventory_counts_proposer: inventory_counts.proposed_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_notification_event_account: customer_notification_events.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_notification_event_store: customer_notification_events.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_pos_reversal_approver: pos_order_reversals.decided_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_pos_reversal_order: pos_order_reversals.order_id > menu_orders.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_pos_reversal_requester: pos_order_reversals.requested_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_pos_reversal_store: pos_order_reversals.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_promo_item: menu_promotions.item_id > menu_items.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_promo_store: menu_promotions.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_pricing_order: menu_order_pricing.order_id > menu_orders.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_menu_pricing_promotion: menu_order_pricing.promotion_id > menu_promotions.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_reward_catalog_store: reward_catalog.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_customer_vouchers_account: customer_vouchers.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_customer_vouchers_catalog: customer_vouchers.catalog_id > reward_catalog.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_customer_vouchers_issued_by: customer_vouchers.issued_by > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_customer_vouchers_store: customer_vouchers.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_customer_vouchers_used_by: customer_vouchers.used_by > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_customer_vouchers_used_order: customer_vouchers.used_order_id > menu_orders.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_customer_vouchers_used_store: customer_vouchers.used_store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_voucher_events_employee: voucher_events.employee_id > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_voucher_events_store: voucher_events.store_id > stores.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_voucher_events_voucher: voucher_events.voucher_id > customer_vouchers.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_loyalty_point_grants_customer: loyalty_point_grants.customer_id > customers.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_loyalty_point_grants_employee: loyalty_point_grants.employee_id > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_loyalty_point_grants_voucher: loyalty_point_grants.voucher_id > customer_vouchers.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_game_prizes_game: game_prizes.game_id > games.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_game_wallets_account: game_wallets.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_game_sessions_account: game_sessions.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_game_sessions_game: game_sessions.game_id > games.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_game_coin_ledger_account: game_coin_ledger.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_game_coin_ledger_voucher: game_coin_ledger.voucher_id > customer_vouchers.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_ad_reward_events_account: ad_reward_events.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_ad_reward_events_creative: ad_reward_events.creative_id > ad_creatives.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_cash_shifts_employee: cash_shifts.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_cash_shifts_reviewer: cash_shifts.reviewed_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_cash_shifts_store: cash_shifts.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_cash_entries_employee: cash_shift_entries.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_cash_entries_shift: cash_shift_entries.shift_id > cash_shifts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_cash_entries_store: cash_shift_entries.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incidents_assignee: machine_incidents.assigned_to > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incidents_machine: machine_incidents.machine_id > machines.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incidents_reporter: machine_incidents.reported_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incidents_store: machine_incidents.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incidents_verifier: machine_incidents.verified_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incident_parts_incident: machine_incident_parts.incident_id > machine_incidents.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incident_events_employee: machine_incident_events.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_incident_events_incident: machine_incident_events.incident_id > machine_incidents.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_suppliers_store: suppliers.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_requests_decider: purchase_requests.decided_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_requests_requester: purchase_requests.requested_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_requests_store: purchase_requests.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_request_lines_ingredient: purchase_request_lines.ingredient_id > inventory_ingredients.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_request_lines_request: purchase_request_lines.request_id > purchase_requests.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_orders_creator: purchase_orders.created_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_orders_request: purchase_orders.request_id > purchase_requests.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_orders_store: purchase_orders.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_orders_supplier: purchase_orders.supplier_id > suppliers.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_order_lines_ingredient: purchase_order_lines.ingredient_id > inventory_ingredients.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_purchase_order_lines_order: purchase_order_lines.order_id > purchase_orders.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_goods_receipts_order: goods_receipts.order_id > purchase_orders.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_goods_receipts_receiver: goods_receipts.received_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_goods_receipts_store: goods_receipts.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_goods_receipt_lines_ingredient: goods_receipt_lines.ingredient_id > inventory_ingredients.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_goods_receipt_lines_receipt: goods_receipt_lines.receipt_id > goods_receipts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_supplier_payables_employee: supplier_payables.paid_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_supplier_payables_receipt: supplier_payables.receipt_id > goods_receipts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_supplier_payables_store: supplier_payables.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_supplier_payables_supplier: supplier_payables.supplier_id > suppliers.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_contracts_approver: commercial_contracts.approved_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_contracts_creator: commercial_contracts.created_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_contracts_partner: commercial_contracts.partner_id > commercial_partners.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_campaigns_contract: commercial_campaigns.contract_id > commercial_contracts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_campaigns_creator: commercial_campaigns.created_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_placements_ad: commercial_placements.legacy_ad_creative_id > ad_creatives.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_placements_campaign: commercial_placements.campaign_id > commercial_campaigns.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_placements_game: commercial_placements.legacy_game_id > games.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_placements_store: commercial_placements.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_play_sessions_account: commercial_play_sessions.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_play_sessions_placement: commercial_play_sessions.placement_id > commercial_placements.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_events_account: commercial_events.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_events_campaign: commercial_events.campaign_id > commercial_campaigns.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_events_placement: commercial_events.placement_id > commercial_placements.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_events_session: commercial_events.play_session_id > commercial_play_sessions.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_reward_grants_account: commercial_reward_grants.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_reward_grants_event: commercial_reward_grants.event_id > commercial_events.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_settlements_contract: commercial_settlements.contract_id > commercial_contracts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_settlements_generator: commercial_settlements.generated_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_settlements_reviewer: commercial_settlements.reviewed_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_settlement_lines_placement: commercial_settlement_lines.placement_id > commercial_placements.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_commercial_settlement_lines_settlement: commercial_settlement_lines.settlement_id > commercial_settlements.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_payable_approval_employee: supplier_payable_approvals.approved_by > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_payable_approval_payable: supplier_payable_approvals.payable_id > supplier_payables.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_email_token_account: customer_email_tokens.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_mail_outbox_token: customer_mail_outbox.token_id > customer_email_tokens.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_security_account: customer_security_audit.account_id > accounts.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_security_employee: customer_security_audit.employee_id > employees.id // ON UPDATE NO ACTION ON DELETE NO ACTION
+Ref fk_customer_security_store: customer_security_audit.store_id > stores.id // ON UPDATE NO ACTION ON DELETE NO ACTION

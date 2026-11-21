@@ -11,7 +11,6 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.domain.loyalty import LoyaltySettings
 from cyberhub_manager.domain.p1 import Permission, Promotion, permissions_for
 from cyberhub_manager.services.invoice_export import invoice_csv, invoice_html
 from cyberhub_manager.web.serialization import customer_public, machine_public, serialize
@@ -129,13 +128,9 @@ def register_operations_routes(
             raise ValidationError(field_errors={"ends_at":"Ngày giờ không hợp lệ"}) from None
         store_id = None if d.get("store_id") is None else integer(d,"store_id",minimum=1)
         old=next((p for p in g.services.management.list_promotions(g.actor) if p.id==promotion_id),None) if promotion_id else None
-        target=d.get('target_customer_id',old.target_customer_id if old else None)
-        if target is not None:
-            target=integer({'target_customer_id':target},'target_customer_id',minimum=1)
         policy = Promotion(promotion_id or 0,text(d,"code"),text(d,"name"),store_id,
                            integer(d,"minimum_amount",minimum=1),integer(d,"bonus_percent"),start,end,d.get("is_active",True),
-                           d.get('minimum_tier',old.minimum_tier if old else 'BRONZE'),
-                           d.get('minimum_points',old.minimum_points if old else 0),target)
+                           'BRONZE', 0, None)
         return reply(g.services.management.save_promotion(g.actor,policy))
 
     @app.post("/api/customers/<int:customer_id>/topup-preview")
@@ -189,14 +184,6 @@ def register_operations_routes(
         return reply(g.services.portal.promotion_quote(
             g.customer, integer(data, "store_id", minimum=1), integer(data, "amount", minimum=1)))
 
-    @app.get("/api/portal/notifications")
-    def portal_notifications():
-        return reply(g.services.portal.notifications(g.customer))
-
-    @app.post("/api/portal/notifications/read")
-    def portal_notifications_read():
-        return reply(g.services.portal.mark_notifications_read(g.customer, body().get("keys")))
-
     @app.get("/api/portal/availability")
     def portal_availability():
         return reply(g.services.portal.availability(g.customer,portal_integer("store_id")))
@@ -221,36 +208,6 @@ def register_operations_routes(
         session["customer_auth_version"]=customer.auth_version
         session["csrf"]=secrets.token_urlsafe(32)
         return reply(dict(customer=customer,csrf_token=session["csrf"]))
-
-    @app.get('/api/portal/member')
-    def portal_member():
-        return reply(g.services.portal.member(g.customer,portal_integer('page',1)))
-
-    @app.get('/api/portal/avatar')
-    def portal_avatar():
-        image=g.services.portal.avatar(g.customer)
-        return Response(image['image_data'],content_type='image/webp')
-
-    @app.post('/api/portal/avatar')
-    def portal_avatar_upload():
-        upload=request.files.get('avatar')
-        if upload is None:
-            raise ValidationError(field_errors={'avatar':'Vui lòng chọn ảnh đại diện'})
-        return reply(g.services.portal.update_avatar(g.customer,upload.read(2*1024*1024+1)))
-
-    @app.delete('/api/portal/avatar')
-    def portal_avatar_remove():
-        return reply(g.services.portal.remove_avatar(g.customer))
-
-    @app.get('/api/loyalty/settings')
-    def loyalty_settings():
-        return reply(g.services.management.loyalty_settings(g.actor))
-
-    @app.put('/api/loyalty/settings')
-    def loyalty_settings_update():
-        data=body()
-        values={k:integer(data,k,minimum=1) for k in ('unit_amount','silver_spend','gold_spend','platinum_spend','version')}
-        return reply(g.services.management.update_loyalty_settings(g.actor,LoyaltySettings(enabled=data.get('enabled'),**values)))
 
     @app.get("/api/machine-rooms")
     def machine_rooms():
@@ -334,12 +291,6 @@ def register_operations_routes(
             )
         )
 
-    @app.post("/api/customers/link-store")
-    def link_customer_store():
-        data = body()
-        return reply(customer_public(g.services.customers.link_customer_to_store(
-            text(data, "code"), text(data, "phone"))))
-
     @app.post("/api/customers")
     def create_customer():
         data = body()
@@ -354,15 +305,6 @@ def register_operations_routes(
             ),
             201,
         )
-
-    @app.post("/api/customers/register-counter")
-    def register_customer_at_counter():
-        if demo or g.services.customer_email is None:
-            raise PermissionDeniedError()
-        data = body()
-        return reply(g.services.customer_email.register_at_counter(
-            data.get("full_name"), data.get("phone"), data.get("email"),
-            data.get("username")), 201)
 
     @app.patch("/api/customers/<int:customer_id>")
     def update_customer(customer_id):

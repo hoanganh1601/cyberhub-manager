@@ -1,0 +1,41 @@
+\chapter{Phân tích chuẩn hóa dữ liệu}
+
+\section{Phạm vi phân tích}
+Chuẩn hóa được xem xét trên các quan hệ trong schema khai báo bằng migration. Khóa chính và UNIQUE cho biết các khóa ứng viên được database bảo đảm; khóa ngoại cho biết các tham chiếu vật lý. DDL không biểu diễn mọi phụ thuộc nghiệp vụ, vì vậy không thể chỉ dựa vào file SQL để chứng minh toàn bộ phụ thuộc hàm của dữ liệu thực tế. Phần này phân tích cấu trúc bảng và nêu rõ các snapshot mà dự án lưu có chủ đích.
+
+\section{Dạng chuẩn thứ nhất}
+Dạng chuẩn thứ nhất yêu cầu mỗi ô dữ liệu chứa một giá trị theo miền của cột, không chứa danh sách các dòng con. Schema tách các nhóm dữ liệu lặp thành bảng riêng. Ví dụ, một đơn POS có nhiều món được lưu trong \texttt{menu\_order\_items}; các dòng đơn mua được lưu trong \texttt{purchase\_order\_lines}; các linh kiện của phiếu sửa được lưu trong \texttt{machine\_incident\_parts}. Các bảng này dùng một dòng cho một liên kết hoặc chi tiết, thay vì lưu nhiều mã món/nguyên liệu trong một cột.
+
+Các trường nội dung như tên, trạng thái, số lượng, thời điểm và mã tham chiếu được khai báo bằng kiểu dữ liệu đơn như \texttt{VARCHAR}, \texttt{BIGINT}, \texttt{DATETIME} và \texttt{BOOLEAN}. Đây là đánh giá cấu trúc DDL, không phải kiểm tra từng giá trị trong database đang chạy.
+
+\section{Dạng chuẩn thứ hai}
+Dạng chuẩn thứ hai yêu cầu đạt 1NF và các thuộc tính không khóa phụ thuộc vào toàn bộ khóa chính ghép. Trong schema có các khóa ghép ở bảng liên kết và bảng chi tiết, chẳng hạn:
+\begin{itemize}
+  \item \texttt{customer\_notification\_reads}: khóa chính \texttt{(account\_id, notification\_key)}.
+  \item \texttt{menu\_order\_items}: khóa chính \texttt{(order\_id, item\_id)}.
+  \item \texttt{menu\_item\_recipes}: khóa chính \texttt{(item\_id, ingredient\_id)}.
+  \item \texttt{purchase\_request\_lines} và \texttt{purchase\_order\_lines}: khóa ghép theo chứng từ và nguyên liệu.
+  \item \texttt{commercial\_settlement\_lines}: khóa chính \texttt{(settlement\_id, placement\_id, event\_type)}.
+\end{itemize}
+
+Các thuộc tính như trạng thái đọc, số lượng, đơn giá hoặc số tiền của dòng được lưu cùng bảng chi tiết tương ứng. DDL xác nhận cấu trúc khóa; việc đánh giá phụ thuộc đầy đủ cũng dựa trên ý nghĩa nghiệp vụ của từng cột.
+
+\section{Dạng chuẩn thứ ba}
+Dạng chuẩn thứ ba yêu cầu đạt 2NF và tránh phụ thuộc bắc cầu của thuộc tính không khóa vào khóa chính. Schema tách nhiều nhóm thực thể có vòng đời riêng: hồ sơ khách hàng và tài khoản nằm ở \texttt{customers} và \texttt{accounts}; cửa hàng và nhân viên nằm ở \texttt{stores} và \texttt{employees}; món và nhóm món nằm ở \texttt{menu\_items} và \texttt{menu\_categories}; nguyên liệu và công thức nằm ở \texttt{inventory\_ingredients} và \texttt{menu\_item\_recipes}. Các khóa ngoại nối các bảng này thay vì chép toàn bộ mô tả cha vào mọi bảng con.
+
+\section{Các snapshot được lưu trong giao dịch}
+Một số bảng giữ lại dữ liệu tại thời điểm phát sinh để bảo toàn lịch sử. Đây là quyết định schema có thể tạo ra dữ liệu trùng với bảng danh mục hiện hành, nhưng không nên tự động xóa nếu cần giữ nội dung giao dịch cũ. Các ví dụ được mô tả trong data dictionary và DDL gồm:
+\begin{itemize}
+  \item \texttt{invoices} lưu các khóa tham chiếu khách hàng, nhân viên và cửa hàng cùng kết quả checkout.
+  \item \texttt{menu\_order\_items} lưu thông tin dòng món theo đơn; \texttt{menu\_order\_pricing} lưu kết quả tính giá của đơn.
+  \item \texttt{menu\_order\_recipe\_snapshots} lưu nhu cầu nguyên liệu gắn với dòng đơn, tách khỏi công thức hiện hành.
+  \item \texttt{customer\_vouchers} giữ điều kiện voucher tại thời điểm phát hành; \texttt{commercial\_settlement\_lines} giữ số liệu dòng đối soát.
+\end{itemize}
+
+Các snapshot này cần được ghi nhận là ngoại lệ có chủ đích khi đánh giá 3NF; chúng phục vụ lịch sử nghiệp vụ. Không có căn cứ từ DDL để kết luận mọi bảng snapshot đều là lỗi thiết kế.
+
+\section{Đánh giá}
+Schema tách các thực thể, quan hệ nhiều--nhiều và dòng chứng từ thành các bảng riêng; PK, UNIQUE, FK và CHECK kiểm soát các quy tắc được khai báo. Tuy nhiên, việc chứng minh một quan hệ đạt 3NF đầy đủ cần xác nhận tất cả phụ thuộc hàm nghiệp vụ và khóa ứng viên, không chỉ đọc tên cột hoặc CHECK. Vì vậy, báo cáo không kết luận chung rằng cả 70 bảng đều đạt 3NF tuyệt đối; các trường hợp snapshot được nêu riêng để người đọc phân biệt dữ liệu danh mục với dữ liệu lịch sử.
+
+\section{Kết luận chương}
+Phân tích cho thấy schema sử dụng bảng chi tiết cho các quan hệ lặp và khóa ghép cho nhiều bảng liên kết. Các bảng danh mục được tách khỏi dữ liệu giao dịch, còn một số snapshot được lưu để giữ ngữ cảnh tại thời điểm phát sinh. Đây là cơ sở để đánh giá tính nhất quán dữ liệu cùng với các ràng buộc và transaction trong ứng dụng.

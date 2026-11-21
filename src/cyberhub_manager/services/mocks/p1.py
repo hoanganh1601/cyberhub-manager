@@ -25,10 +25,9 @@ from cyberhub_manager.domain.p1 import (
 )
 from cyberhub_manager.security import hash_password
 from .portal import MemoryPortalRepositoryMixin
-from .loyalty import MemoryLoyaltyRepositoryMixin
 
 
-class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixin):
+class MemoryP1Repository(MemoryPortalRepositoryMixin):
     def customer_invoice(self, conn, principal, invoice_id):
         from cyberhub_manager.domain.exceptions import NotFoundError
 
@@ -40,11 +39,8 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
     def __init__(self, data):
         self.data = data
         self.lock = RLock()
-        self.notification_reads = set()
         self.auth_versions = {}
         self.room_types = {}
-        self.avatars={}
-        self.order_notifications = []
         self.employee_profiles = {
             employee.id: {
                 "id": employee.id,
@@ -74,14 +70,10 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.data._last_ids,
                     self.data.employee_passwords,
                     self.data.operating_stores,
-                    self.notification_reads,
                     self.auth_versions,
                     self.room_types,
                     self.data.customers,
                     self.data.customer_password_hashes,
-                    self.avatars,
-                    self.data.loyalty_settings,
-                    self.order_notifications,
                     self.employee_profiles,
                     self.employee_store_assignments,
                     self._profile_seq,
@@ -101,14 +93,10 @@ class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixi
                     self.data._last_ids,
                     self.data.employee_passwords,
                     self.data.operating_stores,
-                    self.notification_reads,
                     self.auth_versions,
                     self.room_types,
                     self.data.customers,
                     self.data.customer_password_hashes,
-                    self.avatars,
-                    self.data.loyalty_settings,
-                    self.order_notifications,
                     self.employee_profiles,
                     self.employee_store_assignments,
                     self._profile_seq,

@@ -5,7 +5,6 @@ from cyberhub_manager.domain.models import Account
 from cyberhub_manager.repositories.management_repository import ManagementRepositoryMixin
 from cyberhub_manager.repositories.p1_repository import P1Repository
 from cyberhub_manager.services.menu_catalog_service import MenuCatalogMixin
-from cyberhub_manager.services.menu_inventory_service import MenuInventoryMixin
 from cyberhub_manager.services.menu_order_service import MenuOrderMixin
 from cyberhub_manager.services.menu_service import MenuService
 from cyberhub_manager.services.mocks.application_services import MockAuthService
@@ -19,7 +18,6 @@ def test_domain_models_keeps_the_legacy_import_contract():
 
 def test_menu_service_composes_focused_capabilities():
     assert issubclass(MenuService, MenuCatalogMixin)
-    assert issubclass(MenuService, MenuInventoryMixin)
     assert issubclass(MenuService, MenuOrderMixin)
 
 

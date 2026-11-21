@@ -7,7 +7,6 @@ import os
 
 from .enums import Role
 from .exceptions import ValidationError
-from .loyalty import TIERS, audience_matches
 
 
 class Permission(StrEnum):
@@ -202,9 +201,6 @@ class Promotion:
     starts_at: datetime
     ends_at: datetime
     is_active: bool = True
-    minimum_tier: str = "BRONZE"
-    minimum_points: int = 0
-    target_customer_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -228,9 +224,6 @@ def quote_top_up(
     policies: list[Promotion],
     store_id: int,
     now: datetime,
-    *,
-    customer_id=None,
-    member=None,
 ) -> TopUpQuote:
     if type(amount) is not int or not 1 <= amount <= 100_000_000:
         raise ValidationError(
@@ -243,7 +236,6 @@ def quote_top_up(
         and p.store_id in (None, store_id)
         and p.minimum_amount <= amount
         and p.starts_at <= now < p.ends_at
-        and audience_matches(p, customer_id, member)
     ]
     # Highest threshold; a local policy overrides a global policy at the same threshold.
     policy = max(
@@ -251,9 +243,6 @@ def quote_top_up(
         key=lambda p: (
             p.minimum_amount,
             p.store_id == store_id,
-            p.target_customer_id is not None,
-            TIERS.index(p.minimum_tier),
-            p.minimum_points,
             p.id,
         ),
         default=None,

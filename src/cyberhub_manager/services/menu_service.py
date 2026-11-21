@@ -32,7 +32,6 @@ from cyberhub_manager.domain.menu import (
     MAX_QUANTITY,
     MAX_SORT_ORDER,
     MIN_PRICE,
-    MenuChangeField,
     MenuItem,
     MenuOrderLine,
     MenuOrderStatus,
@@ -40,7 +39,6 @@ from cyberhub_manager.domain.menu import (
     MenuPage,
 )
 from cyberhub_manager.domain.p1 import CustomerSession, Permission, can
-from cyberhub_manager.domain.loyalty import TIERS
 from .pos_pricing import price_order
 
 from .p1_runtime import errors, retry_on_transient
@@ -55,35 +53,30 @@ from .menu_shared import (
     positive_id as _positive_id,
 )
 from .menu_catalog_service import MenuCatalogMixin
-from .menu_inventory_service import MenuInventoryMixin
 from .menu_order_service import MenuOrderMixin
 
 
-class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
+class MenuService(MenuCatalogMixin, MenuOrderMixin):
     def __init__(self, repo=None, p1_repo=None, auth_repo=None, transaction_factory=None,
-                 actor_provider=None, clock=None, inventory_repo=None, shift_service=None):
+                 actor_provider=None, clock=None):
         # Bản demo dùng repository bộ nhớ có resolve_actor; bản thật dùng MySQL.
         self._memory = hasattr(p1_repo, "resolve_actor")
         if not self._memory:
             from cyberhub_manager.database.transaction import transaction
             from cyberhub_manager.repositories.auth_repository import AuthRepository
             from cyberhub_manager.repositories.menu_repository import MenuRepository
-            from cyberhub_manager.repositories.inventory_repository import InventoryRepository
             from cyberhub_manager.repositories.p1_repository import P1Repository
 
             transaction_factory = transaction_factory or transaction
             auth_repo = auth_repo or AuthRepository()
             repo = repo or MenuRepository()
             p1_repo = p1_repo or P1Repository()
-            inventory_repo = inventory_repo or InventoryRepository()
         self._repo = repo
-        self._inventory = inventory_repo
         self._p1 = p1_repo
         self._auth = auth_repo
         self._transaction = transaction_factory
         self._actor_provider = actor_provider
         self._clock = clock or (lambda: datetime.now(timezone.utc))
-        self._shifts = shift_service
         hold = int(os.getenv("CYBERHUB_POS_HOLD_MINUTES", "15"))
         if not 5 <= hold <= 120:
             raise ValueError("CYBERHUB_POS_HOLD_MINUTES must be between 5 and 120")
@@ -187,21 +180,25 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
                 ),
                 can_order=session is not None and session["store_id"] == store.id,
                 orders=self._repo.account_orders(conn, customer.account_id, 5),
+                notifications=self._repo.customer_notifications(conn, customer.account_id, 20),
+                unread_notification_count=self._repo.customer_unread_notification_count(
+                    conn, customer.account_id,
+                ),
             )
 
+    def mark_notification_read(self, principal, event_id):
+        if not _positive_id(event_id):
+            raise ValidationError(field_errors={"event_id": "Mã thông báo không hợp lệ"})
+        with self._errors(), self._transaction() as conn:
+            customer = self._customer(conn, principal)
+            if not self._repo.mark_customer_notification_read(
+                conn, customer.account_id, event_id,
+            ):
+                raise NotFoundError("Không tìm thấy thông báo")
+            return {"event_id": event_id, "read": True}
+
     def place_order(self, principal, lines, note=""):
-        try:
-            return self._place_order(principal, lines, note)
-        except ConflictError as exc:
-            if str(exc).startswith((ITEM_UNAVAILABLE, "Không đủ nguyên liệu:",
-                                    "Tồn khả dụng vừa thay đổi")):
-                with self._errors(), self._transaction() as conn:
-                    customer = self._customer(conn, principal)
-                    session = self._repo.active_session(conn, customer.customer_id)
-                    if session is not None:
-                        self._repo.record_unavailable_notification(conn, customer.account_id,
-                            session["store_id"], self._clock())
-            raise
+        return self._place_order(principal, lines, note)
 
     @retry_on_transient
     def _place_order(self, principal, lines, note=""):
@@ -244,10 +241,10 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
             if unavailable:
                 message = f"{ITEM_UNAVAILABLE}: {', '.join(unavailable)}"
                 raise ConflictError(message, field_errors={"lines": message})
-            member = self._p1.loyalty_summary(conn, customer.customer_id)
-            pricing = price_order(order_lines,
+            pricing = price_order(
+                order_lines,
                 self._repo.active_promotions(conn, session["store_id"], self._clock()),
-                member["tier"] if member["enabled"] else "BRONZE")
+            )
             code = new_order_code()
             order_id = self._repo.insert_order(
                 conn,
@@ -261,26 +258,6 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
                 expires_at=self._clock() + self._hold_duration,
             )
             self._repo.save_order_pricing(conn, order_id, pricing)
-            if self._inventory is not None:
-                self._inventory.reserve_order(
-                    conn, order_id, session["store_id"], customer.account_id, order_lines
-                )
             order = self._repo.get_order(conn, order_id)
-            self._repo.record_order_notification(
-                conn, order, MenuOrderStatus.NEW, order.created_at,
-            )
             return order
 
-    def portal_image(self, principal, item_id):
-        with self._errors(), self._transaction() as conn:
-            self._customer(conn, principal)
-            item = self._repo.get_item(conn, item_id) if _positive_id(item_id) else None
-            if item is None or not item.is_visible:
-                raise NotFoundError(ITEM_NOT_FOUND)
-            return self._image(conn, item)
-
-    def _image(self, conn, item):
-        data = self._repo.get_image(conn, item.id)
-        if data is None:
-            raise NotFoundError("Món chưa có ảnh")
-        return data

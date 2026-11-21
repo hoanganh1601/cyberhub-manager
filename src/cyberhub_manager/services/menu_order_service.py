@@ -51,7 +51,7 @@ class MenuOrderMixin:
         now = now or self._clock()
         if now.tzinfo is None:
             raise ValueError("now must include timezone")
-        warned = expired = 0
+        expired = 0
         with self._errors(), self._transaction() as conn:
             candidates = self._repo.pending_holds(conn, now + timedelta(minutes=2), limit)
         for order_id in candidates:
@@ -63,15 +63,8 @@ class MenuOrderMixin:
                     if not self._repo.finish_order(conn, order.id, MenuOrderStatus.CANCELLED,
                                                    None, reason="AUTO_EXPIRED"):
                         continue
-                    if self._inventory is not None:
-                        self._inventory.transition_order(conn, order, MenuOrderStatus.CANCELLED,
-                                                         None, reason="AUTO_EXPIRED")
-                    updated = self._repo.get_order(conn, order.id)
-                    self._repo.record_order_notification(conn, updated, MenuOrderStatus.CANCELLED, now)
                     expired += 1
-                elif order.reservation_expires_at <= now + timedelta(minutes=2):
-                    warned += int(self._repo.record_hold_warning(conn, order, now))
-        return dict(warned=warned, expired=expired)
+        return dict(expired=expired)
 
     @retry_on_transient
     def finish_order(self, actor, order_id, status, *, reason=None):
@@ -101,15 +94,8 @@ class MenuOrderMixin:
                 conn, order.id, status, current.employee_id, reason=reason,
             ):
                 raise ConflictError(ORDER_ALREADY_HANDLED)
-            if self._inventory is not None:
-                self._inventory.transition_order(
-                    conn, order, status, current.employee_id, reason=reason,
-                )
             self._p1.audit(conn, current, f"MENU_ORDER_{status.value}", order.id)
             updated = self._repo.get_order(conn, order.id)
-            self._repo.record_order_notification(
-                conn, updated, status, self._clock(),
-            )
             return updated
 
     @retry_on_transient
@@ -125,18 +111,8 @@ class MenuOrderMixin:
                 raise NotFoundError(ORDER_NOT_FOUND)
             if not self._repo.pay_order(conn, order.id, method, current.employee_id, self._clock()):
                 raise ConflictError("Chỉ thanh toán đơn đã phục vụ và chưa thanh toán")
-            if self._shifts is not None:
-                self._shifts.record_system_entry(
-                    conn, current, kind="RECEIPT", payment_method=method.value,
-                    amount=max(0, order.total_amount - order.discount_amount),
-                    source_type="POS_ORDER", source_id=order.id,
-                    note="Thanh toán đơn POS",
-                )
             self._p1.audit(conn, current, f"MENU_ORDER_PAID_{method.value}", order.id)
             updated = self._repo.get_order(conn, order.id)
-            self._repo.record_order_notification(
-                conn, updated, MenuOrderStatus.PAID, updated.paid_at,
-            )
             return updated
 
     @retry_on_transient
@@ -205,17 +181,7 @@ class MenuOrderMixin:
                 if not self._repo.set_reversed_status(conn, order, target, current.employee_id,
                                                       request["reason"]):
                     raise ConflictError("Trạng thái đơn đã thay đổi")
-                if self._inventory is not None:
-                    self._inventory.reverse_served_order(conn, order, current.employee_id,
-                        restock=request["disposition"] == "RESTOCK", reason=request["reason"])
                 updated = self._repo.get_order(conn, order.id)
-                self._repo.record_order_notification(conn, updated, target, now)
-                if amount and self._shifts is not None:
-                    self._shifts.record_system_entry(
-                        conn, current, kind="REFUND", payment_method=refund_method,
-                        amount=amount, source_type="POS_REVERSAL", source_id=request["id"],
-                        note=request["reason"],
-                    )
             self._p1.audit(conn, current,
                            "POS_REVERSAL_APPROVED" if approve else "POS_REVERSAL_REJECTED", order.id)
             return self._repo.get_reversal(conn, order.id)

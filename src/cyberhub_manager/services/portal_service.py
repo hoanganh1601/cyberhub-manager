@@ -10,11 +10,10 @@ from cyberhub_manager.security import verify_password
 from .p1_runtime import errors
 from .portal_experience import PortalExperienceMixin
 from .portal_phase2 import PortalPhase2Mixin
-from .portal_membership import PortalMembershipMixin
 from datetime import datetime, timezone
 
 
-class PortalService(PortalExperienceMixin, PortalPhase2Mixin,PortalMembershipMixin):
+class PortalService(PortalExperienceMixin, PortalPhase2Mixin):
     def __init__(self, repo=None, transaction_factory=None, clock=None, invoice_query=None):
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._memory = hasattr(repo, "resolve_actor")

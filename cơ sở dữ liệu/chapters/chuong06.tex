@@ -1,0 +1,381 @@
+\chapter{Truy vấn cơ sở dữ liệu}
+
+\section{Mục tiêu và quy ước truy vấn}
+Chương này trình bày các truy vấn minh họa trên những bảng và cột có trong schema CyberHub Manager. Đây là câu lệnh ví dụ để giải thích cách khai thác quan hệ; không khẳng định mỗi câu là SQL đang được gọi nguyên văn trong repository. Tên cột có alias được đối chiếu với data dictionary. Không đưa kết quả dữ liệu mẫu hay số liệu runtime vì chúng phụ thuộc database được truy vấn.
+
+Tiền trong cơ sở dữ liệu được lưu bằng số nguyên VND. Các cột thời gian lưu theo UTC; nếu báo cáo yêu cầu ngày theo giờ Việt Nam, cần chuyển đổi múi giờ trước khi lấy ngày hoặc lọc khoảng thời gian. Ví dụ dưới đây nhóm theo ngày UTC để thể hiện đúng giá trị đang lưu. Truy vấn báo cáo doanh thu chỉ tính bản ghi đã thanh toán; đơn bị hủy không được xem là doanh thu.
+
+\section{Đếm số máy theo trạng thái tại từng cửa hàng}
+\subsection*{Mục tiêu}
+Cho biết ở mỗi cơ sở có bao nhiêu máy theo từng trạng thái, hỗ trợ quản lý phân biệt máy sẵn sàng, đang sử dụng và đang bảo trì.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT s.id AS store_id,
+       s.name AS store_name,
+       m.status,
+       COUNT(*) AS machine_count
+FROM stores AS s
+JOIN machines AS m ON m.store_id = s.id
+WHERE m.is_active = TRUE
+GROUP BY s.id, s.name, m.status
+ORDER BY s.name, m.status;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Khóa ngoại \texttt{machines.store\_id} nối máy với cửa hàng. Điều kiện \texttt{is\_active = TRUE} loại máy đã ngừng khai thác. \texttt{GROUP BY} tạo một nhóm cho mỗi cặp cửa hàng--trạng thái; \texttt{COUNT(*)} đếm số máy trong nhóm. Kết quả gồm tên cơ sở, trạng thái và số lượng máy tương ứng. Nếu cần hiển thị cả cửa hàng chưa có máy, thay \texttt{JOIN} bằng \texttt{LEFT JOIN} và dùng \texttt{COUNT(m.id)}.
+
+\section{Số phiên sử dụng của từng khách hàng}
+\subsection*{Mục tiêu}
+Thống kê số phiên theo khách để hỗ trợ tra cứu mức độ sử dụng dịch vụ. Truy vấn vẫn hiển thị khách chưa từng có phiên.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT c.id AS customer_id,
+       c.code AS customer_code,
+       c.full_name,
+       COUNT(us.id) AS session_count
+FROM customers AS c
+LEFT JOIN usage_sessions AS us ON us.customer_id = c.id
+GROUP BY c.id, c.code, c.full_name
+ORDER BY session_count DESC, c.full_name;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Sử dụng \texttt{LEFT JOIN} để giữ lại khách không có phiên; với khách đó, \texttt{COUNT(us.id)} trả về 0. Không dùng \texttt{COUNT(*)} vì một khách không có phiên vẫn tạo một dòng kết quả sau LEFT JOIN và có thể bị đếm thành 1. Truy vấn đếm mọi trạng thái phiên; nếu chỉ muốn đếm phiên hoàn tất, thêm điều kiện trạng thái vào mệnh đề \texttt{ON} hoặc dùng biểu thức đếm có điều kiện.
+
+\section{Tồn kho khả dụng theo nguyên liệu và cửa hàng}
+\subsection*{Mục tiêu}
+Hiển thị lượng tồn thực tế, lượng đang được giữ cho đơn chưa hoàn tất và lượng hiện có thể tiếp tục sử dụng.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT s.name AS store_name,
+       i.code AS ingredient_code,
+       i.name AS ingredient_name,
+       i.unit,
+       i.on_hand,
+       i.reserved,
+       i.on_hand - i.reserved AS available_quantity,
+       i.reorder_point,
+       CASE
+         WHEN i.on_hand - i.reserved <= i.reorder_point THEN 'NEED_RESTOCK'
+         ELSE 'SUFFICIENT'
+       END AS stock_alert
+FROM inventory_ingredients AS i
+JOIN stores AS s ON s.id = i.store_id
+WHERE i.is_active = TRUE
+ORDER BY s.name, stock_alert DESC, i.name;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Lượng khả dụng được tính từ \texttt{on\_hand - reserved}; đây là phép tính trên dữ liệu hiện thời chứ không phải tổng số lần nhập. \texttt{reorder\_point} là ngưỡng cảnh báo của nguyên liệu tại cơ sở. Mỗi dòng kết quả cho biết cửa hàng, mã/tên nguyên liệu, đơn vị, lượng tồn, lượng đã giữ và cảnh báo nhập thêm. Điều kiện CHECK trong schema bảo đảm các lượng không âm và lượng giữ không lớn hơn lượng tồn.
+
+\section{Số giao dịch và tổng giá trị theo phương thức thanh toán}
+\subsection*{Mục tiêu}
+Thống kê số lần sử dụng mỗi phương thức ghi nhận trong sổ giao dịch tài khoản và tổng giá trị tuyệt đối của các giao dịch.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT method,
+       COUNT(*) AS transaction_count,
+       SUM(ABS(amount)) AS gross_transaction_amount_vnd
+FROM account_transactions
+GROUP BY method
+ORDER BY transaction_count DESC, method;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Mỗi dòng trong \texttt{account\_transactions} là một sự kiện số dư. Do giao dịch thanh toán sử dụng có số tiền âm, \texttt{ABS(amount)} đưa các khoản tăng và giảm về độ lớn dương để cộng giá trị luân chuyển. Đây là tổng giá trị giao dịch gộp, không phải doanh thu: khoản nạp tiền và khuyến mãi cũng xuất hiện trong sổ này. Nếu câu hỏi chỉ cần số lần, có thể bỏ biểu thức SUM.
+
+\section{Doanh thu sử dụng máy theo ngày}
+\subsection*{Mục tiêu}
+Tổng hợp doanh thu từ hóa đơn checkout đã thanh toán theo ngày lập hóa đơn.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT DATE(created_at) AS revenue_date_utc,
+       COUNT(*) AS paid_invoice_count,
+       SUM(usage_cost) AS revenue_vnd
+FROM invoices
+WHERE status = 'PAID'
+GROUP BY DATE(created_at)
+ORDER BY revenue_date_utc;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Điều kiện \texttt{status = 'PAID'} loại hóa đơn bị vô hiệu hóa. Trong schema P0, \texttt{total\_amount = usage\_cost}; \texttt{settlement\_amount} là phần thanh toán bổ sung và không được cộng lần nữa. Vì vậy doanh thu được tính từ \texttt{usage\_cost}. Kết quả có ngày UTC, số hóa đơn đã thanh toán và doanh thu VND. Khi báo cáo theo ngày Việt Nam, cần chuyển \texttt{created\_at} từ UTC sang múi giờ \texttt{Asia/Ho\_Chi\_Minh} trước khi lấy DATE.
+
+\section{Top món được gọi nhiều nhất}
+\subsection*{Mục tiêu}
+Tìm các món có tổng số lượng được gọi lớn nhất. Chỉ loại đơn đã hủy; truy vấn này đo nhu cầu gọi món, không khẳng định tất cả đơn đều đã thanh toán.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT mi.id AS item_id,
+       mi.name AS item_name,
+       SUM(moi.quantity) AS quantity_ordered,
+       COUNT(DISTINCT mo.id) AS order_count
+FROM menu_items AS mi
+JOIN menu_order_items AS moi ON moi.item_id = mi.id
+JOIN menu_orders AS mo ON mo.id = moi.order_id
+WHERE mo.status <> 'CANCELLED'
+GROUP BY mi.id, mi.name
+HAVING SUM(moi.quantity) >= 2
+ORDER BY quantity_ordered DESC, mi.name
+LIMIT 10;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Ba bảng được nối theo quan hệ món--dòng đơn--đơn hàng. \texttt{SUM(quantity)} tính tổng số phần món; \texttt{COUNT(DISTINCT mo.id)} đếm số đơn khác nhau có món đó. \texttt{HAVING} lọc sau khi nhóm, chỉ giữ món được gọi ít nhất hai phần. Điều kiện này tương tự yêu cầu lọc nhóm có ít nhất hai lượt, nhưng áp dụng cho dữ liệu gọi món vì hệ thống không có bảng đánh giá sách/món trong phạm vi truy vấn này.
+
+\section{Số voucher còn hạn theo tài khoản khách}
+\subsection*{Mục tiêu}
+Đếm voucher đang được phát hành và chưa hết hạn của từng tài khoản tại thời điểm truy vấn.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT a.id AS account_id,
+       a.username,
+       COUNT(cv.id) AS valid_voucher_count
+FROM accounts AS a
+LEFT JOIN customer_vouchers AS cv
+  ON cv.account_id = a.id
+ AND cv.status = 'ISSUED'
+ AND cv.expires_at > UTC_TIMESTAMP()
+GROUP BY a.id, a.username
+ORDER BY valid_voucher_count DESC, a.username;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Điều kiện trạng thái và hạn dùng được đặt trong mệnh đề \texttt{ON} để LEFT JOIN vẫn giữ tài khoản chưa có voucher, khi đó số đếm bằng 0. Voucher chỉ được tính còn hạn nếu đang ở trạng thái \texttt{ISSUED} và \texttt{expires\_at} lớn hơn thời điểm UTC hiện tại. Voucher đã dùng hoặc thu hồi không được tính.
+
+\section{Xếp hạng khách theo chi tiêu sử dụng máy}
+\subsection*{Mục tiêu}
+Xếp hạng khách theo tổng chi phí phiên đã checkout và có hóa đơn trạng thái PAID.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT c.id AS customer_id,
+       c.code AS customer_code,
+       c.full_name,
+       COUNT(i.id) AS paid_session_count,
+       SUM(i.usage_cost) AS spending_vnd
+FROM customers AS c
+JOIN invoices AS i ON i.customer_id = c.id
+WHERE i.status = 'PAID'
+GROUP BY c.id, c.code, c.full_name
+ORDER BY spending_vnd DESC, c.full_name;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+Truy vấn nối khách với hóa đơn, chỉ lấy hóa đơn đã thanh toán, sau đó cộng \texttt{usage\_cost} theo khách. \texttt{COUNT(i.id)} cho biết số hóa đơn/phiên đã thanh toán được tính vào xếp hạng. Khóa duy nhất trên \texttt{invoices.session\_id} bảo đảm một phiên không bị nhân đôi hóa đơn. Kết quả không tính đơn POS hoặc khoản nạp tiền; đây là chi tiêu dịch vụ sử dụng máy theo định nghĩa của truy vấn.
+
+\section{Doanh số gộp đơn POS theo nhóm món và tháng}
+\subsection*{Mục tiêu}
+Tổng hợp doanh số của các đơn POS đã thanh toán theo nhóm thực đơn và tháng, đồng thời phân bổ chiết khấu của đơn theo tỷ trọng giá trị từng nhóm trong đơn.
+
+\subsection*{Giả định phân bổ}
+Một đơn có thể chứa món thuộc nhiều nhóm, trong khi bảng \texttt{menu\_order\_pricing} lưu tổng tiền cuối cùng và tổng chiết khấu ở cấp đơn. Để tính doanh thu thuần theo nhóm, truy vấn phân bổ \texttt{final\_amount} theo tỷ lệ giá trị gộp của từng nhóm trên tổng giá trị gộp của đơn:
+\[
+\text{doanh thu nhóm trong đơn}
+=\frac{\text{giá trị gộp nhóm}}{\text{giá trị gộp đơn}}\times\text{final\_amount}.
+\]
+Đây là quy tắc phân bổ báo cáo; nếu nghiệp vụ yêu cầu dồn toàn bộ chiết khấu vào một món/nhóm cụ thể thì cần thay công thức theo chính sách đó.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+WITH line_values AS (
+  SELECT mo.id AS order_id,
+         mo.store_id,
+         mo.created_at,
+         mc.id AS category_id,
+         mc.name AS category_name,
+         SUM(moi.unit_price * moi.quantity) AS category_gross
+  FROM menu_orders AS mo
+  JOIN menu_order_items AS moi ON moi.order_id = mo.id
+  JOIN menu_items AS mi ON mi.id = moi.item_id
+  JOIN menu_categories AS mc ON mc.id = mi.category_id
+  WHERE mo.status = 'PAID'
+  GROUP BY mo.id, mo.store_id, mo.created_at, mc.id, mc.name
+), order_values AS (
+  SELECT order_id, SUM(category_gross) AS order_gross
+  FROM line_values
+  GROUP BY order_id
+)
+SELECT lv.store_id,
+       lv.category_id,
+       lv.category_name,
+       DATE_FORMAT(lv.created_at, '%Y-%m') AS revenue_month_utc,
+       SUM(lv.category_gross) AS gross_sales_vnd,
+       SUM(lv.category_gross * mop.final_amount /
+           NULLIF(ov.order_gross, 0)) AS allocated_net_sales_vnd
+FROM line_values AS lv
+JOIN order_values AS ov ON ov.order_id = lv.order_id
+JOIN menu_order_pricing AS mop ON mop.order_id = lv.order_id
+GROUP BY lv.store_id, lv.category_id, lv.category_name,
+         DATE_FORMAT(lv.created_at, '%Y-%m')
+ORDER BY revenue_month_utc, lv.store_id, lv.category_name;
+\end{lstlisting}
+
+\subsection*{Giải thích truy vấn}
+CTE \texttt{line\_values} tính giá trị gộp theo nhóm món trong từng đơn. CTE \texttt{order\_values} tính tổng giá trị gộp của toàn đơn. Kết quả nối với \texttt{menu\_order\_pricing}, nơi lưu \texttt{final\_amount} sau khuyến mãi, rồi phân bổ số tiền cuối theo tỷ trọng. \texttt{NULLIF} tránh chia cho 0. Các phép tính dùng kiểu số thập phân của MySQL vì phép chia có thể tạo phần lẻ; khi xuất báo cáo tiền VND, có thể làm tròn theo quy tắc thống nhất và cần xử lý phần sai lệch làm tròn để tổng các nhóm khớp tổng tiền đơn.
+
+Truy vấn này giả định mọi đơn \texttt{PAID} đều có dòng giá cuối cùng trong \texttt{menu\_order\_pricing}. Nếu có đơn lịch sử chưa áp dụng bảng pricing, cần dùng \texttt{LEFT JOIN} và lấy \texttt{menu\_orders.total\_amount} làm phương án dự phòng.
+
+\section{Danh sách phiên đang hoạt động}
+\subsection*{Mục tiêu}
+Giúp nhân viên và quản lý theo dõi các phiên chưa checkout, thời gian đã sử dụng và thông tin máy/khách liên quan.
+
+\subsection*{Câu truy vấn}
+\begin{lstlisting}[language=SQL]
+SELECT us.id AS session_id,
+       us.code AS session_code,
+       c.full_name,
+       m.code AS machine_code,
+       s.name AS store_name,
+       us.started_at,
+       TIMESTAMPDIFF(MINUTE, us.started_at, UTC_TIMESTAMP()) AS elapsed_minutes,
+       us.hourly_rate
+FROM usage_sessions AS us
+JOIN customers AS c ON c.id = us.customer_id
+JOIN machines AS m ON m.id = us.machine_id
+JOIN stores AS s ON s.id = m.store_id
+WHERE us.status = 'ACTIVE'
+ORDER BY us.started_at;
+\end{lstlisting}
+
+Kết quả cho biết phiên đang chạy, cửa hàng, máy, khách và số phút đã trôi qua theo UTC. Thời lượng này chỉ để theo dõi; chi phí cuối cùng phải dùng quy tắc tính tiền của service khi checkout.
+
+\section{Doanh thu theo cửa hàng trong khoảng thời gian}
+\subsection*{Mục tiêu}
+So sánh doanh thu hóa đơn PAID giữa các cơ sở trong khoảng thời gian do người dùng chọn.
+\begin{lstlisting}[language=SQL]
+SELECT s.id AS store_id,
+       s.name AS store_name,
+       COUNT(i.id) AS invoice_count,
+       COALESCE(SUM(i.usage_cost), 0) AS revenue_vnd
+FROM stores AS s
+LEFT JOIN invoices AS i
+  ON i.store_id = s.id
+ AND i.status = 'PAID'
+ AND i.created_at >= %s
+ AND i.created_at < %s
+GROUP BY s.id, s.name
+ORDER BY revenue_vnd DESC, s.name;
+\end{lstlisting}
+
+Hai tham số thời gian được truyền riêng qua prepared statement, theo khoảng nửa mở $[from,to)$ để không đếm trùng ranh giới giữa các kỳ. Điều kiện trong ON giữ lại cửa hàng chưa phát sinh hóa đơn; \texttt{COALESCE} hiển thị doanh thu bằng 0. Thời gian đầu vào phải theo UTC.
+
+\section{Sự cố máy chưa hoàn tất}
+\subsection*{Mục tiêu}
+Liệt kê sự cố cần tiếp tục xử lý, kèm cửa hàng, máy, mức độ và nhân viên được giao.
+\begin{lstlisting}[language=SQL]
+SELECT mi.code AS incident_code,
+       s.name AS store_name,
+       m.code AS machine_code,
+       mi.title,
+       mi.severity,
+       mi.status,
+       e.full_name AS assignee,
+       mi.reported_at
+FROM machine_incidents AS mi
+JOIN stores AS s ON s.id = mi.store_id
+JOIN machines AS m ON m.id = mi.machine_id
+LEFT JOIN employees AS e ON e.id = mi.assigned_to
+WHERE mi.status NOT IN ('COMPLETED', 'VERIFIED', 'CANCELLED')
+ORDER BY FIELD(mi.severity, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'),
+         mi.reported_at;
+\end{lstlisting}
+
+LEFT JOIN cho phép hiển thị sự cố chưa được phân công. Các sự cố hoàn tất, đã xác minh hoặc hủy được loại khỏi danh sách. \texttt{FIELD} sắp mức độ nghiêm trọng theo thứ tự ưu tiên.
+
+\section{Công nợ nhà cung cấp quá hạn}
+\subsection*{Mục tiêu}
+Tra cứu khoản phải trả chưa thanh toán và đã qua ngày đến hạn.
+\begin{lstlisting}[language=SQL]
+SELECT s.name AS store_name,
+       sup.name AS supplier_name,
+       sp.amount AS payable_amount_vnd,
+       sp.paid_amount AS paid_amount_vnd,
+       sp.amount - sp.paid_amount AS remaining_amount_vnd,
+       sp.due_date
+FROM supplier_payables AS sp
+JOIN stores AS s ON s.id = sp.store_id
+JOIN suppliers AS sup ON sup.id = sp.supplier_id
+WHERE sp.status = 'UNPAID'
+  AND sp.due_date < UTC_DATE()
+ORDER BY sp.due_date, s.name, sup.name;
+\end{lstlisting}
+
+Khoản còn phải trả bằng số tiền phải trả trừ số đã thanh toán. Nếu ngày nghiệp vụ được xác định theo múi giờ Việt Nam thay vì UTC, cần truyền ngày địa phương từ ứng dụng thay cho \texttt{UTC\_DATE()}.
+
+\section{Chênh lệch khi đóng ca}
+\subsection*{Mục tiêu}
+Theo dõi tiền dự kiến, tiền kiểm đếm và chênh lệch của các ca đã nộp kiểm tra hoặc đóng.
+\begin{lstlisting}[language=SQL]
+SELECT s.name AS store_name,
+       e.full_name AS employee_name,
+       cs.code AS shift_code,
+       cs.status,
+       cs.opened_at,
+       cs.submitted_at,
+       cs.closed_at,
+       cs.expected_cash,
+       cs.counted_cash,
+       cs.variance,
+       cs.review_note
+FROM cash_shifts AS cs
+JOIN stores AS s ON s.id = cs.store_id
+JOIN employees AS e ON e.id = cs.employee_id
+WHERE cs.status IN ('PENDING_REVIEW', 'CLOSED')
+ORDER BY cs.opened_at DESC;
+\end{lstlisting}
+
+Ca đang OPEN chưa có số tiền kiểm đếm nên không nằm trong báo cáo. \texttt{variance} là kết quả được ghi khi nộp ca; chiều dương/âm tuân theo quy ước nghiệp vụ của service. Truy vấn này đọc kết quả, không tự tính lại tiền mặt dự kiến.
+
+\section{Nguyên liệu cần nhập thêm}
+\subsection*{Mục tiêu}
+Tạo danh sách cảnh báo khi lượng khả dụng bằng hoặc thấp hơn ngưỡng đặt hàng.
+\begin{lstlisting}[language=SQL]
+SELECT s.name AS store_name,
+       i.code,
+       i.name AS ingredient_name,
+       i.unit,
+       i.on_hand - i.reserved AS available_quantity,
+       i.reorder_point
+FROM inventory_ingredients AS i
+JOIN stores AS s ON s.id = i.store_id
+WHERE i.is_active = TRUE
+  AND i.on_hand - i.reserved <= i.reorder_point
+ORDER BY s.name, available_quantity, i.name;
+\end{lstlisting}
+
+Lượng khả dụng trừ phần đang giữ chỗ để không đánh giá quá cao lượng có thể sử dụng. Danh sách này hỗ trợ quyết định tạo đề nghị mua, nhưng truy vấn không tự tạo đơn mua hàng.
+
+\section{Tỷ lệ voucher đã sử dụng theo nguồn phát hành}
+\subsection*{Mục tiêu}
+Đánh giá lượng voucher và tỷ lệ sử dụng theo nguồn như cấp thủ công, trò chơi hoặc quảng cáo.
+\begin{lstlisting}[language=SQL]
+SELECT source,
+       COUNT(*) AS issued_count,
+       SUM(CASE WHEN status = 'USED' THEN 1 ELSE 0 END) AS used_count,
+       ROUND(
+         100.0 * SUM(CASE WHEN status = 'USED' THEN 1 ELSE 0 END)
+         / NULLIF(COUNT(*), 0),
+         2
+       ) AS redemption_rate_percent
+FROM customer_vouchers
+GROUP BY source
+ORDER BY issued_count DESC;
+\end{lstlisting}
+
+Mẫu số gồm toàn bộ voucher theo nguồn; tử số chỉ gồm voucher USED. Vì vậy đây là tỷ lệ sử dụng trên tổng số voucher, kể cả voucher còn hạn hoặc đã thu hồi. Nếu cần tỷ lệ trên voucher đủ điều kiện sử dụng trong một kỳ, cần xác định rõ ngày phát hành/hết hạn và trạng thái được tính.
+
+\section{Chỉ mục liên quan đến truy vấn}
+Các migration khai báo chỉ mục cho những luồng tra cứu phổ biến. Ví dụ, \texttt{sql/002\_indexes.sql} có chỉ mục trên \texttt{(store\_id, status)} của nhân viên, \texttt{(machine\_id, started\_at)} và \texttt{(customer\_id, started\_at)} của phiên, \texttt{(account\_id, created\_at)} của giao dịch, cùng \texttt{(store\_id, status, created\_at)} của hóa đơn. Các migration sau bổ sung chỉ mục riêng cho phân hệ tương ứng.
+
+Việc có chỉ mục không tự chứng minh một truy vấn nhanh trong mọi môi trường. Cần căn cứ điều kiện lọc, số lượng dữ liệu, cấu hình MySQL và kế hoạch thực thi nếu cần đánh giá hiệu năng. Chương này không đưa ra số liệu benchmark vì không có kết quả đo được xác nhận kèm theo trong nguồn dự án.
+
+\section{Kết luận chương}
+Các câu SQL trong chương là ví dụ tra cứu và tổng hợp trên các bảng/cột đã khai báo trong schema. Phần giải thích mô tả phép nối, lọc và nhóm dữ liệu mà truy vấn thực hiện; không đại diện cho kết quả của một bộ dữ liệu runtime cụ thể.

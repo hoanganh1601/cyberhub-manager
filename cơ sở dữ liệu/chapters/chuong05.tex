@@ -1,0 +1,36 @@
+\chapter{Cài đặt và quản lý schema}
+
+\section{Hệ quản trị và kết nối ứng dụng}
+Dự án khai báo MySQL 8.4 trong \texttt{docker-compose.yml} và dùng \texttt{mysql-connector-python} để kết nối. Khi chạy chế độ MySQL, service điều phối nghiệp vụ và repository thực hiện truy vấn trên database. Thông tin kết nối được lấy từ biến môi trường; không ghi thông tin xác thực triển khai trực tiếp vào báo cáo.
+
+\section{Phân biệt mô hình báo cáo và schema mã nguồn}
+Hai phạm vi cần được phân biệt rõ. Các Chương 1--4 và 6 trình bày \textbf{mô hình rút gọn 20 bảng} được chọn cho bài tập. Trong khi đó, thư mục \texttt{sql} của repository ghi lại schema của ứng dụng qua các migration, gồm các thay đổi mở rộng và các bước thu hẹp trước đây.
+
+Migration \texttt{028\_scope\_to\_24\_tables.sql} loại nhiều phân hệ khỏi schema, trong đó có \texttt{customer\_notification\_events} và \texttt{customer\_notification\_reads}. Migration \texttt{030\_scope\_to\_20\_tables.sql} thu hẹp thêm bốn bảng khác. Vì vậy, mô hình 20 bảng mới trong báo cáo chưa trùng hoàn toàn với trạng thái schema do lịch sử migration hiện tại tạo ra: báo cáo chọn hai bảng thông báo và gộp thông tin hồ sơ/loại phòng máy vào \texttt{employees}/\texttt{machines}. Đây là mô hình thiết kế của bài báo cáo, không phải khẳng định rằng database đang chạy đã được chuyển đổi theo đúng danh sách này.
+
+Muốn triển khai đúng mô hình báo cáo, cần tạo migration thay đổi schema và đồng bộ repository/service tương ứng. Không nên sửa migration đã áp dụng trên môi trường dùng chung; thay đổi triển khai cần được ghi bằng migration mới và có kế hoạch dữ liệu nếu cần giữ thông tin cũ.
+
+\section{Migration và dữ liệu mẫu}
+Migration định nghĩa cấu trúc; dữ liệu mẫu được quản lý riêng. Script \texttt{scripts/init\_db.py} xử lý các file migration theo thứ tự và lưu lịch sử vào bảng kỹ thuật \texttt{schema\_migrations}. Bảng kỹ thuật này không thuộc 20 thực thể nghiệp vụ trong ERD. Trước khi khởi tạo hoặc chạy migration, cần xác nhận đúng database đích vì thao tác migration có thể thay đổi cấu trúc và dữ liệu.
+
+\section{Khởi tạo môi trường phát triển}
+Các lệnh cơ bản theo cấu hình repository:
+\begin{lstlisting}[language=bash]
+docker compose up -d mysql
+docker compose ps
+python -m pip install -e ".[dev]"
+python scripts/init_db.py
+\end{lstlisting}
+
+Thông tin kết nối thường được cấu hình qua các biến \texttt{MYSQL\_HOST}, \texttt{MYSQL\_PORT}, \texttt{MYSQL\_DATABASE}, \texttt{MYSQL\_USER} và \texttt{MYSQL\_PASSWORD}. Chỉ nạp dữ liệu mẫu vào database đã được xác nhận là môi trường phát triển.
+
+\section{Khóa, ràng buộc và chỉ mục}
+Khi hiện thực mô hình 20 bảng, cần khai báo PK cho mọi bảng, FK cho các quan hệ trong ERD, UNIQUE cho các mã/tên đăng nhập cần duy nhất, và CHECK cho số lượng/giá trị hợp lệ. Ví dụ, \texttt{accounts.customer\_id} duy nhất nếu mỗi khách chỉ có một tài khoản; \texttt{invoices.session\_id} duy nhất nếu mỗi phiên có tối đa một hóa đơn; các bảng liên kết dùng khóa chính ghép.
+
+Chỉ mục nên được thiết kế theo truy vấn thực tế, chẳng hạn theo cửa hàng/trạng thái của máy, khách/thời điểm của phiên, tài khoản/thời điểm giao dịch và cửa hàng/thời điểm đơn hàng. Chỉ mục phù hợp có thể giảm lượng dòng cần đọc, nhưng cần dùng kế hoạch thực thi và dữ liệu đại diện để đánh giá hiệu năng.
+
+\section{Transaction}
+Các nghiệp vụ nhiều bước như kết thúc phiên và ghi hóa đơn hoặc tạo đơn và ghi chi tiết nên thực hiện trong cùng transaction. Nếu một bước lỗi, transaction cần rollback để tránh lưu một phần dữ liệu. Quy tắc chính xác về khóa và thứ tự thao tác phụ thuộc DDL và service khi triển khai mô hình.
+
+\section{Kết luận chương}
+Báo cáo phân biệt mô hình logic 20 bảng với schema lịch sử trong repository. Việc đồng bộ database đang chạy với mô hình mới là bước triển khai riêng, cần migration và cập nhật ứng dụng; nội dung mô tả ERD trong báo cáo không tự thay đổi schema thực tế.

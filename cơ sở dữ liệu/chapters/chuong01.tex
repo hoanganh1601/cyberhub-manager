@@ -1,0 +1,50 @@
+\chapter{Kịch bản thế giới thực và yêu cầu dữ liệu}
+
+\section{Kịch bản thế giới thực}
+
+\subsection{Bối cảnh thực tế}
+CyberHub Manager là hệ thống hỗ trợ vận hành cửa hàng Internet. Trong phạm vi báo cáo, hệ thống quản lý cửa hàng và nhân viên, khách hàng và tài khoản, máy tính và phiên sử dụng, các giao dịch và hóa đơn, cùng hoạt động bán món tại quầy. Nhân viên thao tác trên hệ thống theo vai trò và được phân công làm việc tại cửa hàng. Khách hàng sử dụng tài khoản để tham gia phiên máy, thực hiện các giao dịch liên quan và nhận thông báo.
+
+Các nghiệp vụ mở rộng như kho, mua hàng, voucher, tích điểm, game, quảng cáo và đối tác thương mại không thuộc mô hình rút gọn được trình bày trong báo cáo này.
+
+\subsection{Các tác nhân chính}
+\textbf{Khách hàng}
+\begin{itemize}
+  \item Có hồ sơ khách hàng và tài khoản gắn với số dư.
+  \item Sử dụng máy thông qua phiên sử dụng được nhân viên mở và đóng.
+  \item Phát sinh giao dịch qua tài khoản, hóa đơn cho phiên sử dụng và có thể nhận thông báo từ hệ thống.
+\end{itemize}
+
+\textbf{Nhân viên}
+\begin{itemize}
+  \item Được phân công vào một hoặc nhiều cửa hàng theo dữ liệu phân công.
+  \item Thực hiện các thao tác vận hành như mở/đóng phiên, xử lý giao dịch, lập hóa đơn và tiếp nhận đơn món theo vai trò.
+  \item Có thể thực hiện thao tác quản trị được ghi nhận trong nhật ký quản trị.
+\end{itemize}
+
+\subsection{Các dữ liệu cần lưu trữ}
+Để hỗ trợ các nghiệp vụ trong phạm vi, mô hình báo cáo lưu trữ các nhóm thông tin sau:
+\begin{itemize}
+  \item \textbf{Cửa hàng và nhân viên:} mã, tên, địa chỉ và trạng thái cửa hàng; thông tin đăng nhập, họ tên, số điện thoại, vai trò và trạng thái nhân viên; cùng dữ liệu phân công nhân viên cho cửa hàng.
+  \item \textbf{Khách hàng và tài khoản:} mã, họ tên, số điện thoại, email và trạng thái khách hàng; tài khoản liên kết với khách, tên đăng nhập, số dư và trạng thái.
+  \item \textbf{Máy và phiên sử dụng:} cửa hàng quản lý máy, mã máy, loại phòng, trạng thái và đơn giá theo giờ; phiên ghi khách hàng, máy, nhân viên mở/đóng phiên, thời điểm bắt đầu/kết thúc, chi phí và trạng thái.
+  \item \textbf{Giao dịch, hóa đơn và khuyến mãi tài khoản:} giao dịch ghi tài khoản, nhân viên, cửa hàng, loại và số tiền giao dịch, thời điểm, cùng phiên hoặc chương trình khuyến mãi nếu có; hóa đơn lưu thông tin phiên, khách, nhân viên, cửa hàng, chi phí sử dụng, tổng tiền, trạng thái và thời điểm lập; chương trình khuyến mãi lưu mã, điều kiện, tỷ lệ thưởng, thời hạn và trạng thái.
+  \item \textbf{Thực đơn và đơn hàng tại quầy:} nhóm món, món và giá bán; đơn hàng lưu cửa hàng, tài khoản thanh toán, nhân viên xử lý, trạng thái và tổng tiền; từng dòng đơn lưu món, tên và đơn giá tại thời điểm đặt, số lượng. Mô hình cũng lưu thông tin khuyến mãi áp dụng và hồ sơ yêu cầu hoàn/hủy đơn.
+  \item \textbf{Thông báo và nhật ký quản trị:} nội dung, loại và thời điểm tạo thông báo; khách hàng đã đọc thông báo và thời điểm đọc; các thao tác quản trị gồm nhân viên, cửa hàng, hành động, đối tượng liên quan và thời điểm.
+\end{itemize}
+
+\subsection{Các ràng buộc và quy tắc nghiệp vụ}
+Các quy tắc dưới đây định hướng thiết kế và kiểm tra toàn vẹn của mô hình dữ liệu. Những điều kiện cần được bảo đảm ở mức cơ sở dữ liệu phải được hiện thực bằng DDL hoặc cơ chế giao dịch phù hợp.
+\begin{itemize}
+  \item Mỗi bản ghi được nhận diện bằng khóa chính; các quan hệ giữa cửa hàng, nhân viên, khách hàng, tài khoản, máy, phiên, giao dịch, hóa đơn và đơn hàng được thể hiện bằng khóa ngoại.
+  \item Một khách hàng có tối đa một tài khoản trong mô hình; một phiên sử dụng có tối đa một hóa đơn.
+  \item Phân công nhân viên--cửa hàng được lưu bằng bảng liên kết; một đơn hàng có thể gồm nhiều món và được tách chi tiết qua bảng dòng món.
+  \item Số lượng món trong dòng đơn phải lớn hơn 0. Các giá trị tiền như số dư, giá món, chi phí và số tiền giao dịch cần tuân theo quy ước không âm; nếu giao dịch trừ tiền dùng số âm thì phải thống nhất cách biểu diễn với loại giao dịch.
+  \item Đơn giá theo giờ, đơn giá món và số tiền cuối cùng của đơn không được âm.
+  \item Thời điểm kết thúc phiên không được sớm hơn thời điểm bắt đầu; thời điểm kết thúc khuyến mãi không được sớm hơn thời điểm bắt đầu.
+  \item Một máy hoặc một khách hàng không nên có hai phiên đang hoạt động cùng lúc; cần bảo đảm quy tắc này bằng ràng buộc phù hợp hoặc xử lý giao dịch có khóa.
+  \item Khi xóa dữ liệu có bản ghi liên quan, cần chọn chính sách khóa ngoại phù hợp để giữ toàn vẹn và lịch sử giao dịch.
+\end{itemize}
+
+\section{Kết luận chương}
+Chương này xác định bối cảnh vận hành cửa hàng Internet, các tác nhân khách hàng và nhân viên, cùng những nhóm dữ liệu và quy tắc cần xét trong phạm vi báo cáo. Các chương tiếp theo trình bày mô hình E--R, lược đồ quan hệ và phân tích thiết kế của 20 bảng nghiệp vụ.

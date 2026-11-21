@@ -519,9 +519,6 @@ class SessionService:
             raise _conflict("machine_id", MACHINE_BUSY)
 
         customer = self._get_customer(conn, customer_id)
-        if (separated_rbac() and not chain_director(current.role)
-                and not self._customers.has_store_link(conn, customer_id, current.store_id)):
-            raise NotFoundError(CUSTOMER_NOT_FOUND)
         if customer.status != CustomerStatus.ACTIVE:
             raise _conflict("customer_id", CUSTOMER_INACTIVE)
         # Khi mở phiên, khóa dòng account để số dư không đổi giữa lúc kiểm tra và insert.

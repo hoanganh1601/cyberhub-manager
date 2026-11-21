@@ -1,0 +1,42 @@
+\chapter{Chuyển lược đồ E--R sang mô hình quan hệ}
+
+\section{Quy tắc ánh xạ}
+Mỗi thực thể trong ERD được chuyển thành một quan hệ (bảng). Thuộc tính nhận diện trở thành khóa chính; thuộc tính tham chiếu trở thành khóa ngoại. Quan hệ nhiều--nhiều được chuyển thành bảng liên kết có khóa chính ghép. Danh sách dưới đây trình bày mô hình logic 20 bảng của báo cáo.
+
+\section{Lược đồ quan hệ và khóa}
+Ký hiệu: \textbf{PK} là khóa chính, \textbf{FK} là khóa ngoại, \textbf{UK} là khóa duy nhất. Các thuộc tính mô tả dưới đây là tập cột cốt lõi cho mô hình môn học; kiểu dữ liệu vật lý được xác định trong DDL khi triển khai.
+
+\begin{description}[leftmargin=4.2cm,labelwidth=4.0cm,style=nextline]
+  \item[\texttt{stores}] \texttt{(id, code, name, address, status)}. PK: \texttt{id}; UK: \texttt{code}.
+  \item[\texttt{employees}] \texttt{(id, username, full\_name, phone, role, status)}. PK: \texttt{id}; UK: \texttt{username}. Thông tin hồ sơ cơ bản nằm cùng bảng nhân viên.
+  \item[\texttt{employee\_store\_assignments}] \texttt{(employee\_id, store\_id, granted\_by, granted\_at)}. PK: \texttt{(employee\_id, store\_id)}; FK: \texttt{employee\_id} $\rightarrow$ \texttt{employees.id}, \texttt{store\_id} $\rightarrow$ \texttt{stores.id}, \texttt{granted\_by} $\rightarrow$ \texttt{employees.id}.
+  \item[\texttt{customers}] \texttt{(id, code, full\_name, phone, email, status)}. PK: \texttt{id}; UK: \texttt{code}, \texttt{phone}; email có thể đặt UK nếu nghiệp vụ yêu cầu.
+  \item[\texttt{accounts}] \texttt{(id, customer\_id, code, username, balance, status)}. PK: \texttt{id}; FK: \texttt{customer\_id} $\rightarrow$ \texttt{customers.id}; UK: \texttt{customer\_id}, \texttt{code}, \texttt{username}.
+  \item[\texttt{machines}] \texttt{(id, store\_id, code, room\_type, status, hourly\_rate)}. PK: \texttt{id}; FK: \texttt{store\_id} $\rightarrow$ \texttt{stores.id}; UK: \texttt{(store\_id, code)}.
+  \item[\texttt{usage\_sessions}] \texttt{(id, customer\_id, machine\_id, opened\_by, closed\_by, started\_at, ended\_at, cost, status)}. PK: \texttt{id}; FK: \texttt{customer\_id} $\rightarrow$ \texttt{customers.id}, \texttt{machine\_id} $\rightarrow$ \texttt{machines.id}, \texttt{opened\_by} và \texttt{closed\_by} $\rightarrow$ \texttt{employees.id}.
+  \item[\texttt{account\_transactions}] \texttt{(id, account\_id, employee\_id, session\_id, store\_id, promotion\_id, type, amount, created\_at)}. PK: \texttt{id}; FK: \texttt{account\_id} $\rightarrow$ \texttt{accounts.id}, \texttt{employee\_id} $\rightarrow$ \texttt{employees.id}, \texttt{store\_id} $\rightarrow$ \texttt{stores.id}; \texttt{session\_id} và \texttt{promotion\_id} có thể NULL.
+  \item[\texttt{invoices}] \texttt{(id, session\_id, customer\_id, employee\_id, store\_id, usage\_cost, total\_amount, status, issued\_at)}. PK: \texttt{id}; FK: \texttt{session\_id} $\rightarrow$ \texttt{usage\_sessions.id}, \texttt{customer\_id} $\rightarrow$ \texttt{customers.id}, \texttt{employee\_id} $\rightarrow$ \texttt{employees.id}, \texttt{store\_id} $\rightarrow$ \texttt{stores.id}; UK: \texttt{session\_id}.
+  \item[\texttt{promotions}] \texttt{(id, store\_id, code, minimum\_amount, bonus\_percent, starts\_at, ends\_at, status)}. PK: \texttt{id}; FK: \texttt{store\_id} $\rightarrow$ \texttt{stores.id}; UK: \texttt{(store\_id, code)}.
+  \item[\texttt{management\_audit}] \texttt{(id, employee\_id, store\_id, action, entity\_type, entity\_id, created\_at)}. PK: \texttt{id}; FK: \texttt{employee\_id} $\rightarrow$ \texttt{employees.id}, \texttt{store\_id} $\rightarrow$ \texttt{stores.id}.
+  \item[\texttt{menu\_categories}] \texttt{(id, store\_id, name, page, status)}. PK: \texttt{id}; FK: \texttt{store\_id} $\rightarrow$ \texttt{stores.id}; UK: \texttt{(store\_id, name)}.
+  \item[\texttt{menu\_items}] \texttt{(id, store\_id, category\_id, name, price, status)}. PK: \texttt{id}; FK: \texttt{store\_id} $\rightarrow$ \texttt{stores.id}, \texttt{category\_id} $\rightarrow$ \texttt{menu\_categories.id}.
+  \item[\texttt{menu\_orders}] \texttt{(id, store\_id, account\_id, session\_id, machine\_id, handled\_by, status, total\_amount, created\_at)}. PK: \texttt{id}; FK: \texttt{store\_id} $\rightarrow$ \texttt{stores.id}, \texttt{account\_id} $\rightarrow$ \texttt{accounts.id}, \texttt{handled\_by} $\rightarrow$ \texttt{employees.id}; phiên và máy có thể NULL.
+  \item[\texttt{menu\_order\_items}] \texttt{(order\_id, item\_id, item\_name, unit\_price, quantity)}. PK: \texttt{(order\_id, item\_id)}; FK: \texttt{order\_id} $\rightarrow$ \texttt{menu\_orders.id}, \texttt{item\_id} $\rightarrow$ \texttt{menu\_items.id}.
+  \item[\texttt{pos\_order\_reversals}] \texttt{(id, order\_id, store\_id, requested\_by, decided\_by, status, reason, created\_at)}. PK: \texttt{id}; FK: \texttt{order\_id} $\rightarrow$ \texttt{menu\_orders.id}, \texttt{store\_id} $\rightarrow$ \texttt{stores.id}, người yêu cầu/quyết định $\rightarrow$ \texttt{employees.id}; UK: \texttt{order\_id}.
+  \item[\texttt{menu\_promotions}] \texttt{(id, store\_id, item\_id, code, kind, value, starts\_at, ends\_at)}. PK: \texttt{id}; FK: \texttt{store\_id} $\rightarrow$ \texttt{stores.id}, \texttt{item\_id} $\rightarrow$ \texttt{menu\_items.id}.
+  \item[\texttt{menu\_order\_pricing}] \texttt{(order\_id, promotion\_id, discount\_amount, final\_amount)}. PK: \texttt{order\_id}; FK: \texttt{order\_id} $\rightarrow$ \texttt{menu\_orders.id}, \texttt{promotion\_id} $\rightarrow$ \texttt{menu\_promotions.id} (có thể NULL).
+  \item[\texttt{customer\_notification\_events}] \texttt{(id, store\_id, title, message, event\_type, created\_at)}. PK: \texttt{id}; FK: \texttt{store\_id} $\rightarrow$ \texttt{stores.id} (có thể NULL để dùng thông báo toàn hệ thống).
+  \item[\texttt{customer\_notification\_reads}] \texttt{(event\_id, customer\_id, read\_at)}. PK: \texttt{(event\_id, customer\_id)}; FK: \texttt{event\_id} $\rightarrow$ \texttt{customer\_notification\_events.id}, \texttt{customer\_id} $\rightarrow$ \texttt{customers.id}.
+\end{description}
+
+\section{Ràng buộc toàn vẹn đề xuất}
+\begin{itemize}
+  \item Các giá trị tiền như số dư, giá món, chi phí và số tiền giao dịch không âm ở nơi nghiệp vụ không dùng số âm để biểu diễn chiều biến động. Nếu dùng số âm cho giao dịch trừ tiền, cần quy định thống nhất quy ước \texttt{type}/\texttt{amount}.
+  \item \texttt{quantity} phải lớn hơn 0; \texttt{hourly\_rate}, \texttt{unit\_price} và \texttt{final\_amount} không âm.
+  \item Thời điểm kết thúc phiên không sớm hơn thời điểm bắt đầu; thời gian khuyến mãi kết thúc không sớm hơn thời gian bắt đầu.
+  \item Một máy hoặc một khách không nên có hai phiên đang hoạt động cùng lúc. Có thể bảo vệ bằng ràng buộc/unique phù hợp trong DDL hoặc transaction có khóa, tùy hệ quản trị.
+  \item Khóa ngoại ngăn bản ghi con tham chiếu đến bản ghi cha không tồn tại; hành vi xóa cần chọn rõ giữa RESTRICT và CASCADE theo chính sách lưu lịch sử.
+\end{itemize}
+
+\section{Kết luận chương}
+Mô hình quan hệ có 20 bảng, các quan hệ một--nhiều được đặt FK ở phía nhiều, còn quan hệ nhiều--nhiều được triển khai bằng bảng ghép. Các ràng buộc đề xuất cần được hiện thực và kiểm tra ở DDL tương ứng trước khi triển khai.

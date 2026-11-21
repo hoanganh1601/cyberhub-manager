@@ -29,6 +29,10 @@ Object.assign(copy, {
   dot1Seat: ["Giao tới máy", "Deliver to"],
   dot1Ordered: ["Đã gửi yêu cầu gọi món", "Your order has been sent"],
   dot1Recent: ["Yêu cầu gần đây", "Recent orders"],
+  dot1Notifications: ["Thông báo trạng thái đơn", "Order status notifications"],
+  dot1NoNotifications: ["Chưa có thông báo về đơn hàng.", "No order notifications yet."],
+  dot1Unread: ["chưa đọc", "unread"],
+  dot1Read: ["Đánh dấu đã đọc", "Mark as read"],
   dot1Total: ["Tạm tính", "Subtotal"],
   dot1Unit: ["Đơn vị: VND", "Prices in VND"],
   dot1ViewCart: ["Xem món đã chọn", "View order"],
@@ -39,6 +43,7 @@ Object.assign(copy, {
   dot1StSERVED: ["Đã phục vụ", "Served"],
   dot1StPAID: ["Đã thanh toán", "Paid"],
   dot1StCANCELLED: ["Đã hủy", "Cancelled"],
+  dot1StREFUNDED: ["Đã hoàn tiền", "Refunded"],
   dot1Swipe: ["Vuốt hoặc dùng phím ← → để lật trang", "Swipe or use ← → to turn pages"],
   dot1BlankLeaf: ["Khám phá các món ở trang bên cạnh", "Explore the menu on the facing page"],
 });
@@ -206,9 +211,20 @@ function dot1Row(item) {
 function dot1Cart(lines, total) {
   const ui = portalUI, d = ui.menu;
   const ready = d.can_order && lines.length && !ui.menuBusy;
+  const notifications = d.notifications || [];
   const recent = d.orders.length
     ? `<div class="dot1-recent"><h3>${t("dot1Recent")}</h3><ul>${d.orders.map((o) => `<li><span>${esc(o.code)} · ${o.lines.reduce((n, l) => n + l.quantity, 0)} ${t("dot1Items")}</span><span>${money(o.total_amount)} <b class="dot1-status ${o.status}">${t("dot1St" + o.status)}</b></span></li>`).join("")}</ul></div>`
     : "";
+  const notificationList = notifications.length
+    ? `<ul>${notifications.map((n) => `<li class="${n.read_at ? "read" : "unread"}">
+        <div><strong>${esc(n.order_code)}</strong> · ${t("dot1St" + n.order_status)}<time>${dt(n.created_at)}</time></div>
+        ${n.read_at ? "" : `<button class="btn small" data-menu="read-notification" data-id="${n.event_id}">${t("dot1Read")}</button>`}
+      </li>`).join("")}</ul>`
+    : `<p class="muted">${t("dot1NoNotifications")}</p>`;
+  const notificationPanel = `<div class="dot1-notifications">
+      <h3>${t("dot1Notifications")}${d.unread_notification_count ? `<span class="dot1-unread-count">${d.unread_notification_count} ${t("dot1Unread")}</span>` : ""}</h3>
+      ${notificationList}
+    </div>`;
   return `<aside class="pc-card dot1-cart" id="dot1-cart">
       <header><h2>${icon("cart")} ${t("dot1Cart")}</h2>${d.session ? `<span class="dot1-seat">${t("dot1Seat")} <b>${esc(d.session.machine_code)}</b></span>` : ""}</header>
       <div class="dot1-cart-grid">
@@ -222,6 +238,7 @@ function dot1Cart(lines, total) {
         </div>
       </div>
       ${recent}
+      ${notificationPanel}
     </aside>`;
 }
 
@@ -319,6 +336,19 @@ async function submitMenuOrder() {
   }
 }
 
+async function markMenuNotificationRead(eventId) {
+  const ui = portalUI;
+  if (!ui?.menu || ui.menuBusy) return;
+  try {
+    await api(`/portal/menu/notifications/${encodeURIComponent(eventId)}/read`, { method: "POST" });
+    ui.menuLoadedAt = 0;
+    await loadCustomerMenu();
+  } catch (error) {
+    const details = Object.values(error.field_errors || {});
+    toast(details.length ? details.join(" · ") : error.message, true);
+  }
+}
+
 document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-menu]");
   if (!button || button.disabled || !portalUI?.menu && button.dataset.menu !== "reload") return;
@@ -330,6 +360,7 @@ document.addEventListener("click", (event) => {
   if (action === "dec") { const qty = (ui.menuCart[id] || 0) - 1; if (qty > 0) ui.menuCart[id] = qty; else delete ui.menuCart[id]; dot1Redraw(); }
   if (action === "to-cart") $("#dot1-cart")?.scrollIntoView({ behavior: "smooth", block: "start" });
   if (action === "order") submitMenuOrder();
+  if (action === "read-notification") markMenuNotificationRead(Number(id));
 });
 document.addEventListener("change", (event) => {
   if (event.target.id !== "dot1-store" || !portalUI) return;

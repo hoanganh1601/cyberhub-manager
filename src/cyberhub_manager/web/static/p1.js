@@ -45,8 +45,6 @@ function installP1Login() {
   $(".login-top .eyebrow").textContent=t("customerPortal");$(".subtitle",form).textContent=t("customerSub");
   const register=document.createElement("button");register.type="button";register.className="btn full";register.dataset.p1="register";register.textContent=t("registerAccount");form.insertBefore(register,link);
   if(state.mode==="mysql"){
-    const recover=document.createElement("a");recover.href="/reset-password";recover.className="login-hint";recover.textContent=state.lang==="vi"?"Quên mật khẩu?":"Forgot password?";form.insertBefore(recover,link);
-    const resend=document.createElement("a");resend.href="/activate";resend.className="login-hint";resend.textContent=state.lang==="vi"?"Gửi lại email kích hoạt":"Resend activation email";form.insertBefore(resend,link);
   }
   const demo=$(".demo-note",form);if(demo)demo.textContent=t("demo")+" · nguyenvanan / demo123";
   form.addEventListener("submit",async event=>{
@@ -104,22 +102,21 @@ function showManagement(item=null){
   else if(kind==="employees") {
     const credentials=hasPermission("manage_employee_credentials");
     const hidden=(name,value)=>`<input type="hidden" name="${name}" value="${esc(String(value))}">`;
-    if(separated && item && credentials) content=field("username","username",item.username)+selectField("role","role",["ADMIN","DIRECTOR","MANAGER","STAFF","KITCHEN","INVENTORY"].map(v=>[v,t(v.toLowerCase())]),item.role)+status()+hidden("full_name",item.full_name)+hidden("store_id",item.store_id);
+    if(separated && item && credentials) content=field("username","username",item.username)+selectField("role","role",["ADMIN","DIRECTOR","MANAGER","STAFF","KITCHEN"].map(v=>[v,t(v.toLowerCase())]),item.role)+status()+hidden("full_name",item.full_name)+hidden("store_id",item.store_id);
     else if(separated && !item && credentials && state.mode==="mysql"){
       const pending=(state.employeeProfiles||[]).filter(p=>!p.employee_id&&p.employment_status==="ACTIVE");
       if(!pending.length){toast(state.lang==="vi"?"Cần tạo hồ sơ nhân sự trước khi cấp tài khoản":"Create a personnel profile first",true);return;}
       const first=pending[0];
       content=selectField("profile_id","fullName",pending.map(p=>[p.id,`${p.full_name} · ${storeName(p.home_store_id)}`]),first.id)
         +hidden("full_name",first.full_name)+hidden("store_id",first.home_store_id)
-        +field("username","username","")+selectField("role","role",["ADMIN","DIRECTOR","MANAGER","STAFF","KITCHEN","INVENTORY"].map(v=>[v,t(v.toLowerCase())]),"STAFF")+status()+field("password","password","","password");
+        +field("username","username","")+selectField("role","role",["ADMIN","DIRECTOR","MANAGER","STAFF","KITCHEN"].map(v=>[v,t(v.toLowerCase())]),"STAFF")+status()+field("password","password","","password");
     }
     else if(separated && item) content=field("full_name","fullName",item.full_name)+(state.actor.role==="DIRECTOR"?selectField("store_id","store",stores,item.store_id):hidden("store_id",item.store_id))+hidden("username",item.username)+hidden("role",item.role)+hidden("status",item.status);
-    else content=field("full_name","fullName",item?.full_name||"")+field("username","username",item?.username||"")+selectField("store_id","store",stores,item?.store_id||state.actor.store_id)+selectField("role","role",(credentials?["ADMIN","DIRECTOR","MANAGER","STAFF","KITCHEN","INVENTORY"]:["STAFF"]).map(v=>[v,t(v.toLowerCase())]),item?.role||"STAFF")+status()+(item?"":field("password","password","","password"));
+    else content=field("full_name","fullName",item?.full_name||"")+field("username","username",item?.username||"")+selectField("store_id","store",stores,item?.store_id||state.actor.store_id)+selectField("role","role",(credentials?["ADMIN","DIRECTOR","MANAGER","STAFF","KITCHEN"]:["STAFF"]).map(v=>[v,t(v.toLowerCase())]),item?.role||"STAFF")+status()+(item?"":field("password","password","","password"));
   }
   else content=field("code","code",item?.code||"")+field("name","policyName",item?.name||"")+selectField("store_id","scope",hasPermission("switch_store")?[["",t("global")],...stores]:stores,item?item.store_id??"":state.actor.store_id)+field("minimum_amount","minimum_amount",item?.minimum_amount||100000,"number")+field("bonus_percent","bonus_percent",item?.bonus_percent??5,"number")+selectField("is_active","is_active",[["true",t("on")],["false",t("off")]],String(item?.is_active??true))+field("starts_at","starts_at",vietnamInput(item?.starts_at||Date.now()-60000),"datetime-local")+field("ends_at","ends_at",vietnamInput(item?.ends_at||Date.now()+30*86400000),"datetime-local");
   modal(kind,`${kind}Sub`,`<div class="form-grid">${content}</div><div class="notice info">${t(kind==="promotions"?"bonusNote":"manageNote")}</div>`,"management",{kind,id:item?.id},"save");
   if(kind==="promotions")$("[name=bonus_percent]",$("#modal")).min="0";
-  if(kind==='promotions')installPromotionAudience(item);
 }
 function showEmployeeProfile(profile=null){
   const stores=(state.stores||[]).filter(s=>s.status==="ACTIVE").map(s=>[s.id,s.code+" · "+s.name]);
@@ -171,9 +168,6 @@ async function submitManagement(context,values){
       if(values.profile_id)values.profile_id=Number(values.profile_id);
     }
     if(context.kind==="promotions"){
-      values.minimum_tier=values.minimum_tier||'BRONZE';
-      values.minimum_points=Number(values.minimum_points||0);
-      values.target_customer_id=values.target_customer_id?Number(values.target_customer_id):null;
       values.store_id=values.store_id?Number(values.store_id):null;
       for(const key of ["minimum_amount","bonus_percent"])values[key]=Number(values[key]);
       values.is_active=values.is_active==="true";

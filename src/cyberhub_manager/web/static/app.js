@@ -7,7 +7,6 @@ const copy = {
   machines: ["Quản lý máy", "Machines"],
   invoices: ["Hóa đơn", "Invoices"],
   revenue: ["Doanh thu", "Revenue"],
-  forecasting: ["Phân tích & Dự báo", "Analytics & Forecasting"],
   login: ["Đăng nhập", "Sign in"],
   logout: ["Đăng xuất", "Sign out"],
   portal: ["CỔNG VẬN HÀNH NHÂN VIÊN", "STAFF OPERATIONS PORTAL"],
@@ -41,7 +40,6 @@ const copy = {
   manager: ["QUẢN LÝ", "MANAGER"],
   staff: ["NHÂN VIÊN", "STAFF"],
   kitchen: ["BẾP", "KITCHEN"],
-  inventory: ["THỦ KHO", "INVENTORY"],
   admin: ["QUẢN TRỊ", "ADMIN"],
   director: ["GIÁM ĐỐC", "DIRECTOR"],
   refresh: ["Làm mới", "Refresh"],
@@ -78,10 +76,6 @@ const copy = {
   revenueSub: [
     "Theo dõi doanh thu từ hóa đơn đã thanh toán",
     "Track revenue from paid invoices",
-  ],
-  forecastingSub: [
-    "Dự báo doanh thu, lượng khách và hỗ trợ lập kế hoạch kinh doanh",
-    "Forecast revenue and demand to support business planning",
   ],
   search: ["Tìm kiếm…", "Search…"],
   machineSearch: ["Tìm mã hoặc tên máy…", "Search machine code or name…"],
@@ -273,8 +267,8 @@ const copy = {
   revenueDaily: ["Doanh thu theo ngày", "Daily revenue"],
   summary: ["Tổng kết báo cáo", "Report summary"],
   reportNote: [
-    "Món ăn ghi doanh thu ngày thu tiền và trừ khoản hoàn vào ngày quản lý xác nhận; đã trừ voucher. Không cộng lại tiền nạp ví.",
-    "Food revenue follows payment date and refunds reduce revenue on the approval date; vouchers are deducted. Wallet top-ups are excluded.",
+    "Món ăn ghi doanh thu ngày thu tiền và trừ khoản hoàn vào ngày quản lý xác nhận; đã trừ ?u ??i POS. Không cộng lại tiền nạp ví.",
+    "Food revenue follows payment date and refunds reduce revenue on the approval date; POS promotions are deducted. Wallet top-ups are excluded.",
   ],
   reportScope: ["Phạm vi", "Scope"],
   currentStore: ["Cửa hàng hiện tại", "Current store"],
@@ -370,7 +364,6 @@ const state = {
   dates: {},
   seq: 0,
   busy: false,
-  forecastHorizon: 7,
 };
 let modalContext = null;
 let refreshTimer;
@@ -530,7 +523,6 @@ function renderLogin() {
       form.reset();
       if(state.actor.credential_update_required){renderRequiredPasswordChange();return;}
       state.page = state.actor.role === "KITCHEN" ? "menu"
-        : state.actor.role === "INVENTORY" ? "warehouse"
         : hasPermission("operate") ? "dashboard"
         : hasPermission("view_revenue") ? "revenue" : "employees";
       state.selected = null;
@@ -551,18 +543,12 @@ function renderShell() {
     ...(hasPermission("view_customers") ? [["customers", "users"]] : []),
     ...(isManager() ? [["machines", "monitor"]] : []),
     ...(hasPermission("export_invoice") ? [["invoices", "invoice"]] : []),
-    ...(state.mode === "mysql" && hasPermission("shift_view") ? [["shifts", "wallet"]] : []),
-    ...(state.mode === "mysql" && hasPermission("maintenance_view") ? [["maintenanceOps", "wrench"]] : []),
     ...(hasPermission("pos_view_orders") ? [["menu", "utensils"]] : []),
-    ...(hasPermission("inventory_view") ? [["warehouse", "warehouse"]] : []),
-    ...(state.mode === "mysql" && hasPermission("procurement_view") ? [["procurement", "invoice"]] : []),
-    ...(hasPermission("operate") || hasPermission("manage_rewards") ? [["vouchers", "ticket"],["games", "wheel"],["ads", "monitor"]] : []),
-    ...(canViewRevenue() ? [["revenue", "chart"],["forecasting", "chart"]] : []),
+    ...(canViewRevenue() ? [["revenue", "chart"]] : []),
     ...(hasPermission("manage_employees") || hasPermission("manage_employee_credentials") ? [["employees","users"]] : []),
     ...(hasPermission("manage_promotions") ? [["promotions","wallet"]] : []),
     ...(hasPermission("manage_stores") ? [["stores","store"]] : []),
-  ].filter(([page]) => state.actor.role === "KITCHEN" ? ["menu","maintenanceOps"].includes(page)
-    : state.actor.role === "INVENTORY" ? ["warehouse","procurement","maintenanceOps"].includes(page) : true);
+  ].filter(([page]) => state.actor.role === "KITCHEN" ? page === "menu" : true);
   $("#app").innerHTML =
     `<div class="shell"><aside class="sidebar"><div class="brand-link"><img src="/assets/cyberhub_logo_dark.png" alt="CyberHub"><div class="brand-word">CyberHub <span class="cyan">•</span><small>MANAGER · WEB</small></div></div><nav class="nav" aria-label="CyberHub">${links.map(([key, symbol]) => `<button data-action="navigate" data-page="${key}" class="${state.page === key ? "active" : ""}" title="${t(key)}" ${state.page === key ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${t(key)}</span></button>`).join("")}</nav><div class="sidebar-foot"><span class="mode"><i class="dot"></i>${t("ready")}</span><div class="row between"><span>${state.mode === "demo" ? t("demo") : "MySQL"}</span><span>WEB · 1.0</span></div></div></aside><header class="topbar"><div class="store-chip">${icon("store")}${esc(state.actor.store_name)}</div><span class="top-time">${dt(new Date().toISOString())}</span><span class="spacer"></span>${langControl()}<div class="profile"><div class="name">${esc(state.actor.full_name)}<small>${t(state.actor.role.toLowerCase())}</small></div><div class="avatar">${esc(initials(state.actor.full_name))}</div></div><button class="btn ghost small" data-action="logout" title="${t("logout")}" aria-label="${t("logout")}">${icon("logout")}</button></header><main id="workspace" class="main"></main></div>`;
   clearInterval(refreshTimer);
@@ -594,7 +580,6 @@ function metric(label, value, color = "", symbol = "monitor", hint = "") {
 }
 async function loadPage(silent = false) {
   if (state.page === "revenue" && !canViewRevenue()) state.page = "employees";
-  if (state.page === "forecasting" && !canViewRevenue()) state.page = "employees";
   const seq = ++state.seq;
   const page = state.page;
   if (!state.actor) return;
@@ -606,29 +591,6 @@ async function loadPage(silent = false) {
       if (await loadMenuAdmin(seq)) renderPage();
       return;
     }
-    if (page === "warehouse") {
-      if (await loadInventoryAdmin(seq)) renderPage();
-      return;
-    }
-    if (page === "vouchers") {
-      // Đợt 2: tra cứu/xác nhận voucher, danh mục phần thưởng, nhật ký.
-      if (await loadVoucherAdmin(seq)) renderPage();
-      return;
-    }
-    if (page === "games") {
-      // Đợt 3: thống kê vòng quay, cấu hình, ví game bị khóa.
-      if (await loadGameAdmin(seq)) renderPage();
-      return;
-    }
-    if (page === "ads") {
-      // Đợt 4: thống kê và cấu hình quảng cáo nhận thưởng.
-      if (await loadAdAdmin(seq)) renderPage();
-      return;
-    }
-    if (["shifts","maintenanceOps","procurement"].includes(page)) {
-      if (await loadBusinessAdmin(page, seq)) renderPage();
-      return;
-    }
     if (["employees","promotions","stores"].includes(page)) {
       const [items,stores,profiles] = await Promise.all([
         api(`/${page}`),api('/stores'),
@@ -638,10 +600,7 @@ async function loadPage(silent = false) {
       if(seq!==state.seq) return;
       state.items=items; state.stores=stores; state.employeeProfiles=profiles; renderPage(); return;
     }
-    if (page === "forecasting") {
-      data = await api(`/forecasting?days=${state.forecastHorizon}`);
-    }
-    else if (page === "dashboard" || page === "machines")
+    if (page === "dashboard" || page === "machines")
       data = await api("/machines");
     else if (page === "customers") data = await api("/customers");
     else {
@@ -692,19 +651,12 @@ function renderPage() {
   else if (state.page === "invoices") html = invoicesPage();
   else if (["employees","promotions","stores"].includes(state.page)) html = managementPage();
   else if (state.page === "menu") html = menuAdminPage();
-  else if (state.page === "warehouse") html = inventoryAdminPage();
-  else if (state.page === "vouchers") html = voucherAdminPage();
-  else if (state.page === "games") html = gameAdminPage();
-  else if (state.page === "ads") html = adAdminPage();
-  else if (["shifts","maintenanceOps","procurement"].includes(state.page)) html = businessAdminPage();
   else if (state.page === "revenue" && canViewRevenue()) html = revenuePage();
-  else if (state.page === "forecasting" && canViewRevenue()) html = forecastAdminPage();
   else { state.page = "dashboard"; html = dashboard(); }
   $("#workspace").innerHTML = html + pageFooter();
   decorateP1Details();
   installRoomManagement();
-  installLoyaltyManagement();
-  if (state.page === "menu" || state.page === "warehouse") wireMenuAdmin();
+  if (state.page === "menu") wireMenuAdmin();
   if (focus) {
     const node = document.getElementById(focus);
     if (node) {
@@ -765,7 +717,6 @@ function customersPage() {
   const { rows, foot } = paginate(filtered);
   return (
     pageHead(
-      hasPermission("create_customers") ? `${state.mode==="mysql"&&state.rbacPolicy==="separated"?`<button class="btn small" data-action="customer-link">${state.lang==="vi"?"Liên kết khách đến cơ sở":"Link customer to store"}</button>`:""}<button class="btn primary small" data-action="customer-create">${icon("plus")}${t("newCustomer")}</button>` : "",
     ) +
     `<div class="toolbar"><input id="local-search" class="input search" value="${esc(state.keyword)}" placeholder="${t("customerSearch")}" aria-label="${t("search")}"><span class="spacer"></span>${["all", "ACTIVE", "INACTIVE"].map((value) => `<button class="filter-btn ${state.filter === value ? "active" : ""}" data-action="filter" data-filter="${value}">${t(value === "all" ? "all" : statusKey(value))} (${state.items.filter((c) => value === "all" || c.customer_status === value).length})</button>`).join("")}</div><div class="split"><section class="panel">${rows.length ? table(["code", "fullName", "phone", "username", "accountBalance", "status"], rows.map((c) => `<tr data-select="customer" data-id="${c.customer_id}" class="${state.selected === c.customer_id ? "selected" : ""}" tabindex="0"><td class="table-code">${esc(c.customer_code)}</td><td class="table-name">${esc(c.full_name)}</td><td>${esc(c.phone)}</td><td>${esc(c.username)}</td><td class="money ${c.balance < 0 ? "red" : "green"}">${money(c.balance)}</td><td>${badge(c.customer_status)}</td></tr>`).join("")) : empty()}${foot}</section><aside class="panel detail-panel ${state.detail ? "has-selection" : ""}" id="detail-panel">${customerDetail()}</aside></div>`
   );
@@ -933,12 +884,10 @@ async function selectRow(type, id) {
 }
 async function showCustomerForm(edit = false) {
   const c = edit ? (await api(`/customers/${state.selected}`)).customer : null;
-  const counterEmail = !edit && state.mode === "mysql" && state.rbacPolicy === "separated";
   modal(
     edit ? "edit" : "newCustomer",
     "customersSub",
-    `<div class="form-grid">${field("full_name", "fullName", c?.full_name || "")}${field("phone", "phone", c?.phone || "", "tel")}${!edit ? field("username", "username", "", "text", "wide") + (counterEmail?field("email","Email","","email"):field("password", "password", "", "password") + field("confirm_password", "confirmPassword", "", "password")) : ""}</div><div class="notice info">${counterEmail?(state.lang==="vi"?"Khách tự đặt mật khẩu qua email kích hoạt. Email được xếp hàng gửi sau khi lưu.":"Customer sets a password using the activation email. Mail is queued after saving."):t(edit ? "passwordClear" : "createNote")} ${!edit ? t("autoCode") : ""}</div>`,
-    edit ? "customer-edit" : counterEmail ? "counter-register" : "customer-create",
+    `<div class="form-grid">${field("full_name", "fullName", c?.full_name || "")}${field("phone", "phone", c?.phone || "", "tel")}${!edit ? field("username", "username", "", "text", "wide") + field("password", "password", "", "password") + field("confirm_password", "confirmPassword", "", "password") : ""}</div><div class="notice info">${t(edit ? "passwordClear" : "createNote")} ${!edit ? t("autoCode") : ""}</div>`,
     { id: c?.customer_id },
     edit ? "save" : "newCustomer",
   );
@@ -1105,10 +1054,6 @@ async function submitModal(event) {
   busyModal(true);
   try {
     let result;
-    if (context.action === "customer-link")
-      result = await api("/customers/link-store", {method:"POST",body:{code:values.code,phone:values.phone}});
-    if (context.action === "counter-register")
-      result = await api("/customers/register-counter", {method:"POST",body:values});
     if (context.action === "customer-create")
       result = await api("/customers", { method: "POST", body: values });
     if (context.action === "customer-edit")
@@ -1146,7 +1091,7 @@ async function submitModal(event) {
       result = await api(context.url, { method: "POST", body: context.body });
     state.busy = false;
     closeModal();
-    if (context.action === "customer-create" || context.action === "counter-register") {
+    if (context.action === "customer-create") {
       state.selected = result.customer_id;
       state.filter = "all";
       state.keyword = "";
@@ -1266,7 +1211,6 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "close-modal") closeModal();
     if (action === "customer-create") await showCustomerForm();
-    if (action === "customer-link") modal("customers","customersSub",`<div class="form-grid">${field("code","code")}${field("phone","phone","","tel")}</div><div class="notice info">${state.lang==="vi"?"Xác nhận mã khách và số điện thoại do khách cung cấp trước khi liên kết với cơ sở.":"Verify customer code and phone before linking to this store."}</div>`,"customer-link",{},"save");
     if (action === "customer-edit") {
       state.selected = id;
       await showCustomerForm(true);
@@ -1341,7 +1285,6 @@ async function boot() {
     if (state.actor) {
       if(state.actor.credential_update_required){renderRequiredPasswordChange();return;}
       if (state.actor.role === "KITCHEN") state.page = "menu";
-      if (state.actor.role === "INVENTORY") state.page = "warehouse";
       if (state.actor.role === "ADMIN" && !hasPermission("operate")) state.page = "employees";
       if (state.actor.role === "DIRECTOR") state.page = "revenue";
       renderShell();

@@ -183,8 +183,6 @@ class CustomerService:
                 username=username,
                 password_hash=password_hash,
             )
-            if actor is not None and separated_rbac():
-                self._customers.link_store(conn, customer_id, actor.store_id, "COUNTER")
             return self._get_customer(conn, customer_id, actor)
 
     def get_customer(self, customer_id: int) -> Customer:
@@ -266,18 +264,6 @@ class CustomerService:
 
             return self._get_customer(conn, customer.id, current)
 
-    def link_customer_to_store(self, code: str, phone: str) -> Customer:
-        """At-counter visit requires two customer-provided identifiers."""
-        with self._database() as conn:
-            actor = self._require_actor(conn, permission=Permission.CREATE_CUSTOMERS)
-            customer_id = self._customers.customer_id_by_code_phone(conn, _clean(code), _clean(phone))
-            customer = self._customers.get_by_id(conn, customer_id) if customer_id else None
-            if customer is None:
-                raise NotFoundError("Không tìm thấy khách hàng với thông tin đã cung cấp")
-            self._customers.link_store(conn, customer_id, actor.store_id, "VISIT")
-            self._customers.audit_store_link(conn, actor.employee_id, actor.store_id, customer_id)
-            return customer
-
     def _require_actor(
         self,
         conn: Any,
@@ -329,8 +315,5 @@ class CustomerService:
         if _is_positive_id(customer_id):
             customer = self._customers.get_by_id(conn, customer_id)
             if customer is not None:
-                if (actor is not None and separated_rbac() and not chain_director(actor.role)
-                        and not self._customers.has_store_link(conn, customer_id, actor.store_id)):
-                    raise NotFoundError("Không tìm thấy khách hàng trong cơ sở hiện tại")
                 return customer
         raise NotFoundError("Không tìm thấy khách hàng")
