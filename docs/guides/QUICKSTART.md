@@ -11,7 +11,7 @@ $env:CYBERHUB_ASSISTANT_ENABLED="false"
 python -m cyberhub_manager.web --port 8000
 ```
 
-Mở `http://127.0.0.1:8000`. Nhân viên demo: `admin01`, `quanly01`, `nhanvien01`, `bep01`, `thukho01`; mật khẩu `demo123`. Cổng khách: `/customer`, `nguyenvanan / demo123`. Demo lưu trong bộ nhớ, mất khi server khởi động lại. Chatbot tắt ở lệnh này để không phụ thuộc quota Gemini. Một số quy trình ca/két, bảo trì, mua hàng và sổ kho cần MySQL để nghiệm thu thật.
+Mở `http://127.0.0.1:8000`. Nhân viên demo: `admin01`, `quanly01`, `nhanvien01`, `bep01`; mật khẩu `demo123`. Cổng khách: `/customer`, `nguyenvanan / demo123`. Demo lưu trong bộ nhớ, mất khi server khởi động lại. Chatbot tắt ở lệnh này để không phụ thuộc quota Gemini.
 
 ## Web với MySQL
 

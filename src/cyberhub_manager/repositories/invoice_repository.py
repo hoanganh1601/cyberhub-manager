@@ -19,13 +19,14 @@ _SUMMARY_SELECT = """
     SELECT i.id AS invoice_id, i.code AS invoice_code,
            i.session_id, i.customer_id,
            c.full_name AS customer_name,
-           i.employee_id, e.full_name AS employee_name,
+           i.employee_id, ep.full_name AS employee_name,
            i.store_id, st.name AS store_name,
-           i.usage_cost, i.settlement_amount, i.total_amount,
+           i.usage_cost, i.settlement_amount, i.usage_cost AS total_amount,
            i.status, i.created_at, i.bonus_used
     FROM invoices AS i
     JOIN customers AS c ON c.id = i.customer_id
     JOIN employees AS e ON e.id = i.employee_id
+    JOIN employee_profiles AS ep ON ep.id = e.profile_id
     JOIN stores AS st ON st.id = i.store_id
 """
 
@@ -81,8 +82,8 @@ class InvoiceRepository:
                 """
                 INSERT INTO invoices
                     (code, session_id, customer_id, employee_id, store_id,
-                     usage_cost, settlement_amount, total_amount, status, bonus_used)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     usage_cost, settlement_amount, status, bonus_used)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     code,
@@ -92,7 +93,6 @@ class InvoiceRepository:
                     store_id,
                     usage_cost,
                     settlement_amount,
-                    usage_cost,
                     InvoiceStatus.PAID.value,
                     bonus_used,
                 ),
@@ -116,7 +116,7 @@ class InvoiceRepository:
                 """
                 SELECT id, code, session_id, customer_id, employee_id,
                        store_id, usage_cost, settlement_amount,
-                       total_amount, status, created_at
+                       usage_cost AS total_amount, status, created_at
                 FROM invoices
                 WHERE id = %s
                 """,

@@ -12,7 +12,7 @@ from datetime import date, datetime
 from pathlib import PurePosixPath
 from typing import Literal, TypeAlias, get_args
 
-Role: TypeAlias = Literal["CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN", "DIRECTOR"]
+Role: TypeAlias = Literal["CUSTOMER", "STAFF", "KITCHEN", "MANAGER", "ADMIN", "DIRECTOR"]
 DocumentStatus: TypeAlias = Literal["DRAFT", "APPROVED", "ARCHIVED"]
 Language: TypeAlias = Literal["vi", "en"]
 

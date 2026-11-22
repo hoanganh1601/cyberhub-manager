@@ -371,7 +371,7 @@ ENGLISH.update({
     "Chỉnh sửa":"Edit", "Thao tác":"Actions", "Nhấn Enter để lưu • Esc để hủy":"Enter to save • Esc to cancel",
     "Cơ sở":"Stores", "Nhân viên":"Employees", "Khuyến mãi":"Promotions", "Thêm mới":"Add new",
     "Quản trị viên":"Administrator", "Quản lý":"Manager", "Nhân viên":"Staff",
-    "Nhân viên bếp":"Kitchen staff", "Thủ kho":"Inventory staff",
+    "Nhân viên bếp":"Kitchen staff",
     "Mã cơ sở":"Store code", "Tên cơ sở":"Store name", "Địa chỉ":"Address",
     "Vai trò":"Role", "Vai trò / Cơ sở":"Role / Store", "Mật khẩu mới":"New password",
     "Để trống để giữ mật khẩu hiện tại":"Leave blank to keep the current password",

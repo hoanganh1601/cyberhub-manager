@@ -48,7 +48,7 @@ class P1Repository(
         account_id, customer_id = principal.account_id, principal.customer_id
         wallet = rows(
             conn,
-            "SELECT a.code AS account_code,a.balance,a.bonus_balance,a.cash_balance,c.phone "
+            "SELECT a.code AS account_code,a.balance,a.bonus_balance,(a.balance - a.bonus_balance) AS cash_balance,c.phone "
             "FROM accounts a JOIN customers c ON c.id=a.customer_id WHERE a.id=%s",
             (account_id,),
         )[0]

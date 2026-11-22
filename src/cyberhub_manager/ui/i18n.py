@@ -66,10 +66,6 @@ _TRANSLATIONS: Final[dict[str, dict[Language, str]]] = {
         "vi": "Nhân viên bếp",
         "en": "Kitchen staff",
     },
-    "role.inventory": {
-        "vi": "Thủ kho",
-        "en": "Inventory staff",
-    },
     "status.ready": {
         "vi": "Hệ thống sẵn sàng",
         "en": "System ready",

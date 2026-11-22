@@ -17,7 +17,7 @@ tags:
 ## Tạo và sửa tài khoản
 
 Admin quản lý nhân viên toàn hệ thống, gán cơ sở đang hoạt động và vai trò
-STAFF, KITCHEN, INVENTORY, MANAGER hoặc ADMIN. Username không trùng; mật khẩu
+STAFF, KITCHEN, MANAGER, DIRECTOR hoặc ADMIN. Username không trùng; mật khẩu
 khi tạo mới ít nhất 8 ký tự, tối đa 72 byte UTF-8 và được băm. Form sửa hồ sơ
 không nhận mật khẩu; thay đổi mật khẩu phải dùng chức năng riêng.
 Không nhập hoặc nhờ AI lưu mật khẩu vào hội thoại.

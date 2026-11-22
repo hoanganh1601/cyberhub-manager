@@ -40,7 +40,6 @@ STATUS = {
     "MANAGER": "Quản lý",
     "STAFF": "Nhân viên",
     "KITCHEN": "Nhân viên bếp",
-    "INVENTORY": "Thủ kho",
 }
 
 
@@ -192,7 +191,7 @@ class ManagementForm(StitchDialog):
                 specs = [
                     ("profile_id", "Hồ sơ nhân sự", "choice", pending_profiles),
                     ("username", "Tên đăng nhập", "text", None),
-                    ("role", "Vai trò", "choice", ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN", "INVENTORY"]),
+                    ("role", "Vai trò", "choice", ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN"]),
                     ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE", "LOCKED"]),
                     ("password", "Mật khẩu tạm thời", "password", None),
                 ]
@@ -201,7 +200,7 @@ class ManagementForm(StitchDialog):
                          ("username", "Tên đăng nhập", "text", None),
                          ("store_id", "Cơ sở", "choice", store_choices),
                          ("role", "Vai trò", "choice",
-                          ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN", "INVENTORY"] if credentials else ["STAFF"]),
+                          ["ADMIN", "DIRECTOR", "MANAGER", "STAFF", "KITCHEN"] if credentials else ["STAFF"]),
                          ("status", "Trạng thái", "choice", ["ACTIVE", "INACTIVE", "LOCKED"]),
                          ("password", "Mật khẩu mới", "password", None)]
             if separated_rbac() and item:

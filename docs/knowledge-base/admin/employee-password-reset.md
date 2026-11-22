@@ -17,7 +17,7 @@ tags:
 
 ## Khi nhân viên quên mật khẩu
 
-Admin chọn tài khoản STAFF, KITCHEN, INVENTORY, MANAGER hoặc ADMIN khác và dùng
+Admin chọn tài khoản STAFF, KITCHEN, MANAGER, DIRECTOR hoặc ADMIN khác và dùng
 chức năng Đặt lại mật khẩu. Mật khẩu tạm thời phải dài ít nhất 8 ký tự và không
 quá 72 byte UTF-8. Hệ thống băm mật khẩu trước khi lưu; không thể xem lại mật khẩu
 cũ từ hash và không được hiển thị danh sách mật khẩu cho Admin.

@@ -209,10 +209,11 @@ class AccountRepository:
                     t.amount,
                     t.method,
                     t.employee_id,
-                    e.full_name AS employee_name,
+                    p.full_name AS employee_name,
                     t.created_at
                 FROM account_transactions AS t
                 JOIN employees AS e ON e.id = t.employee_id
+                JOIN employee_profiles AS p ON p.id = e.profile_id
                 WHERE t.account_id = %s
                   AND (%s IS NULL OR t.store_id=%s)
                 ORDER BY t.created_at DESC, t.id DESC

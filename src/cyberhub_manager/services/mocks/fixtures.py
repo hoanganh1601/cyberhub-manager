@@ -41,7 +41,6 @@ DEMO_ACCOUNTS: tuple[tuple[str, Role], ...] = (
     ("nhanvien01", Role.STAFF),
     ("nhanvien02", Role.STAFF),
     ("bep01", Role.KITCHEN),
-    ("thukho01", Role.INVENTORY),
 )
 
 DEFAULT_HOURLY_RATE = 10_000
@@ -140,7 +139,7 @@ class _FixtureBuilder:
         )
         self._store_id = store_id
 
-        names = ("Trần Minh Quân", "Nguyễn Thu Hà", "Phạm Đức Long", "Bếp demo", "Thủ kho demo")
+        names = ("Trần Minh Quân", "Nguyễn Thu Hà", "Phạm Đức Long", "Bếp demo")
         employee_ids = []
         for full_name, (username, role) in zip(names, DEMO_ACCOUNTS):
             employee_id = data.next_id("employee")

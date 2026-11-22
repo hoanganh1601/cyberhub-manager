@@ -5,7 +5,7 @@
 | Thư mục | Người được phục vụ |
 |---|---|
 | `customer/` | Khách hàng đăng nhập. |
-| `staff/` | Nhân viên/Bếp/Thủ kho theo quyền của phiên. |
+| `staff/` | Nhân viên/Bếp theo quyền của phiên. |
 | `manager/` | Quản lý được cấp quyền. |
 | `admin/` | Quản trị viên được cấp quyền. |
 | `shared/` | Các vai trò phù hợp theo metadata của từng file. |

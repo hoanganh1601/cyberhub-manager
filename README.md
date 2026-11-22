@@ -1,6 +1,6 @@
 # CyberHub Manager
 
-**Database scope:** 22 business tables for store, employee, customer, account, machine, usage, invoice, POS, and customer order notifications. See the [data model](docs/architecture/DATA_MODEL.md) and [current ERD](docs/diagrams/current_erd.md).
+**Database scope:** 24 normalized (3NF) business tables (+ 8 read views and 15 integrity triggers) for stores, identity/RBAC, customers, prepaid wallets, workstations, usage sessions, invoices, POS menu/promotions/reversals, and customer order notifications. See the [data model](docs/architecture/DATA_MODEL.md) and [current ERD](docs/diagrams/current_erd.md).
 
 The Python application uses Flask, CustomTkinter, and MySQL. Its active flows cover store/customer/employee management, machines and sessions, invoices, wallet transactions, and POS.
 
@@ -21,7 +21,7 @@ $env:CYBERHUB_ASSISTANT_ENABLED = "false"
 python -m cyberhub_manager.web --host 127.0.0.1 --port 8000
 ```
 
-Mở `http://127.0.0.1:8000`. Tài khoản nhân viên demo gồm `admin01`, `quanly01`, `nhanvien01`, `bep01`, `thukho01`; mật khẩu `demo123`. Cổng khách hàng ở `http://127.0.0.1:8000/customer`; tài khoản `nguyenvanan`, mật khẩu `demo123`. Nhấn `Ctrl+C` trong terminal để dừng server.
+Mở `http://127.0.0.1:8000`. Tài khoản nhân viên demo gồm `admin01`, `quanly01`, `nhanvien01`, `bep01`; mật khẩu `demo123`. Cổng khách hàng ở `http://127.0.0.1:8000/customer`; tài khoản `nguyenvanan`, mật khẩu `demo123`. Nhấn `Ctrl+C` trong terminal để dừng server.
 
 ### Chế độ MySQL
 
@@ -40,6 +40,4 @@ Sau đó mở `http://127.0.0.1:8000`. Không có mật khẩu mặc định cho
 
 ## Database migration
 
-Migration `030_scope_to_20_tables.sql` drops `customer_email_tokens`, `customer_mail_outbox`, `customer_security_audit`, and `customer_store_links`. It also removes email activation/recovery and customer-to-store filtering. Back up existing data before applying migration 030.
-
-Migration `031_customer_order_notifications.sql` restores durable customer notifications for menu-order status changes. A fresh database ends with 22 business tables plus the technical `schema_migrations` table.
+Migrations are organized by business domain in `sql/001_stores_and_identity.sql` through `sql/009_integrity_triggers.sql` (24 business tables, 8 read views, 15 integrity triggers, plus the technical `schema_migrations` table; 100% InnoDB, `utf8mb4_0900_ai_ci`). Run `python scripts/init_db.py` to initialize a fresh database.

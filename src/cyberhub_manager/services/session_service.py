@@ -99,6 +99,8 @@ METHOD_NOT_ALLOWED = "Không chọn phương thức khi không có tiền bù"
 _DUPLICATES = {
     "uq_usage_sessions_active_machine": ("machine_id", MACHINE_BUSY),
     "uq_usage_sessions_active_customer": ("customer_id", CUSTOMER_BUSY),
+    "uq_active_usage_machine": ("machine_id", MACHINE_BUSY),
+    "uq_active_usage_customer": ("customer_id", CUSTOMER_BUSY),
     "uq_invoices_session": ("machine_id", ALREADY_CHECKED_OUT),
 }
 

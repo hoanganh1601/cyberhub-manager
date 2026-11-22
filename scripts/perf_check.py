@@ -126,10 +126,16 @@ def seed(conn, scale: float) -> dict[str, Any]:
     pw = hash_password(PASSWORD)
     _many(
         conn,
-        "INSERT INTO employees (code, store_id, full_name, username, password_hash, role) VALUES (%s,%s,%s,%s,%s,%s)",
-        [(f"{PREFIX}_EMP_1", store_id, "Perf manager", f"{PREFIX}.manager", pw, "MANAGER")],
+        "INSERT INTO employee_profiles (code, home_store_id, full_name, employment_status) VALUES (%s,%s,%s,'ACTIVE')",
+        [(f"{PREFIX}_EMP_1", store_id, "Perf manager")],
     )
-    employee_id = _run(conn, "SELECT id FROM employees WHERE code = %s", (f"{PREFIX}_EMP_1",))[0][0]
+    profile_id = _run(conn, "SELECT id FROM employee_profiles WHERE code = %s", (f"{PREFIX}_EMP_1",))[0][0]
+    _many(
+        conn,
+        "INSERT INTO employees (profile_id, username, password_hash, role) VALUES (%s,%s,%s,%s)",
+        [(profile_id, f"{PREFIX}.manager", pw, "MANAGER")],
+    )
+    employee_id = _run(conn, "SELECT id FROM employees WHERE profile_id = %s", (profile_id,))[0][0]
 
     used_phones = {row[0] for row in _run(conn, "SELECT phone FROM customers")}
     phones = []
@@ -181,9 +187,9 @@ def seed(conn, scale: float) -> dict[str, Any]:
     )
     _many(
         conn,
-        "INSERT INTO invoices (code, session_id, customer_id, employee_id, store_id, usage_cost, total_amount, created_at)"
-        " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-        [(f"{PREFIX}I{sid:07d}", sid, cid, employee_id, store_id, cost, cost, ended) for sid, cid, ended, cost in rows],
+        "INSERT INTO invoices (code, session_id, customer_id, employee_id, store_id, usage_cost, created_at)"
+        " VALUES (%s,%s,%s,%s,%s,%s,%s)",
+        [(f"{PREFIX}I{sid:07d}", sid, cid, employee_id, store_id, cost, ended) for sid, cid, ended, cost in rows],
     )
     tx = [(f"{PREFIX}U{sid:07d}", accounts[cid], employee_id, sid, "USAGE_PAYMENT", -cost, "ACCOUNT_BALANCE", ended)
           for sid, cid, ended, cost in rows if cost > 0]

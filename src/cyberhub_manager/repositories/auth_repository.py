@@ -25,22 +25,22 @@ class AuthRepository:
                 """
                 SELECT
                     e.id AS employee_id,
-                    e.code AS employee_code,
-                    e.full_name,
+                    p.code AS employee_code,
+                    p.full_name,
                     e.username,
                     e.password_hash,
-                    e.store_id,
+                    p.home_store_id AS store_id,
                     e.role,
                     e.auth_version,
                     e.must_change_password,
                     s.code AS store_code,
                     s.name AS store_name
                 FROM employees AS e
-                JOIN stores AS s ON s.id = e.store_id
-                LEFT JOIN employee_profiles AS p ON p.employee_id = e.id
+                JOIN employee_profiles AS p ON p.id = e.profile_id
+                JOIN stores AS s ON s.id = p.home_store_id
                 WHERE e.username = %s
                   AND e.status = 'ACTIVE'
-                  AND (p.id IS NULL OR p.employment_status = 'ACTIVE')
+                  AND p.employment_status = 'ACTIVE'
                   AND s.status = 'ACTIVE'
                 """,
                 (username,),
@@ -78,21 +78,21 @@ class AuthRepository:
                 """
                 SELECT
                     e.id AS employee_id,
-                    e.code AS employee_code,
-                    e.full_name,
+                    p.code AS employee_code,
+                    p.full_name,
                     e.username,
-                    e.store_id,
+                    p.home_store_id AS store_id,
                     e.role,
                     e.auth_version,
                     e.must_change_password,
                     s.code AS store_code,
                     s.name AS store_name
                 FROM employees AS e
-                JOIN stores AS s ON s.id = e.store_id
-                LEFT JOIN employee_profiles AS p ON p.employee_id = e.id
+                JOIN employee_profiles AS p ON p.id = e.profile_id
+                JOIN stores AS s ON s.id = p.home_store_id
                 WHERE e.id = %s
                   AND e.status = 'ACTIVE'
-                  AND (p.id IS NULL OR p.employment_status = 'ACTIVE')
+                  AND p.employment_status = 'ACTIVE'
                   AND s.status = 'ACTIVE'
                 FOR SHARE
                 """,
@@ -124,13 +124,13 @@ class AuthRepository:
         try:
             cursor.execute(
                 """
-                SELECT e.id AS employee_id,e.code AS employee_code,e.full_name,
-                       e.username,e.password_hash,e.store_id,e.role,
+                SELECT e.id AS employee_id,p.code AS employee_code,p.full_name,
+                       e.username,e.password_hash,p.home_store_id AS store_id,e.role,
                        e.auth_version,e.must_change_password,
                        s.code AS store_code,s.name AS store_name
-                FROM employees e JOIN stores s ON s.id=e.store_id
-                LEFT JOIN employee_profiles p ON p.employee_id=e.id
-                WHERE e.id=%s AND e.status='ACTIVE' AND (p.id IS NULL OR p.employment_status='ACTIVE') AND s.status='ACTIVE'
+                FROM employees e JOIN employee_profiles p ON p.id=e.profile_id
+                JOIN stores s ON s.id=p.home_store_id
+                WHERE e.id=%s AND e.status='ACTIVE' AND p.employment_status='ACTIVE' AND s.status='ACTIVE'
                 FOR UPDATE
                 """,
                 (employee_id,),

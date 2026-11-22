@@ -36,12 +36,6 @@ DEMO_EMPLOYEES = (
         "demo.kitchen",
         "KITCHEN",
     ),
-    (
-        "DEMO_EMP_05",
-        "Nhân viên thủ kho demo",
-        "demo.inventory",
-        "INVENTORY",
-    ),
 )
 
 DEMO_CUSTOMER_COUNT = 5
@@ -92,9 +86,10 @@ def seed_employees(
         for code, full_name, username, role in DEMO_EMPLOYEES:
             cursor.execute(
                 """
-                SELECT store_id, username
-                FROM employees
-                WHERE code = %s
+                SELECT p.home_store_id, e.username
+                FROM employee_profiles AS p
+                LEFT JOIN employees AS e ON e.profile_id = p.id
+                WHERE p.code = %s
                 """,
                 (code,),
             )
@@ -114,21 +109,30 @@ def seed_employees(
 
             cursor.execute(
                 """
-                INSERT INTO employees (
+                INSERT INTO employee_profiles (
                     code,
-                    store_id,
+                    home_store_id,
                     full_name,
+                    employment_status
+                )
+                VALUES (%s, %s, %s, 'ACTIVE')
+                """,
+                (code, store_id, full_name),
+            )
+            profile_id = cursor.lastrowid
+            cursor.execute(
+                """
+                INSERT INTO employees (
+                    profile_id,
                     username,
                     password_hash,
                     role,
                     status
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
                 (
-                    code,
-                    store_id,
-                    full_name,
+                    profile_id,
                     username,
                     hash_password(demo_password),
                     role,
@@ -329,8 +333,9 @@ def run_seed(expected_database: str | None = None) -> None:
             applied = {row[0] for row in cursor.fetchall()}
 
         required = {
-            "001_initial_schema.sql",
-            "002_indexes.sql",
+            "001_stores_and_identity.sql",
+            "002_customers_and_accounts.sql",
+            "003_machines_sessions_and_billing.sql",
         }
 
         if not required.issubset(applied):

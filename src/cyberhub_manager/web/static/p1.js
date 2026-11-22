@@ -24,7 +24,7 @@ Object.assign(copy, {
   created:["Thời gian","Time"], policyName:["Tên chính sách","Policy name"], scope:["Phạm vi","Scope"],
   period:["Thời gian áp dụng","Validity"], newPassword:["Mật khẩu mới (để trống để giữ nguyên)","New password (leave blank to keep)"],
   manageNote:["Mọi thay đổi được kiểm tra quyền và lưu lịch sử quản trị.","Changes are authorized and recorded in the administration audit."],
-  demoAccounts:["Admin: admin01 · Giám đốc: giamdoc01 · Quản lý: quanly01 · Bếp: bep01 · Thủ kho: thukho01","Admin: admin01 · Director: giamdoc01 · Manager: quanly01 · Kitchen: bep01 · Inventory: thukho01"],
+  demoAccounts:["Admin: admin01 · Giám đốc: giamdoc01 · Quản lý: quanly01 · Bếp: bep01","Admin: admin01 · Director: giamdoc01 · Manager: quanly01 · Kitchen: bep01"],
   resetPassword:["Đặt lại mật khẩu","Reset password"], temporaryPassword:["Mật khẩu tạm","Temporary password"],
   confirmPassword:["Xác nhận mật khẩu","Confirm password"], currentPassword:["Mật khẩu hiện tại","Current password"],
   changePassword:["Đổi mật khẩu","Change password"], passwordChangeRequired:["Bạn đang dùng mật khẩu tạm. Hãy đổi mật khẩu trước khi tiếp tục.","You are using a temporary password. Change it before continuing."],

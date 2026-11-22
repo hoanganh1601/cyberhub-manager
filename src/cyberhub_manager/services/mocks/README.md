@@ -48,7 +48,6 @@ machines = services.machines.list_machines(actor.store_id)
 | `nhanvien01` | `demo123` | STAFF |
 | `nhanvien02` | `demo123` | STAFF |
 | `bep01` | `demo123` | KITCHEN |
-| `thukho01` | `demo123` | INVENTORY |
 
 Username được trim, password không trim. Sai thông tin luôn báo
 `AuthenticationError` với nội dung "Tên đăng nhập hoặc mật khẩu không đúng".

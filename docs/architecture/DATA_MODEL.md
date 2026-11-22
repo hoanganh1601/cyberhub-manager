@@ -1,18 +1,22 @@
 # Current database model
 
-The application schema contains **22 business tables**. `schema_migrations` is technical metadata and is not included in that count. See the [current ERD](../diagrams/current_erd.md) for entities, attributes, and relationships.
+The application schema contains **24 normalized (3NF) business tables**, **8 read views (`v_*`)**, and **15 integrity triggers** (100% InnoDB, `utf8mb4_0900_ai_ci`, zero JSON columns, zero generated columns). `schema_migrations` is technical metadata and is not included in that count. See the [current ERD](../diagrams/current_erd.md) and [data dictionary](../diagrams/data_dictionary.md) for entities, attributes, constraints, and relationships.
 
 ## Table groups
 
-| Group | Tables |
-|---|---|
-| Core | `stores`, `employees`, `customers`, `accounts`, `machines`, `usage_sessions`, `account_transactions`, `invoices` |
-| Administration | `promotions`, `management_audit`, `machine_room_types`, `employee_profiles`, `employee_store_assignments` |
-| Menu and POS | `menu_categories`, `menu_items`, `menu_orders`, `menu_order_items`, `pos_order_reversals`, `menu_promotions`, `menu_order_pricing` |
-| Customer notifications | `customer_notification_events`, `customer_notification_reads` |
+| Migration | Domain group | Tables |
+|---|---|---|
+| `001_stores_and_identity.sql` | Organization & identity | `stores`, `employee_profiles`, `employees`, `employee_store_assignments`, `management_audit` |
+| `002_customers_and_accounts.sql` | Customers & wallet setup | `customers`, `accounts`, `promotions` |
+| `003_machines_sessions_and_billing.sql` | Workstations, sessions & billing | `machines`, `machine_room_types`, `usage_sessions`, `active_usage_sessions`, `account_transactions`, `invoices` |
+| `004_menu_and_pos_orders.sql` | Menu & POS orders | `menu_categories`, `menu_items`, `menu_orders`, `menu_order_items` |
+| `005_pos_promotions_and_reversals.sql` | POS promotions & reversals | `menu_promotions`, `menu_promotion_versions`, `menu_order_pricing`, `pos_order_reversals` |
+| `006_customer_notifications.sql` | Customer notifications | `customer_notification_events`, `customer_notification_reads` |
 
-## Migrations
+## Supporting database objects
 
-Migrations 028 and 029 establish the earlier 24-table scope and remove loyalty/tier-based promotion fields. Migration `030_scope_to_20_tables.sql` drops `customer_email_tokens`, `customer_mail_outbox`, `customer_security_audit`, and `customer_store_links`. Email activation/recovery, customer security event history, and customer-to-store history are outside the reduced project.
+- `007_indexes.sql`: secondary indexes for operational lookups and revenue reporting.
+- `008_read_views.sql`: 8 read views (`v_employees`, `v_accounts`, `v_invoices`, `v_menu_items`, `v_menu_orders`, `v_menu_order_pricing`, `v_pos_order_reversals`, `v_customer_notification_events`).
+- `009_integrity_triggers.sql`: 15 triggers enforcing active session occupancy, store-wide unique menu names, cross-store/cross-owner guards, and reversal refund ceilings.
 
-The four removed tables and their data are permanently deleted when migration 030 is applied. Migration 031 then adds the two order-status notification tables. Back up any existing database before migrating. A fresh database is initialized with `python scripts/init_db.py`; the resulting schema has 22 business tables plus `schema_migrations`.
+Run `python scripts/init_db.py` to initialize a fresh database.

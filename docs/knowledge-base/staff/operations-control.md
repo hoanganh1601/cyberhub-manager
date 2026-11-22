@@ -4,13 +4,12 @@ title: Ca làm việc, két tiền và bảo trì máy
 audience:
   - STAFF
   - KITCHEN
-  - INVENTORY
   - MANAGER
   - ADMIN
 status: APPROVED
-version: 1
+version: 2
 language: vi
-updated_at: 2026-11-16
+updated_at: 2026-11-22
 tags:
   - cash-shift
   - reconciliation

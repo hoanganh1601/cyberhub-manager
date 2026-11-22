@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import timezone
-import json
 from typing import Any
 
 from cyberhub_manager.domain.menu import (
@@ -18,16 +17,17 @@ from cyberhub_manager.domain.menu import (
 from cyberhub_manager.repositories.sql import execute, rows
 
 _ITEM_SELECT = """
-    SELECT i.id, i.store_id, i.category_id, i.name, i.description, i.price, i.sort_order,
+    SELECT i.id, c.store_id, i.category_id, i.name, i.description, i.price, i.sort_order,
            i.is_visible, i.is_available, i.updated_at, NULL AS image_version
     FROM menu_items AS i
+    JOIN menu_categories AS c ON c.id = i.category_id
 """
 
 _ORDER_SELECT = """
     SELECT o.id, o.code, o.store_id, o.account_id, c.full_name AS customer_name,
            m.code AS machine_code, o.status, o.total_amount, o.note, o.created_at, o.handled_by,
            o.payment_method, o.paid_at, o.paid_by, o.cancel_reason, o.reservation_expires_at
-    FROM menu_orders AS o
+    FROM v_menu_orders AS o
     JOIN accounts AS a ON a.id = o.account_id
     JOIN customers AS c ON c.id = a.customer_id
     JOIN machines AS m ON m.id = o.machine_id
@@ -116,7 +116,7 @@ class MenuRepository:
             _item(r)
             for r in rows(
                 conn,
-                _ITEM_SELECT + " WHERE i.store_id = %s ORDER BY i.category_id, i.sort_order, i.id",
+                _ITEM_SELECT + " WHERE c.store_id = %s ORDER BY i.category_id, i.sort_order, i.id",
                 (store_id,),
             )
         ]
@@ -131,9 +131,9 @@ class MenuRepository:
         return int(
             execute(
                 conn,
-                "INSERT INTO menu_items (store_id, category_id, name, description, price, sort_order,"
-                " is_visible, is_available) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                (store_id, category_id, name, description, price, sort_order, is_visible, is_available),
+                "INSERT INTO menu_items (category_id, name, description, price, sort_order,"
+                " is_visible, is_available) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (category_id, name, description, price, sort_order, is_visible, is_available),
             )
         )
 
@@ -151,12 +151,14 @@ class MenuRepository:
 
     # ----- Phiên đang chơi của khách --------------------------------------------
     def active_session(self, conn: Any, customer_id: int) -> dict | None:
-        """Phiên ACTIVE (cột sinh active_customer_id) và cửa hàng của máy đang dùng."""
+        """Phiên ACTIVE (từ bảng chiếm dụng 3NF active_usage_sessions) và cửa hàng của máy đang dùng."""
         result = rows(
             conn,
             "SELECT s.id AS session_id, m.id AS machine_id, m.code AS machine_code, m.store_id"
-            " FROM usage_sessions AS s JOIN machines AS m ON m.id = s.machine_id"
-            " WHERE s.active_customer_id = %s",
+            " FROM active_usage_sessions AS au"
+            " JOIN usage_sessions AS s ON s.id = au.session_id"
+            " JOIN machines AS m ON m.id = s.machine_id"
+            " WHERE au.customer_id = %s",
             (customer_id,),
         )
         return dict(result[0]) if result else None
@@ -165,7 +167,7 @@ class MenuRepository:
     def count_open_orders(self, conn: Any, account_id: int) -> int:
         result = rows(
             conn,
-            "SELECT COUNT(*) AS total FROM menu_orders WHERE account_id = %s AND status = 'NEW'",
+            "SELECT COUNT(*) AS total FROM v_menu_orders WHERE account_id = %s AND status = 'NEW'",
             (account_id,),
         )
         return int(result[0]["total"])
@@ -175,9 +177,9 @@ class MenuRepository:
         order_id = int(
             execute(
                 conn,
-                "INSERT INTO menu_orders (code, store_id, account_id, session_id, machine_id, note, total_amount, reservation_expires_at)"
-                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                (code, store_id, account_id, session_id, machine_id, note,
+                "INSERT INTO menu_orders (code, session_id, note, total_amount, reservation_expires_at)"
+                " VALUES (%s, %s, %s, %s, %s)",
+                (code, session_id, note,
                  sum(line.amount for line in lines), _db_time(expires_at)),
             )
         )
@@ -209,24 +211,47 @@ class MenuRepository:
 
     def save_promotion(self, conn, store_id, promotion_id, code, kind, item_id,
                        value, starts_at, ends_at, is_active):
-        values = (code, kind, item_id, value, _db_time(starts_at),
-                  _db_time(ends_at), is_active)
+        starts_db = _db_time(starts_at)
+        ends_db = _db_time(ends_at)
+        values = (code, kind, item_id, value, starts_db, ends_db, is_active)
         if promotion_id is None:
-            return int(execute(conn, "INSERT INTO menu_promotions"
+            promotion_id = int(execute(conn, "INSERT INTO menu_promotions"
                 " (store_id,code,kind,item_id,value,starts_at,ends_at,is_active)"
                 " VALUES(%s,%s,%s,%s,%s,%s,%s,%s)", (store_id, *values)))
-        execute(conn, "UPDATE menu_promotions SET code=%s,kind=%s,item_id=%s,value=%s,"
-                "starts_at=%s,ends_at=%s,is_active=%s"
-                " WHERE id=%s AND store_id=%s", (*values, promotion_id, store_id))
+        else:
+            execute(conn, "UPDATE menu_promotions SET code=%s,kind=%s,item_id=%s,value=%s,"
+                    "starts_at=%s,ends_at=%s,is_active=%s"
+                    " WHERE id=%s AND store_id=%s", (*values, promotion_id, store_id))
+        next_ver = int(rows(
+            conn,
+            "SELECT COALESCE(MAX(version), 0) + 1 AS v FROM menu_promotion_versions WHERE promotion_id=%s FOR UPDATE",
+            (promotion_id,),
+        )[0]["v"])
+        execute(
+            conn,
+            "INSERT INTO menu_promotion_versions"
+            " (promotion_id,version,code,kind,item_id,value,starts_at,ends_at)"
+            " VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
+            (promotion_id, next_ver, code, kind, item_id, value, starts_db, ends_db),
+        )
         return promotion_id
 
     def save_order_pricing(self, conn, order_id, pricing):
-        execute(conn, "INSERT INTO menu_order_pricing"
-                " (order_id,promotion_id,promotion_code,promotion_kind,discount_amount,final_amount,snapshot_json)"
-                " VALUES(%s,%s,%s,%s,%s,%s,%s)",
-                (order_id, pricing["promotion_id"], pricing["promotion_code"],
-                 pricing["promotion_kind"], pricing["discount_amount"],
-                 pricing["final_amount"], json.dumps(pricing["snapshot"], default=str, ensure_ascii=False)))
+        promo_ver_id = None
+        if pricing.get("promotion_id") is not None:
+            found = rows(
+                conn,
+                "SELECT id FROM menu_promotion_versions WHERE promotion_id=%s ORDER BY version DESC LIMIT 1",
+                (pricing["promotion_id"],),
+            )
+            if found:
+                promo_ver_id = int(found[0]["id"])
+        execute(
+            conn,
+            "INSERT INTO menu_order_pricing (order_id, promotion_version_id, discount_amount)"
+            " VALUES (%s, %s, %s)",
+            (order_id, promo_ver_id, int(pricing.get("discount_amount", 0))),
+        )
 
     def _orders(self, conn: Any, where: str, params: tuple) -> list[MenuOrder]:
         heads = rows(conn, _ORDER_SELECT + where, params)
@@ -246,7 +271,7 @@ class MenuRepository:
                 MenuOrderLine(int(r["item_id"]), r["item_name"], int(r["unit_price"]), int(r["quantity"]))
             )
         price_rows = rows(conn,
-            "SELECT order_id,promotion_code,discount_amount FROM menu_order_pricing"
+            "SELECT order_id,promotion_code,discount_amount FROM v_menu_order_pricing"
             f" WHERE order_id IN ({placeholders})", tuple(ids))
         pricing = {int(r["order_id"]): r for r in price_rows}
         return [
@@ -295,9 +320,9 @@ class MenuRepository:
         notifications = rows(conn, """
             SELECT e.id AS event_id, e.order_id, e.order_code, e.order_status, e.created_at,
                    r.read_at
-            FROM customer_notification_events AS e
+            FROM v_customer_notification_events AS e
             LEFT JOIN customer_notification_reads AS r
-              ON r.event_id = e.id AND r.account_id = e.account_id
+              ON r.event_id = e.id
             WHERE e.account_id = %s
             ORDER BY e.created_at DESC, e.id DESC
             LIMIT %s
@@ -310,35 +335,37 @@ class MenuRepository:
     def customer_unread_notification_count(self, conn: Any, account_id: int) -> int:
         result = rows(conn, """
             SELECT COUNT(*) AS unread_count
-            FROM customer_notification_events AS e
+            FROM v_customer_notification_events AS e
             LEFT JOIN customer_notification_reads AS r
-              ON r.event_id = e.id AND r.account_id = e.account_id
+              ON r.event_id = e.id
             WHERE e.account_id = %s AND r.event_id IS NULL
         """, (account_id,))
         return int(result[0]["unread_count"])
 
     def mark_customer_notification_read(self, conn: Any, account_id: int, event_id: int) -> bool:
         if not rows(conn,
-                    "SELECT id FROM customer_notification_events WHERE id = %s AND account_id = %s",
+                    "SELECT id FROM v_customer_notification_events WHERE id = %s AND account_id = %s",
                     (event_id, account_id)):
             return False
         execute(conn,
-                "INSERT IGNORE INTO customer_notification_reads (event_id, account_id) VALUES (%s, %s)",
-                (event_id, account_id))
+                "INSERT IGNORE INTO customer_notification_reads (event_id) VALUES (%s)",
+                (event_id,))
         return True
 
     def record_order_status_notification(self, conn: Any, order_id: int, status: str) -> None:
         """Insert one durable status event per order/status, idempotently."""
         execute(conn, """
-            INSERT IGNORE INTO customer_notification_events
-                (account_id, store_id, order_id, order_code, order_status)
-            SELECT account_id, store_id, id, code, %s
+            INSERT IGNORE INTO customer_notification_events (order_id, order_status)
+            SELECT id, %s
             FROM menu_orders
             WHERE id = %s AND status = %s
         """, (status, order_id, status))
 
     def get_order(self, conn: Any, order_id: int, *, lock: bool = False) -> MenuOrder | None:
-        result = self._orders(conn, " WHERE o.id = %s" + (" FOR UPDATE" if lock else ""), (order_id,))
+        if lock:
+            if not rows(conn, "SELECT id FROM menu_orders WHERE id = %s FOR UPDATE", (order_id,)):
+                return None
+        result = self._orders(conn, " WHERE o.id = %s", (order_id,))
         return result[0] if result else None
 
     def pending_holds(self, conn: Any, before_utc, limit=100) -> list[int]:
@@ -381,23 +408,25 @@ class MenuRepository:
         return changed
 
     def get_reversal(self, conn, order_id, *, lock=False):
+        if lock:
+            if not rows(conn, "SELECT id FROM pos_order_reversals WHERE order_id=%s FOR UPDATE", (order_id,)):
+                return None
         found = rows(conn, "SELECT id,order_id,store_id,requested_by,reason,disposition,status,"
                      "refund_amount,refund_method,refund_reference,decided_by,decided_at"
-                     " FROM pos_order_reversals WHERE order_id=%s"
-                     + (" FOR UPDATE" if lock else ""), (order_id,))
+                     " FROM v_pos_order_reversals WHERE order_id=%s", (order_id,))
         return found[0] if found else None
 
     def list_reversals(self, conn, store_id, status="PENDING"):
         return rows(conn,
             "SELECT id,order_id,store_id,requested_by,reason,disposition,status,refund_amount,"
-            "refund_method,refund_reference,decided_by,decided_at FROM pos_order_reversals"
+            "refund_method,refund_reference,decided_by,decided_at FROM v_pos_order_reversals"
             " WHERE store_id=%s AND status=%s ORDER BY id DESC LIMIT 100", (store_id, status))
 
     def request_reversal(self, conn, order, actor_id, reason, disposition):
         return int(execute(conn,
-            "INSERT INTO pos_order_reversals (order_id,store_id,requested_by,reason,disposition)"
-            " VALUES(%s,%s,%s,%s,%s)",
-            (order.id, order.store_id, actor_id, reason, disposition)))
+            "INSERT INTO pos_order_reversals (order_id,requested_by,reason,disposition)"
+            " VALUES(%s,%s,%s,%s)",
+            (order.id, actor_id, reason, disposition)))
 
     def decide_reversal(self, conn, reversal_id, actor_id, now, approved, refund_amount,
                         refund_method=None, refund_reference=None):
@@ -423,7 +452,7 @@ class MenuRepository:
             SELECT DATE(DATE_ADD(o.paid_at, INTERVAL 7 HOUR)) AS local_day,
                    COUNT(*) AS order_count,
                    SUM(o.total_amount - LEAST(o.total_amount, COALESCE(mp.discount_amount, 0))) AS revenue
-            FROM menu_orders AS o
+            FROM v_menu_orders AS o
             LEFT JOIN menu_order_pricing AS mp ON mp.order_id = o.id
             WHERE o.store_id = %s AND o.status IN ('PAID','REFUNDED')
               AND o.paid_at >= %s AND o.paid_at < %s
@@ -432,14 +461,14 @@ class MenuRepository:
         refunds = rows(conn, """
             SELECT DATE(DATE_ADD(decided_at, INTERVAL 7 HOUR)) AS local_day,
                    COUNT(*) AS refund_count, SUM(refund_amount) AS refund_total
-            FROM pos_order_reversals
+            FROM v_pos_order_reversals
             WHERE store_id=%s AND status='APPROVED' AND refund_amount>0
               AND decided_at >= %s AND decided_at < %s
             GROUP BY local_day ORDER BY local_day
         """, bounds)
         top = rows(conn, """
             SELECT l.item_id, i.name, SUM(l.quantity) AS quantity
-            FROM menu_orders AS o
+            FROM v_menu_orders AS o
             JOIN menu_order_items AS l ON l.order_id = o.id
             JOIN menu_items AS i ON i.id = l.item_id
             WHERE o.store_id = %s AND o.status = 'PAID'

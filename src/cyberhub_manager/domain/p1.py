@@ -33,12 +33,6 @@ class Permission(StrEnum):
     POS_COLLECT_PAYMENT = "pos_collect_payment"
     POS_REQUEST_REVERSAL = "pos_request_reversal"
     POS_APPROVE_REVERSAL = "pos_approve_reversal"
-    INVENTORY_VIEW = "inventory_view"
-    INVENTORY_CONFIGURE = "inventory_configure"
-    INVENTORY_RECEIVE = "inventory_receive"
-    INVENTORY_ISSUE = "inventory_issue"
-    INVENTORY_COUNT = "inventory_count"
-    INVENTORY_APPROVE = "inventory_approve"
     SHIFT_VIEW = "shift_view"
     SHIFT_OPERATE = "shift_operate"
     SHIFT_REVIEW = "shift_review"
@@ -73,8 +67,6 @@ _STAFF_PERMISSIONS = frozenset({
     Permission.POS_CANCEL_ORDERS,
     Permission.POS_COLLECT_PAYMENT,
     Permission.POS_REQUEST_REVERSAL,
-    Permission.INVENTORY_VIEW,
-    Permission.INVENTORY_COUNT,
     Permission.SHIFT_VIEW,
     Permission.SHIFT_OPERATE,
     Permission.MAINTENANCE_VIEW,
@@ -89,10 +81,6 @@ _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
     Permission.MANAGE_PROMOTIONS,
     Permission.MANAGE_MENU,
     Permission.MANAGE_REWARDS,
-    Permission.INVENTORY_CONFIGURE,
-    Permission.INVENTORY_RECEIVE,
-    Permission.INVENTORY_ISSUE,
-    Permission.INVENTORY_APPROVE,
     Permission.POS_APPROVE_REVERSAL,
     Permission.SHIFT_REVIEW,
     Permission.MAINTENANCE_MANAGE,
@@ -108,14 +96,8 @@ _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
 ROLE_PERMISSIONS = {
     Role.STAFF: _STAFF_PERMISSIONS,
     Role.KITCHEN: frozenset({Permission.POS_VIEW_ORDERS, Permission.POS_PREPARE_ORDERS,
-                             Permission.POS_SERVE_ORDERS, Permission.INVENTORY_VIEW,
+                             Permission.POS_SERVE_ORDERS,
                              Permission.MAINTENANCE_VIEW, Permission.MAINTENANCE_REPORT}),
-    Role.INVENTORY: frozenset({Permission.INVENTORY_VIEW,
-                               Permission.INVENTORY_CONFIGURE, Permission.INVENTORY_RECEIVE,
-                               Permission.INVENTORY_ISSUE, Permission.INVENTORY_COUNT,
-                               Permission.PROCUREMENT_VIEW, Permission.PROCUREMENT_REQUEST,
-                               Permission.PROCUREMENT_RECEIVE,
-                               Permission.MAINTENANCE_VIEW, Permission.MAINTENANCE_REPORT}),
     Role.MANAGER: _MANAGER_PERMISSIONS,
     Role.ADMIN: _MANAGER_PERMISSIONS | frozenset({
         Permission.MANAGE_STORES,
