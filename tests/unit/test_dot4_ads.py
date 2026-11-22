@@ -53,6 +53,7 @@ def ctx():
         manager=bundle.auth.login("quanly01", DEMO_PASSWORD),
         staff=bundle.auth.login("nhanvien01", DEMO_PASSWORD),
         admin=bundle.auth.login("admin01", DEMO_PASSWORD),
+        director=bundle.auth.login("giamdoc01", DEMO_PASSWORD),
     )
 
 
@@ -71,11 +72,11 @@ def conflict(func, message):
 
 
 def set_settings(ctx, **changes):
-    s = ctx["ads"].overview(ctx["admin"])["settings"]
+    s = ctx["ads"].overview(ctx["director"])["settings"]
     values = dict(enabled=s.enabled, mode=s.mode, daily_cap=s.daily_cap, reward_type=s.reward_type,
                   reward_amount=s.reward_amount)
     values.update(changes)
-    return ctx["ads"].save_settings(ctx["admin"], **values)
+    return ctx["ads"].save_settings(ctx["director"], **values)
 
 
 # ----- Luồng HOUSE ------------------------------------------------------------------
@@ -233,15 +234,21 @@ def test_overview_counts_valid_and_rejected_without_exposing_tokens(ctx):
     assert data["can_configure"] is False
 
 
-def test_only_admin_changes_settings_and_creatives(ctx):
+def test_only_director_changes_settings_and_creatives(ctx, monkeypatch):
+    monkeypatch.setenv("CYBERHUB_RBAC_POLICY", "separated")
     with pytest.raises(PermissionDeniedError):
         ctx["ads"].save_settings(ctx["manager"], enabled=True, mode="HOUSE", daily_cap=5,
                                  reward_type="EXTRA_SPIN", reward_amount=1)
     with pytest.raises(PermissionDeniedError):
         ctx["ads"].save_creative(ctx["manager"], None, code="NEW1", title="T", body="B", cta="",
                                  duration_seconds=10, is_active=True)
-    creative = ctx["ads"].save_creative(ctx["admin"], None, code="NEW1", title="Giờ vàng", body="Giảm giờ chơi",
-                                        cta="", duration_seconds=10, is_active=True)
+    with pytest.raises(PermissionDeniedError):
+        ctx["ads"].save_creative(ctx["admin"], None, code="NEW1", title="T", body="B", cta="",
+                                 duration_seconds=10, is_active=True)
+    creative = ctx["ads"].save_creative(
+        ctx["director"], None, code="NEW1", title="Giờ vàng", body="Giảm giờ chơi",
+        cta="", duration_seconds=10, is_active=True,
+    )
     assert creative.code == "NEW1"
 
 

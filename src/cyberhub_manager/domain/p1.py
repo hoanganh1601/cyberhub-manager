@@ -25,8 +25,8 @@ class Permission(StrEnum):
     SWITCH_STORE = "switch_store"
     EXPORT_INVOICE = "export_invoice"
     VIEW_REVENUE = "view_revenue"
-    MANAGE_MENU = "manage_menu"  # Đợt 1: thêm/sửa/ẩn món, nhóm món, giá, ảnh (MANAGER/ADMIN)
-    MANAGE_REWARDS = "manage_rewards"  # Đợt 2: danh mục phần thưởng, phát/thu hồi voucher (MANAGER/ADMIN)
+    MANAGE_MENU = "manage_menu"  # Thêm/sửa/ẩn món, nhóm món, giá và ảnh.
+    MANAGE_REWARDS = "manage_rewards"  # Cấu hình game/quà và quản trị voucher.
     POS_VIEW_ORDERS = "pos_view_orders"
     POS_PREPARE_ORDERS = "pos_prepare_orders"
     POS_SERVE_ORDERS = "pos_serve_orders"

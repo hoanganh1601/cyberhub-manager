@@ -29,6 +29,7 @@ from cyberhub_manager.domain.ad import (
     AdSettings,
     AdStatus,
 )
+from cyberhub_manager.domain.business_time import local_day
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import (
     ConflictError,
@@ -41,7 +42,6 @@ from cyberhub_manager.domain.p1 import Permission, chain_director
 
 from cyberhub_manager.application.services.p1_runtime import errors, retry_on_transient
 
-VN = timezone(timedelta(hours=7))
 TOKEN_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 TXN_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{4,80}$")
 
@@ -94,7 +94,7 @@ class AdService:
         with self._errors(), self._transaction() as conn:
             customer = self._vouchers._customer(conn, principal)
             settings = self._repo.settings(conn)
-            today = self._now().astimezone(VN).date()
+            today = local_day(self._now())
             done = self._repo.count_events(conn, customer.account_id, today, AdStatus.COMPLETED)
             wallet = self._games.wallet(conn, customer.account_id)
             return dict(
@@ -118,7 +118,7 @@ class AdService:
             if wallet.is_locked:
                 raise ConflictError(WALLET_LOCKED)
             now = self._now()
-            today = now.astimezone(VN).date()
+            today = local_day(now)
             if self._repo.count_events(conn, customer.account_id, today, AdStatus.COMPLETED) >= settings.daily_cap:
                 raise ConflictError(CAP_REACHED)
             if self._repo.count_events(conn, customer.account_id, today) >= settings.daily_cap * START_FACTOR:
@@ -132,7 +132,7 @@ class AdService:
             min_complete = now + timedelta(seconds=creative.duration_seconds)
             self._repo.insert_event(
                 conn, token=token, account_id=customer.account_id, creative_id=creative.id, provider=settings.mode,
-                reward_type=settings.reward_type, reward_amount=settings.reward_amount, played_on=today,
+                reward_type=settings.reward_type, reward_amount=settings.reward_amount,
                 issued_at=now, min_complete_at=min_complete, expires_at=now + timedelta(hours=TOKEN_HOURS),
             )
             return dict(
@@ -219,14 +219,14 @@ class AdService:
         return None, dict(reward_type=event.reward_type, reward_amount=event.reward_amount, coin_balance=balance)
 
     # =================================================================================
-    # Nhân viên / quản trị
+    # Nhân viên / quản trị kinh doanh
     # =================================================================================
     def overview(self, actor):
         with self._errors(), self._transaction() as conn:
             current = self._vouchers._actor(conn, actor,
                 Permission.MANAGE_REWARDS if actor.role == Role.DIRECTOR else Permission.OPERATE)
             now = self._now()
-            since = now.astimezone(VN).date() - timedelta(days=6)
+            since = local_day(now) - timedelta(days=6)
             return dict(
                 can_configure=chain_director(current.role),
                 network_ready=bool(self._secret),
@@ -246,7 +246,7 @@ class AdService:
     def _admin(self, conn, actor):
         current = self._vouchers._actor(conn, actor, Permission.MANAGE_REWARDS)
         if not chain_director(current.role):
-            raise PermissionDeniedError("Chỉ quản trị viên cấu hình quảng cáo")
+            raise PermissionDeniedError("Cần quyền cấu hình phần thưởng cấp chuỗi")
         return current
 
     @retry_on_transient

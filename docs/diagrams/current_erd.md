@@ -1,6 +1,6 @@
-# ERD hiện hành — đối chiếu migration 001–030 (chuẩn 3NF nghiêm ngặt)
+# ERD hiện hành — đối chiếu migration 001–031 (chuẩn 3NF nghiêm ngặt)
 
-Nguồn: `sql/001_initial_schema.sql` → `sql/030_strict_integrity_checks_and_cross_store_guards.sql`, theo thứ tự [runner](../../scripts/init_db.py). 74 bảng nghiệp vụ dưới đây đã được đối chiếu bằng [data dictionary](data_dictionary.md) sinh từ `INFORMATION_SCHEMA` của MySQL test và chứng minh 3NF tại [DATABASE_3NF_PROOFS.md](../architecture/DATABASE_3NF_PROOFS.md). Bảng kỹ thuật `schema_migrations` do runner tạo riêng; 18 view `v_*` cung cấp các trường dẫn xuất cho báo cáo/đọc tương thích.
+Nguồn: `sql/001_initial_schema.sql` → `sql/031_strict_3nf_game_ad_business_day.sql`, theo thứ tự [runner](../../scripts/init_db.py). 74 bảng nghiệp vụ dưới đây đã được đối chiếu bằng [data dictionary](data_dictionary.md) sinh từ `INFORMATION_SCHEMA` của MySQL test và chứng minh 3NF tại [DATABASE_3NF_PROOFS.md](../architecture/DATABASE_3NF_PROOFS.md). Bảng kỹ thuật `schema_migrations` do runner tạo riêng; 18 view `v_*` cung cấp các trường dẫn xuất cho báo cáo/đọc tương thích.
 
 Mỗi quan hệ có tên **cột FK của bảng con** sau dấu `:`; đường liên kết không thay thế định nghĩa NULL, UNIQUE, `ON DELETE` hay CHECK/TRIGGER trong SQL. Bảng độc lập có khối riêng. PK mặc định `id`, ngoại trừ các bảng liệt kê dưới đây. Dùng [data dictionary](data_dictionary.md) để xem kiểu cột, index và ràng buộc đầy đủ.
 
@@ -105,6 +105,31 @@ erDiagram
     customer_vouchers o|--o{ game_coin_ledger : voucher_id
     ad_creatives o|--o{ ad_reward_events : creative_id
     accounts ||--o{ ad_reward_events : account_id
+    game_sessions {
+        bigint id PK
+        bigint account_id FK
+        bigint game_id FK
+        int prize_index
+        varchar prize_label
+        int coins
+        datetime created_at "UTC source of business day"
+    }
+    ad_reward_events {
+        bigint id PK
+        char token UK
+        bigint account_id FK
+        bigint creative_id FK "nullable"
+        varchar provider
+        varchar reward_type
+        int reward_amount
+        varchar status
+        datetime issued_at "UTC source of business day"
+        datetime min_complete_at
+        datetime expires_at
+        datetime completed_at "nullable"
+        varchar provider_txn_id UK "nullable"
+        varchar reject_reason "nullable"
+    }
     ad_settings {
         bigint id PK
     }

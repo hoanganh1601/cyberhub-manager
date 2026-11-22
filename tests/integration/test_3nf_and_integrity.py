@@ -1,6 +1,6 @@
 """Strict 3NF and database integrity verification against real MySQL 8.4.
 
-Verifies migrations 028, 029, and 030 directly against cyberhub_manager_test:
+Verifies migrations 028 through 031 directly against cyberhub_manager_test:
 - Zero generated columns and zero JSON columns in all 74 business base tables.
 - Explicit InnoDB + utf8mb4_0900_ai_ci on all 74 business base tables (INT-04).
 - All 18 compatibility/reporting read views exist and return expected derived values.
@@ -189,6 +189,8 @@ def test_dropped_derived_and_transitive_columns_are_absent(db_conn):
         ("menu_order_pricing", "promotion_kind"),
         ("menu_order_pricing", "final_amount"),
         ("menu_order_pricing", "snapshot_json"),
+        ("game_sessions", "played_on"),
+        ("ad_reward_events", "played_on"),
     )
     existing = {
         (r["TABLE_NAME"], r["COLUMN_NAME"])

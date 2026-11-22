@@ -1,13 +1,13 @@
 # Phụ lục chứng minh chuẩn hóa 3NF và toàn vẹn cơ sở dữ liệu — CyberHub Manager
 
-- **Ngày lập và nghiệm thu:** 21/11/2026
-- **Phiên bản schema:** Migration `sql/001_initial_schema.sql` → `sql/030_strict_integrity_checks_and_cross_store_guards.sql` (MySQL 8.4 LTS, 100% InnoDB, `utf8mb4_0900_ai_ci`)
+- **Ngày lập và nghiệm thu:** 21–22/11/2026
+- **Phiên bản schema:** Migration `sql/001_initial_schema.sql` → `sql/031_strict_3nf_game_ad_business_day.sql` (MySQL 8.4 LTS, 100% InnoDB, `utf8mb4_0900_ai_ci`)
 - **Nhánh triển khai:** `refactor/four-layer-architecture` (kiến trúc 4 tầng: Domain / Application / Infrastructure / Presentation)
-- **Căn cứ đối chiếu:** [Kế hoạch chuẩn hóa 3NF](DATABASE_3NF_REMEDIATION_PLAN.md), [Data dictionary](../diagrams/data_dictionary.md), [ERD hiện hành](../diagrams/current_erd.md), [Bộ kiểm thử 3NF & toàn vẹn](../../tests/integration/test_3nf_and_integrity.py).
+- **Căn cứ đối chiếu:** [Kế hoạch chuẩn hóa 3NF](DATABASE_3NF_REMEDIATION_PLAN.md), [Data dictionary](../diagrams/data_dictionary.md), [ERD hiện hành](../diagrams/current_erd.md), [UML hệ thống](../diagrams/system_uml.md), [Bộ kiểm thử 3NF & toàn vẹn](../../tests/integration/test_3nf_and_integrity.py).
 
 ## 1. Tóm tắt kết quả chuẩn hóa và kiểm chứng
 
-| Chỉ tiêu (đọc từ `INFORMATION_SCHEMA` của `cyberhub_manager_test`) | Trước chuẩn hóa (`027`) | Sau chuẩn hóa (`030`) |
+| Chỉ tiêu (đọc từ `INFORMATION_SCHEMA` của `cyberhub_manager_test` & `cyberhub_manager`) | Trước chuẩn hóa (`027`) | Sau chuẩn hóa (`031`) |
 |---|---:|---:|
 | Bảng nghiệp vụ cơ sở (BASE TABLE, không tính `schema_migrations`) | 70 | **74** |
 | View đọc tương thích / dẫn xuất (`v_*`) | 0 | **18** |
@@ -22,12 +22,13 @@
 
 ### Phân tách rõ ba nội dung theo nguyên tắc báo cáo BTL
 
-1. **Chuẩn hóa 3NF (đạt trên cả 74/74 bảng nghiệp vụ cơ sở):** Mọi phụ thuộc hàm nội quan hệ không tầm thường $X \to A \in F^+$ trên từng bảng cơ sở đều thỏa mãn $X$ là siêu khóa hoặc $A$ là thuộc tính nguyên tố. Toàn bộ cột dẫn xuất/công thức (NF-01), cột lặp bắc cầu từ bảng cha (NF-02), nguồn nhân sự trùng lặp hai chiều (NF-03), và cấu hình/snapshot JSON không phiên bản hóa (NF-04) đã được loại bỏ khỏi bảng cơ sở và cung cấp qua 18 view đọc (`v_*`).
+1. **Chuẩn hóa 3NF (đạt trên cả 74/74 bảng nghiệp vụ cơ sở):** Mọi phụ thuộc hàm nội quan hệ không tầm thường $X \to A \in F^+$ trên từng bảng cơ sở đều thỏa mãn $X$ là siêu khóa hoặc $A$ là thuộc tính nguyên tố. Toàn bộ cột dẫn xuất/công thức (NF-01), cột lặp bắc cầu từ bảng cha (NF-02), nguồn nhân sự trùng lặp hai chiều (NF-03), cấu hình/snapshot JSON không phiên bản hóa (NF-04), và hai ngày nghiệp vụ suy ra từ timestamp (`game_sessions.played_on`, `ad_reward_events.played_on`) đã được loại khỏi bảng cơ sở. Ngày Việt Nam được tạo ở read model từ timestamp UTC và truy vấn giới hạn ngày dùng khoảng nửa mở `[start_utc, end_utc)`.
 2. **Toàn vẹn liên bảng & số dư tổng hợp (NF-05, INT-01..INT-04):** Các trường số dư/tổng tổng hợp liên bảng (`accounts.balance`, `accounts.bonus_balance`, `game_wallets.balance`, `inventory_ingredients.on_hand/reserved`, `menu_orders.total_amount`, `purchase_orders.total_amount`, `goods_receipts.accepted_amount`, `machine_incidents.parts_cost`) được công bố tường minh là projection vật lý có khóa hàng `FOR UPDATE` và đồng bộ nguyên tử cùng sổ cái/bảng chi tiết trong cùng transaction (không che giấu và không gọi nhầm là không có dư thừa liên bảng). Ràng buộc cùng cơ sở/đúng chủ sở hữu (INT-01) và CHECK chống lỗ hổng `NULL/UNKNOWN` + tách nhiệm vụ SoD (INT-02) được thực thi trực tiếp tại MySQL 8.4.
 3. **Giới hạn phạm vi công bố trung thực (Mục 7 & 13):**
    - Hai cột tham chiếu đa hình `cash_shift_entries.(source_type, source_id)` và `management_audit.entity_id` không có FK cứng tới từng bảng nguồn; tính duy nhất được khóa bằng `UNIQUE(source_type, source_id, payment_method)` và kiểm soát tại tầng application service.
    - Tài khoản DB demo hiện dùng chung `cyberhub_app` có quyền DML rộng hơn mức tối thiểu; tách tài khoản DB runtime chỉ-INSERT cho bảng audit/ledger thuộc phạm vi triển khai vận hành sản xuất.
    - Dữ liệu demo lịch sử trước migration `030` trong `cyberhub_manager` có 2 hợp đồng seed (`CTR-VNG-2026`, `CTR-ADS-2026`) ghi `created_by = approved_by = 9`; theo nguyên tắc không tự suy đoán/giả mạo người duyệt (Mục 10.5), 2 bản ghi lịch sử này được giữ nguyên trong khi trigger `trg_commercial_contracts_sod_bi/bu` chặn tuyệt đối tự duyệt với mọi hợp đồng thêm/sửa mới.
+   - Dữ liệu seed lịch sử trước migration `031` trong `cyberhub_manager` có 4 dòng `game_sessions` (`id = 1..4`, `created_at = 2026-11-16 17:17:31` UTC) từng ghi `played_on = 2026-11-16` (theo ngày UTC) thay vì ngày Việt Nam `2026-11-17` (`UTC+7`). Trước khi chạy `031`, quá trình nâng cấp đã backup `cyberhub_manager`, diễn tập trên bản sao `cyberhub_manager_migration_test`, chuẩn hóa minh bạch 4 dòng seed này về ngày `UTC+7` tương ứng rồi mới áp dụng `031` (4 dòng phát sinh từ ứng dụng và 5 dòng `ad_reward_events` khớp sẵn 100%, 0 sai lệch sau nâng cấp).
 
 ## 2. Chốt 10 quyết định nghiệp vụ (B01–B10)
 
@@ -57,10 +58,10 @@
 - **Nối không mất mát:** $R_3 \cap R_1 = \{\text{loyalty\_rule\_version} \equiv \text{version}\}$, là khóa chính của $R_1$ nên $(R_3 \cap R_1) \to R_1 \in F^+$. Phép chiếu bỏ các cột hàm xác định (`total_amount`, `loyalty_eligible_amount`, `loyalty_points`, `loyalty_unit`) tái tạo chính xác 100% qua view `v_invoices`.
 - **Bảo toàn phụ thuộc:** $\text{version} \to \text{unit\_amount}$ được bảo toàn trực tiếp tại $R_1$; toàn bộ FD khóa của hóa đơn bảo toàn tại $R_3$.
 
-### 3.2. Phân rã NF-01 vật lý — Bảng chiếm dụng đang hoạt động (`028`)
+### 3.2. Projection trạng thái NF-01 — Bảng chiếm dụng đang hoạt động (`028`)
 - **Trước phân rã:** `usage_sessions` chứa cột sinh `active_machine_id`, `active_customer_id` (`(status, machine_id) -> active_machine_id`); `cash_shifts` chứa `active_employee_id` (`(status, employee_id) -> active_employee_id`).
-- **Phân rã:** Tách thành `active_usage_sessions(session_id PK, machine_id UNIQUE, customer_id UNIQUE)` và `active_employee_shifts(shift_id PK, employee_id UNIQUE)` đồng bộ cùng transaction bằng trigger `AFTER INSERT` / `AFTER UPDATE`.
-- **Nối không mất mát & bảo toàn phụ thuộc:** Giao là khóa chính (`session_id` / `shift_id`) xác định cả hai phía; ràng buộc duy nhất có điều kiện `status = 'ACTIVE'` được bảo toàn toàn vẹn nhờ cặp `UNIQUE` trên bảng con và trigger `BEFORE UPDATE` chống mở lại phiên/ca đã đóng.
+- **Thiết kế sau chuẩn hóa:** `active_usage_sessions(session_id PK, machine_id UNIQUE, customer_id UNIQUE)` và `active_employee_shifts(shift_id PK, employee_id UNIQUE)` là projection vật lý chỉ chứa tập con phiên/ca đang hoạt động, được đồng bộ cùng transaction bằng trigger `AFTER INSERT` / `AFTER UPDATE`.
+- **Lập luận toàn vẹn đúng:** Đây không phải phép phân rã dọc dùng để tái tạo toàn bộ bảng gốc bằng `INNER JOIN`, nên không áp dụng Định lý Heath cho quan hệ này. Tập đầy đủ luôn nằm ở `usage_sessions`/`cash_shifts`; bảng projection chỉ hiện thực hóa ràng buộc duy nhất có điều kiện. Tính tương đương trạng thái được bảo đảm bởi trigger thêm/xóa projection, `UNIQUE` trên tài nguyên đang bị chiếm dụng và trigger chặn mở lại bản ghi đã kết thúc.
 
 ### 3.3. Phân rã NF-02 — Loại bỏ 11 phụ thuộc bắc cầu từ khóa ngoại cha (`028`)
 - Các quan hệ con bỏ cột cha lặp bắc cầu: `cash_shift_entries` (`shift_id -> store_id`), `commercial_events` (`placement_id -> campaign_id`), `goods_receipts` (`order_id -> store_id`), `supplier_payables` (`receipt_id -> (supplier_id, store_id)`), `purchase_orders` (`request_id -> store_id`), `pos_order_reversals` (`order_id -> store_id`), `inventory_movements` (`ingredient_id -> store_id`), `inventory_counts` (`ingredient_id -> store_id`), `machine_incidents` (`machine_id -> store_id`), `menu_orders` (`session_id -> (store_id, machine_id, account_id)`), `menu_items` (`category_id -> store_id`).
@@ -94,8 +95,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_stores_code`(`code`); CHECK `chk_stores_address_not_blank`; CHECK `chk_stores_code_not_blank`; CHECK `chk_stores_name_not_blank`; CHECK `chk_stores_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.2. `employees`
 
@@ -111,7 +112,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_employees_profile`(`profile_id`); UK `uq_employees_username`(`username`); FK `fk_employees_profile`(`profile_id` → `employee_profiles.id`, ON DELETE RESTRICT); CHECK `chk_employees_password_hash_not_blank`; CHECK `chk_employees_role`; CHECK `chk_employees_status`; CHECK `chk_employees_username_length`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** `AuthRepository` + `ManagementService` JOIN `employee_profiles` qua `profile_id`; mọi thay đổi mật khẩu/role/store tăng `auth_version` để thu hồi phiên cũ trong cùng transaction.
 - **Test và bằng chứng dữ liệu:** `test_ha05_auth_repository.py`, `test_rbac_followup_mysql.py`, `test_3nf_and_integrity.py`; 100% map nhân viên khớp trên clone `cyberhub_manager`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.3. `employee_profiles`
 
@@ -127,7 +128,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_employee_profiles_code`(`code`); FK `fk_employee_profiles_store`(`home_store_id` → `stores.id`, ON DELETE NO ACTION); CHECK `chk_employee_profiles_code_not_blank`; CHECK `chk_employee_profiles_full_name_not_blank`; CHECK `chk_employee_profiles_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** DIRECTOR/MANAGER quản lý hồ sơ nhân sự; ADMIN gắn credential bằng `employees.profile_id` trong transaction có khóa `FOR UPDATE`.
 - **Test và bằng chứng dữ liệu:** `test_rbac_followup_mysql.py`, `test_3nf_and_integrity.py`; xác minh bảo toàn 3 hồ sơ chưa có tài khoản đăng nhập trên `cyberhub_manager`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.4. `employee_store_assignments`
 
@@ -142,8 +143,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`employee_id,store_id`); FK `fk_employee_assignments_employee`(`employee_id` → `employees.id`, ON DELETE NO ACTION); FK `fk_employee_assignments_granter`(`granted_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_employee_assignments_store`(`store_id` → `stores.id`, ON DELETE NO ACTION).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.5. `customers`
 
@@ -158,8 +159,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_customers_code`(`code`); UK `uq_customers_email`(`email`); UK `uq_customers_phone`(`phone`); CHECK `chk_customers_code_not_blank`; CHECK `chk_customers_full_name_length`; CHECK `chk_customers_phone_format`; CHECK `chk_customers_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.6. `customer_store_links`
 
@@ -174,8 +175,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`customer_id,store_id`); FK `fk_customer_links_customer`(`customer_id` → `customers.id`, ON DELETE NO ACTION); FK `fk_customer_links_store`(`store_id` → `stores.id`, ON DELETE NO ACTION).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.7. `accounts`
 
@@ -191,7 +192,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_accounts_code`(`code`); UK `uq_accounts_customer`(`customer_id`); UK `uq_accounts_username`(`username`); FK `fk_accounts_customer`(`customer_id` → `customers.id`, ON DELETE RESTRICT); CHECK `chk_accounts_bonus_nonnegative`; CHECK `chk_accounts_code_not_blank`; CHECK `chk_accounts_password_hash_not_blank`; CHECK `chk_accounts_status`; CHECK `chk_accounts_username_format`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** NF-05: `balance` và `bonus_balance` là số dư tổng hợp đồng bộ nguyên tử với sổ cái bất biến `account_transactions` trong cùng transaction có khóa `SELECT ... FOR UPDATE` trên `accounts`.
 - **Test và bằng chứng dữ liệu:** `test_wallet_flow.py`, `test_p1_wallet_management.py`, `test_3nf_and_integrity.py`; tổng `balance`/`bonus_balance`/`cash_balance` khớp tuyệt đối 0 sai lệch trên clone.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.8. `machines`
 
@@ -206,8 +207,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_machines_code`(`code`); FK `fk_machines_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); CHECK `chk_machines_archived_not_in_use`; CHECK `chk_machines_code_not_blank`; CHECK `chk_machines_hourly_rate`; CHECK `chk_machines_is_active`; CHECK `chk_machines_name_not_blank`; CHECK `chk_machines_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.9. `usage_sessions`
 
@@ -223,7 +224,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_usage_sessions_code`(`code`); FK `fk_usage_sessions_closed_by`(`closed_by` → `employees.id`, ON DELETE RESTRICT); FK `fk_usage_sessions_customer`(`customer_id` → `customers.id`, ON DELETE RESTRICT); FK `fk_usage_sessions_machine`(`machine_id` → `machines.id`, ON DELETE RESTRICT); FK `fk_usage_sessions_opened_by`(`opened_by` → `employees.id`, ON DELETE RESTRICT); CHECK `chk_usage_sessions_code_not_blank`; CHECK `chk_usage_sessions_cost`; CHECK `chk_usage_sessions_hourly_rate`; CHECK `chk_usage_sessions_state`; CHECK `chk_usage_sessions_status`; CHECK `chk_usage_sessions_time_order`; TRIGGER `trg_usage_sessions_ai`; TRIGGER `trg_usage_sessions_au`; TRIGGER `trg_usage_sessions_bu_no_reopen`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** `SessionService` khóa `machines`, `accounts`, `usage_sessions` theo thứ tự cố định trong transaction để chống deadlock và mở trùng phiên.
 - **Test và bằng chứng dữ liệu:** `test_open_session_flow.py`, `test_checkout_flow.py`, `test_3nf_and_integrity.py` (kể cả test concurrent đa kết nối).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.10. `active_usage_sessions`
 
@@ -239,7 +240,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`session_id`); UK `uq_active_usage_customer`(`customer_id`); UK `uq_active_usage_machine`(`machine_id`); FK `fk_active_usage_customer`(`customer_id` → `customers.id`, ON DELETE RESTRICT); FK `fk_active_usage_machine`(`machine_id` → `machines.id`, ON DELETE RESTRICT); FK `fk_active_usage_session`(`session_id` → `usage_sessions.id`, ON DELETE CASCADE).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Đồng bộ tự động bằng trigger `trg_usage_sessions_ai` (chèn khi mở ACTIVE) và `trg_usage_sessions_au` (xóa khi đóng); `trg_usage_sessions_bu_no_reopen` chặn mở lại phiên đã đóng.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py::test_active_usage_sessions_occupancy_and_no_reopen`, `test_open_session_flow.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.11. `account_transactions`
 
@@ -255,7 +256,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_account_transactions_code`(`code`); FK `fk_account_transactions_account`(`account_id` → `accounts.id`, ON DELETE RESTRICT); FK `fk_account_transactions_employee`(`employee_id` → `employees.id`, ON DELETE RESTRICT); FK `fk_account_transactions_session`(`session_id` → `usage_sessions.id`, ON DELETE RESTRICT); FK `fk_transactions_promotion`(`promotion_id` → `promotions.id`, ON DELETE RESTRICT); FK `fk_transactions_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); CHECK `chk_account_transactions_amount`; CHECK `chk_account_transactions_code_not_blank`; CHECK `chk_account_transactions_method`; CHECK `chk_account_transactions_type`; CHECK `chk_account_transactions_type_method`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Sổ cái tiền bất biến (append-only); mỗi lần đổi `accounts.(balance, bonus_balance)` bắt buộc có bút toán tương ứng trong cùng transaction.
 - **Test và bằng chứng dữ liệu:** `test_ha06_repositories.py`, `test_ha08_repositories.py`, `test_wallet_flow.py`, `test_p1_wallet_management.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.12. `invoices`
 
@@ -271,7 +272,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_invoices_code`(`code`); UK `uq_invoices_session`(`session_id`); FK `fk_invoices_customer`(`customer_id` → `customers.id`, ON DELETE RESTRICT); FK `fk_invoices_employee`(`employee_id` → `employees.id`, ON DELETE RESTRICT); FK `fk_invoices_loyalty_version`(`loyalty_rule_version` → `loyalty_policy_versions.version`, ON DELETE RESTRICT); FK `fk_invoices_session`(`session_id` → `usage_sessions.id`, ON DELETE RESTRICT); FK `fk_invoices_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); CHECK `chk_invoices_bonus_used`; CHECK `chk_invoices_code_not_blank`; CHECK `chk_invoices_money`; CHECK `chk_invoices_settlement`; CHECK `chk_invoices_status`; TRIGGER `trg_invoices_bi`; TRIGGER `trg_invoices_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** `SessionService.complete_checkout` tạo hóa đơn nguyên tử cùng đóng phiên và trừ ví; `InvoiceRepository` đọc chính sách qua `loyalty_policy_versions` để không làm đổi điểm lịch sử.
 - **Test và bằng chứng dữ liệu:** `test_ha08_repositories.py`, `test_customer_membership.py`, `test_3nf_and_integrity.py`; tổng doanh thu và điểm khớp tuyệt đối trên clone.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.13. `promotions`
 
@@ -286,8 +287,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `code`(`code`); FK `fk_promotion_target_customer`(`target_customer_id` → `customers.id`, ON DELETE RESTRICT); FK `fk_promotions_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); CHECK `chk_promotion_points`; CHECK `chk_promotion_tier`; CHECK `chk_promotions_amount`; CHECK `chk_promotions_percent`; CHECK `chk_promotions_period`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.14. `management_audit`
 
@@ -303,7 +304,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_management_audit_employee`(`employee_id` → `employees.id`, ON DELETE RESTRICT); FK `fk_management_audit_store`(`store_id` → `stores.id`, ON DELETE RESTRICT).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Giới hạn công bố (INT-03 & SEC-01): `entity_id` là tham chiếu đa hình; tính bất biến của bảng audit được thực thi qua ứng dụng (chưa tách tài khoản DB runtime chỉ có quyền INSERT).
 - **Test và bằng chứng dữ liệu:** `test_report_flow.py`, `test_web_mysql.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.15. `customer_notification_reads`
 
@@ -318,8 +319,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`account_id,notification_key`); FK `fk_customer_notification_account`(`account_id` → `accounts.id`, ON DELETE RESTRICT).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.16. `machine_room_types`
 
@@ -334,8 +335,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`machine_id`); FK `fk_machine_room_machine`(`machine_id` → `machines.id`, ON DELETE CASCADE); CHECK `chk_machine_room_type`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.17. `loyalty_policy_versions`
 
@@ -351,7 +352,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`version`); CHECK `chk_loyalty_ver_tiers`; CHECK `chk_loyalty_ver_unit`; CHECK `chk_loyalty_ver_version`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Bản ghi bất biến (append-only); mỗi lần Admin cập nhật chính sách sẽ tạo `version = current_version + 1` và dịch con trỏ `loyalty_settings.current_version`.
 - **Test và bằng chứng dữ liệu:** `test_customer_membership.py`, `test_3nf_and_integrity.py::test_loyalty_policy_version_preserves_historical_invoice_points`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.18. `loyalty_settings`
 
@@ -367,7 +368,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_loyalty_settings_version`(`current_version` → `loyalty_policy_versions.version`, ON DELETE RESTRICT); CHECK `chk_loyalty_singleton`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Cập nhật dùng khóa lạc quan (`WHERE id = 1 AND current_version = %s`) trong transaction của `ManagementService`.
 - **Test và bằng chứng dữ liệu:** `test_customer_membership.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.19. `customer_avatars`
 
@@ -382,8 +383,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`account_id`); FK `fk_customer_avatar_account`(`account_id` → `accounts.id`, ON DELETE CASCADE).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.20. `menu_categories`
 
@@ -398,8 +399,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_menu_categories_store_name`(`store_id,name`); FK `fk_menu_categories_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); CHECK `chk_menu_categories_name`; CHECK `chk_menu_categories_page`; CHECK `chk_menu_categories_sort`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.21. `menu_items`
 
@@ -415,7 +416,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_menu_items_category_name`(`category_id,name`); FK `fk_menu_items_category`(`category_id` → `menu_categories.id`, ON DELETE RESTRICT); CHECK `chk_menu_items_name`; CHECK `chk_menu_items_price`; CHECK `chk_menu_items_sort`; TRIGGER `trg_menu_items_bi`; TRIGGER `trg_menu_items_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** `MenuCatalogMixin.save_item` kiểm tra danh mục cùng cơ sở và ghi nhật ký `menu_item_changes` trong cùng transaction.
 - **Test và bằng chứng dữ liệu:** `test_dot1_menu_repository.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.22. `menu_item_images`
 
@@ -430,8 +431,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`item_id`); FK `fk_menu_item_images_item`(`item_id` → `menu_items.id`, ON DELETE RESTRICT).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.23. `menu_item_changes`
 
@@ -446,8 +447,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_menu_item_changes_employee`(`employee_id` → `employees.id`, ON DELETE RESTRICT); FK `fk_menu_item_changes_item`(`item_id` → `menu_items.id`, ON DELETE RESTRICT); CHECK `chk_menu_item_changes_field`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.24. `menu_orders`
 
@@ -463,7 +464,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_menu_orders_code`(`code`); FK `fk_menu_orders_handled_by`(`handled_by` → `employees.id`, ON DELETE RESTRICT); FK `fk_menu_orders_paid_by`(`paid_by` → `employees.id`, ON DELETE RESTRICT); FK `fk_menu_orders_session`(`session_id` → `usage_sessions.id`, ON DELETE RESTRICT); CHECK `chk_menu_orders_handled`; CHECK `chk_menu_orders_payment`; CHECK `chk_menu_orders_status`; CHECK `chk_menu_orders_total`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** NF-05: `total_amount` là tổng tiền snapshot chụp từ `menu_order_items` lúc đặt; mọi chuyển trạng thái đơn và giữ/xuất kho nguyên liệu chạy nguyên tử trong cùng transaction.
 - **Test và bằng chứng dữ liệu:** `test_dot1_menu_repository.py`, `test_inventory_order_lifecycle.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.25. `menu_order_items`
 
@@ -479,7 +480,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`order_id,item_id`); FK `fk_menu_order_items_item`(`item_id` → `menu_items.id`, ON DELETE RESTRICT); FK `fk_menu_order_items_order`(`order_id` → `menu_orders.id`, ON DELETE RESTRICT); CHECK `chk_menu_order_items_price`; CHECK `chk_menu_order_items_quantity`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Ghi bất biến trong cùng transaction tạo `menu_orders` và `menu_order_recipe_snapshots`.
 - **Test và bằng chứng dữ liệu:** `test_dot1_menu_repository.py`, `test_inventory_order_lifecycle.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.26. `inventory_ingredients`
 
@@ -495,7 +496,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_inventory_ingredients_store_code`(`store_id,code`); UK `uq_inventory_ingredients_store_id`(`store_id,id`); FK `fk_inventory_ingredients_store`(`store_id` → `stores.id`, ON DELETE NO ACTION); CHECK `chk_inventory_ingredients_balance`; CHECK `chk_inventory_ingredients_unit`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** NF-05: `on_hand` và `reserved` là tồn tổng hợp đồng bộ nguyên tử với sổ cái `inventory_movements` dưới khóa `FOR UPDATE`; CHECK bảo đảm `0 <= reserved <= on_hand`.
 - **Test và bằng chứng dữ liệu:** `test_inventory_order_lifecycle.py`, `test_operational_workflows.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.27. `menu_item_recipes`
 
@@ -511,7 +512,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`item_id,ingredient_id`); FK `fk_menu_item_recipes_ingredient`(`ingredient_id` → `inventory_ingredients.id`, ON DELETE NO ACTION); FK `fk_menu_item_recipes_item`(`item_id` → `menu_items.id`, ON DELETE NO ACTION); CHECK `chk_menu_item_recipes_quantity`; TRIGGER `trg_menu_item_recipes_bi`; TRIGGER `trg_menu_item_recipes_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thay đổi công thức không ảnh hưởng các đơn đã đặt (đã chụp vào `menu_order_recipe_snapshots`).
 - **Test và bằng chứng dữ liệu:** `test_inventory_order_lifecycle.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.28. `menu_order_recipe_snapshots`
 
@@ -527,7 +528,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`order_id,item_id,ingredient_id`); FK `fk_menu_order_recipe_snapshots_ingredient`(`ingredient_id` → `inventory_ingredients.id`, ON DELETE NO ACTION); FK `fk_menu_order_recipe_snapshots_line`(`order_id,item_id` → `menu_order_items.order_id,item_id`, ON DELETE NO ACTION); CHECK `chk_menu_order_recipe_snapshots_quantity`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Giúp đổi công thức `menu_item_recipes` về sau không làm sai hoàn giữ tồn/tiêu thụ của đơn cũ.
 - **Test và bằng chứng dữ liệu:** `test_inventory_order_lifecycle.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.29. `inventory_movements`
 
@@ -543,7 +544,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_inventory_movements_key`(`idempotency_key`); FK `fk_inventory_movements_account`(`account_id` → `accounts.id`, ON DELETE NO ACTION); FK `fk_inventory_movements_employee`(`employee_id` → `employees.id`, ON DELETE NO ACTION); FK `fk_inventory_movements_ingredient`(`ingredient_id` → `inventory_ingredients.id`, ON DELETE RESTRICT); FK `fk_inventory_movements_order`(`order_id` → `menu_orders.id`, ON DELETE NO ACTION); CHECK `chk_inventory_movements_kind`; CHECK `chk_inventory_movements_quantity`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Sổ cái kho append-only; đồng bộ cùng `inventory_ingredients.(on_hand, reserved)` dưới khóa `FOR UPDATE` và khóa chống lặp `idempotency_key`.
 - **Test và bằng chứng dữ liệu:** `test_inventory_order_lifecycle.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.30. `inventory_counts`
 
@@ -559,7 +560,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_inventory_counts_request`(`request_id`); FK `fk_inventory_counts_decider`(`decided_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_inventory_counts_ingredient`(`ingredient_id` → `inventory_ingredients.id`, ON DELETE RESTRICT); FK `fk_inventory_counts_proposer`(`proposed_by` → `employees.id`, ON DELETE NO ACTION); CHECK `chk_inventory_counts_decision`; CHECK `chk_inventory_counts_quantities`; CHECK `chk_inventory_counts_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Chặn duyệt khi sổ kho đã phát sinh bút toán mới hơn `expected_movement_id`.
 - **Test và bằng chứng dữ liệu:** `test_inventory_order_lifecycle.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.31. `customer_notification_events`
 
@@ -574,8 +575,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_customer_notification_event_key`(`notification_key`); FK `fk_customer_notification_event_account`(`account_id` → `accounts.id`, ON DELETE NO ACTION); FK `fk_customer_notification_event_store`(`store_id` → `stores.id`, ON DELETE NO ACTION).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.32. `pos_order_reversals`
 
@@ -591,7 +592,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_pos_reversal_order`(`order_id`); FK `fk_pos_reversal_approver`(`decided_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_pos_reversal_order`(`order_id` → `menu_orders.id`, ON DELETE NO ACTION); FK `fk_pos_reversal_requester`(`requested_by` → `employees.id`, ON DELETE NO ACTION); CHECK `chk_pos_reversal_decision`; CHECK `chk_pos_reversal_disposition`; CHECK `chk_pos_reversal_method`; CHECK `chk_pos_reversal_refund`; CHECK `chk_pos_reversal_sod`; CHECK `chk_pos_reversal_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Phê duyệt hoàn đơn nguyên tử cùng cập nhật `menu_orders`, restock/waste kho và bút toán hoàn tiền `cash_shift_entries`.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.33. `menu_promotions`
 
@@ -607,7 +608,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_menu_promo_store_code`(`store_id,code`); FK `fk_menu_promo_item`(`item_id` → `menu_items.id`, ON DELETE NO ACTION); FK `fk_menu_promo_store`(`store_id` → `stores.id`, ON DELETE NO ACTION); CHECK `chk_menu_promo_kind`; CHECK `chk_menu_promo_period`; CHECK `chk_menu_promo_tier`; TRIGGER `trg_menu_promotions_bi`; TRIGGER `trg_menu_promotions_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** `MenuRepository.save_promotion` luôn ghi kèm bản ghi phiên bản tăng dần vào `menu_promotion_versions` trong cùng transaction.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.34. `menu_promotion_versions`
 
@@ -623,7 +624,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_menu_promo_ver`(`promotion_id,version`); FK `fk_menu_promo_ver_item`(`item_id` → `menu_items.id`, ON DELETE RESTRICT); FK `fk_menu_promo_ver_promo`(`promotion_id` → `menu_promotions.id`, ON DELETE RESTRICT); CHECK `chk_menu_promo_ver_kind`; CHECK `chk_menu_promo_ver_period`; CHECK `chk_menu_promo_ver_tier`; CHECK `chk_menu_promo_ver_version`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Bất biến (append-only); không bao giờ sửa/xóa phiên bản đã được `menu_order_pricing` tham chiếu.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.35. `menu_order_pricing`
 
@@ -639,7 +640,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`order_id`); FK `fk_menu_pricing_order`(`order_id` → `menu_orders.id`, ON DELETE NO ACTION); FK `fk_menu_pricing_promo_version`(`promotion_version_id` → `menu_promotion_versions.id`, ON DELETE RESTRICT); FK `fk_menu_pricing_voucher`(`voucher_id` → `customer_vouchers.id`, ON DELETE RESTRICT); CHECK `chk_menu_pricing_promo_consistency`; CHECK `chk_menu_pricing_source`; CHECK `chk_menu_pricing_tier`; CHECK `chk_menu_pricing_voucher_consistency`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Đảm bảo 1 đơn áp tối đa 1 ưu đãi/voucher xác định (B07); sửa chính sách khuyến mãi sau khi đặt không đổi thông tin đơn lịch sử.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py`; 254 bản ghi lịch sử trên clone đối soát khớp tuyệt đối `discount_amount` và `final_amount`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.36. `reward_catalog`
 
@@ -654,8 +655,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_reward_catalog_code`(`code`); FK `fk_reward_catalog_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); CHECK `chk_reward_catalog_coin`; CHECK `chk_reward_catalog_days`; CHECK `chk_reward_catalog_min_order`; CHECK `chk_reward_catalog_name`; CHECK `chk_reward_catalog_type`; CHECK `chk_reward_catalog_value`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.37. `customer_vouchers`
 
@@ -671,7 +672,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_customer_vouchers_code`(`code`); UK `uq_customer_vouchers_order`(`used_order_id`); UK `uq_customer_vouchers_source`(`source,source_ref`); FK `fk_customer_vouchers_account`(`account_id` → `accounts.id`, ON DELETE RESTRICT); FK `fk_customer_vouchers_catalog`(`catalog_id` → `reward_catalog.id`, ON DELETE RESTRICT); FK `fk_customer_vouchers_issued_by`(`issued_by` → `employees.id`, ON DELETE RESTRICT); FK `fk_customer_vouchers_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); FK `fk_customer_vouchers_used_by`(`used_by` → `employees.id`, ON DELETE RESTRICT); FK `fk_customer_vouchers_used_order`(`used_order_id` → `menu_orders.id`, ON DELETE RESTRICT); FK `fk_customer_vouchers_used_store`(`used_store_id` → `stores.id`, ON DELETE RESTRICT); CHECK `chk_customer_vouchers_period`; CHECK `chk_customer_vouchers_revoked`; CHECK `chk_customer_vouchers_source`; CHECK `chk_customer_vouchers_status`; CHECK `chk_customer_vouchers_type`; CHECK `chk_customer_vouchers_used`; CHECK `chk_customer_vouchers_value`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Đổi voucher khóa `FOR UPDATE` và dùng `UPDATE ... WHERE status='ISSUED'` chống dùng hai lần; ghi nhật ký `voucher_events` kể cả lần bị từ chối.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.38. `voucher_events`
 
@@ -686,8 +687,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_voucher_events_employee`(`employee_id` → `employees.id`, ON DELETE RESTRICT); FK `fk_voucher_events_store`(`store_id` → `stores.id`, ON DELETE RESTRICT); FK `fk_voucher_events_voucher`(`voucher_id` → `customer_vouchers.id`, ON DELETE RESTRICT); CHECK `chk_voucher_events_action`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.39. `loyalty_point_grants`
 
@@ -703,7 +704,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_loyalty_point_grants_voucher`(`voucher_id`); FK `fk_loyalty_point_grants_customer`(`customer_id` → `customers.id`, ON DELETE RESTRICT); FK `fk_loyalty_point_grants_employee`(`employee_id` → `employees.id`, ON DELETE RESTRICT); FK `fk_loyalty_point_grants_voucher`(`voucher_id` → `customer_vouchers.id`, ON DELETE RESTRICT); CHECK `chk_loyalty_point_grants_points`; TRIGGER `trg_loyalty_point_grants_bi`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Ghi nguyên tử khi đổi voucher `MEMBER_POINTS`; không làm thay đổi chi tiêu xét hạng.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.40. `games`
 
@@ -718,8 +719,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_games_code`(`code`); CHECK `chk_games_daily_limit`; CHECK `chk_games_interval`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.41. `game_prizes`
 
@@ -734,8 +735,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_game_prizes_slot`(`game_id,sort_order`); FK `fk_game_prizes_game`(`game_id` → `games.id`, ON DELETE RESTRICT); CHECK `chk_game_prizes_coins`; CHECK `chk_game_prizes_label`; CHECK `chk_game_prizes_weight`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.42. `game_wallets`
 
@@ -750,24 +751,24 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`account_id`); FK `fk_game_wallets_account`(`account_id` → `accounts.id`, ON DELETE RESTRICT); CHECK `chk_game_wallets_balance`; CHECK `chk_game_wallets_lock`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.43. `game_sessions`
 
 - **Tên quan hệ và ý nghĩa một dòng:** `game_sessions` — Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại.
-- **Thuộc tính, miền giá trị, ngữ nghĩa NULL (8 cột):** `id` (`bigint unsigned`, NOT NULL); `account_id` (`bigint unsigned`, NOT NULL); `game_id` (`bigint unsigned`, NOT NULL); `prize_index` (`int`, NOT NULL); `prize_label` (`varchar(40)`, NOT NULL); `coins` (`int`, NOT NULL); `played_on` (`date`, NOT NULL); `created_at` (`datetime`, NOT NULL).
-- **Tập FD nghiệp vụ và nguồn xác nhận:** `F = { {id} → {account_id, game_id, prize_index, prize_label, coins, played_on, created_at} }`. Mọi thuộc tính không nguyên tố phụ thuộc hàm đầy đủ và trực tiếp vào từng khóa ứng viên {id} (xác nhận từ migration DDL và repository tầng infrastructure).
-- **Phủ tối thiểu của $F$:** `F_min = { {id} → account_id; {id} → game_id; {id} → prize_index; {id} → prize_label; {id} → coins; {id} → played_on; {id} → created_at }`.
-- **Mọi khóa ứng viên (bao đóng $X^+$ và tính tối thiểu):** {id}. Với mỗi khóa $K$, bao đóng $K^+ = U$ (toàn bộ 8 thuộc tính của `game_sessions`), và mọi tập con thực sự $K' \subsetneq K$ có $(K')^+ \neq U$ nên $K$ tối thiểu.
-- **Thuộc tính nguyên tố / không nguyên tố:** Nguyên tố: `id`. Không nguyên tố: `account_id`, `game_id`, `prize_index`, `prize_label`, `coins`, `played_on`, `created_at`.
+- **Thuộc tính, miền giá trị, ngữ nghĩa NULL (7 cột):** `id` (`bigint unsigned`, NOT NULL); `account_id` (`bigint unsigned`, NOT NULL); `game_id` (`bigint unsigned`, NOT NULL); `prize_index` (`int`, NOT NULL); `prize_label` (`varchar(40)`, NOT NULL); `coins` (`int`, NOT NULL); `created_at` (`datetime`, NOT NULL, UTC).
+- **Tập FD nghiệp vụ và nguồn xác nhận:** `F = { {id} → {account_id, game_id, prize_index, prize_label, coins, created_at} }`. `played_on` trước migration `031` thỏa FD `created_at → played_on` theo quy tắc UTC+7 trong source và đã bị loại khỏi bảng cơ sở.
+- **Phủ tối thiểu của $F$:** `F_min = { {id} → account_id; {id} → game_id; {id} → prize_index; {id} → prize_label; {id} → coins; {id} → created_at }`.
+- **Mọi khóa ứng viên (bao đóng $X^+$ và tính tối thiểu):** {id}. Với mỗi khóa $K$, bao đóng $K^+ = U$ (toàn bộ 7 thuộc tính của `game_sessions`), và mọi tập con thực sự $K' \subsetneq K$ có $(K')^+ \neq U$ nên $K$ tối thiểu.
+- **Thuộc tính nguyên tố / không nguyên tố:** Nguyên tố: `id`. Không nguyên tố: `account_id`, `game_id`, `prize_index`, `prize_label`, `coins`, `created_at`.
 - **Kiểm tra 1NF, 2NF, 3NF trên $F^+$:** Đạt 1NF (toàn bộ miền nguyên tử, 0 cột lặp/JSON/generated). Đạt 2NF tự động vì mọi khóa ứng viên đều đơn thuộc tính (1 cột), không tồn tại phụ thuộc một phần. Đạt 3NF (và BCNF): với mọi phụ thuộc hàm không tầm thường $X \to A \in F^+$, vế trái $X$ là siêu khóa (không tồn tại phụ thuộc bắc cầu giữa các thuộc tính không nguyên tố).
-- **Phép phân rã đề xuất / đã thực hiện:** Không cần phân rã (quan hệ đã đạt 3NF/BCNF trước và sau migration `028`–`030`).
+- **Phép phân rã đề xuất / đã thực hiện:** Migration `031` bỏ `played_on`; repository tính ngày Việt Nam khi đọc và lọc bằng khoảng UTC để giữ hiệu năng index. Quan hệ sau `031` đạt 3NF/BCNF trên tập FD đã công bố.
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_game_sessions_account`(`account_id` → `accounts.id`, ON DELETE RESTRICT); FK `fk_game_sessions_game`(`game_id` → `games.id`, ON DELETE RESTRICT); CHECK `chk_game_sessions_coins`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.44. `game_coin_ledger`
 
@@ -782,8 +783,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_game_coin_ledger_ref`(`reason,ref`); FK `fk_game_coin_ledger_account`(`account_id` → `accounts.id`, ON DELETE RESTRICT); FK `fk_game_coin_ledger_voucher`(`voucher_id` → `customer_vouchers.id`, ON DELETE RESTRICT); CHECK `chk_game_coin_ledger_balance`; CHECK `chk_game_coin_ledger_delta`; CHECK `chk_game_coin_ledger_reason`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.45. `ad_settings`
 
@@ -798,8 +799,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); CHECK `chk_ad_settings_cap`; CHECK `chk_ad_settings_mode`; CHECK `chk_ad_settings_reward`; CHECK `chk_ad_settings_singleton`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.46. `ad_creatives`
 
@@ -814,24 +815,24 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_ad_creatives_code`(`code`); CHECK `chk_ad_creatives_duration`; CHECK `chk_ad_creatives_title`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.47. `ad_reward_events`
 
 - **Tên quan hệ và ý nghĩa một dòng:** `ad_reward_events` — Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game.
-- **Thuộc tính, miền giá trị, ngữ nghĩa NULL (15 cột):** `id` (`bigint unsigned`, NOT NULL); `token` (`char(32)`, NOT NULL); `account_id` (`bigint unsigned`, NOT NULL); `creative_id` (`bigint unsigned`, NULL); `provider` (`varchar(10)`, NOT NULL); `reward_type` (`varchar(12)`, NOT NULL); `reward_amount` (`int`, NOT NULL); `status` (`varchar(10)`, NOT NULL); `played_on` (`date`, NOT NULL); `issued_at` (`datetime`, NOT NULL); `min_complete_at` (`datetime`, NOT NULL); `expires_at` (`datetime`, NOT NULL); `completed_at` (`datetime`, NULL); `provider_txn_id` (`varchar(80)`, NULL); `reject_reason` (`varchar(40)`, NULL).
-- **Tập FD nghiệp vụ và nguồn xác nhận:** `F = { {id} → {account_id, creative_id, provider, reward_type, reward_amount, status, played_on, issued_at, min_complete_at, expires_at, completed_at, provider_txn_id, reject_reason}; {token} → {account_id, creative_id, provider, reward_type, reward_amount, status, played_on, issued_at, min_complete_at, expires_at, completed_at, provider_txn_id, reject_reason}; {id} → {token}; {token} → {id} }`. Mọi thuộc tính không nguyên tố phụ thuộc hàm đầy đủ và trực tiếp vào từng khóa ứng viên {id}, {token} (xác nhận từ migration DDL và repository tầng infrastructure). Lưu ý các UNIQUE nullable (`uq_ad_reward_events_txn`(provider_txn_id)) thực thi duy nhất vật lý khi khác NULL, không tính là khóa ứng viên cổ điển.
-- **Phủ tối thiểu của $F$:** `F_min = { {id} → account_id; {id} → creative_id; {id} → provider; {id} → reward_type; {id} → reward_amount; {id} → status; {id} → played_on; {id} → issued_at; {id} → min_complete_at; {id} → expires_at; {id} → completed_at; {id} → provider_txn_id; {id} → reject_reason; {token} ↔ {id} }`.
-- **Mọi khóa ứng viên (bao đóng $X^+$ và tính tối thiểu):** {id}, {token}. Với mỗi khóa $K$, bao đóng $K^+ = U$ (toàn bộ 15 thuộc tính của `ad_reward_events`), và mọi tập con thực sự $K' \subsetneq K$ có $(K')^+ \neq U$ nên $K$ tối thiểu. *(UNIQUE nullable không phải CK: `provider_txn_id`)*.
-- **Thuộc tính nguyên tố / không nguyên tố:** Nguyên tố: `id`, `token`. Không nguyên tố: `account_id`, `creative_id`, `provider`, `reward_type`, `reward_amount`, `status`, `played_on`, `issued_at`, `min_complete_at`, `expires_at`, `completed_at`, `provider_txn_id`, `reject_reason`.
+- **Thuộc tính, miền giá trị, ngữ nghĩa NULL (14 cột):** `id` (`bigint unsigned`, NOT NULL); `token` (`char(32)`, NOT NULL); `account_id` (`bigint unsigned`, NOT NULL); `creative_id` (`bigint unsigned`, NULL); `provider` (`varchar(10)`, NOT NULL); `reward_type` (`varchar(12)`, NOT NULL); `reward_amount` (`int`, NOT NULL); `status` (`varchar(10)`, NOT NULL); `issued_at` (`datetime`, NOT NULL, UTC); `min_complete_at` (`datetime`, NOT NULL); `expires_at` (`datetime`, NOT NULL); `completed_at` (`datetime`, NULL); `provider_txn_id` (`varchar(80)`, NULL); `reject_reason` (`varchar(40)`, NULL).
+- **Tập FD nghiệp vụ và nguồn xác nhận:** `F = { {id} → {token, account_id, creative_id, provider, reward_type, reward_amount, status, issued_at, min_complete_at, expires_at, completed_at, provider_txn_id, reject_reason}; {token} → {id} }`. `played_on` trước migration `031` thỏa FD `issued_at → played_on` theo quy tắc UTC+7 và đã bị loại. `provider_txn_id` nullable chỉ thực thi duy nhất khi khác NULL, không tính là khóa ứng viên cổ điển.
+- **Phủ tối thiểu của $F$:** `F_min = { {id} → token; {id} → account_id; {id} → creative_id; {id} → provider; {id} → reward_type; {id} → reward_amount; {id} → status; {id} → issued_at; {id} → min_complete_at; {id} → expires_at; {id} → completed_at; {id} → provider_txn_id; {id} → reject_reason; {token} → id }`.
+- **Mọi khóa ứng viên (bao đóng $X^+$ và tính tối thiểu):** {id}, {token}. Với mỗi khóa $K$, bao đóng $K^+ = U$ (toàn bộ 14 thuộc tính của `ad_reward_events`), và mọi tập con thực sự $K' \subsetneq K$ có $(K')^+ \neq U$ nên $K$ tối thiểu. *(UNIQUE nullable không phải CK: `provider_txn_id`)*.
+- **Thuộc tính nguyên tố / không nguyên tố:** Nguyên tố: `id`, `token`. Không nguyên tố: `account_id`, `creative_id`, `provider`, `reward_type`, `reward_amount`, `status`, `issued_at`, `min_complete_at`, `expires_at`, `completed_at`, `provider_txn_id`, `reject_reason`.
 - **Kiểm tra 1NF, 2NF, 3NF trên $F^+$:** Đạt 1NF (toàn bộ miền nguyên tử, 0 cột lặp/JSON/generated). Đạt 2NF tự động vì mọi khóa ứng viên đều đơn thuộc tính (1 cột), không tồn tại phụ thuộc một phần. Đạt 3NF (và BCNF): với mọi phụ thuộc hàm không tầm thường $X \to A \in F^+$, vế trái $X$ là siêu khóa (không tồn tại phụ thuộc bắc cầu giữa các thuộc tính không nguyên tố).
-- **Phép phân rã đề xuất / đã thực hiện:** Không cần phân rã (quan hệ đã đạt 3NF/BCNF trước và sau migration `028`–`030`).
+- **Phép phân rã đề xuất / đã thực hiện:** Migration `031` bỏ `played_on`; repository suy ra ngày Việt Nam từ `issued_at` khi đọc và dùng khoảng UTC cho hạn mức/thống kê. Quan hệ sau `031` đạt 3NF/BCNF trên tập FD đã công bố.
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_ad_reward_events_token`(`token`); UK `uq_ad_reward_events_txn`(`provider_txn_id`); FK `fk_ad_reward_events_account`(`account_id` → `accounts.id`, ON DELETE RESTRICT); FK `fk_ad_reward_events_creative`(`creative_id` → `ad_creatives.id`, ON DELETE RESTRICT); CHECK `chk_ad_reward_events_done`; CHECK `chk_ad_reward_events_period`; CHECK `chk_ad_reward_events_provider`; CHECK `chk_ad_reward_events_reward`; CHECK `chk_ad_reward_events_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.48. `cash_shifts`
 
@@ -847,7 +848,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_cash_shifts_code`(`code`); FK `fk_cash_shifts_employee`(`employee_id` → `employees.id`, ON DELETE NO ACTION); FK `fk_cash_shifts_reviewer`(`reviewed_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_cash_shifts_store`(`store_id` → `stores.id`, ON DELETE NO ACTION); CHECK `chk_cash_shifts_close`; CHECK `chk_cash_shifts_status`; TRIGGER `trg_cash_shifts_ai`; TRIGGER `trg_cash_shifts_au`; TRIGGER `trg_cash_shifts_bu_no_reopen`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Mỗi nhân viên tối đa 1 ca chưa đóng (B10); đóng ca khóa hàng ca và tổng hợp từ `cash_shift_entries` trong cùng transaction.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.49. `active_employee_shifts`
 
@@ -863,7 +864,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`shift_id`); UK `uq_active_shift_employee`(`employee_id`); FK `fk_active_shift_employee`(`employee_id` → `employees.id`, ON DELETE RESTRICT); FK `fk_active_shift_shift`(`shift_id` → `cash_shifts.id`, ON DELETE CASCADE).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Chặn mở đồng thời hai ca ở mức DB ngay cả khi chạy đồng thời nhiều kết nối.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py::test_active_employee_shifts_occupancy_and_no_reopen`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.50. `cash_shift_entries`
 
@@ -879,7 +880,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_cash_shift_entries_source`(`source_type,source_id,payment_method`); FK `fk_cash_entries_employee`(`employee_id` → `employees.id`, ON DELETE NO ACTION); FK `fk_cash_entries_shift`(`shift_id` → `cash_shifts.id`, ON DELETE NO ACTION); CHECK `chk_cash_entries_amount`; CHECK `chk_cash_entries_kind`; CHECK `chk_cash_entries_method`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Giới hạn công bố (INT-03): cặp `(source_type, source_id)` là tham chiếu đa hình không có FK trực tiếp tới từng loại chứng từ nguồn; tính nhất quán được kiểm soát tại application service và khóa `UNIQUE(source_type, source_id, payment_method)`.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.51. `machine_incidents`
 
@@ -895,7 +896,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_machine_incidents_code`(`code`); FK `fk_incidents_assignee`(`assigned_to` → `employees.id`, ON DELETE NO ACTION); FK `fk_incidents_machine`(`machine_id` → `machines.id`, ON DELETE NO ACTION); FK `fk_incidents_reporter`(`reported_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_incidents_verifier`(`verified_by` → `employees.id`, ON DELETE NO ACTION); CHECK `chk_incidents_cost`; CHECK `chk_incidents_lifecycle`; CHECK `chk_incidents_severity`; CHECK `chk_incidents_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** NF-05: `parts_cost` được đồng bộ nguyên tử từ tổng `machine_incident_parts` khi chuyển trạng thái `COMPLETED`; chuyển `IN_PROGRESS` khóa máy sang `MAINTENANCE`.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.52. `machine_incident_parts`
 
@@ -910,8 +911,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_incident_parts_incident`(`incident_id` → `machine_incidents.id`, ON DELETE NO ACTION); CHECK `chk_incident_parts_cost`; CHECK `chk_incident_parts_quantity`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.53. `machine_incident_events`
 
@@ -926,8 +927,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_incident_events_employee`(`employee_id` → `employees.id`, ON DELETE NO ACTION); FK `fk_incident_events_incident`(`incident_id` → `machine_incidents.id`, ON DELETE NO ACTION).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.54. `suppliers`
 
@@ -942,8 +943,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_suppliers_store_code`(`store_id,code`); FK `fk_suppliers_store`(`store_id` → `stores.id`, ON DELETE NO ACTION); CHECK `chk_suppliers_terms`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.55. `purchase_requests`
 
@@ -959,7 +960,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_purchase_requests_code`(`code`); FK `fk_purchase_requests_decider`(`decided_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_purchase_requests_requester`(`requested_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_purchase_requests_store`(`store_id` → `stores.id`, ON DELETE NO ACTION); CHECK `chk_purchase_requests_decision`; CHECK `chk_purchase_requests_sod`; CHECK `chk_purchase_requests_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Đề nghị đã `APPROVED` mới được chuyển thành tối đa 1 `purchase_orders` (B06).
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.56. `purchase_request_lines`
 
@@ -975,7 +976,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`request_id,ingredient_id`); FK `fk_purchase_request_lines_ingredient`(`ingredient_id` → `inventory_ingredients.id`, ON DELETE NO ACTION); FK `fk_purchase_request_lines_request`(`request_id` → `purchase_requests.id`, ON DELETE NO ACTION); CHECK `chk_purchase_request_lines_quantity`; TRIGGER `trg_purchase_request_lines_bi`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Đơn mua tạo từ đề nghị bắt buộc khớp chính xác danh sách nguyên liệu và số lượng đã duyệt.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.57. `purchase_orders`
 
@@ -991,7 +992,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_purchase_orders_code`(`code`); UK `uq_purchase_orders_request`(`request_id`); FK `fk_purchase_orders_creator`(`created_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_purchase_orders_request`(`request_id` → `purchase_requests.id`, ON DELETE NO ACTION); FK `fk_purchase_orders_supplier`(`supplier_id` → `suppliers.id`, ON DELETE NO ACTION); CHECK `chk_purchase_orders_status`; CHECK `chk_purchase_orders_total`; TRIGGER `trg_purchase_orders_bi`; TRIGGER `trg_purchase_orders_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** NF-05: `total_amount` đồng bộ từ tổng `purchase_order_lines` trong cùng transaction tạo đơn.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.58. `purchase_order_lines`
 
@@ -1007,7 +1008,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`order_id,ingredient_id`); FK `fk_purchase_order_lines_ingredient`(`ingredient_id` → `inventory_ingredients.id`, ON DELETE NO ACTION); FK `fk_purchase_order_lines_order`(`order_id` → `purchase_orders.id`, ON DELETE NO ACTION); CHECK `chk_purchase_order_lines_quantity`; CHECK `chk_purchase_order_lines_received`; TRIGGER `trg_purchase_order_lines_bi`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** CHECK bảo đảm `received_quantity + damaged_quantity <= quantity`.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.59. `goods_receipts`
 
@@ -1023,7 +1024,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_goods_receipts_code`(`code`); UK `uq_goods_receipts_request`(`request_id`); FK `fk_goods_receipts_order`(`order_id` → `purchase_orders.id`, ON DELETE NO ACTION); FK `fk_goods_receipts_receiver`(`received_by` → `employees.id`, ON DELETE NO ACTION).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** NF-05: `accepted_amount` đồng bộ cùng `goods_receipt_lines`, `inventory_movements`, cập nhật `purchase_order_lines` và tạo `supplier_payables` trong cùng transaction.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.60. `goods_receipt_lines`
 
@@ -1039,7 +1040,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`receipt_id,ingredient_id`); FK `fk_goods_receipt_lines_ingredient`(`ingredient_id` → `inventory_ingredients.id`, ON DELETE NO ACTION); FK `fk_goods_receipt_lines_receipt`(`receipt_id` → `goods_receipts.id`, ON DELETE NO ACTION); CHECK `chk_goods_receipt_lines_quantity`; TRIGGER `trg_goods_receipt_lines_bi`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** CHECK bảo đảm `accepted_quantity + damaged_quantity + missing_quantity > 0`.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.61. `supplier_payables`
 
@@ -1055,7 +1056,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_supplier_payables_receipt`(`receipt_id`); FK `fk_supplier_payables_employee`(`paid_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_supplier_payables_receipt`(`receipt_id` → `goods_receipts.id`, ON DELETE NO ACTION); CHECK `chk_supplier_payables_amount`; CHECK `chk_supplier_payables_method`; CHECK `chk_supplier_payables_state`; CHECK `chk_supplier_payables_status`; TRIGGER `trg_supplier_payables_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thanh toán công nợ chạy nguyên tử cùng ghi bút toán `EXPENSE` vào `cash_shift_entries`.
 - **Test và bằng chứng dữ liệu:** `test_operational_workflows.py`, `test_rbac_followup_mysql.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.62. `commercial_partners`
 
@@ -1070,8 +1071,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_partners_code`(`code`); CHECK `chk_commercial_partners_status`; CHECK `chk_commercial_partners_type`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.63. `commercial_contracts`
 
@@ -1087,7 +1088,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_contracts_code`(`code`); FK `fk_commercial_contracts_approver`(`approved_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_commercial_contracts_creator`(`created_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_commercial_contracts_partner`(`partner_id` → `commercial_partners.id`, ON DELETE NO ACTION); CHECK `chk_commercial_contracts_approval`; CHECK `chk_commercial_contracts_currency`; CHECK `chk_commercial_contracts_model`; CHECK `chk_commercial_contracts_period`; CHECK `chk_commercial_contracts_status`; TRIGGER `trg_commercial_contracts_sod_bi`; TRIGGER `trg_commercial_contracts_sod_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Ngoại lệ lịch sử đã công bố: 2 hợp đồng seed trước 030 (`CTR-VNG-2026`, `CTR-ADS-2026` trong DB demo `cyberhub_manager`) có `created_by = approved_by = 9`, được giữ nguyên tính trung thực lịch sử theo Mục 10.5.
 - **Test và bằng chứng dữ liệu:** `test_commercial_workflow.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.64. `commercial_campaigns`
 
@@ -1102,8 +1103,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_campaigns_code`(`code`); FK `fk_commercial_campaigns_contract`(`contract_id` → `commercial_contracts.id`, ON DELETE NO ACTION); FK `fk_commercial_campaigns_creator`(`created_by` → `employees.id`, ON DELETE NO ACTION); CHECK `chk_commercial_campaigns_kind`; CHECK `chk_commercial_campaigns_period`; CHECK `chk_commercial_campaigns_reward`; CHECK `chk_commercial_campaigns_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.65. `commercial_placements`
 
@@ -1118,8 +1119,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_placements_code`(`code`); FK `fk_commercial_placements_ad`(`legacy_ad_creative_id` → `ad_creatives.id`, ON DELETE NO ACTION); FK `fk_commercial_placements_campaign`(`campaign_id` → `commercial_campaigns.id`, ON DELETE NO ACTION); FK `fk_commercial_placements_game`(`legacy_game_id` → `games.id`, ON DELETE NO ACTION); FK `fk_commercial_placements_store`(`store_id` → `stores.id`, ON DELETE NO ACTION); CHECK `chk_commercial_placements_embed`; CHECK `chk_commercial_placements_status`; CHECK `chk_commercial_placements_surface`; CHECK `chk_commercial_placements_type`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.66. `commercial_play_sessions`
 
@@ -1134,8 +1135,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_play_sessions_token`(`token_hash`); FK `fk_commercial_play_sessions_account`(`account_id` → `accounts.id`, ON DELETE NO ACTION); FK `fk_commercial_play_sessions_placement`(`placement_id` → `commercial_placements.id`, ON DELETE NO ACTION); CHECK `chk_commercial_play_sessions_period`; CHECK `chk_commercial_play_sessions_reward`; CHECK `chk_commercial_play_sessions_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.67. `commercial_events`
 
@@ -1151,7 +1152,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_events_key`(`event_key`); UK `uq_commercial_events_provider`(`provider_event_id`); FK `fk_commercial_events_account`(`account_id` → `accounts.id`, ON DELETE NO ACTION); FK `fk_commercial_events_placement`(`placement_id` → `commercial_placements.id`, ON DELETE NO ACTION); FK `fk_commercial_events_session`(`play_session_id` → `commercial_play_sessions.id`, ON DELETE NO ACTION); CHECK `chk_commercial_events_complete`; CHECK `chk_commercial_events_type`; CHECK `chk_commercial_events_verification`; CHECK `chk_commercial_events_verified`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Chống replay bằng `UNIQUE(event_key)` và `UNIQUE(provider_event_id)`; sự kiện `COMPLETE` bắt buộc `verification_method IN ('SERVER','SSV')`.
 - **Test và bằng chứng dữ liệu:** `test_commercial_workflow.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.68. `commercial_reward_grants`
 
@@ -1167,7 +1168,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_reward_grants_event`(`event_id`); FK `fk_commercial_reward_grants_account`(`account_id` → `accounts.id`, ON DELETE NO ACTION); FK `fk_commercial_reward_grants_event`(`event_id` → `commercial_events.id`, ON DELETE NO ACTION); CHECK `chk_commercial_reward_grants_reward`; CHECK `chk_commercial_reward_grants_status`; TRIGGER `trg_commercial_reward_grants_bi`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Outbox pattern: callback xác minh chỉ ghi hàng `PENDING`; worker xử lý ngoài callback để cộng xu/phát voucher idempotent.
 - **Test và bằng chứng dữ liệu:** `test_commercial_workflow.py`, `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.69. `commercial_settlements`
 
@@ -1183,7 +1184,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_commercial_settlements_period`(`contract_id,period_start,period_end`); FK `fk_commercial_settlements_contract`(`contract_id` → `commercial_contracts.id`, ON DELETE NO ACTION); FK `fk_commercial_settlements_generator`(`generated_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_commercial_settlements_reviewer`(`reviewed_by` → `employees.id`, ON DELETE NO ACTION); CHECK `chk_commercial_settlements_adjustment`; CHECK `chk_commercial_settlements_lifecycle`; CHECK `chk_commercial_settlements_net_nonnegative`; CHECK `chk_commercial_settlements_period`; CHECK `chk_commercial_settlements_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Chống chồng lấn kỳ đối soát và kiểm tra `FIXED` chỉ đối soát 1 lần cho toàn hợp đồng tại `CommercialService`.
 - **Test và bằng chứng dữ liệu:** `test_commercial_workflow.py`, `test_3nf_and_integrity.py`; tổng `gross`/`adj`/`net` khớp 100% trên clone.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.70. `commercial_settlement_lines`
 
@@ -1199,7 +1200,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`settlement_id,placement_id,event_type`); FK `fk_commercial_settlement_lines_placement`(`placement_id` → `commercial_placements.id`, ON DELETE NO ACTION); FK `fk_commercial_settlement_lines_settlement`(`settlement_id` → `commercial_settlements.id`, ON DELETE NO ACTION); CHECK `chk_commercial_settlement_lines_event`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Bản ghi snapshot bất biến tạo cùng `commercial_settlements` trong một transaction.
 - **Test và bằng chứng dữ liệu:** `test_commercial_workflow.py`, `test_3nf_and_integrity.py`; đối soát `SUM(amount)` trên clone khớp tuyệt đối 2.150.000 VND.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.71. `supplier_payable_approvals`
 
@@ -1214,8 +1215,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`payable_id`); FK `fk_payable_approval_employee`(`approved_by` → `employees.id`, ON DELETE NO ACTION); FK `fk_payable_approval_payable`(`payable_id` → `supplier_payables.id`, ON DELETE NO ACTION).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.72. `customer_email_tokens`
 
@@ -1231,7 +1232,7 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_customer_email_token_hash`(`token_hash`); FK `fk_customer_email_token_account`(`account_id` → `accounts.id`, ON DELETE NO ACTION); CHECK `chk_customer_email_token_purpose`; CHECK `chk_customer_email_token_times`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Token dùng một lần, kiểm tra `purpose`, hạn sử dụng và `used_at IS NULL` trong transaction.
 - **Test và bằng chứng dữ liệu:** `test_3nf_and_integrity.py`.
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.73. `customer_mail_outbox`
 
@@ -1246,8 +1247,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_customer_mail_outbox_token`(`token_id`); FK `fk_customer_mail_outbox_token`(`token_id` → `customer_email_tokens.id`, ON DELETE NO ACTION); CHECK `chk_customer_mail_outbox_status`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.74. `customer_security_audit`
 
@@ -1262,8 +1263,8 @@ Tất cả 74 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); FK `fk_customer_security_account`(`account_id` → `accounts.id`, ON DELETE NO ACTION); FK `fk_customer_security_employee`(`employee_id` → `employees.id`, ON DELETE NO ACTION); FK `fk_customer_security_store`(`store_id` → `stores.id`, ON DELETE NO ACTION).
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Thực thi qua repository trong transaction của application service (`transaction()`), kiểm tra quyền RBAC và phạm vi cửa hàng trước khi ghi.
-- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (258/258 pass).
-- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test` + clone `cyberhub_manager`), ngày **21/11/2026**.
+- **Test và bằng chứng dữ liệu:** Kiểm chứng schema và cấu trúc qua `test_ha10_data_dictionary.py`, `test_3nf_and_integrity.py` và bộ integration test theo phân hệ (260/260 pass).
+- **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ## 5. Danh sách 18 View đọc tương thích (`v_*`) và 24 Trigger toàn vẹn
 

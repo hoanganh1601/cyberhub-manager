@@ -55,6 +55,7 @@ def ctx():
         manager=bundle.auth.login("quanly01", DEMO_PASSWORD),
         staff=bundle.auth.login("nhanvien01", DEMO_PASSWORD),
         admin=bundle.auth.login("admin01", DEMO_PASSWORD),
+        director=bundle.auth.login("giamdoc01", DEMO_PASSWORD),
     )
 
 
@@ -146,9 +147,11 @@ def test_manager_unlocks_wallet_and_counter_resets(ctx):
 
 
 def test_paused_game_cannot_be_played(ctx):
-    game = ctx["games"].manage(ctx["admin"])["game"]
+    game = ctx["games"].manage(ctx["director"])["game"]
     prizes = [dict(label=p.label, coins=p.coins, weight=p.weight) for p in game["prizes"]]
-    ctx["games"].save_game(ctx["admin"], is_active=False, daily_limit=3, min_interval_seconds=3, prizes=prizes)
+    ctx["games"].save_game(
+        ctx["director"], is_active=False, daily_limit=3, min_interval_seconds=3, prizes=prizes
+    )
 
     rejected(ctx, GAME_PAUSED)
     assert ctx["games"].portal_game(ctx["an"])["spins_left"] == 0
@@ -196,7 +199,8 @@ def test_invalid_request_key_is_rejected(ctx, key):
 
 
 # ----- Quản lý ----------------------------------------------------------------------
-def test_staff_sees_stats_but_only_admin_configures(ctx):
+def test_staff_sees_stats_but_only_director_configures(ctx, monkeypatch):
+    monkeypatch.setenv("CYBERHUB_RBAC_POLICY", "separated")
     spin(ctx)
     data = ctx["games"].manage(ctx["staff"])
 
@@ -205,7 +209,11 @@ def test_staff_sees_stats_but_only_admin_configures(ctx):
     prizes = [dict(label="A", coins=1, weight=1), dict(label="B", coins=2, weight=1)]
     with pytest.raises(PermissionDeniedError):
         ctx["games"].save_game(ctx["manager"], is_active=True, daily_limit=5, min_interval_seconds=2, prizes=prizes)
-    saved = ctx["games"].save_game(ctx["admin"], is_active=True, daily_limit=5, min_interval_seconds=2, prizes=prizes)
+    with pytest.raises(PermissionDeniedError):
+        ctx["games"].save_game(ctx["admin"], is_active=True, daily_limit=5, min_interval_seconds=2, prizes=prizes)
+    saved = ctx["games"].save_game(
+        ctx["director"], is_active=True, daily_limit=5, min_interval_seconds=2, prizes=prizes
+    )
     assert saved.daily_limit == 5 and [p.label for p in saved.prizes] == ["A", "B"]
 
 
@@ -221,4 +229,6 @@ def test_staff_sees_stats_but_only_admin_configures(ctx):
 )
 def test_invalid_wheel_configuration_is_rejected(ctx, prizes):
     with pytest.raises(ValidationError):
-        ctx["games"].save_game(ctx["admin"], is_active=True, daily_limit=3, min_interval_seconds=3, prizes=prizes)
+        ctx["games"].save_game(
+            ctx["director"], is_active=True, daily_limit=3, min_interval_seconds=3, prizes=prizes
+        )

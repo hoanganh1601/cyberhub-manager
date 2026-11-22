@@ -57,6 +57,8 @@ class AdCreative:
 
 @dataclass(frozen=True)
 class AdEvent:
+    """Read model; ``played_on`` is derived from ``issued_at`` in UTC+7."""
+
     id: int
     token: str
     account_id: int

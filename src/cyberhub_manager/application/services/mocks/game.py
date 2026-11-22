@@ -11,6 +11,7 @@ from copy import deepcopy
 from dataclasses import replace
 from datetime import timedelta, timezone
 
+from cyberhub_manager.domain.business_time import local_day
 from cyberhub_manager.domain.game import (
     DEFAULT_GAME,
     CoinLedgerEntry,
@@ -94,37 +95,40 @@ class MemoryGameRepository:
 
     # ----- Phiên chơi -------------------------------------------------------------------
     def count_sessions(self, conn, account_id, game_id, day):
-        return sum(1 for s in self.sessions if s["account_id"] == account_id and s["played_on"] == day)
+        return sum(1 for s in self.sessions if s["account_id"] == account_id
+                   and s["game_id"] == game_id and local_day(s["created_at"]) == day)
 
     def count_ad_spins(self, conn, account_id, day):
         return sum(e["reward_amount"] for e in self.ad_events
-                   if e["account_id"] == account_id and e["played_on"] == day and e["status"] == "COMPLETED"
+                   if e["account_id"] == account_id and local_day(e["issued_at"]) == day
+                   and e["status"] == "COMPLETED"
                    and e["reward_type"] == "EXTRA_SPIN")
 
     def last_session_at(self, conn, account_id):
         times = [s["created_at"] for s in self.sessions if s["account_id"] == account_id]
         return max(times) if times else None
 
-    def insert_session(self, conn, *, account_id, game_id, prize_index, prize_label, coins, played_on, created_at):
+    def insert_session(self, conn, *, account_id, game_id, prize_index, prize_label, coins, created_at):
         session_id = len(self.sessions) + 1
-        self.sessions.append(dict(id=session_id, account_id=account_id, prize_index=prize_index,
-                                  prize_label=prize_label, coins=coins, played_on=played_on, created_at=created_at))
+        self.sessions.append(dict(id=session_id, account_id=account_id, game_id=game_id, prize_index=prize_index,
+                                  prize_label=prize_label, coins=coins, created_at=created_at))
         return session_id
 
     def _session(self, s):
         return GameSession(s["id"], s["account_id"], self._name(s["account_id"]), s["prize_index"],
-                           s["prize_label"], s["coins"], s["played_on"], s["created_at"])
+                           s["prize_label"], s["coins"], local_day(s["created_at"]), s["created_at"])
 
     def account_sessions(self, conn, account_id, limit=10):
         found = [s for s in self.sessions if s["account_id"] == account_id]
         return [self._session(s) for s in sorted(found, key=lambda s: (s["created_at"], s["id"]), reverse=True)[:limit]]
 
     def recent_sessions(self, conn, game_id, limit=20):
-        found = sorted(self.sessions, key=lambda s: (s["created_at"], s["id"]), reverse=True)[:limit]
+        found = sorted((s for s in self.sessions if s["game_id"] == game_id),
+                       key=lambda s: (s["created_at"], s["id"]), reverse=True)[:limit]
         return [self._session(s) for s in found]
 
     def stats(self, conn, game_id, day):
-        today = [s for s in self.sessions if s["played_on"] == day]
+        today = [s for s in self.sessions if s["game_id"] == game_id and local_day(s["created_at"]) == day]
         redeemed = [e for e in self.ledger
                     if e.reason == "REDEEM" and e.created_at.astimezone(VN).date() == day]
         return dict(sessions=len(today), players=len({s["account_id"] for s in today}),

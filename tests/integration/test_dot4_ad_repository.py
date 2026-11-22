@@ -1,17 +1,18 @@
 """Đợt 4 — AdRepository và ràng buộc migration 010 trên MySQL thật (rollback sau mỗi test)."""
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from mysql.connector import Error as MySQLError
 
 from cyberhub_manager.domain.ad import AdMode, AdRewardType, AdStatus
+from cyberhub_manager.domain.business_time import local_day
 from cyberhub_manager.infrastructure.repositories.ad_repository import AdRepository
 from cyberhub_manager.infrastructure.repositories.game_repository import GameRepository
 
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
-DAY = NOW.date()
+DAY = local_day(NOW)
 
 
 @pytest.fixture
@@ -22,7 +23,7 @@ def ad_db(db_conn, test_scenario):
     def start(token=None, seconds=15):
         token = token or secrets.token_hex(16)
         repo.insert_event(db_conn, token=token, account_id=rows.account_id, creative_id=None, provider=AdMode.HOUSE,
-                          reward_type=AdRewardType.EXTRA_SPIN, reward_amount=1, played_on=DAY, issued_at=NOW,
+                          reward_type=AdRewardType.EXTRA_SPIN, reward_amount=1, issued_at=NOW,
                           min_complete_at=NOW + timedelta(seconds=seconds), expires_at=NOW + timedelta(hours=1))
         return repo.get_event(db_conn, token, lock=True)
 
@@ -78,3 +79,34 @@ def test_daily_stats_split_valid_rejected(ad_db):
 
     today = next(r for r in repo.daily_stats(conn, DAY, NOW) if r["day"] == DAY)
     assert today["completed"] >= 1 and today["rejected"] >= 1 and today["spins"] >= 1
+
+
+def test_events_use_vietnam_day_boundary_without_stored_day(ad_db):
+    conn, repo, rows, _ = ad_db
+    moments = (
+        datetime(2026, 11, 20, 16, 59, 59, tzinfo=timezone.utc),
+        datetime(2026, 11, 20, 17, 0, 0, tzinfo=timezone.utc),
+    )
+    tokens = []
+    for issued_at in moments:
+        token = secrets.token_hex(16)
+        tokens.append(token)
+        repo.insert_event(
+            conn,
+            token=token,
+            account_id=rows.account_id,
+            creative_id=None,
+            provider=AdMode.HOUSE,
+            reward_type=AdRewardType.EXTRA_SPIN,
+            reward_amount=1,
+            issued_at=issued_at,
+            min_complete_at=issued_at + timedelta(seconds=15),
+            expires_at=issued_at + timedelta(hours=1),
+        )
+
+    assert repo.count_events(conn, rows.account_id, date(2026, 11, 20)) == 1
+    assert repo.count_events(conn, rows.account_id, date(2026, 11, 21)) == 1
+    assert [repo.get_event(conn, token).played_on for token in tokens] == [
+        date(2026, 11, 20),
+        date(2026, 11, 21),
+    ]

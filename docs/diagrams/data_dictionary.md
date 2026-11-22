@@ -3,7 +3,7 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: các migration `sql/001_*.sql` đến `sql/030_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt). Quy ước:
+Nguồn: các migration `sql/001_*.sql` đến `sql/031_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt). Quy ước:
 tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.
 
 ## 1. Danh sách bảng
@@ -52,11 +52,11 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`games`](#games) | Cấu hình trò chơi (giai đoạn đầu: vòng quay may mắn), dùng chung mọi cơ sở. | 7 |
 | [`game_prizes`](#game_prizes) | Các ô thưởng trên vòng quay và tỉ lệ trúng tương đối. | 6 |
 | [`game_wallets`](#game_wallets) | Ví xu game của tài khoản; xu không phải tiền và không phải điểm thành viên. | 8 |
-| [`game_sessions`](#game_sessions) | Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại. | 8 |
+| [`game_sessions`](#game_sessions) | Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại. | 7 |
 | [`game_coin_ledger`](#game_coin_ledger) | Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm. | 8 |
 | [`ad_settings`](#ad_settings) | Cấu hình chương trình quảng cáo nhận thưởng (một dòng duy nhất). | 7 |
 | [`ad_creatives`](#ad_creatives) | Nội dung quảng cáo nội bộ do CyberHub tự soạn. | 8 |
-| [`ad_reward_events`](#ad_reward_events) | Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game. | 15 |
+| [`ad_reward_events`](#ad_reward_events) | Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập với kết quả game. | 14 |
 | [`cash_shifts`](#cash_shifts) | Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở; chênh lệch `variance` tính qua `v_cash_shifts`, chiếm dụng ca mở nằm tại `active_employee_shifts`. | 13 |
 | [`active_employee_shifts`](#active_employee_shifts) | Bảng chiếm dụng 3NF bảo đảm mỗi nhân viên chỉ có tối đa một ca `OPEN`/`PENDING_REVIEW` cùng lúc (thay cột sinh `active_employee_id`). | 2 |
 | [`cash_shift_entries`](#cash_shift_entries) | Sổ bất biến thu, chi, hoàn và điều chỉnh theo ca; cơ sở suy ra từ `cash_shifts.store_id` (NF-02). | 10 |
@@ -1375,8 +1375,7 @@ Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và đư�
 | `prize_index` | `int` | Không | — | — | Ô trúng (chụp). |
 | `prize_label` | `varchar(40)` | Không | — | — | Nhãn ô trúng (chụp). |
 | `coins` | `int` | Không | — | — | Xu nhận được (chụp). |
-| `played_on` | `date` | Không | — | — | Ngày chơi theo giờ Việt Nam, dùng đếm lượt. |
-| `created_at` | `datetime` | Không | — | — | Thời điểm quay (UTC). |
+| `created_at` | `datetime` | Không | — | — | Thời điểm quay (UTC); ngày nghiệp vụ UTC+7 được suy ra khi đọc. |
 
 Ràng buộc:
 
@@ -1387,7 +1386,7 @@ Ràng buộc:
 
 Index bổ sung (`002_indexes.sql`):
 
-- INDEX `idx_game_sessions_account_day` (`account_id, played_on`)
+- INDEX `idx_game_sessions_account_game_time` (`account_id, game_id, created_at`)
 - INDEX `idx_game_sessions_game_time` (`game_id, created_at`)
 
 ### game_coin_ledger
@@ -1477,8 +1476,7 @@ Mỗi lần bắt đầu xem quảng cáo; token dùng một lần, độc lập
 | `reward_type` | `varchar(12)` | Không | — | — | Loại thưởng (chụp từ cấu hình). |
 | `reward_amount` | `int` | Không | — | — | Số lượng thưởng (chụp). |
 | `status` | `varchar(10)` | Không | `ISSUED` | — | `ISSUED` / `COMPLETED` / `REJECTED`; hết hạn suy ra từ `expires_at`. |
-| `played_on` | `date` | Không | — | — | Ngày theo giờ Việt Nam, dùng giới hạn mỗi ngày. |
-| `issued_at` | `datetime` | Không | — | — | Thời điểm cấp token (UTC). |
+| `issued_at` | `datetime` | Không | — | — | Thời điểm cấp token (UTC); ngày nghiệp vụ UTC+7 được suy ra khi đọc. |
 | `min_complete_at` | `datetime` | Không | — | — | Sớm nhất được nhận thưởng = bắt đầu + thời lượng (UTC). |
 | `expires_at` | `datetime` | Không | — | — | Hạn token (UTC). |
 | `completed_at` | `datetime` | Có | — | — | Thời điểm hoàn thành hợp lệ (UTC). |
@@ -1500,8 +1498,9 @@ Ràng buộc:
 
 Index bổ sung (`002_indexes.sql`):
 
-- INDEX `idx_ad_reward_events_account_day` (`account_id, played_on, status`)
-- INDEX `idx_ad_reward_events_day` (`played_on`)
+- INDEX `idx_ad_reward_events_account_time` (`account_id, issued_at`)
+- INDEX `idx_ad_reward_events_issued_at` (`issued_at`)
+- INDEX `idx_ad_reward_events_reward_time` (`account_id, status, reward_type, issued_at`)
 
 ### cash_shifts
 

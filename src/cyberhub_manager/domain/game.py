@@ -72,6 +72,8 @@ class GameWallet:
 
 @dataclass(frozen=True)
 class GameSession:
+    """Read model; ``played_on`` is derived from ``created_at`` in UTC+7."""
+
     id: int
     account_id: int
     customer_name: str

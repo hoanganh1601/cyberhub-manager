@@ -613,7 +613,7 @@ DESCRIPTIONS["game_wallets"] = ("Ví xu game của tài khoản; xu không phả
 DESCRIPTIONS["game_sessions"] = ("Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại.", {
     "id": "Khóa chính.", "account_id": "Tài khoản chơi.", "game_id": "Game.",
     "prize_index": "Ô trúng (chụp).", "prize_label": "Nhãn ô trúng (chụp).", "coins": "Xu nhận được (chụp).",
-    "played_on": "Ngày chơi theo giờ Việt Nam, dùng đếm lượt.", "created_at": "Thời điểm quay (UTC)."})
+    "created_at": "Thời điểm quay (UTC); ngày nghiệp vụ UTC+7 được suy ra khi đọc."})
 DESCRIPTIONS["game_coin_ledger"] = ("Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm.", {
     "id": "Khóa chính.", "account_id": "Tài khoản.", "delta": "Số xu cộng (+) hoặc trừ (−), khác 0.",
     "reason": "`PLAY` / `REDEEM` / `AD` / `ADJUST`.",
@@ -637,7 +637,7 @@ DESCRIPTIONS["ad_reward_events"] = ("Mỗi lần bắt đầu xem quảng cáo; 
     "account_id": "Tài khoản xem.", "creative_id": "Nội dung đã phát.", "provider": "`HOUSE` / `NETWORK`.",
     "reward_type": "Loại thưởng (chụp từ cấu hình).", "reward_amount": "Số lượng thưởng (chụp).",
     "status": "`ISSUED` / `COMPLETED` / `REJECTED`; hết hạn suy ra từ `expires_at`.",
-    "played_on": "Ngày theo giờ Việt Nam, dùng giới hạn mỗi ngày.", "issued_at": "Thời điểm cấp token (UTC).",
+    "issued_at": "Thời điểm cấp token (UTC); ngày nghiệp vụ UTC+7 được suy ra khi đọc.",
     "min_complete_at": "Sớm nhất được nhận thưởng = bắt đầu + thời lượng (UTC).",
     "expires_at": "Hạn token (UTC).", "completed_at": "Thời điểm hoàn thành hợp lệ (UTC).",
     "provider_txn_id": "Mã giao dịch của mạng quảng cáo; UNIQUE chống gửi lại.",
@@ -839,7 +839,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: các migration `sql/001_*.sql` đến `sql/030_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt). Quy ước:")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/031_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")
@@ -943,6 +943,14 @@ def build_markdown(conn: Any) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows PowerShell may expose a legacy cp1252 stream even though the
+    # generated Markdown is UTF-8. Do not turn a successful schema check into
+    # a UnicodeEncodeError merely because the status message is Vietnamese.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description="Sinh docs/diagrams/data_dictionary.md từ schema MySQL")
     parser.add_argument("--check", action="store_true", help="chỉ kiểm tra, không ghi file")
     parser.add_argument("--database", default=DEFAULT_DATABASE, help="database đã migrate để đọc schema")

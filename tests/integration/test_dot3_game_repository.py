@@ -1,10 +1,11 @@
 """Đợt 3 — GameRepository và ràng buộc migration 009 trên MySQL thật (rollback sau mỗi test)."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 from mysql.connector import Error as MySQLError
 
+from cyberhub_manager.domain.business_time import local_day
 from cyberhub_manager.domain.game import DEFAULT_GAME, LedgerReason
 from cyberhub_manager.infrastructure.repositories.game_repository import GameRepository
 
@@ -37,14 +38,39 @@ def test_wallet_is_created_once_and_balance_cannot_go_negative(game_db):
 def test_sessions_counted_per_local_day(game_db):
     conn, repo, rows = game_db
     game = repo.get_game(conn, DEFAULT_GAME)
-    day = NOW.date()
+    day = local_day(NOW)
     for coins in (5, 0):
         repo.insert_session(conn, account_id=rows.account_id, game_id=game.id, prize_index=0, prize_label="x",
-                            coins=coins, played_on=day, created_at=NOW)
+                            coins=coins, created_at=NOW)
 
     assert repo.count_sessions(conn, rows.account_id, game.id, day) == 2
     assert repo.last_session_at(conn, rows.account_id) == NOW
     assert len(repo.account_sessions(conn, rows.account_id)) == 2
+
+
+def test_sessions_use_vietnam_day_boundary_without_stored_day(game_db):
+    conn, repo, rows = game_db
+    game = repo.get_game(conn, DEFAULT_GAME)
+    before_midnight = datetime(2026, 11, 20, 16, 59, 59, tzinfo=timezone.utc)
+    after_midnight = datetime(2026, 11, 20, 17, 0, 0, tzinfo=timezone.utc)
+
+    for created_at in (before_midnight, after_midnight):
+        repo.insert_session(
+            conn,
+            account_id=rows.account_id,
+            game_id=game.id,
+            prize_index=0,
+            prize_label="x",
+            coins=0,
+            created_at=created_at,
+        )
+
+    assert repo.count_sessions(conn, rows.account_id, game.id, date(2026, 11, 20)) == 1
+    assert repo.count_sessions(conn, rows.account_id, game.id, date(2026, 11, 21)) == 1
+    assert {session.played_on for session in repo.account_sessions(conn, rows.account_id)} >= {
+        date(2026, 11, 20),
+        date(2026, 11, 21),
+    }
 
 
 def test_ledger_reference_is_unique_per_reason(game_db):

@@ -13,6 +13,7 @@ from cyberhub_manager.domain.ad import (
     AdSettings,
     AdStatus,
 )
+from cyberhub_manager.domain.business_time import utc_day_bounds
 from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 
 
@@ -26,7 +27,8 @@ def _naive(value):
 
 _EVENT_SELECT = """
     SELECT e.id, e.token, e.account_id, c.full_name AS customer_name, e.creative_id, e.provider, e.reward_type,
-           e.reward_amount, e.status, e.played_on, e.issued_at, e.min_complete_at, e.expires_at, e.completed_at,
+           e.reward_amount, e.status, DATE(DATE_ADD(e.issued_at, INTERVAL 7 HOUR)) AS played_on,
+           e.issued_at, e.min_complete_at, e.expires_at, e.completed_at,
            e.provider_txn_id, e.reject_reason
     FROM ad_reward_events AS e
     JOIN accounts AS a ON a.id = e.account_id
@@ -93,13 +95,13 @@ class AdRepository:
 
     # ----- Sự kiện quảng cáo -------------------------------------------------------------
     def insert_event(self, conn: Any, *, token, account_id, creative_id, provider: AdMode,
-                     reward_type: AdRewardType, reward_amount, played_on, issued_at, min_complete_at,
+                     reward_type: AdRewardType, reward_amount, issued_at, min_complete_at,
                      expires_at) -> int:
         return int(execute(
             conn,
             "INSERT INTO ad_reward_events (token, account_id, creative_id, provider, reward_type, reward_amount,"
-            " played_on, issued_at, min_complete_at, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (token, account_id, creative_id, provider.value, reward_type.value, reward_amount, played_on,
+            " issued_at, min_complete_at, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (token, account_id, creative_id, provider.value, reward_type.value, reward_amount,
              _naive(issued_at), _naive(min_complete_at), _naive(expires_at)),
         ))
 
@@ -133,24 +135,28 @@ class AdRepository:
         ))
 
     def count_events(self, conn: Any, account_id: int, day, status: AdStatus | None = None) -> int:
-        sql = "SELECT COUNT(*) AS total FROM ad_reward_events WHERE account_id = %s AND played_on = %s"
-        params: tuple = (account_id, day)
+        start, end = utc_day_bounds(day)
+        sql = ("SELECT COUNT(*) AS total FROM ad_reward_events WHERE account_id = %s"
+               " AND issued_at >= %s AND issued_at < %s")
+        params: tuple = (account_id, _naive(start), _naive(end))
         if status is not None:
             sql += " AND status = %s"
             params += (status.value,)
         return int(rows(conn, sql, params)[0]["total"])
 
     def daily_stats(self, conn: Any, since_day, now) -> list[dict]:
+        start, _ = utc_day_bounds(since_day)
         result = rows(
             conn,
-            "SELECT played_on AS day, COUNT(*) AS issued,"
+            "SELECT DATE(DATE_ADD(issued_at, INTERVAL 7 HOUR)) AS day, COUNT(*) AS issued,"
             " SUM(status = 'COMPLETED') AS completed,"
             " SUM(status = 'REJECTED') AS rejected,"
             " SUM(status = 'ISSUED' AND expires_at < %s) AS expired,"
             " COALESCE(SUM(CASE WHEN status = 'COMPLETED' AND reward_type = 'EXTRA_SPIN' THEN reward_amount END), 0) AS spins,"
             " COALESCE(SUM(CASE WHEN status = 'COMPLETED' AND reward_type = 'COINS' THEN reward_amount END), 0) AS coins"
-            " FROM ad_reward_events WHERE played_on >= %s GROUP BY played_on ORDER BY played_on DESC",
-            (_naive(now), since_day),
+            " FROM ad_reward_events WHERE issued_at >= %s"
+            " GROUP BY DATE(DATE_ADD(issued_at, INTERVAL 7 HOUR)) ORDER BY day DESC",
+            (_naive(now), _naive(start)),
         )
         return [{k: (int(v) if k != "day" else v) for k, v in r.items()} for r in result]
 

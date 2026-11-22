@@ -13,6 +13,7 @@ from cyberhub_manager.domain.game import (
     GameWallet,
     LedgerReason,
 )
+from cyberhub_manager.domain.business_time import utc_day_bounds
 from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 
 
@@ -51,7 +52,7 @@ def _ledger(r: dict) -> CoinLedgerEntry:
 
 _SESSION_SELECT = """
     SELECT g.id, g.account_id, c.full_name AS customer_name, g.prize_index, g.prize_label, g.coins,
-           g.played_on, g.created_at
+           DATE(DATE_ADD(g.created_at, INTERVAL 7 HOUR)) AS played_on, g.created_at
     FROM game_sessions AS g
     JOIN accounts AS a ON a.id = g.account_id
     JOIN customers AS c ON c.id = a.customer_id
@@ -164,22 +165,26 @@ class GameRepository:
 
     # ----- Phiên chơi ----------------------------------------------------------------
     def count_sessions(self, conn: Any, account_id: int, game_id: int, day) -> int:
+        start, end = utc_day_bounds(day)
         return int(
             rows(
                 conn,
-                "SELECT COUNT(*) AS total FROM game_sessions WHERE account_id = %s AND game_id = %s AND played_on = %s",
-                (account_id, game_id, day),
+                "SELECT COUNT(*) AS total FROM game_sessions"
+                " WHERE account_id = %s AND game_id = %s AND created_at >= %s AND created_at < %s",
+                (account_id, game_id, _naive(start), _naive(end)),
             )[0]["total"]
         )
 
     def count_ad_spins(self, conn: Any, account_id: int, day) -> int:
         """Đợt 4: lượt quay thêm nhận được từ quảng cáo đã hoàn thành trong ngày."""
+        start, end = utc_day_bounds(day)
         return int(
             rows(
                 conn,
                 "SELECT COALESCE(SUM(reward_amount), 0) AS spins FROM ad_reward_events"
-                " WHERE account_id = %s AND played_on = %s AND status = 'COMPLETED' AND reward_type = 'EXTRA_SPIN'",
-                (account_id, day),
+                " WHERE account_id = %s AND status = 'COMPLETED' AND reward_type = 'EXTRA_SPIN'"
+                " AND issued_at >= %s AND issued_at < %s",
+                (account_id, _naive(start), _naive(end)),
             )[0]["spins"]
         )
 
@@ -191,14 +196,13 @@ class GameRepository:
         )
         return _utc(result[0]["last"]) if result else None
 
-    def insert_session(self, conn: Any, *, account_id, game_id, prize_index, prize_label, coins, played_on,
-                       created_at) -> int:
+    def insert_session(self, conn: Any, *, account_id, game_id, prize_index, prize_label, coins, created_at) -> int:
         return int(
             execute(
                 conn,
-                "INSERT INTO game_sessions (account_id, game_id, prize_index, prize_label, coins, played_on, created_at)"
-                " VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (account_id, game_id, prize_index, prize_label, coins, played_on, _naive(created_at)),
+                "INSERT INTO game_sessions (account_id, game_id, prize_index, prize_label, coins, created_at)"
+                " VALUES (%s, %s, %s, %s, %s, %s)",
+                (account_id, game_id, prize_index, prize_label, coins, _naive(created_at)),
             )
         )
 
@@ -217,17 +221,19 @@ class GameRepository:
         ]
 
     def stats(self, conn: Any, game_id: int, day) -> dict:
+        start, end = utc_day_bounds(day)
+        bounds = (_naive(start), _naive(end))
         played = rows(
             conn,
             "SELECT COUNT(*) AS sessions, COUNT(DISTINCT account_id) AS players, COALESCE(SUM(coins), 0) AS coins"
-            " FROM game_sessions WHERE game_id = %s AND played_on = %s",
-            (game_id, day),
+            " FROM game_sessions WHERE game_id = %s AND created_at >= %s AND created_at < %s",
+            (game_id, *bounds),
         )[0]
         redeemed = rows(
             conn,
             "SELECT COALESCE(SUM(-delta), 0) AS coins, COUNT(*) AS vouchers FROM game_coin_ledger"
-            " WHERE reason = 'REDEEM' AND DATE(DATE_ADD(created_at, INTERVAL 7 HOUR)) = %s",
-            (day,),
+            " WHERE reason = 'REDEEM' AND created_at >= %s AND created_at < %s",
+            bounds,
         )[0]
         return dict(sessions=int(played["sessions"]), players=int(played["players"]),
                     coins_awarded=int(played["coins"]), coins_redeemed=int(redeemed["coins"]),

@@ -94,6 +94,14 @@ def cleanup(conn) -> None:
     store = _run(conn, "SELECT id FROM stores WHERE code = %s", (f"{PREFIX}_STORE",))
     if store:
         sid = store[0][0]
+        _run(conn, "DELETE FROM management_audit WHERE store_id = %s", (sid,))
+        _run(
+            conn,
+            "DELETE e FROM cash_shift_entries e JOIN cash_shifts s ON s.id = e.shift_id WHERE s.store_id = %s",
+            (sid,),
+        )
+        _run(conn, "DELETE FROM cash_shifts WHERE store_id = %s", (sid,))
+        _run(conn, "DELETE FROM customer_store_links WHERE store_id = %s", (sid,))
         _run(conn, "DELETE FROM invoices WHERE store_id = %s", (sid,))
         _run(
             conn,
@@ -163,6 +171,11 @@ def seed(conn, scale: float) -> dict[str, Any]:
         conn,
         "INSERT INTO accounts (code, customer_id, username, password_hash, balance) VALUES (%s,%s,%s,%s,%s)",
         [(f"{PREFIX}_ACC_{i:05d}", cid, f"{PREFIX}.cus{i:05d}", pw, 200_000) for i, cid in enumerate(customer_ids)],
+    )
+    _many(
+        conn,
+        "INSERT INTO customer_store_links (customer_id, store_id, source) VALUES (%s,%s,'INVOICE')",
+        [(cid, store_id) for cid in customer_ids],
     )
     accounts = dict(_run(conn, "SELECT customer_id, id FROM accounts WHERE code LIKE %s", (PREFIX + "%",)))
 
@@ -255,6 +268,7 @@ def _benchmark(conn, args) -> int:
     with capture_selects():
         actor = timed("login", lambda: svc.auth.login(f"{PREFIX}.manager", PASSWORD), results)
         state["actor"] = actor
+        svc.shifts.open_shift(actor, 0)
         timed("list_machines", lambda: svc.machines.list_machines(store_id), results)
         timed("search_customers (tên)", lambda: svc.customers.search_customers("perf 0123"), results)
         timed("search_customers (sđt)", lambda: svc.customers.search_customers(info["phone"]), results)

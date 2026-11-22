@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
+from cyberhub_manager.domain.business_time import local_day
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import (
     ConflictError,
@@ -39,7 +40,6 @@ from cyberhub_manager.domain.voucher import VoucherSource
 
 from cyberhub_manager.application.services.p1_runtime import errors, retry_on_transient
 
-VN = timezone(timedelta(hours=7))
 REQUEST_KEY = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
 GAME_PAUSED = "Trò chơi đang tạm dừng"
@@ -84,7 +84,7 @@ class GameService:
 
     @staticmethod
     def _local_day(moment: datetime):
-        return moment.astimezone(VN).date()
+        return local_day(moment)
 
     def _game(self, conn, *, lock=False):
         game = self._repo.get_game(conn, DEFAULT_GAME, lock=lock)
@@ -155,7 +155,7 @@ class GameService:
                 prize = self._random.choices(game.prizes, weights=[p.weight for p in game.prizes])[0]
                 session_id = self._repo.insert_session(
                     conn, account_id=customer.account_id, game_id=game.id, prize_index=prize.sort_order,
-                    prize_label=prize.label, coins=prize.coins, played_on=today, created_at=now,
+                    prize_label=prize.label, coins=prize.coins, created_at=now,
                 )
                 balance = wallet.balance + prize.coins
                 if prize.coins:
@@ -208,7 +208,7 @@ class GameService:
             return dict(voucher=self._vouchers._view(voucher, now, stores), balance=balance, replayed=False)
 
     # =================================================================================
-    # Nhân viên / quản lý
+    # Nhân viên / quản trị kinh doanh
     # =================================================================================
     def manage(self, actor):
         with self._errors(), self._transaction() as conn:
@@ -230,7 +230,7 @@ class GameService:
 
     @retry_on_transient
     def save_game(self, actor, *, is_active, daily_limit, min_interval_seconds, prizes):
-        """Cấu hình vòng quay dùng chung mọi cơ sở nên chỉ ADMIN được sửa."""
+        """Cấu hình vòng quay dùng chung toàn chuỗi nên cần quyền cấp giám đốc."""
         if type(is_active) is not bool:
             raise ValidationError(field_errors={"is_active": "Giá trị không hợp lệ"})
         if type(daily_limit) is not int or not 1 <= daily_limit <= 20:
@@ -254,7 +254,7 @@ class GameService:
         with self._errors(), self._transaction() as conn:
             current = self._vouchers._actor(conn, actor, Permission.MANAGE_REWARDS)
             if not chain_director(current.role):
-                raise PermissionDeniedError("Chỉ quản trị viên cấu hình trò chơi")
+                raise PermissionDeniedError("Cần quyền cấu hình phần thưởng cấp chuỗi")
             game = self._game(conn, lock=True)
             self._repo.save_game(conn, game.id, is_active=is_active, daily_limit=daily_limit,
                                  min_interval_seconds=min_interval_seconds, prizes=cleaned)

@@ -11,6 +11,7 @@ from copy import deepcopy
 from dataclasses import replace
 
 from cyberhub_manager.domain.ad import AdCreative, AdEvent, AdMode, AdRewardType, AdSettings, AdStatus
+from cyberhub_manager.domain.business_time import local_day
 
 DEMO_CREATIVES = (
     AdCreative(1, "COMBO_NIGHT", "Combo đêm game chỉ từ 45.000đ",
@@ -52,7 +53,7 @@ class MemoryAdRepository:
     def _event(self, e):
         return AdEvent(e["id"], e["token"], e["account_id"], self._name(e["account_id"]), e["creative_id"],
                        AdMode(e["provider"]), AdRewardType(e["reward_type"]), e["reward_amount"],
-                       AdStatus(e["status"]), e["played_on"], e["issued_at"], e["min_complete_at"], e["expires_at"],
+                       AdStatus(e["status"]), local_day(e["issued_at"]), e["issued_at"], e["min_complete_at"], e["expires_at"],
                        e["completed_at"], e["provider_txn_id"], e["reject_reason"])
 
     # ----- Cấu hình ------------------------------------------------------------------
@@ -81,14 +82,14 @@ class MemoryAdRepository:
         return creative_id
 
     # ----- Sự kiện ----------------------------------------------------------------------
-    def insert_event(self, conn, *, token, account_id, creative_id, provider, reward_type, reward_amount, played_on,
+    def insert_event(self, conn, *, token, account_id, creative_id, provider, reward_type, reward_amount,
                      issued_at, min_complete_at, expires_at):
         if any(e["token"] == token for e in self._events):
             raise ValueError("duplicate token")  # tương đương UNIQUE(token)
         event_id = len(self._events) + 1
         self._events.append(dict(
             id=event_id, token=token, account_id=account_id, creative_id=creative_id, provider=str(provider),
-            reward_type=str(reward_type), reward_amount=reward_amount, status="ISSUED", played_on=played_on,
+            reward_type=str(reward_type), reward_amount=reward_amount, status="ISSUED",
             issued_at=issued_at, min_complete_at=min_complete_at, expires_at=expires_at, completed_at=None,
             provider_txn_id=None, reject_reason=None,
         ))
@@ -116,15 +117,16 @@ class MemoryAdRepository:
         return True
 
     def count_events(self, conn, account_id, day, status=None):
-        return sum(1 for e in self._events if e["account_id"] == account_id and e["played_on"] == day
+        return sum(1 for e in self._events if e["account_id"] == account_id and local_day(e["issued_at"]) == day
                    and (status is None or e["status"] == str(status)))
 
     def daily_stats(self, conn, since_day, now):
         days = {}
         for e in self._events:
-            if e["played_on"] < since_day:
+            day = local_day(e["issued_at"])
+            if day < since_day:
                 continue
-            row = days.setdefault(e["played_on"], dict(day=e["played_on"], issued=0, completed=0, rejected=0,
+            row = days.setdefault(day, dict(day=day, issued=0, completed=0, rejected=0,
                                                        expired=0, spins=0, coins=0))
             row["issued"] += 1
             if e["status"] == "COMPLETED":
