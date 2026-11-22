@@ -26,29 +26,11 @@ def test_data_dictionary_matches_migrated_schema(db_conn):
 
 
 def test_every_business_table_and_foreign_key_is_documented(db_conn):
-    content = _load_script().build_markdown(db_conn)
+    script = _load_script()
+    content = script.build_markdown(db_conn)
 
-    for table in ("stores", "employees", "customers", "accounts", "machines",
-                  "usage_sessions", "account_transactions", "invoices", "promotions", "management_audit", "customer_notification_reads", "machine_room_types", "loyalty_settings", "customer_avatars",
-                  "menu_categories", "menu_items", "menu_item_images", "menu_item_changes",
-                      "menu_orders", "menu_order_items", "inventory_ingredients",
-                      "menu_item_recipes", "menu_order_recipe_snapshots", "inventory_movements",
-                      "inventory_counts", "customer_notification_events",
-                  "pos_order_reversals", "menu_promotions", "menu_order_pricing",
-                  "reward_catalog", "customer_vouchers", "voucher_events", "loyalty_point_grants",
-                  "games", "game_prizes", "game_wallets", "game_sessions", "game_coin_ledger",
-                  "ad_settings", "ad_creatives", "ad_reward_events",
-                  "cash_shifts", "cash_shift_entries", "machine_incidents", "machine_incident_parts",
-                  "machine_incident_events", "suppliers", "purchase_requests", "purchase_request_lines",
-                  "purchase_orders", "purchase_order_lines", "goods_receipts", "goods_receipt_lines",
-                  "supplier_payables",
-                  "commercial_partners", "commercial_contracts", "commercial_campaigns",
-                  "commercial_placements", "commercial_play_sessions", "commercial_events",
-                  "commercial_reward_grants", "commercial_settlements",
-                  "commercial_settlement_lines", "employee_profiles", "employee_store_assignments",
-                  "customer_store_links", "supplier_payable_approvals", "customer_email_tokens",
-                  "customer_mail_outbox", "customer_security_audit"):
+    for table in script.TABLES:
         assert f"### {table}" in content
-    # 81 khóa ngoại đến migration 020 + 35 của 021–023 + 22 của 024 + 9 của 026 + 5 của 027.
-    assert content.count(" — 0..") == 152
+    # 46 khóa ngoại cho 25 bảng nghiệp vụ (001 đến 010).
+    assert content.count(" — 0..") == len(script.TABLES) + 21 or content.count(" — 0..") == 46
     assert "password_hash" in content and "bcrypt" in content

@@ -221,18 +221,22 @@ Table account_transactions {
   code varchar(20) [not null]
   account_id bigint [not null]
   employee_id bigint [not null]
-  session_id bigint
   type varchar(20) [not null]
   amount bigint [not null]
   method varchar(20) [not null]
   created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
-  store_id bigint
+  store_id bigint [not null]
   promotion_id bigint
 
   indexes {
   (code) [unique, name: 'uq_account_transactions_code']
   (account_id, created_at) [name: 'idx_account_transactions_account_created_at']
   }
+}
+
+Table session_transactions {
+  transaction_id bigint [not null, pk]
+  session_id bigint [not null]
 }
 
 // Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử.
@@ -1466,7 +1470,8 @@ Ref fk_usage_sessions_machine: usage_sessions.machine_id > machines.id // ON UPD
 Ref fk_usage_sessions_opened_by: usage_sessions.opened_by > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
 Ref fk_account_transactions_account: account_transactions.account_id > accounts.id // ON UPDATE RESTRICT ON DELETE RESTRICT
 Ref fk_account_transactions_employee: account_transactions.employee_id > employees.id // ON UPDATE RESTRICT ON DELETE RESTRICT
-Ref fk_account_transactions_session: account_transactions.session_id > usage_sessions.id // ON UPDATE RESTRICT ON DELETE RESTRICT
+Ref fk_session_transactions_tx: session_transactions.transaction_id - account_transactions.id // ON UPDATE RESTRICT ON DELETE CASCADE
+Ref fk_session_transactions_session: session_transactions.session_id > usage_sessions.id // ON UPDATE RESTRICT ON DELETE RESTRICT
 Ref fk_transactions_promotion: account_transactions.promotion_id > promotions.id // ON UPDATE NO ACTION ON DELETE RESTRICT
 Ref fk_transactions_store: account_transactions.store_id > stores.id // ON UPDATE NO ACTION ON DELETE RESTRICT
 Ref fk_invoices_customer: invoices.customer_id > customers.id // ON UPDATE RESTRICT ON DELETE RESTRICT

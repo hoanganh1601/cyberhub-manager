@@ -1,6 +1,6 @@
 # CyberHub Manager
 
-**Database scope:** 24 normalized (3NF) business tables (+ 8 read views and 15 integrity triggers) for stores, identity/RBAC, customers, prepaid wallets, workstations, usage sessions, invoices, POS menu/promotions/reversals, and customer order notifications. See the [data model](docs/architecture/DATA_MODEL.md) and [current ERD](docs/diagrams/current_erd.md).
+**Database scope:** 25 business tables (+ 8 read views and 16 integrity triggers) for stores, identity/RBAC, customers, prepaid wallets, workstations, usage sessions, invoices, POS menu/promotions/reversals, and customer order notifications. See the [data model](docs/architecture/DATA_MODEL.md) and [current ERD](docs/diagrams/current_erd.md).
 
 The Python application uses Flask, CustomTkinter, and MySQL. Its active flows cover store/customer/employee management, machines and sessions, invoices, wallet transactions, and POS.
 
@@ -40,4 +40,4 @@ Sau đó mở `http://127.0.0.1:8000`. Không có mật khẩu mặc định cho
 
 ## Database migration
 
-Migrations are organized by business domain in `sql/001_stores_and_identity.sql` through `sql/009_integrity_triggers.sql` (24 business tables, 8 read views, 15 integrity triggers, plus the technical `schema_migrations` table; 100% InnoDB, `utf8mb4_0900_ai_ci`). Run `python scripts/init_db.py` to initialize a fresh database.
+Migrations are organized by business domain in `sql/001_stores_and_identity.sql` through `sql/010_enforce_account_transactions_store_id.sql` (25 business tables, 8 read views, 16 integrity triggers, plus the technical `schema_migrations` table; 100% InnoDB, `utf8mb4_0900_ai_ci`). Run `python scripts/init_db.py` to initialize a fresh database.

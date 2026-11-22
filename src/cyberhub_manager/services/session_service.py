@@ -397,9 +397,9 @@ class SessionService:
                     session_id=session.id,
                     settlement_amount=settlement_amount,
                     method=method,
+                    store_id=current.store_id,
                 )
                 account.credit(settlement_amount)
-                self._accounts.tag_transaction_store(conn,settlement_id,current.store_id)
                 if self._shifts is not None:
                     self._shifts.record_system_entry(
                         conn, current, kind="RECEIPT", payment_method=method.value,
@@ -416,8 +416,8 @@ class SessionService:
                 employee_id=current.employee_id,
                 session_id=session.id,
                 usage_cost=cost,
+                store_id=current.store_id,
             )
-            self._accounts.tag_transaction_store(conn,usage_transaction_id,current.store_id)
 
             if not self._sessions.complete(conn, session):
                 raise _conflict("machine_id", ALREADY_CHECKED_OUT)

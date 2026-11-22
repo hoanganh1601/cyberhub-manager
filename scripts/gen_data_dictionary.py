@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 OUTPUT = Path(__file__).resolve().parents[1] / "docs" / "diagrams" / "data_dictionary.md"
-DEFAULT_DATABASE = "cyberhub_manager_test"
+DEFAULT_DATABASE = os.getenv("MYSQL_DATABASE", "cyberhub_manager")
 
 # Bảng nghiệp vụ theo thứ tự trình bày; bảng kỹ thuật (schema_migrations, bảng probe của test) không đưa vào.
 TABLES = (
@@ -28,80 +28,26 @@ TABLES = (
     "employee_profiles",
     "employee_store_assignments",
     "customers",
-    "customer_store_links",
     "accounts",
     "machines",
     "usage_sessions",
     "account_transactions",
+    "session_transactions",
     "invoices",
     "promotions",
     "management_audit",
+    "active_usage_sessions",
     "customer_notification_reads",
+    "customer_notification_events",
     "machine_room_types",
-    "loyalty_settings",
-    "customer_avatars",
-    # Đợt 1 — menu đồ ăn/đồ uống
     "menu_categories",
     "menu_items",
-    "menu_item_images",
-    "menu_item_changes",
     "menu_orders",
     "menu_order_items",
-    # Kho, công thức và kiểm kê
-    "inventory_ingredients",
-    "menu_item_recipes",
-    "menu_order_recipe_snapshots",
-    "inventory_movements",
-    "inventory_counts",
-    # Thông báo bền vững theo vòng đời đơn
-    "customer_notification_events",
-    # Hoàn/hủy và khuyến mãi POS
     "pos_order_reversals",
     "menu_promotions",
+    "menu_promotion_versions",
     "menu_order_pricing",
-    # Đợt 2 — voucher và phần thưởng
-    "reward_catalog",
-    "customer_vouchers",
-    "voucher_events",
-    "loyalty_point_grants",
-    # Đợt 3 — game và xu game
-    "games",
-    "game_prizes",
-    "game_wallets",
-    "game_sessions",
-    "game_coin_ledger",
-    # Đợt 4 — quảng cáo nhận thưởng
-    "ad_settings",
-    "ad_creatives",
-    "ad_reward_events",
-    # Ca/két tiền, bảo trì và mua hàng
-    "cash_shifts",
-    "cash_shift_entries",
-    "machine_incidents",
-    "machine_incident_parts",
-    "machine_incident_events",
-    "suppliers",
-    "purchase_requests",
-    "purchase_request_lines",
-    "purchase_orders",
-    "purchase_order_lines",
-    "goods_receipts",
-    "goods_receipt_lines",
-    "supplier_payables",
-    # Đợt thương mại — đối tác, game/ads ngoài và đối soát doanh thu
-    "commercial_partners",
-    "commercial_contracts",
-    "commercial_campaigns",
-    "commercial_placements",
-    "commercial_play_sessions",
-    "commercial_events",
-    "commercial_reward_grants",
-    "commercial_settlements",
-    "commercial_settlement_lines",
-    "supplier_payable_approvals",
-    "customer_email_tokens",
-    "customer_mail_outbox",
-    "customer_security_audit",
 )
 
 DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
@@ -158,7 +104,7 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "password_hash": "Mật khẩu đã băm bcrypt.",
             "web_login_enabled": "FALSE khi tài khoản đăng ký tại quầy chưa kích hoạt email; TRUE mới cho đăng nhập web.",
             "email_verified_at": "Thời điểm email được xác minh khi kích hoạt (UTC); NULL nếu chưa xác minh.",
-            "balance": "Số dư sổ cái (VND), có dấu để hỗ trợ dữ liệu nợ. Cảnh báo âm trong phiên dùng số dư dự kiến; checkout P0 phải bù đủ để số dư cuối không âm. Mọi thay đổi phải kèm `account_transactions`.",
+            "balance": "Số dư ví hiện tại (VND), luôn không âm (balance >= 0) theo ràng buộc CHECK; cập nhật nguyên tử cùng `account_transactions` trong transaction.",
             "status": "`ACTIVE` / `LOCKED`. LOCKED không mở phiên được nhưng vẫn nạp tiền để trả nợ.",
             "created_at": "Thời điểm tạo (UTC).",
             "updated_at": "Thời điểm sửa gần nhất (UTC).",
@@ -203,11 +149,17 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "code": "Mã giao dịch, duy nhất (`TX-` + hex).",
             "account_id": "Tài khoản bị thay đổi số dư.",
             "employee_id": "Nhân viên thực hiện.",
-            "session_id": "Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập.",
             "type": "`TOP_UP` / `PROMOTION` / `USAGE_PAYMENT` / `DEBT_SETTLEMENT`.",
             "amount": "Số tiền có dấu (VND): dương khi cộng, âm khi `USAGE_PAYMENT`.",
             "method": "`CASH` / `TRANSFER` / `ACCOUNT_BALANCE` / `PROMOTION`, phải hợp với `type`.",
             "created_at": "Thời điểm ghi (UTC).",
+        },
+    ),
+    "session_transactions": (
+        "Bảng liên kết chuẩn hóa 3NF: liên kết bút toán sổ cái với phiên sử dụng máy trạm liên quan.",
+        {
+            "transaction_id": "Mã giao dịch sổ cái (khóa chính kiêm khóa ngoại).",
+            "session_id": "Phiên máy trạm liên quan đến giao dịch thanh toán hoặc bù tiền.",
         },
     ),
     "invoices": (
@@ -306,10 +258,9 @@ DESCRIPTIONS["menu_promotions"] = ("Chính sách khuyến mãi POS theo cơ sở
     "starts_at":"Bắt đầu hiệu lực (UTC).", "ends_at":"Kết thúc hiệu lực (UTC).", "is_active":"Bật/tắt chính sách.",
 })
 DESCRIPTIONS["menu_order_pricing"] = ("Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán.", {
-    "order_id":"Đơn POS; khóa chính/FK.", "promotion_id":"Khuyến mãi được chọn; NULL nếu không áp dụng.",
-    "promotion_code":"Mã khuyến mãi chụp lại.", "promotion_kind":"Loại khuyến mãi chụp lại.",
-    "discount_amount":"Tổng giảm giá VND.", "final_amount":"Thành tiền sau giảm VND.",
-    "snapshot_json":"Chi tiết đầu vào và kết quả tính giá để audit.",
+    "order_id": "Đơn POS; khóa chính/FK.",
+    "promotion_version_id": "Phiên bản chính sách khuyến mãi được áp dụng; NULL nếu không dùng ưu đãi.",
+    "discount_amount": "Tổng số tiền giảm giá được áp dụng (VND).",
 })
 DESCRIPTIONS["cash_shifts"] = ("Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở.", {
     "id":"Khóa chính.", "code":"Mã ca duy nhất.", "store_id":"Cơ sở mở ca.", "employee_id":"Nhân viên chịu trách nhiệm ca.",
@@ -381,6 +332,29 @@ DESCRIPTIONS["invoices"][1].update({
     "loyalty_rule_version":"Phiên bản cấu hình tại lúc lập hóa đơn."})
 DESCRIPTIONS["invoices"][1]["bonus_used"] = "Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout."
 DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
+DESCRIPTIONS["active_usage_sessions"] = (
+    "Bảng chiếm dụng các phiên đang hoạt động; UNIQUE trên máy và khách ngăn mở phiên trùng.",
+    {
+        "session_id": "Phiên đang hoạt động; khóa chính và khóa ngoại tới `usage_sessions.id`.",
+        "machine_id": "Máy đang được dùng; UNIQUE để mỗi máy chỉ có một phiên hoạt động.",
+        "customer_id": "Khách đang dùng máy; UNIQUE để mỗi khách chỉ có một phiên hoạt động.",
+    },
+)
+DESCRIPTIONS["menu_promotion_versions"] = (
+    "Phiên bản chính sách khuyến mãi POS được giữ nguyên để bảo toàn điều kiện đã áp dụng cho đơn cũ.",
+    {
+        "id": "Khóa chính.",
+        "promotion_id": "Chính sách POS gốc.",
+        "version": "Số phiên bản duy nhất trong một chính sách.",
+        "code": "Mã khuyến mãi tại thời điểm tạo phiên bản.",
+        "kind": "Loại ưu đãi tại thời điểm tạo phiên bản.",
+        "item_id": "Món áp dụng nếu chính sách giới hạn theo món; NULL nếu áp dụng theo loại.",
+        "value": "Giá trị ưu đãi tại thời điểm tạo phiên bản.",
+        "starts_at": "Thời điểm bắt đầu hiệu lực (UTC).",
+        "ends_at": "Thời điểm hết hiệu lực (UTC).",
+        "created_at": "Thời điểm tạo phiên bản (UTC).",
+    },
+)
 DESCRIPTIONS["promotions"] = ("Chính sách thưởng theo mốc nạp, phạm vi và thời gian.",{
     "id":"Khóa chính.","code":"Mã chính sách duy nhất.","name":"Tên chính sách.","store_id":"Cơ sở áp dụng; NULL = toàn hệ thống.",
     "minimum_amount":"Mốc tiền nạp tối thiểu (VND).","bonus_percent":"Phần trăm thưởng, số nguyên 0–100.",
@@ -393,8 +367,7 @@ DESCRIPTIONS["management_audit"] = ("Lịch sử thay đổi quản trị, khôn
 DESCRIPTIONS["customer_notification_reads"] = (
     "Trạng thái đã đọc thông báo riêng của từng tài khoản khách; không thay đổi sổ tiền.",
     {
-        "account_id": "Tài khoản sở hữu trạng thái đọc; phần thứ nhất của khóa chính.",
-        "notification_key": "Khóa sự kiện ổn định, phân biệt hoa/thường; phần thứ hai của khóa chính.",
+        "event_id": "ID sự kiện thông báo tương ứng; PK kiêm FK tham chiếu customer_notification_events(id).",
         "read_at": "Thời điểm đánh dấu đã đọc (UTC).",
     },
 )
@@ -525,12 +498,8 @@ DESCRIPTIONS["customer_notification_events"] = (
     "Sổ sự kiện thông báo bền vững cho khách theo vòng đời đơn; khóa sự kiện chống phát trùng.",
     {
         "id": "Khóa chính.",
-        "notification_key": "Khóa idempotency duy nhất, phân biệt hoa/thường.",
-        "account_id": "Tài khoản khách nhận thông báo.",
-        "store_id": "Cửa hàng phát sinh thông báo.",
-        "kind": "Loại sự kiện vòng đời đơn, ví dụ tiếp nhận, chuẩn bị, phục vụ, thanh toán hoặc hết món.",
-        "code": "Mã đối tượng hiển thị cho khách, thường là mã đơn.",
-        "amount": "Số tiền liên quan để hiển thị; 0 nếu sự kiện không có tiền.",
+        "order_id": "Đơn hàng phát sinh sự kiện thông báo; FK tham chiếu menu_orders(id).",
+        "order_status": "Trạng thái đơn hàng tại thời điểm phát sinh sự kiện.",
         "created_at": "Thời điểm tạo sự kiện (UTC).",
     },
 )
@@ -698,6 +667,56 @@ DESCRIPTIONS["commercial_settlement_lines"] = ("Dòng snapshot đối soát theo
     "units": "Số đơn vị hợp lệ.", "unit_rate": "Đơn giá VND chụp từ hợp đồng.",
     "amount": "Thành tiền của dòng.",
 })
+
+# Current reduced schema definitions. Keep the generator descriptions aligned
+# with migrations 001–010 rather than legacy tables from the former 70-table model.
+DESCRIPTIONS["employees"] = ("Tài khoản nhân viên dùng để xác thực và phân quyền.", {
+    "id": "Khóa chính.", "profile_id": "Hồ sơ nhân sự; UNIQUE để mỗi hồ sơ có tối đa một tài khoản.",
+    "username": "Tên đăng nhập duy nhất.", "password_hash": "Mật khẩu đã băm bcrypt; không lưu mật khẩu thô.",
+    "role": "Vai trò được phép trong hệ thống.", "status": "Trạng thái tài khoản.",
+    "auth_version": "Phiên bản xác thực để thu hồi phiên đăng nhập cũ.",
+    "must_change_password": "Yêu cầu đổi mật khẩu trước khi thao tác.",
+    "password_changed_at": "Thời điểm đổi mật khẩu gần nhất; có thể NULL.",
+    "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm cập nhật gần nhất (UTC).",
+})
+DESCRIPTIONS["employee_profiles"] = ("Hồ sơ nhân sự và cơ sở công tác chính, tách khỏi thông tin xác thực.", {
+    "id": "Khóa chính.", "code": "Mã hồ sơ duy nhất.", "home_store_id": "Cơ sở công tác chính.",
+    "full_name": "Họ tên nhân sự.", "employment_status": "Trạng thái làm việc.",
+    "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm cập nhật gần nhất (UTC).",
+})
+DESCRIPTIONS["accounts"] = ("Tài khoản đăng nhập và ví tiền của khách; mỗi khách có tối đa một tài khoản.", {
+    "id": "Khóa chính.", "code": "Mã tài khoản duy nhất.", "customer_id": "Khách sở hữu; UNIQUE.",
+    "username": "Tên đăng nhập duy nhất.", "password_hash": "Mật khẩu đã băm bcrypt; NULL nếu chưa bật đăng nhập web.",
+    "balance": "Số dư ví hiện tại (VND), luôn không âm (balance >= 0) theo ràng buộc CHECK; cập nhật nguyên tử cùng `account_transactions` trong transaction.",
+    "bonus_balance": "Phần số dư khuyến mãi còn lại (VND).", "status": "Trạng thái tài khoản.",
+    "auth_version": "Phiên bản xác thực.", "web_login_enabled": "Cho phép hoặc khóa đăng nhập web.",
+    "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm cập nhật gần nhất (UTC).",
+})
+DESCRIPTIONS["usage_sessions"] = ("Một lần khách sử dụng máy, từ lúc mở đến lúc checkout.", {
+    "id": "Khóa chính.", "code": "Mã phiên duy nhất.", "customer_id": "Khách sử dụng máy.",
+    "machine_id": "Máy được sử dụng.", "opened_by": "Nhân viên mở phiên.",
+    "closed_by": "Nhân viên checkout; NULL khi phiên còn hoạt động.",
+    "started_at": "Thời điểm bắt đầu (UTC).", "ended_at": "Thời điểm kết thúc; NULL khi phiên còn hoạt động.",
+    "hourly_rate": "Đơn giá chụp từ máy khi bắt đầu phiên.", "cost": "Phí checkout; NULL khi phiên còn hoạt động.",
+    "status": "Trạng thái phiên.",
+})
+DESCRIPTIONS["invoices"] = ("Hóa đơn checkout; session_id UNIQUE bảo đảm tối đa một hóa đơn cho mỗi phiên.", {
+    "id": "Khóa chính.", "code": "Mã hóa đơn duy nhất.", "session_id": "Phiên được lập hóa đơn; UNIQUE.",
+    "customer_id": "Khách tại thời điểm lập hóa đơn.", "employee_id": "Nhân viên checkout.",
+    "store_id": "Cơ sở của phiên tại thời điểm checkout.", "usage_cost": "Phí sử dụng máy (VND).",
+    "settlement_amount": "Khoản khách trả bù tại checkout (VND).", "bonus_used": "Phần phí trừ từ số dư khuyến mãi (VND).",
+    "status": "Trạng thái hóa đơn.", "created_at": "Thời điểm lập hóa đơn (UTC).",
+})
+DESCRIPTIONS["menu_promotion_versions"] = (
+    "Phiên bản chính sách khuyến mãi POS được giữ để bảo toàn điều kiện áp dụng cho đơn cũ.",
+    {
+        "id": "Khóa chính.", "promotion_id": "Chính sách POS gốc.",
+        "version": "Số phiên bản duy nhất trong một chính sách.", "code": "Mã khuyến mãi ở phiên bản này.",
+        "kind": "Loại ưu đãi tại thời điểm tạo phiên bản.", "item_id": "Món áp dụng nếu có.",
+        "value": "Giá trị ưu đãi tại thời điểm tạo phiên bản.", "starts_at": "Bắt đầu hiệu lực (UTC).",
+        "ends_at": "Kết thúc hiệu lực (UTC).", "created_at": "Thời điểm tạo phiên bản (UTC).",
+    },
+)
 
 _KIND_ORDER = {"PRIMARY KEY": 0, "UNIQUE": 1, "FOREIGN KEY": 2, "CHECK": 3}
 

@@ -111,7 +111,8 @@ domains = [
     {
         'title': 'Phân hệ Giao dịch, Hóa đơn và Ca làm việc tiền mặt',
         'tables': [
-            ('account_transactions', 'ACCOUNT_TRANSACTIONS', 'Đạt', 'Mỗi dòng biểu diễn một sự kiện biến động số dư bất biến.'),
+            ('account_transactions', 'ACCOUNT_TRANSACTIONS', 'Đạt', 'Mỗi dòng biểu diễn một sự kiện biến động số dư; đạt chuẩn 3NF tuyệt đối sau khi tách session_transactions.'),
+            ('session_transactions', 'SESSION_TRANSACTIONS', 'Đạt', 'Bảng quan hệ 3NF giữa bút toán sổ cái và phiên máy; transaction_id là PK kiêm FK.'),
             ('invoices', 'INVOICES', 'Có snapshot', 'Lưu bối cảnh khách/nhân viên/cửa hàng phục vụ kiểm toán (phi chuẩn hóa có kiểm soát).'),
             ('cash_shifts', 'CASH_SHIFTS', 'Đạt', 'Ca làm việc của nhân viên tại cơ sở, các chỉ số két phụ thuộc vào ca.'),
             ('cash_shift_entries', 'CASH_SHIFT_ENTRIES', 'Đạt', 'Bút toán chi tiết sổ quỹ ca tiền mặt, phụ thuộc vào khóa chính id.')
@@ -259,11 +260,11 @@ c4_lines.append('  \\item \\textbf{Snapshot điều kiện áp dụng tại \\te
 c4_lines.append('\\end{itemize}')
 c4_lines.append('')
 
-c4_lines.append('\\section{Bảng tổng hợp đánh giá dạng chuẩn 70 quan hệ}')
+c4_lines.append('\\section{Bảng tổng hợp đánh giá dạng chuẩn 71 quan hệ}')
 c4_lines.append('\\begin{table}[htbp]')
 c4_lines.append('\\centering')
-c4_lines.append('\\caption{Tổng hợp kết quả đánh giá dạng chuẩn 1NF, 2NF, 3NF của 70 bảng}')
-c4_lines.append('\\label{tab:normalization-70}')
+c4_lines.append('\\caption{Tổng hợp kết quả đánh giá dạng chuẩn 1NF, 2NF, 3NF của 71 bảng}')
+c4_lines.append('\\label{tab:normalization-71}')
 c4_lines.append('\\scriptsize')
 c4_lines.append('\\begin{tabularx}{\\textwidth}{|>{\\raggedright\\arraybackslash}p{3.2cm}|>{\\centering\\arraybackslash}p{1.0cm}|>{\\centering\\arraybackslash}p{1.0cm}|>{\\centering\\arraybackslash}p{1.6cm}|X|}')
 c4_lines.append('\\hline')
@@ -280,7 +281,7 @@ c4_lines.append('\\end{table}')
 c4_lines.append('')
 
 c4_lines.append('\\section{Kết luận chương}')
-c4_lines.append('Kết quả phân tích chuẩn hóa cho thấy đại đa số 65/70 bảng trong CyberHub Manager đạt chuẩn 3NF tuyệt đối, đảm bảo không có hiện tượng trùng lặp dữ liệu hay dị thường thêm/sửa/xóa. 5 bảng chứa các trường snapshot (hóa đơn, chi tiết đơn POS, định mức nguyên liệu, voucher) được thiết kế phi chuẩn hóa có kiểm soát nhằm bảo toàn dữ liệu lịch sử kiểm toán tài chính bất biến, được bảo vệ bằng các giao dịch ACID nghiêm ngặt. Mô hình dữ liệu hoàn chỉnh này hoàn toàn sẵn sàng cho việc triển khai vật lý và khai thác truy vấn hiệu năng cao.\\par')
+c4_lines.append('Kết quả phân tích chuẩn hóa cho thấy đại đa số 66/71 bảng trong CyberHub Manager đạt chuẩn 3NF tuyệt đối (trong đó cả \\texttt{account\\_transactions} và \\texttt{session\\_transactions} đều đạt chuẩn 3NF sau khi chuẩn hóa phân tách tách rời mối liên kết phiên). 5 bảng chứa các trường snapshot (hóa đơn, chi tiết đơn POS, định mức nguyên liệu, voucher) được thiết kế phi chuẩn hóa có kiểm soát nhằm bảo toàn dữ liệu lịch sử kiểm toán tài chính bất biến, được bảo vệ bằng các giao dịch ACID nghiêm ngặt. Mô hình dữ liệu hoàn chỉnh này hoàn toàn sẵn sàng cho việc triển khai vật lý và khai thác truy vấn hiệu năng cao.\\par')
 
 with open('cơ sở dữ liệu/chapters/chuong04.tex', 'w', encoding='utf-8') as f:
     f.write('\n'.join(c4_lines))

@@ -10,6 +10,7 @@ ALLOWED_RESET_DATABASES = frozenset({
 # Delete dependent records before their parent records.
 RESET_TABLES = (
     "invoices",
+    "session_transactions",
     "account_transactions",
     "usage_sessions",
     "machines",

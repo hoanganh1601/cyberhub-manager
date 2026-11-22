@@ -156,13 +156,13 @@ class WalletService:
                     code=new_transaction_code(),
                     account_id=account.id,
                     employee_id=actor.employee_id,
+                    store_id=actor.store_id,
                     amount=amount,
                     method=method,
                 )
                 summary = self._get_created_transaction(
                     conn, account.id, transaction_id
                 )
-                self._accounts.tag_transaction_store(conn,transaction_id,actor.store_id)
                 if self._shifts is not None:
                     self._shifts.record_system_entry(
                         conn, actor, kind="RECEIPT", payment_method=method.value,

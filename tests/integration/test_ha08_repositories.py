@@ -48,12 +48,15 @@ def test_insert_usage_payment_transaction_rolls_back(test_scenario):
             employee_id = employee_id,
             session_id = session_id,
             usage_cost = 1000,
+            store_id = store_id,
         )
 
         cursor.execute(
             """
-            SELECT type, amount, method, session_id
-            FROM account_transactions WHERE id = %s
+            SELECT t.type, t.amount, t.method, st.session_id
+            FROM account_transactions t
+            LEFT JOIN session_transactions st ON st.transaction_id = t.id
+            WHERE t.id = %s
             """,
             (transaction_id,),
         )
@@ -69,11 +72,14 @@ def test_insert_usage_payment_transaction_rolls_back(test_scenario):
             session_id = session_id,
             settlement_amount = 1000,
             method = PaymentMethod.CASH,
+            store_id = store_id,
         )
         cursor.execute(
             """
-            SELECT type, amount, method, session_id
-            FROM account_transactions WHERE id = %s
+            SELECT t.type, t.amount, t.method, st.session_id
+            FROM account_transactions t
+            LEFT JOIN session_transactions st ON st.transaction_id = t.id
+            WHERE t.id = %s
             """,
             (settlement_id,),
         )

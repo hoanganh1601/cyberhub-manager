@@ -62,7 +62,7 @@ Sơ đồ quan niệm trong báo cáo giới hạn ở tám thực thể lõi: S
 
 \item Bảng con \texttt{machines}: FK \texttt{machines.store\_id} $\rightarrow$ \texttt{stores.id}; cardinality cha--con: 1 — 0..n. Cửa hàng sở hữu máy.
 
-\item Bảng con \texttt{account\_transactions}: FK \texttt{account\_transactions.store\_id} $\rightarrow$ \texttt{stores.id}; cardinality cha--con: 0..1 — 0..n. Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.
+\item Bảng con \texttt{account\_transactions}: FK \texttt{account\_transactions.store\_id} $\rightarrow$ \texttt{stores.id}; cardinality cha--con: 1 — 0..n. Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.
 
 \item Bảng con \texttt{invoices}: FK \texttt{invoices.store\_id} $\rightarrow$ \texttt{stores.id}; cardinality cha--con: 1 — 0..n. Cửa hàng; dùng cho báo cáo doanh thu.
 
@@ -1324,7 +1324,7 @@ Sơ đồ quan niệm trong báo cáo giới hạn ở tám thực thể lõi: S
 
 \item \texttt{created\_at} (\texttt{datetime}; NOT NULL; mặc định \texttt{CURRENT\_TIMESTAMP}): Thời điểm ghi (UTC).
 
-\item \texttt{store\_id} (\texttt{bigint unsigned}; FK $\rightarrow$ \texttt{stores.id}; NULL): Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.
+\item \texttt{store\_id} (\texttt{bigint unsigned}; FK $\rightarrow$ \texttt{stores.id}; NOT NULL): Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.
 
 \item \texttt{promotion\_id} (\texttt{bigint unsigned}; FK $\rightarrow$ \texttt{promotions.id}; NULL): Chính sách thưởng đã áp dụng, NULL với giao dịch thường.
 
@@ -1334,7 +1334,7 @@ Sơ đồ quan niệm trong báo cáo giới hạn ở tám thực thể lõi: S
 
 \begin{itemize}
 
-\item FK \texttt{account\_transactions.store\_id} $\rightarrow$ \texttt{stores.id}. Cardinality cha--con: 0..1 — 0..n. Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.
+\item FK \texttt{account\_transactions.store\_id} $\rightarrow$ \texttt{stores.id}. Cardinality cha--con: 1 — 0..n. Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.
 
 \item FK \texttt{account\_transactions.employee\_id} $\rightarrow$ \texttt{employees.id}. Cardinality cha--con: 1 — 0..n. Nhân viên thực hiện.
 

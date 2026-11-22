@@ -1,6 +1,6 @@
 # Current database model
 
-The application schema contains **24 normalized (3NF) business tables**, **8 read views (`v_*`)**, and **15 integrity triggers** (100% InnoDB, `utf8mb4_0900_ai_ci`, zero JSON columns, zero generated columns). `schema_migrations` is technical metadata and is not included in that count. See the [current ERD](../diagrams/current_erd.md) and [data dictionary](../diagrams/data_dictionary.md) for entities, attributes, constraints, and relationships.
+The application schema contains **25 business tables**, **8 read views (`v_*`)**, and **16 integrity triggers** (100% InnoDB, `utf8mb4_0900_ai_ci`, zero JSON columns, zero generated columns). `schema_migrations` is technical metadata and is not included in that count. The 3NF design separates session links into `session_transactions`; event snapshots and the cached account balance are intentional business data. See the [current ERD](../diagrams/current_erd.md) and [data dictionary](../diagrams/data_dictionary.md) for entities, attributes, constraints, and relationships.
 
 ## Table groups
 
@@ -17,6 +17,7 @@ The application schema contains **24 normalized (3NF) business tables**, **8 rea
 
 - `007_indexes.sql`: secondary indexes for operational lookups and revenue reporting.
 - `008_read_views.sql`: 8 read views (`v_employees`, `v_accounts`, `v_invoices`, `v_menu_items`, `v_menu_orders`, `v_menu_order_pricing`, `v_pos_order_reversals`, `v_customer_notification_events`).
-- `009_integrity_triggers.sql`: 15 triggers enforcing active session occupancy, store-wide unique menu names, cross-store/cross-owner guards, and reversal refund ceilings.
+- `009_integrity_triggers.sql`: 15 base triggers enforcing active session occupancy, store-wide unique menu names, cross-store/cross-owner guards, and reversal refund ceilings.
+- `010_enforce_account_transactions_store_id.sql`: creates `session_transactions`, copies legacy session links, backfills only stores that can be inferred reliably, rejects unresolved NULL stores, removes the old `session_id` column, and adds a session-link integrity trigger. It also runs on fresh installs after the earlier migrations.
 
 Run `python scripts/init_db.py` to initialize a fresh database.

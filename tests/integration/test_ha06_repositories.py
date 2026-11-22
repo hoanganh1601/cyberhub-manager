@@ -120,14 +120,14 @@ def wallet_context():
             password_hash=password_hash,
         )
 
-        yield conn, account_id, employee_id
+        yield conn, account_id, employee_id, store_id
     finally:
         conn.rollback()
         cursor.close()
         conn.close()
 
 def test_top_up_balance_and_history_roll_back_together(wallet_context):
-    conn, account_id, employee_id = wallet_context
+    conn, account_id, employee_id, store_id = wallet_context
     repo = AccountRepository()
     code = "TX-" + uuid4().hex[:17]
 
@@ -142,6 +142,7 @@ def test_top_up_balance_and_history_roll_back_together(wallet_context):
             code = code,
             account_id = account_id,
             employee_id = employee_id,
+            store_id = store_id,
             amount = 10000,
             method = PaymentMethod.CASH,
         )
@@ -165,7 +166,7 @@ def test_top_up_balance_and_history_roll_back_together(wallet_context):
     assert repo.list_transactions(conn, account_id) == []
 
 def test_customer_profile_search_and_status_can_roll_back(wallet_context):
-    conn, account_id, _employee_id = wallet_context
+    conn, account_id, _employee_id, *_ = wallet_context
     customer_repo = CustomerRepository()
     account_repo = AccountRepository()
 
@@ -215,7 +216,7 @@ def test_customer_profile_search_and_status_can_roll_back(wallet_context):
     assert restored.account.status == AccountStatus.ACTIVE
 
 def test_duplicate_customer_phone_is_rejected(wallet_context):
-    conn, account_id, _employee_id = wallet_context
+    conn, account_id, _employee_id, *_ = wallet_context
     customer_repo = CustomerRepository()
 
     account = AccountRepository().get_by_id(conn, account_id)
@@ -243,7 +244,7 @@ def test_duplicate_customer_phone_is_rejected(wallet_context):
     cursor.close()
 
 def test_duplicate_account_username_is_rejected(wallet_context):
-    conn, account_id, _employee_id = wallet_context
+    conn, account_id, _employee_id, *_ = wallet_context
     account_repo = AccountRepository()
     existing = account_repo.get_by_id(conn, account_id)
 
@@ -282,7 +283,7 @@ def test_duplicate_account_username_is_rejected(wallet_context):
         cursor.close()
 
 def test_rejects_invalid_top_up_inputs(wallet_context):
-    conn, account_id, employee_id = wallet_context
+    conn, account_id, employee_id, store_id = wallet_context
     repo = AccountRepository()
 
     for amount in (0, -1, True, 1.5):
@@ -295,6 +296,7 @@ def test_rejects_invalid_top_up_inputs(wallet_context):
                 code = "TX-" + uuid4().hex[:17],
                 account_id = account_id,
                 employee_id = employee_id,
+                store_id = store_id,
                 amount = amount,
                 method = PaymentMethod.CASH,
             )
@@ -305,6 +307,7 @@ def test_rejects_invalid_top_up_inputs(wallet_context):
             code = "TX-" + uuid4().hex[:17],
             account_id = account_id,
             employee_id = employee_id,
+            store_id = store_id,
             amount = 10000,
             method = PaymentMethod.ACCOUNT_BALANCE,
         )

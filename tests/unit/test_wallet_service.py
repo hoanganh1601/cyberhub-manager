@@ -89,9 +89,6 @@ class FakeCustomerRepository:
 
 
 class FakeAccountRepository:
-    def tag_transaction_store(self, conn, transaction_id, store_id):
-        pass
-
     def __init__(self, account):
         self.account = account
         self.locked_for_update = False
@@ -109,13 +106,13 @@ class FakeAccountRepository:
         return True
 
     def insert_top_up_transaction(
-        self, conn, *, code, account_id, employee_id, amount, method
+        self, conn, *, code, account_id, employee_id, amount, method, store_id=None
     ):
         if self.insert_error is not None:
             raise self.insert_error
         transaction_id = len(self.inserted) + 1
         self.inserted.append(
-            {"code": code, "employee_id": employee_id, "method": method}
+            {"code": code, "employee_id": employee_id, "store_id": store_id, "method": method}
         )
         self.history.insert(
             0,

@@ -191,15 +191,23 @@ def seed(conn, scale: float) -> dict[str, Any]:
         " VALUES (%s,%s,%s,%s,%s,%s,%s)",
         [(f"{PREFIX}I{sid:07d}", sid, cid, employee_id, store_id, cost, ended) for sid, cid, ended, cost in rows],
     )
-    tx = [(f"{PREFIX}U{sid:07d}", accounts[cid], employee_id, sid, "USAGE_PAYMENT", -cost, "ACCOUNT_BALANCE", ended)
+    tx = [(f"{PREFIX}U{sid:07d}", accounts[cid], employee_id, store_id, "USAGE_PAYMENT", -cost, "ACCOUNT_BALANCE", ended)
           for sid, cid, ended, cost in rows if cost > 0]
-    tx += [(f"{PREFIX}T{i:07d}", accounts[rng.choice(customer_ids)], employee_id, None, "TOP_UP", 50_000, "CASH",
+    tx += [(f"{PREFIX}T{i:07d}", accounts[rng.choice(customer_ids)], employee_id, store_id, "TOP_UP", 50_000, "CASH",
             now - timedelta(minutes=rng.randint(1, 90 * 24 * 60))) for i in range(n_topups)]
+    session_tx = [(sid, f"{PREFIX}U{sid:07d}")
+                  for sid, _cid, _ended, cost in rows if cost > 0]
     _many(
         conn,
-        "INSERT INTO account_transactions (code, account_id, employee_id, session_id, type, amount, method, created_at)"
+        "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method, created_at)"
         " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
         tx,
+    )
+    _many(
+        conn,
+        "INSERT INTO session_transactions (session_id, transaction_id)"
+        " SELECT %s, id FROM account_transactions WHERE code=%s",
+        session_tx,
     )
     conn.commit()
     for table in ("customers", "accounts", "machines", "usage_sessions", "invoices", "account_transactions"):

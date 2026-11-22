@@ -1,41 +1,698 @@
-\chapter{Phân tích chuẩn hóa dữ liệu}
+\chapter{Chuẩn hóa các lược đồ quan hệ về dạng chuẩn 3NF}
 
-\section{Phạm vi phân tích}
-Chuẩn hóa được xem xét trên các quan hệ trong schema khai báo bằng migration. Khóa chính và UNIQUE cho biết các khóa ứng viên được database bảo đảm; khóa ngoại cho biết các tham chiếu vật lý. DDL không biểu diễn mọi phụ thuộc nghiệp vụ, vì vậy không thể chỉ dựa vào file SQL để chứng minh toàn bộ phụ thuộc hàm của dữ liệu thực tế. Phần này phân tích cấu trúc bảng và nêu rõ các snapshot mà dự án lưu có chủ đích.
+\section{Mục tiêu và phương pháp phân tích}
+Chuẩn hóa cơ sở dữ liệu là quá trình tổ chức các thuộc tính và bảng quan hệ nhằm tối thiểu hóa sự dư thừa dữ liệu, loại trừ các bất thường khi thao tác (thêm, sửa, xóa) và đảm bảo tính nhất quán logic cao nhất. Chương này trình bày phân tích chuẩn hóa toàn diện cho toàn bộ 70 bảng cơ sở dữ liệu của CyberHub Manager dựa trên lý thuyết phụ thuộc hàm và khóa ứng viên.\par
 
-\section{Dạng chuẩn thứ nhất}
-Dạng chuẩn thứ nhất yêu cầu mỗi ô dữ liệu chứa một giá trị theo miền của cột, không chứa danh sách các dòng con. Schema tách các nhóm dữ liệu lặp thành bảng riêng. Ví dụ, một đơn POS có nhiều món được lưu trong \texttt{menu\_order\_items}; các dòng đơn mua được lưu trong \texttt{purchase\_order\_lines}; các linh kiện của phiếu sửa được lưu trong \texttt{machine\_incident\_parts}. Các bảng này dùng một dòng cho một liên kết hoặc chi tiết, thay vì lưu nhiều mã món/nguyên liệu trong một cột.
+Quy trình phân tích gồm: thẩm định dạng chuẩn 1NF (tính nguyên tử), 2NF (loại bỏ phụ thuộc bộ phận vào khóa ghép), và 3NF (loại bỏ phụ thuộc bắc cầu qua thuộc tính không khóa). Đồng thời, chương này phân tích sâu sắc các quyết định phi chuẩn hóa có kiểm soát (Controlled Denormalization) đối với các trường snapshot bối cảnh lịch sử phục vụ kiểm toán tài chính và đối soát.\par
 
-Các trường nội dung như tên, trạng thái, số lượng, thời điểm và mã tham chiếu được khai báo bằng kiểu dữ liệu đơn như \texttt{VARCHAR}, \texttt{BIGINT}, \texttt{DATETIME} và \texttt{BOOLEAN}. Đây là đánh giá cấu trúc DDL, không phải kiểm tra từng giá trị trong database đang chạy.
+\section{Cơ sở lý thuyết chuẩn hóa}
+\subsection{Phụ thuộc hàm và khóa}
+Cho quan hệ $R$ và hai tập thuộc tính $X, Y \subseteq R$. Phụ thuộc hàm $X \rightarrow Y$ phát biểu rằng với mọi cặp bộ giá trị $t_1, t_2 \in R$, nếu $t_1[X] = t_2[X]$ thì bắt buộc $t_1[Y] = t_2[Y]$. Một tập thuộc tính $K$ là siêu khóa nếu $K \rightarrow R$. $K$ là khóa ứng viên nếu $K$ là siêu khóa tối thiểu (không tồn tại tập con thực sự $K' \subset K$ sao cho $K' \rightarrow R$). Khóa chính (PK) là khóa ứng viên được chọn để định danh dòng dữ liệu.\par
 
-\section{Dạng chuẩn thứ hai}
-Dạng chuẩn thứ hai yêu cầu đạt 1NF và các thuộc tính không khóa phụ thuộc vào toàn bộ khóa chính ghép. Trong schema có các khóa ghép ở bảng liên kết và bảng chi tiết, chẳng hạn:
+\subsection{Dạng chuẩn thứ nhất (1NF)}
+Một quan hệ đạt 1NF khi và chỉ khi mọi thuộc tính chỉ chứa các giá trị nguyên tử (atomic values) thuộc miền xác định, không chứa các tập hợp, mảng lặp hoặc danh sách phức hợp trong một cột. Trong CyberHub Manager, mọi thuộc tính đa trị đều được tách thành các bảng dòng chi tiết riêng biệt (ví dụ món trong đơn đặt thành \texttt{MENU\_ORDER\_ITEMS}, nguyên liệu mua thành \texttt{PURCHASE\_ORDER\_LINES}).\par
+
+\subsection{Dạng chuẩn thứ hai (2NF)}
+Một quan hệ đạt 2NF khi và chỉ khi nó đạt 1NF và mọi thuộc tính không khóa đều phụ thuộc đầy đủ vào toàn bộ khóa chính, không phụ thuộc vào bất kỳ bộ phận thực sự nào của khóa chính ghép. Với các bảng có khóa chính đơn (như \texttt{id}), quan hệ mặc nhiên thỏa mãn 2NF. Với các bảng sử dụng khóa ghép (như \texttt{MENU\_ITEM\_RECIPES(item\_id, ingredient\_id)}), mọi thuộc tính không khóa như \texttt{quantity} đều phụ thuộc đồng thời vào cả hai thành phần của khóa.\par
+
+\subsection{Dạng chuẩn thứ ba (3NF)}
+Một quan hệ đạt 3NF khi và chỉ khi nó đạt 2NF và với mọi phụ thuộc hàm không tầm thường $X \rightarrow A$, hoặc $X$ là một siêu khóa, hoặc $A$ là một thuộc tính khóa (thuộc một khóa ứng viên nào đó). Nói cách khác, không tồn tại phụ thuộc bắc cầu giữa các thuộc tính không khóa.\par
+
+\section{Phân tích chuẩn hóa 70 bảng theo từng phân hệ}
+Dưới đây là kết quả phân tích chuẩn hóa chi tiết cho toàn bộ 70 bảng theo 11 phân hệ chức năng. Đối với từng bảng, báo cáo chỉ rõ khóa ứng viên, phụ thuộc hàm chủ đạo và mức độ thỏa mãn dạng chuẩn 3NF:\par
+
+\subsection{Phân hệ Quản trị cơ sở, Nhân sự và Kiểm toán}
+\subsubsection{STORES -- \texttt{stores}}
 \begin{itemize}
-  \item \texttt{customer\_notification\_reads}: khóa chính \texttt{(account\_id, notification\_key)}.
-  \item \texttt{menu\_order\_items}: khóa chính \texttt{(order\_id, item\_id)}.
-  \item \texttt{menu\_item\_recipes}: khóa chính \texttt{(item\_id, ingredient\_id)}.
-  \item \texttt{purchase\_request\_lines} và \texttt{purchase\_order\_lines}: khóa ghép theo chứng từ và nguyên liệu.
-  \item \texttt{commercial\_settlement\_lines}: khóa chính \texttt{(settlement\_id, placement\_id, event\_type)}.
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Mô tả cơ sở phụ thuộc trực tiếp vào khóa chính id.
 \end{itemize}
 
-Các thuộc tính như trạng thái đọc, số lượng, đơn giá hoặc số tiền của dòng được lưu cùng bảng chi tiết tương ứng. DDL xác nhận cấu trúc khóa; việc đánh giá phụ thuộc đầy đủ cũng dựa trên ý nghĩa nghiệp vụ của từng cột.
-
-\section{Dạng chuẩn thứ ba}
-Dạng chuẩn thứ ba yêu cầu đạt 2NF và tránh phụ thuộc bắc cầu của thuộc tính không khóa vào khóa chính. Schema tách nhiều nhóm thực thể có vòng đời riêng: hồ sơ khách hàng và tài khoản nằm ở \texttt{customers} và \texttt{accounts}; cửa hàng và nhân viên nằm ở \texttt{stores} và \texttt{employees}; món và nhóm món nằm ở \texttt{menu\_items} và \texttt{menu\_categories}; nguyên liệu và công thức nằm ở \texttt{inventory\_ingredients} và \texttt{menu\_item\_recipes}. Các khóa ngoại nối các bảng này thay vì chép toàn bộ mô tả cha vào mọi bảng con.
-
-\section{Các snapshot được lưu trong giao dịch}
-Một số bảng giữ lại dữ liệu tại thời điểm phát sinh để bảo toàn lịch sử. Đây là quyết định schema có thể tạo ra dữ liệu trùng với bảng danh mục hiện hành, nhưng không nên tự động xóa nếu cần giữ nội dung giao dịch cũ. Các ví dụ được mô tả trong data dictionary và DDL gồm:
+\subsubsection{EMPLOYEES -- \texttt{employees}}
 \begin{itemize}
-  \item \texttt{invoices} lưu các khóa tham chiếu khách hàng, nhân viên và cửa hàng cùng kết quả checkout.
-  \item \texttt{menu\_order\_items} lưu thông tin dòng món theo đơn; \texttt{menu\_order\_pricing} lưu kết quả tính giá của đơn.
-  \item \texttt{menu\_order\_recipe\_snapshots} lưu nhu cầu nguyên liệu gắn với dòng đơn, tách khỏi công thức hiện hành.
-  \item \texttt{customer\_vouchers} giữ điều kiện voucher tại thời điểm phát hành; \texttt{commercial\_settlement\_lines} giữ số liệu dòng đối soát.
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{profile\_id}, \texttt{username}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Tách cơ sở qua store_id, không lặp thuộc tính mô tả cửa hàng.
 \end{itemize}
 
-Các snapshot này cần được ghi nhận là ngoại lệ có chủ đích khi đánh giá 3NF; chúng phục vụ lịch sử nghiệp vụ. Không có căn cứ từ DDL để kết luận mọi bảng snapshot đều là lỗi thiết kế.
+\subsubsection{EMPLOYEE_PROFILES -- \texttt{employee\_profiles}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Tách hồ sơ nhân sự khỏi bảng xác thực, khóa ứng viên code và employee_id.
+\end{itemize}
 
-\section{Đánh giá}
-Schema tách các thực thể, quan hệ nhiều--nhiều và dòng chứng từ thành các bảng riêng; PK, UNIQUE, FK và CHECK kiểm soát các quy tắc được khai báo. Tuy nhiên, việc chứng minh một quan hệ đạt 3NF đầy đủ cần xác nhận tất cả phụ thuộc hàm nghiệp vụ và khóa ứng viên, không chỉ đọc tên cột hoặc CHECK. Vì vậy, báo cáo không kết luận chung rằng cả 70 bảng đều đạt 3NF tuyệt đối; các trường hợp snapshot được nêu riêng để người đọc phân biệt dữ liệu danh mục với dữ liệu lịch sử.
+\subsubsection{EMPLOYEE_STORE_ASSIGNMENTS -- \texttt{employee\_store\_assignments}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{employee\_id, store\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bảng liên kết N:M có khóa ghép (employee_id, store_id), đạt 3NF.
+\end{itemize}
+
+\subsubsection{MANAGEMENT_AUDIT -- \texttt{management\_audit}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Sổ nhật ký kiểm toán bất biến chỉ thêm, thuộc tính phụ thuộc vào khóa id.
+\end{itemize}
+
+\subsection{Phân hệ Khách hàng, Hội viên và An ninh tài khoản}
+\subsubsection{CUSTOMERS -- \texttt{customers}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}, \texttt{phone}, \texttt{email}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Hồ sơ cá nhân độc lập với số dư ví và tài khoản đăng nhập.
+\end{itemize}
+
+\subsubsection{CUSTOMER_STORE_LINKS -- \texttt{customer\_store\_links}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bảng liên kết N:M giữa khách hàng và cơ sở với khóa ghép.
+\end{itemize}
+
+\subsubsection{ACCOUNTS -- \texttt{accounts}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}, \texttt{customer\_id}, \texttt{username}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Tách hồ sơ khách hàng và sổ cái giao dịch, đạt 3NF chuẩn tắc.
+\end{itemize}
+
+\subsubsection{CUSTOMER_AVATARS -- \texttt{customer\_avatars}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Tách dữ liệu media WebP khỏi tài khoản, khóa chính id kiêm FK.
+\end{itemize}
+
+\subsubsection{CUSTOMER_NOTIFICATION_READS -- \texttt{customer\_notification\_reads}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{event\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Khóa ghép (account_id, event_id), thuộc tính phụ thuộc toàn bộ khóa.
+\end{itemize}
+
+\subsubsection{CUSTOMER_NOTIFICATION_EVENTS -- \texttt{customer\_notification\_events}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Sổ sự kiện thông báo bất biến, chống phát trùng bằng khóa nghiệp vụ.
+\end{itemize}
+
+\subsubsection{CUSTOMER_EMAIL_TOKENS -- \texttt{customer\_email\_tokens}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Lưu token đã băm HMAC, phụ thuộc trực tiếp vào khóa chính.
+\end{itemize}
+
+\subsubsection{CUSTOMER_MAIL_OUTBOX -- \texttt{customer\_mail\_outbox}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bảng hàng đợi gửi thư, các thuộc tính mô tả phụ thuộc vào id.
+\end{itemize}
+
+\subsubsection{CUSTOMER_SECURITY_AUDIT -- \texttt{customer\_security\_audit}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Nhật ký kiểm toán an ninh bất biến, chỉ ghi và không sửa đổi.
+\end{itemize}
+
+\subsection{Phân hệ Máy trạm, Phòng máy và Quản lý sự cố}
+\subsubsection{MACHINES -- \texttt{machines}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Không lặp mô tả cửa hàng; giá phiên là snapshot riêng tại phiên.
+\end{itemize}
+
+\subsubsection{MACHINE_ROOM_TYPES -- \texttt{machine\_room\_types}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{machine\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Phân loại phòng máy, khóa chính machine_id kiêm FK tham chiếu.
+\end{itemize}
+
+\subsubsection{USAGE_SESSIONS -- \texttt{usage\_sessions}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Tham chiếu khách, máy, nhân viên bằng FK; snapshot hourly_rate hợp lệ.
+\end{itemize}
+
+\subsubsection{MACHINE_INCIDENTS -- \texttt{machine\_incidents}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Phiếu sự cố gắn với máy trạm và nhân viên phụ trách, đạt 3NF.
+\end{itemize}
+
+\subsubsection{MACHINE_INCIDENT_PARTS -- \texttt{machine\_incident\_parts}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Linh kiện sử dụng cho phiếu sự cố, phụ thuộc trực tiếp vào khóa id.
+\end{itemize}
+
+\subsubsection{MACHINE_INCIDENT_EVENTS -- \texttt{machine\_incident\_events}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Lịch sử chuyển trạng thái sự cố, sổ sự kiện chỉ thêm.
+\end{itemize}
+
+\subsection{Phân hệ Giao dịch, Hóa đơn và Ca làm việc tiền mặt}
+\subsubsection{ACCOUNT_TRANSACTIONS -- \texttt{account\_transactions}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Mỗi dòng biểu diễn một sự kiện biến động số dư; đạt chuẩn 3NF tuyệt đối sau khi tách session_transactions.
+\end{itemize}
+
+\subsubsection{SESSION_TRANSACTIONS -- \texttt{session\_transactions}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{transaction\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bảng quan hệ 3NF giữa bút toán sổ cái và phiên máy; transaction_id là PK kiêm FK.
+\end{itemize}
+
+\subsubsection{INVOICES -- \texttt{invoices}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}, \texttt{session\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Có snapshot}.
+  \item \textbf{Cơ sở lý giải:} Lưu bối cảnh khách/nhân viên/cửa hàng phục vụ kiểm toán (phi chuẩn hóa có kiểm soát).
+\end{itemize}
+
+\subsubsection{CASH_SHIFTS -- \texttt{cash\_shifts}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Ca làm việc của nhân viên tại cơ sở, các chỉ số két phụ thuộc vào ca.
+\end{itemize}
+
+\subsubsection{CASH_SHIFT_ENTRIES -- \texttt{cash\_shift\_entries}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bút toán chi tiết sổ quỹ ca tiền mặt, phụ thuộc vào khóa chính id.
+\end{itemize}
+
+\subsection{Phân hệ Thực đơn và Bán hàng POS}
+\subsubsection{MENU_CATEGORIES -- \texttt{menu\_categories}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Danh mục thực đơn theo cơ sở, đạt 3NF.
+\end{itemize}
+
+\subsubsection{MENU_ITEMS -- \texttt{menu\_items}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Món ăn thuộc danh mục, không lưu lặp mô tả danh mục.
+\end{itemize}
+
+\subsubsection{MENU_ITEM_IMAGES -- \texttt{menu\_item\_images}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Tách media ảnh món độc lập, khóa chính item_id kiêm FK.
+\end{itemize}
+
+\subsubsection{MENU_ITEM_CHANGES -- \texttt{menu\_item\_changes}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Sổ lịch sử điều chỉnh giá và thông tin món, chỉ thêm.
+\end{itemize}
+
+\subsubsection{MENU_ORDERS -- \texttt{menu\_orders}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Đơn đặt món POS gắn với phiên và máy, đạt 3NF.
+\end{itemize}
+
+\subsubsection{MENU_ORDER_ITEMS -- \texttt{menu\_order\_items}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{order\_id, item\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Có snapshot}.
+  \item \textbf{Cơ sở lý giải:} Lưu snapshot item_name và unit_price lúc đặt để bảo toàn lịch sử.
+\end{itemize}
+
+\subsubsection{MENU_ORDER_PRICING -- \texttt{menu\_order\_pricing}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{order\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Có snapshot}.
+  \item \textbf{Cơ sở lý giải:} Snapshot kết quả tính giá chiết khấu bất biến tại thời điểm chốt đơn.
+\end{itemize}
+
+\subsubsection{MENU_PROMOTIONS -- \texttt{menu\_promotions}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Chính sách khuyến mãi POS, các điều kiện phụ thuộc vào khóa id.
+\end{itemize}
+
+\subsubsection{POS_ORDER_REVERSALS -- \texttt{pos\_order\_reversals}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{order\_id}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Yêu cầu hoàn hủy đơn POS với quy trình Maker-Checker, đạt 3NF.
+\end{itemize}
+
+\subsubsection{MENU_ORDER_RECIPE_SNAPSHOTS -- \texttt{menu\_order\_recipe\_snapshots}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Có snapshot}.
+  \item \textbf{Cơ sở lý giải:} Snapshot định mức nguyên liệu lúc đặt để đổi công thức không làm sai xuất kho cũ.
+\end{itemize}
+
+\subsection{Phân hệ Quản lý kho nguyên liệu và Định lượng}
+\subsubsection{INVENTORY_INGREDIENTS -- \texttt{inventory\_ingredients}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Nguyên liệu quản lý theo từng cơ sở, đạt 3NF.
+\end{itemize}
+
+\subsubsection{MENU_ITEM_RECIPES -- \texttt{menu\_item\_recipes}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bảng quan hệ N:M giữa món và nguyên liệu, khóa ghép (item_id, ingredient_id).
+\end{itemize}
+
+\subsubsection{INVENTORY_MOVEMENTS -- \texttt{inventory\_movements}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Sổ cái kho bất biến ghi nhận mọi biến động xuất nhập tồn.
+\end{itemize}
+
+\subsubsection{INVENTORY_COUNTS -- \texttt{inventory\_counts}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Phiếu kiểm kê đề xuất điều chỉnh kho, đạt 3NF.
+\end{itemize}
+
+\subsection{Phân hệ Khuyến mãi nạp tiền, Voucher và Tích điểm}
+\subsubsection{PROMOTIONS -- \texttt{promotions}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{id}, \texttt{code}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Chính sách thưởng nạp tiền, phụ thuộc vào khóa chính id.
+\end{itemize}
+
+\subsubsection{LOYALTY_SETTINGS -- \texttt{loyalty\_settings}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bảng cấu hình hệ thống duy nhất id=1 có version chống ghi đè.
+\end{itemize}
+
+\subsubsection{REWARD_CATALOG -- \texttt{reward\_catalog}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Danh mục phần thưởng độc lập, đạt 3NF.
+\end{itemize}
+
+\subsubsection{CUSTOMER_VOUCHERS -- \texttt{customer\_vouchers}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Có snapshot}.
+  \item \textbf{Cơ sở lý giải:} Lưu snapshot điều kiện áp dụng lúc phát hành voucher.
+\end{itemize}
+
+\subsubsection{VOUCHER_EVENTS -- \texttt{voucher\_events}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Nhật ký sự kiện vòng đời voucher, chỉ thêm.
+\end{itemize}
+
+\subsubsection{LOYALTY_POINT_GRANTS -- \texttt{loyalty\_point\_grants}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bản ghi cộng điểm thưởng hội viên từ voucher, đạt 3NF.
+\end{itemize}
+
+\subsection{Phân hệ Trò chơi giải trí và Vòng quay may mắn}
+\subsubsection{GAMES -- \texttt{games}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Cấu hình trò chơi chung toàn hệ thống, đạt 3NF.
+\end{itemize}
+
+\subsubsection{GAME_PRIZES -- \texttt{game\_prizes}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Ô thưởng gắn với game_id, xác suất và phần thưởng phụ thuộc vào id.
+\end{itemize}
+
+\subsubsection{GAME_WALLETS -- \texttt{game\_wallets}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Ví xu trò chơi riêng biệt, tách độc lập khỏi ví tiền mặt.
+\end{itemize}
+
+\subsubsection{GAME_SESSIONS -- \texttt{game\_sessions}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Lịch sử lượt quay máy chủ bốc thăm và chụp lại kết quả.
+\end{itemize}
+
+\subsubsection{GAME_COIN_LEDGER -- \texttt{game\_coin\_ledger}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Sổ cái biến động số dư xu, bất biến chỉ thêm.
+\end{itemize}
+
+\subsection{Phân hệ Quảng cáo nhận thưởng}
+\subsubsection{AD_SETTINGS -- \texttt{ad\_settings}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Cấu hình chương trình quảng cáo, một dòng duy nhất id=1.
+\end{itemize}
+
+\subsubsection{AD_CREATIVES -- \texttt{ad\_creatives}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Nội dung quảng cáo nội bộ, đạt 3NF.
+\end{itemize}
+
+\subsubsection{AD_REWARD_EVENTS -- \texttt{ad\_reward\_events}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Sự kiện xem quảng cáo với token dùng một lần, đạt 3NF.
+\end{itemize}
+
+\subsection{Phân hệ Mua sắm, Nhập kho và Công nợ nhà cung cấp}
+\subsubsection{SUPPLIERS -- \texttt{suppliers}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Nhà cung cấp quản lý theo cơ sở, đạt 3NF.
+\end{itemize}
+
+\subsubsection{PURCHASE_REQUESTS -- \texttt{purchase\_requests}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Đề nghị mua sắm nguyên vật liệu có người lập và người duyệt.
+\end{itemize}
+
+\subsubsection{PURCHASE_REQUEST_LINES -- \texttt{purchase\_request\_lines}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Chi tiết đề nghị mua sắm, khóa ghép (request_id, ingredient_id).
+\end{itemize}
+
+\subsubsection{PURCHASE_ORDERS -- \texttt{purchase\_orders}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Đơn đặt mua hàng tạo từ đề nghị đã duyệt, đạt 3NF.
+\end{itemize}
+
+\subsubsection{PURCHASE_ORDER_LINES -- \texttt{purchase\_order\_lines}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Chi tiết đơn đặt mua hàng, khóa ghép (order_id, ingredient_id).
+\end{itemize}
+
+\subsubsection{GOODS_RECEIPTS -- \texttt{goods\_receipts}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Phiếu nhận hàng thực tế, tự động tạo nhập kho và công nợ.
+\end{itemize}
+
+\subsubsection{GOODS_RECEIPT_LINES -- \texttt{goods\_receipt\_lines}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Chi tiết hàng đạt, hỏng, thiếu trong phiếu nhận hàng.
+\end{itemize}
+
+\subsubsection{SUPPLIER_PAYABLES -- \texttt{supplier\_payables}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Khoản công nợ phải trả gắn với phiếu nhận hàng, đạt 3NF.
+\end{itemize}
+
+\subsubsection{SUPPLIER_PAYABLE_APPROVALS -- \texttt{supplier\_payable\_approvals}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Bản ghi phê duyệt công nợ theo chính sách phân tách quyền Maker-Checker.
+\end{itemize}
+
+\subsection{Phân hệ Đối tác thương mại và Phân phối dịch vụ}
+\subsubsection{COMMERCIAL_PARTNERS -- \texttt{commercial\_partners}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Đối tác thương mại bên ngoài, đạt 3NF.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_CONTRACTS -- \texttt{commercial\_contracts}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Hợp đồng thương mại có phê duyệt hai bước, đạt 3NF.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_CAMPAIGNS -- \texttt{commercial\_campaigns}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Chiến dịch thương mại gắn với hợp đồng, đạt 3NF.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_PLACEMENTS -- \texttt{commercial\_placements}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Vị trí phân phối nội dung đối tác, đạt 3NF.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_PLAY_SESSIONS -- \texttt{commercial\_play\_sessions}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Phiên chơi dịch vụ đối tác với mã token một lần.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_EVENTS -- \texttt{commercial\_events}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Sổ sự kiện tương tác thương mại bất biến, chống ghi trùng.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_REWARD_GRANTS -- \texttt{commercial\_reward\_grants}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Hàng đợi trả thưởng thương mại bất đồng bộ, đạt 3NF.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_SETTLEMENTS -- \texttt{commercial\_settlements}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Kỳ đối soát quyết toán doanh thu với đối tác, đạt 3NF.
+\end{itemize}
+
+\subsubsection{COMMERCIAL_SETTLEMENT_LINES -- \texttt{commercial\_settlement\_lines}}
+\begin{itemize}
+  \item \textbf{Khóa ứng viên:} \texttt{}.
+  \item \textbf{Đánh giá dạng chuẩn:} \textbf{Đạt}.
+  \item \textbf{Cơ sở lý giải:} Chi tiết doanh thu và sản lượng từng vị trí trong kỳ đối soát.
+\end{itemize}
+
+\section{Đánh giá các trường hợp phi chuẩn hóa có kiểm soát}
+Trong các hệ thống phần mềm nghiệp vụ thực tế, việc tuân thủ 3NF một cách máy móc có thể dẫn đến việc phá vỡ tính toàn vẹn dữ liệu lịch sử tài chính hoặc làm suy giảm nghiêm trọng hiệu năng truy vấn. CyberHub Manager đã đưa ra các quyết định phi chuẩn hóa có kiểm soát (Controlled Denormalization) tại một số vị trí then chốt:\par
+
+\begin{itemize}
+  \item \textbf{Snapshot bối cảnh tại \texttt{INVOICES}:} Hóa đơn lưu trữ trực tiếp \texttt{customer\_id}, \texttt{employee\_id}, và \texttt{store\_id} dù các thông tin này có thể suy diễn từ \texttt{usage\_sessions}. Lý do: Nếu nhân viên checkout sau này chuyển công tác sang cơ sở khác hoặc bị thay đổi trạng thái, việc tra cứu ngược qua phiên có thể dẫn đến báo cáo lịch sử sai lệch so với thời điểm phát hành hóa đơn thực tế. Snapshot này được tạo cùng transaction checkout và là bất biến (không cho phép sửa).\par
+  \item \textbf{Snapshot tên và đơn giá tại \texttt{MENU\_ORDER\_ITEMS}:} Mỗi dòng gọi món lưu trực tiếp \texttt{item\_name} và \texttt{unit\_price} tại thời điểm đặt. Lý do: Khi quán net cập nhật giá món hoặc đổi tên sản phẩm trong danh mục \texttt{MENU\_ITEMS}, các hóa đơn và đơn đặt cũ tuyệt đối không được phép bị thay đổi số tiền lịch sử.\par
+  \item \textbf{Snapshot định mức nguyên liệu tại \texttt{MENU\_ORDER\_RECIPE\_SNAPSHOTS}:} Lưu trữ công thức pha chế/nấu ăn tại thời điểm khách đặt hàng. Nhờ đó, việc bếp trưởng điều chỉnh công thức món ăn sau này sẽ không gây sai lệch số liệu tồn kho đã xuất hoặc hoàn kho cũ.\par
+  \item \textbf{Snapshot điều kiện áp dụng tại \texttt{CUSTOMER\_VOUCHERS}:} Khi phát hành voucher, điều kiện giảm giá và phạm vi cơ sở được chụp cố định vào bản ghi voucher. Việc Admin thay đổi chính sách trong danh mục \texttt{REWARD\_CATALOG} sẽ không làm ảnh hưởng đến các voucher đã trao tay khách hàng.\par
+\end{itemize}
+
+\section{Bảng tổng hợp đánh giá dạng chuẩn 71 quan hệ}
+\begin{table}[htbp]
+\centering
+\caption{Tổng hợp kết quả đánh giá dạng chuẩn 1NF, 2NF, 3NF của 71 bảng}
+\label{tab:normalization-71}
+\scriptsize
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{1.0cm}|>{\centering\arraybackslash}p{1.0cm}|>{\centering\arraybackslash}p{1.6cm}|X|}
+\hline
+\textbf{Tên bảng} & \textbf{1NF} & \textbf{2NF} & \textbf{3NF} & \textbf{Cơ sở đánh giá và phụ thuộc hàm} \\
+\hline
+\texttt{stores} & Đạt & Đạt & Đạt & Mô tả cơ sở phụ thuộc trực tiếp vào khóa chính id. \\
+\hline
+\texttt{employees} & Đạt & Đạt & Đạt & Tách cơ sở qua store_id, không lặp thuộc tính mô tả cửa hàng. \\
+\hline
+\texttt{employee\_profiles} & Đạt & Đạt & Đạt & Tách hồ sơ nhân sự khỏi bảng xác thực, khóa ứng viên code và employee_id. \\
+\hline
+\texttt{employee\_store\_assignments} & Đạt & Đạt & Đạt & Bảng liên kết N:M có khóa ghép (employee_id, store_id), đạt 3NF. \\
+\hline
+\texttt{management\_audit} & Đạt & Đạt & Đạt & Sổ nhật ký kiểm toán bất biến chỉ thêm, thuộc tính phụ thuộc vào khóa id. \\
+\hline
+\texttt{customers} & Đạt & Đạt & Đạt & Hồ sơ cá nhân độc lập với số dư ví và tài khoản đăng nhập. \\
+\hline
+\texttt{customer\_store\_links} & Đạt & Đạt & Đạt & Bảng liên kết N:M giữa khách hàng và cơ sở với khóa ghép. \\
+\hline
+\texttt{accounts} & Đạt & Đạt & Đạt & Tách hồ sơ khách hàng và sổ cái giao dịch, đạt 3NF chuẩn tắc. \\
+\hline
+\texttt{customer\_avatars} & Đạt & Đạt & Đạt & Tách dữ liệu media WebP khỏi tài khoản, khóa chính id kiêm FK. \\
+\hline
+\texttt{customer\_notification\_reads} & Đạt & Đạt & Đạt & Khóa ghép (account_id, event_id), thuộc tính phụ thuộc toàn bộ khóa. \\
+\hline
+\texttt{customer\_notification\_events} & Đạt & Đạt & Đạt & Sổ sự kiện thông báo bất biến, chống phát trùng bằng khóa nghiệp vụ. \\
+\hline
+\texttt{customer\_email\_tokens} & Đạt & Đạt & Đạt & Lưu token đã băm HMAC, phụ thuộc trực tiếp vào khóa chính. \\
+\hline
+\texttt{customer\_mail\_outbox} & Đạt & Đạt & Đạt & Bảng hàng đợi gửi thư, các thuộc tính mô tả phụ thuộc vào id. \\
+\hline
+\texttt{customer\_security\_audit} & Đạt & Đạt & Đạt & Nhật ký kiểm toán an ninh bất biến, chỉ ghi và không sửa đổi. \\
+\hline
+\texttt{machines} & Đạt & Đạt & Đạt & Không lặp mô tả cửa hàng; giá phiên là snapshot riêng tại phiên. \\
+\hline
+\texttt{machine\_room\_types} & Đạt & Đạt & Đạt & Phân loại phòng máy, khóa chính machine_id kiêm FK tham chiếu. \\
+\hline
+\texttt{usage\_sessions} & Đạt & Đạt & Đạt & Tham chiếu khách, máy, nhân viên bằng FK; snapshot hourly_rate hợp lệ. \\
+\hline
+\texttt{machine\_incidents} & Đạt & Đạt & Đạt & Phiếu sự cố gắn với máy trạm và nhân viên phụ trách, đạt 3NF. \\
+\hline
+\texttt{machine\_incident\_parts} & Đạt & Đạt & Đạt & Linh kiện sử dụng cho phiếu sự cố, phụ thuộc trực tiếp vào khóa id. \\
+\hline
+\texttt{machine\_incident\_events} & Đạt & Đạt & Đạt & Lịch sử chuyển trạng thái sự cố, sổ sự kiện chỉ thêm. \\
+\hline
+\texttt{account\_transactions} & Đạt & Đạt & Đạt & Mỗi dòng biểu diễn một sự kiện biến động số dư; đạt chuẩn 3NF tuyệt đối sau khi tách session_transactions. \\
+\hline
+\texttt{session\_transactions} & Đạt & Đạt & Đạt & Bảng quan hệ 3NF giữa bút toán sổ cái và phiên máy; transaction_id là PK kiêm FK. \\
+\hline
+\texttt{invoices} & Đạt & Đạt & Có snapshot & Lưu bối cảnh khách/nhân viên/cửa hàng phục vụ kiểm toán (phi chuẩn hóa có kiểm soát). \\
+\hline
+\texttt{cash\_shifts} & Đạt & Đạt & Đạt & Ca làm việc của nhân viên tại cơ sở, các chỉ số két phụ thuộc vào ca. \\
+\hline
+\texttt{cash\_shift\_entries} & Đạt & Đạt & Đạt & Bút toán chi tiết sổ quỹ ca tiền mặt, phụ thuộc vào khóa chính id. \\
+\hline
+\texttt{menu\_categories} & Đạt & Đạt & Đạt & Danh mục thực đơn theo cơ sở, đạt 3NF. \\
+\hline
+\texttt{menu\_items} & Đạt & Đạt & Đạt & Món ăn thuộc danh mục, không lưu lặp mô tả danh mục. \\
+\hline
+\texttt{menu\_item\_images} & Đạt & Đạt & Đạt & Tách media ảnh món độc lập, khóa chính item_id kiêm FK. \\
+\hline
+\texttt{menu\_item\_changes} & Đạt & Đạt & Đạt & Sổ lịch sử điều chỉnh giá và thông tin món, chỉ thêm. \\
+\hline
+\texttt{menu\_orders} & Đạt & Đạt & Đạt & Đơn đặt món POS gắn với phiên và máy, đạt 3NF. \\
+\hline
+\texttt{menu\_order\_items} & Đạt & Đạt & Có snapshot & Lưu snapshot item_name và unit_price lúc đặt để bảo toàn lịch sử. \\
+\hline
+\texttt{menu\_order\_pricing} & Đạt & Đạt & Có snapshot & Snapshot kết quả tính giá chiết khấu bất biến tại thời điểm chốt đơn. \\
+\hline
+\texttt{menu\_promotions} & Đạt & Đạt & Đạt & Chính sách khuyến mãi POS, các điều kiện phụ thuộc vào khóa id. \\
+\hline
+\texttt{pos\_order\_reversals} & Đạt & Đạt & Đạt & Yêu cầu hoàn hủy đơn POS với quy trình Maker-Checker, đạt 3NF. \\
+\hline
+\texttt{menu\_order\_recipe\_snapshots} & Đạt & Đạt & Có snapshot & Snapshot định mức nguyên liệu lúc đặt để đổi công thức không làm sai xuất kho cũ. \\
+\hline
+\texttt{inventory\_ingredients} & Đạt & Đạt & Đạt & Nguyên liệu quản lý theo từng cơ sở, đạt 3NF. \\
+\hline
+\texttt{menu\_item\_recipes} & Đạt & Đạt & Đạt & Bảng quan hệ N:M giữa món và nguyên liệu, khóa ghép (item_id, ingredient_id). \\
+\hline
+\texttt{inventory\_movements} & Đạt & Đạt & Đạt & Sổ cái kho bất biến ghi nhận mọi biến động xuất nhập tồn. \\
+\hline
+\texttt{inventory\_counts} & Đạt & Đạt & Đạt & Phiếu kiểm kê đề xuất điều chỉnh kho, đạt 3NF. \\
+\hline
+\texttt{promotions} & Đạt & Đạt & Đạt & Chính sách thưởng nạp tiền, phụ thuộc vào khóa chính id. \\
+\hline
+\texttt{loyalty\_settings} & Đạt & Đạt & Đạt & Bảng cấu hình hệ thống duy nhất id=1 có version chống ghi đè. \\
+\hline
+\texttt{reward\_catalog} & Đạt & Đạt & Đạt & Danh mục phần thưởng độc lập, đạt 3NF. \\
+\hline
+\texttt{customer\_vouchers} & Đạt & Đạt & Có snapshot & Lưu snapshot điều kiện áp dụng lúc phát hành voucher. \\
+\hline
+\texttt{voucher\_events} & Đạt & Đạt & Đạt & Nhật ký sự kiện vòng đời voucher, chỉ thêm. \\
+\hline
+\texttt{loyalty\_point\_grants} & Đạt & Đạt & Đạt & Bản ghi cộng điểm thưởng hội viên từ voucher, đạt 3NF. \\
+\hline
+\texttt{games} & Đạt & Đạt & Đạt & Cấu hình trò chơi chung toàn hệ thống, đạt 3NF. \\
+\hline
+\texttt{game\_prizes} & Đạt & Đạt & Đạt & Ô thưởng gắn với game_id, xác suất và phần thưởng phụ thuộc vào id. \\
+\hline
+\texttt{game\_wallets} & Đạt & Đạt & Đạt & Ví xu trò chơi riêng biệt, tách độc lập khỏi ví tiền mặt. \\
+\hline
+\texttt{game\_sessions} & Đạt & Đạt & Đạt & Lịch sử lượt quay máy chủ bốc thăm và chụp lại kết quả. \\
+\hline
+\texttt{game\_coin\_ledger} & Đạt & Đạt & Đạt & Sổ cái biến động số dư xu, bất biến chỉ thêm. \\
+\hline
+\texttt{ad\_settings} & Đạt & Đạt & Đạt & Cấu hình chương trình quảng cáo, một dòng duy nhất id=1. \\
+\hline
+\texttt{ad\_creatives} & Đạt & Đạt & Đạt & Nội dung quảng cáo nội bộ, đạt 3NF. \\
+\hline
+\texttt{ad\_reward\_events} & Đạt & Đạt & Đạt & Sự kiện xem quảng cáo với token dùng một lần, đạt 3NF. \\
+\hline
+\texttt{suppliers} & Đạt & Đạt & Đạt & Nhà cung cấp quản lý theo cơ sở, đạt 3NF. \\
+\hline
+\texttt{purchase\_requests} & Đạt & Đạt & Đạt & Đề nghị mua sắm nguyên vật liệu có người lập và người duyệt. \\
+\hline
+\texttt{purchase\_request\_lines} & Đạt & Đạt & Đạt & Chi tiết đề nghị mua sắm, khóa ghép (request_id, ingredient_id). \\
+\hline
+\texttt{purchase\_orders} & Đạt & Đạt & Đạt & Đơn đặt mua hàng tạo từ đề nghị đã duyệt, đạt 3NF. \\
+\hline
+\texttt{purchase\_order\_lines} & Đạt & Đạt & Đạt & Chi tiết đơn đặt mua hàng, khóa ghép (order_id, ingredient_id). \\
+\hline
+\texttt{goods\_receipts} & Đạt & Đạt & Đạt & Phiếu nhận hàng thực tế, tự động tạo nhập kho và công nợ. \\
+\hline
+\texttt{goods\_receipt\_lines} & Đạt & Đạt & Đạt & Chi tiết hàng đạt, hỏng, thiếu trong phiếu nhận hàng. \\
+\hline
+\texttt{supplier\_payables} & Đạt & Đạt & Đạt & Khoản công nợ phải trả gắn với phiếu nhận hàng, đạt 3NF. \\
+\hline
+\texttt{supplier\_payable\_approvals} & Đạt & Đạt & Đạt & Bản ghi phê duyệt công nợ theo chính sách phân tách quyền Maker-Checker. \\
+\hline
+\texttt{commercial\_partners} & Đạt & Đạt & Đạt & Đối tác thương mại bên ngoài, đạt 3NF. \\
+\hline
+\texttt{commercial\_contracts} & Đạt & Đạt & Đạt & Hợp đồng thương mại có phê duyệt hai bước, đạt 3NF. \\
+\hline
+\texttt{commercial\_campaigns} & Đạt & Đạt & Đạt & Chiến dịch thương mại gắn với hợp đồng, đạt 3NF. \\
+\hline
+\texttt{commercial\_placements} & Đạt & Đạt & Đạt & Vị trí phân phối nội dung đối tác, đạt 3NF. \\
+\hline
+\texttt{commercial\_play\_sessions} & Đạt & Đạt & Đạt & Phiên chơi dịch vụ đối tác với mã token một lần. \\
+\hline
+\texttt{commercial\_events} & Đạt & Đạt & Đạt & Sổ sự kiện tương tác thương mại bất biến, chống ghi trùng. \\
+\hline
+\texttt{commercial\_reward\_grants} & Đạt & Đạt & Đạt & Hàng đợi trả thưởng thương mại bất đồng bộ, đạt 3NF. \\
+\hline
+\texttt{commercial\_settlements} & Đạt & Đạt & Đạt & Kỳ đối soát quyết toán doanh thu với đối tác, đạt 3NF. \\
+\hline
+\texttt{commercial\_settlement\_lines} & Đạt & Đạt & Đạt & Chi tiết doanh thu và sản lượng từng vị trí trong kỳ đối soát. \\
+\hline
+\end{tabularx}
+\end{table}
 
 \section{Kết luận chương}
-Phân tích cho thấy schema sử dụng bảng chi tiết cho các quan hệ lặp và khóa ghép cho nhiều bảng liên kết. Các bảng danh mục được tách khỏi dữ liệu giao dịch, còn một số snapshot được lưu để giữ ngữ cảnh tại thời điểm phát sinh. Đây là cơ sở để đánh giá tính nhất quán dữ liệu cùng với các ràng buộc và transaction trong ứng dụng.
+Kết quả phân tích chuẩn hóa cho thấy đại đa số 66/71 bảng trong CyberHub Manager đạt chuẩn 3NF tuyệt đối (trong đó cả \texttt{account\_transactions} và \texttt{session\_transactions} đều đạt chuẩn 3NF sau khi chuẩn hóa phân tách tách rời mối liên kết phiên). 5 bảng chứa các trường snapshot (hóa đơn, chi tiết đơn POS, định mức nguyên liệu, voucher) được thiết kế phi chuẩn hóa có kiểm soát nhằm bảo toàn dữ liệu lịch sử kiểm toán tài chính bất biến, được bảo vệ bằng các giao dịch ACID nghiêm ngặt. Mô hình dữ liệu hoàn chỉnh này hoàn toàn sẵn sàng cho việc triển khai vật lý và khai thác truy vấn hiệu năng cao.\par

@@ -147,10 +147,6 @@ class AccountRepository:
                        "VALUES(%s,%s,%s,%s,%s,'PROMOTION',%s,'PROMOTION')",
                        (code,account_id,employee_id,store_id,promotion_id,amount))
 
-    def tag_transaction_store(self, conn, transaction_id, store_id):
-        from .sql import execute
-        execute(conn,"UPDATE account_transactions SET store_id=%s WHERE id=%s",(store_id,transaction_id))
-
     def insert_top_up_transaction(
         self,
         conn: PooledMySQLConnection,
@@ -160,6 +156,7 @@ class AccountRepository:
         employee_id: int,
         amount: int,
         method: PaymentMethod,
+        store_id: int,
     ) -> int:
         """Record a top-up without committing."""
         if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
@@ -172,10 +169,10 @@ class AccountRepository:
             cursor.execute(
                 """
                 INSERT INTO account_transactions
-                    (code, account_id, employee_id, type, amount, method)
-                VALUES (%s, %s, %s, 'TOP_UP', %s, %s)
+                    (code, account_id, employee_id, store_id, type, amount, method)
+                VALUES (%s, %s, %s, %s, 'TOP_UP', %s, %s)
                 """,
-                (code, account_id, employee_id, amount, method.value),
+                (code, account_id, employee_id, store_id, amount, method.value),
             )
             transaction_id = cursor.lastrowid
             if not transaction_id:
@@ -204,7 +201,7 @@ class AccountRepository:
                     t.id AS transaction_id,
                     t.code AS transaction_code,
                     t.account_id,
-                    t.session_id,
+                    st.session_id,
                     t.type,
                     t.amount,
                     t.method,
@@ -212,6 +209,7 @@ class AccountRepository:
                     p.full_name AS employee_name,
                     t.created_at
                 FROM account_transactions AS t
+                LEFT JOIN session_transactions AS st ON st.transaction_id = t.id
                 JOIN employees AS e ON e.id = t.employee_id
                 JOIN employee_profiles AS p ON p.id = e.profile_id
                 WHERE t.account_id = %s
@@ -250,6 +248,7 @@ class AccountRepository:
         employee_id: int,
         session_id: int,
         usage_cost: int,
+        store_id: int,
     ) -> int:
         """Record a session charge without committing."""
         if isinstance(usage_cost, bool) or not isinstance(usage_cost, int) or usage_cost <= 0:
@@ -260,7 +259,7 @@ class AccountRepository:
             cursor.execute(
                 """
                 INSERT INTO account_transactions
-                    (code, account_id, employee_id, session_id,
+                    (code, account_id, employee_id, store_id,
                      type, amount, method)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
@@ -268,7 +267,7 @@ class AccountRepository:
                     code,
                     account_id,
                     employee_id,
-                    session_id,
+                    store_id,
                     TransactionType.USAGE_PAYMENT.value,
                     -usage_cost,
                     PaymentMethod.ACCOUNT_BALANCE.value,
@@ -277,6 +276,13 @@ class AccountRepository:
             transaction_id = cursor.lastrowid
             if not transaction_id:
                 raise RuntimeError("Failed to retrieve the new transaction ID")
+            cursor.execute(
+                """
+                INSERT INTO session_transactions (transaction_id, session_id)
+                VALUES (%s, %s)
+                """,
+                (transaction_id, session_id),
+            )
             return int(transaction_id)
         finally:
             cursor.close()
@@ -291,6 +297,7 @@ class AccountRepository:
         session_id: int,
         settlement_amount: int,
         method: PaymentMethod,
+        store_id: int,
     ) -> int:
         """Record a cash or transfer settlement without committing."""
         if (
@@ -307,7 +314,7 @@ class AccountRepository:
             cursor.execute(
                 """
                 INSERT INTO account_transactions
-                    (code, account_id, employee_id, session_id,
+                    (code, account_id, employee_id, store_id,
                      type, amount, method)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
@@ -315,7 +322,7 @@ class AccountRepository:
                     code,
                     account_id,
                     employee_id,
-                    session_id,
+                    store_id,
                     TransactionType.DEBT_SETTLEMENT.value,
                     settlement_amount,
                     method.value,
@@ -324,6 +331,13 @@ class AccountRepository:
             transaction_id = cursor.lastrowid
             if not transaction_id:
                 raise RuntimeError("Failed to retrieve the new transaction ID")
+            cursor.execute(
+                """
+                INSERT INTO session_transactions (transaction_id, session_id)
+                VALUES (%s, %s)
+                """,
+                (transaction_id, session_id),
+            )
             return int(transaction_id)
         finally:
             cursor.close()

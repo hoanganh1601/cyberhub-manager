@@ -1,17 +1,14 @@
-# Current ERD ? 22 business tables
+# Current ERD — 25 business tables
 
-The current business schema contains 22 entities after migrations 028?031. `schema_migrations` is technical metadata and is not counted.
+The current business schema contains 25 business tables after migrations 001–010. `schema_migrations` is technical metadata and is not counted.
 
 ```mermaid
 erDiagram
-    stores ||--o{ employees : employs
     stores ||--o{ machines : owns
     stores ||--o{ promotions : offers
     stores ||--o{ management_audit : records
     stores ||--o{ menu_categories : organizes
-    stores ||--o{ menu_items : sells
-    stores ||--o{ menu_orders : receives
-    stores ||--o{ invoices : bills
+    stores ||--o{ invoices : bills_snapshot
     stores ||--o{ account_transactions : records
     stores ||--o{ employee_profiles : home_store
     stores ||--o{ employee_store_assignments : assigns
@@ -24,30 +21,28 @@ erDiagram
     employees ||--o{ invoices : creates
     employees ||--o{ account_transactions : handles
     employees ||--o{ management_audit : performs
-    employees ||--o| employee_profiles : profile
+    employee_profiles ||--o| employees : login_account
     employees ||--o{ employee_store_assignments : assigned_to
     employees ||--o{ menu_orders : handles
     employees ||--o{ pos_order_reversals : requests_or_decides
 
     accounts ||--o{ account_transactions : ledger
-    accounts ||--o{ menu_orders : orders
-    accounts ||--o{ customer_notification_events : receives
-    accounts ||--o{ customer_notification_reads : reads
     machines ||--o{ usage_sessions : hosts
     machines ||--o| machine_room_types : classified_as
-    machines ||--o{ menu_orders : ordered_at
-    usage_sessions ||--o{ account_transactions : may_settle
+    usage_sessions ||--o{ session_transactions : related_transactions
+    account_transactions ||--o| session_transactions : session_link
     usage_sessions ||--o| invoices : billed_by
     usage_sessions ||--o{ menu_orders : associated_with
     promotions o|--o{ account_transactions : bonus_source
 
     menu_categories ||--o{ menu_items : groups
-    menu_orders ||--|{ menu_order_items : contains
+    menu_orders ||--o{ menu_order_items : contains
     menu_items ||--o{ menu_order_items : ordered_as
     menu_orders ||--o| menu_order_pricing : priced_by
     menu_orders ||--o{ customer_notification_events : status_history
     customer_notification_events ||--o{ customer_notification_reads : read_state
-    menu_promotions o|--o{ menu_order_pricing : applied_to
+    menu_promotions ||--o{ menu_promotion_versions : versions
+    menu_promotion_versions o|--o{ menu_order_pricing : applied_to
     menu_items o|--o{ menu_promotions : eligible_item
     menu_orders ||--o| pos_order_reversals : may_be_reversed
 
@@ -60,7 +55,7 @@ erDiagram
     }
     employees {
         bigint id PK
-        bigint store_id FK
+        bigint profile_id FK,UK
         string username UK
         string role
         string status
@@ -102,11 +97,14 @@ erDiagram
         bigint id PK
         bigint account_id FK
         bigint employee_id FK
-        bigint session_id FK
         bigint store_id FK
         bigint promotion_id FK
         string type
         bigint amount
+    }
+    session_transactions {
+        bigint transaction_id PK, FK
+        bigint session_id FK
     }
     invoices {
         bigint id PK
@@ -115,7 +113,8 @@ erDiagram
         bigint employee_id FK
         bigint store_id FK
         bigint usage_cost
-        bigint total_amount
+        bigint settlement_amount
+        bigint bonus_used
         string status
     }
     promotions {
@@ -158,18 +157,15 @@ erDiagram
     }
     menu_items {
         bigint id PK
-        bigint store_id FK
         bigint category_id FK
         string name
         bigint price
     }
     menu_orders {
         bigint id PK
-        bigint store_id FK
-        bigint account_id FK
         bigint session_id FK
-        bigint machine_id FK
         bigint handled_by FK
+        bigint paid_by FK
         string status
         bigint total_amount
     }
@@ -183,7 +179,6 @@ erDiagram
     pos_order_reversals {
         bigint id PK
         bigint order_id FK,UK
-        bigint store_id FK
         bigint requested_by FK
         bigint decided_by FK
         string status
@@ -196,26 +191,29 @@ erDiagram
         string kind
         int value
     }
+    menu_promotion_versions {
+        bigint id PK
+        bigint promotion_id FK
+        int version
+        string code
+        string kind
+        bigint item_id FK
+    }
     menu_order_pricing {
         bigint order_id PK,FK
-        bigint promotion_id FK
+        bigint promotion_version_id FK
         bigint discount_amount
-        bigint final_amount
     }
     customer_notification_events {
         bigint id PK
-        bigint account_id FK
-        bigint store_id FK
         bigint order_id FK
-        string order_code
         string order_status
         datetime created_at
     }
     customer_notification_reads {
         bigint event_id PK,FK
-        bigint account_id PK,FK
         datetime read_at
     }
 ```
 
-Migration 030 removes `customer_email_tokens`, `customer_mail_outbox`, `customer_security_audit`, and `customer_store_links`. Migration 031 adds the two order-status notification tables shown here. Customer lookup is not constrained by a customer-to-store link table.
+`session_transactions` is a junction table introduced by migration 010. It keeps the session association out of `account_transactions`; its primary key also limits each ledger transaction to one session. `menu_promotion_versions` stores immutable promotion snapshots referenced by order pricing.

@@ -220,10 +220,11 @@ def _transactions(db):
         try:
             cursor.execute(
                 """
-                SELECT type, amount, method, session_id, employee_id
-                FROM account_transactions
-                WHERE account_id = %s
-                ORDER BY id
+                SELECT t.type, t.amount, t.method, st.session_id, t.employee_id
+                FROM account_transactions AS t
+                LEFT JOIN session_transactions AS st ON st.transaction_id = t.id
+                WHERE t.account_id = %s
+                ORDER BY t.id
                 """,
                 (db.account_id,),
             )
