@@ -1,17 +1,27 @@
-"""Customer analytics over full history; all predicates are bound to the owner."""
+"""Customer self-service portal persistence; all queries are strictly owner-scoped.
+
+Owned read/write concerns:
+- Customer portal authentication (``accounts`` + ``customers``)
+- Customer wallet snapshot, profile updates, and password changes
+- Owner-scoped usage analytics, active sessions, and paginated history
+- Aggregate-only room availability counts per store (``machines`` + ``machine_room_types``)
+"""
+
+from __future__ import annotations
 
 from datetime import timezone
 
+from cyberhub_manager.domain.p1 import CustomerSession
 
-def _rows(conn, sql, params=()):
-    # Local import avoids a circular dependency with the existing P1 adapter.
-    from .sql import rows
+from .sql import execute, rows, utc
 
+
+def _utc_rows(conn, sql, params=()):
     result = rows(conn, sql, params)
     for item in result:
         for key, value in item.items():
             if hasattr(value, "tzinfo") and value.tzinfo is None:
-                item[key] = value.replace(tzinfo=timezone.utc)
+                item[key] = utc(value)
     return result
 
 
@@ -19,38 +29,83 @@ def _db_time(value):
     return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
-class PortalRepositoryMixin:
-    def list_machine_rooms(self, conn, store_id):
-        return _rows(
+class PortalRepository:
+    """MySQL repository for customer portal authentication, profile, and analytics."""
+
+    # ----- Authentication & wallet snapshot -----------------------------------
+
+    def customer_credentials(self, conn, *, username=None, account_id=None, lock=False):
+        column, value = (
+            ("a.username", username) if username is not None else ("a.id", account_id)
+        )
+        result = rows(
             conn,
-            "SELECT m.id AS machine_id,m.code AS machine_code,m.name,m.status,"
-            "COALESCE(r.room_type,'STANDARD') AS room_type FROM machines m "
-            "LEFT JOIN machine_room_types r ON r.machine_id=m.id "
-            "WHERE m.store_id=%s AND m.is_active=1 ORDER BY m.code",
-            (store_id,),
+            "SELECT c.id AS customer_id,a.id AS account_id,c.full_name,a.username,"
+            "a.password_hash,a.auth_version "
+            "FROM accounts a JOIN customers c ON c.id=a.customer_id WHERE "
+            + column
+            + "=%s AND a.status='ACTIVE' AND a.web_login_enabled=TRUE AND c.status='ACTIVE'"
+            + (" FOR UPDATE" if lock else ""),
+            (value,),
+        )
+        if not result:
+            return None
+        record = result[0]
+        return (
+            CustomerSession(
+                record["customer_id"],
+                record["account_id"],
+                record["full_name"],
+                record["username"],
+                record["auth_version"],
+            ),
+            record["password_hash"],
         )
 
-    def room_machine(self, conn, machine_id):
-        result = _rows(
+    def customer_snapshot(self, conn, principal):
+        account_id, customer_id = principal.account_id, principal.customer_id
+        wallet = rows(
             conn,
-            "SELECT m.id,m.store_id,m.status,m.is_active,EXISTS(SELECT 1 FROM usage_sessions u "
-            "WHERE u.machine_id=m.id AND u.status='ACTIVE') AS active_session FROM machines m WHERE m.id=%s FOR UPDATE",
-            (machine_id,),
-        )
-        return result[0] if result else None
-
-    def set_machine_room(self, conn, machine_id, room_type):
-        from .sql import execute
-
-        execute(
+            "SELECT a.code AS account_code,a.balance,a.bonus_balance,"
+            "(a.balance - a.bonus_balance) AS cash_balance,c.phone "
+            "FROM accounts a JOIN customers c ON c.id=a.customer_id WHERE a.id=%s",
+            (account_id,),
+        )[0]
+        history = _utc_rows(
             conn,
-            "INSERT INTO machine_room_types(machine_id,room_type) VALUES(%s,%s) "
-            "ON DUPLICATE KEY UPDATE room_type=%s",
-            (machine_id, room_type, room_type),
+            "SELECT t.code,t.type,t.amount,t.method,t.created_at,s.name AS store_name "
+            "FROM account_transactions t LEFT JOIN stores s ON s.id=t.store_id "
+            "WHERE t.account_id=%s ORDER BY t.created_at DESC,t.id DESC LIMIT 100",
+            (account_id,),
         )
+        sessions = _utc_rows(
+            conn,
+            "SELECT u.code,m.code AS machine_code,s.name AS store_name,u.started_at,u.ended_at,"
+            "u.hourly_rate,u.status,u.cost FROM usage_sessions u "
+            "JOIN machines m ON m.id=u.machine_id JOIN stores s ON s.id=m.store_id "
+            "WHERE u.customer_id=%s ORDER BY u.id DESC LIMIT 100",
+            (customer_id,),
+        )
+        invoices = _utc_rows(
+            conn,
+            "SELECT i.id,i.code,i.usage_cost,i.settlement_amount,i.bonus_used,i.status,"
+            "i.created_at,s.name AS store_name FROM invoices i "
+            "JOIN stores s ON s.id=i.store_id WHERE i.customer_id=%s "
+            "ORDER BY i.id DESC LIMIT 100",
+            (customer_id,),
+        )
+        return {
+            "profile": principal,
+            "wallet": wallet,
+            "transactions": history,
+            "sessions": sessions,
+            "invoices": invoices,
+        }
+
+    # ----- Aggregate room availability ----------------------------------------
 
     def portal_room_counts(self, conn, store_id):
-        result = _rows(
+        result = _utc_rows(
             conn,
             "SELECT COALESCE(r.room_type,'STANDARD') AS room_type,COUNT(*) AS total,"
             "SUM(CASE WHEN m.status='AVAILABLE' AND NOT EXISTS(SELECT 1 FROM usage_sessions u "
@@ -76,18 +131,10 @@ class PortalRepositoryMixin:
             for kind in ("STANDARD", "VIP", "COUPLE", "SUPER_VIP")
         ]
 
-    def portal_usage_sessions(self, conn, principal, start, end):
-        return _rows(
-            conn,
-            "SELECT u.machine_id,m.store_id,s.name AS store_name,u.started_at,u.ended_at,u.status "
-            "FROM usage_sessions u JOIN machines m ON m.id=u.machine_id JOIN stores s ON s.id=m.store_id "
-            "WHERE u.customer_id=%s AND u.status IN ('ACTIVE','COMPLETED') "
-            "AND u.started_at < %s AND (u.ended_at IS NULL OR u.ended_at>%s) ORDER BY u.started_at,u.id",
-            (principal.customer_id, _db_time(end), _db_time(start)),
-        )
+    # ----- Profile & credentials management -----------------------------------
 
     def portal_profile(self, conn, principal):
-        return _rows(
+        return _utc_rows(
             conn,
             "SELECT c.code AS customer_code,c.full_name,c.phone,c.created_at AS member_since,"
             "a.code AS account_code,a.username,a.status AS account_status "
@@ -97,7 +144,7 @@ class PortalRepositoryMixin:
 
     def portal_phone_taken(self, conn, principal, phone):
         return bool(
-            _rows(
+            _utc_rows(
                 conn,
                 "SELECT id FROM customers WHERE phone=%s AND id<>%s LIMIT 1",
                 (phone, principal.customer_id),
@@ -105,8 +152,6 @@ class PortalRepositoryMixin:
         )
 
     def portal_update_profile(self, conn, principal, name, phone):
-        from .sql import execute
-
         execute(
             conn,
             "UPDATE customers SET full_name=%s,phone=%s WHERE id=%s",
@@ -114,31 +159,41 @@ class PortalRepositoryMixin:
         )
 
     def portal_change_password(self, conn, principal, password_hash):
-        from .sql import execute
-
         execute(
             conn,
             "UPDATE accounts SET password_hash=%s,auth_version=auth_version+1 WHERE id=%s",
             (password_hash, principal.account_id),
         )
 
+    # ----- Owner-scoped analytics, active sessions & history ------------------
+
+    def portal_usage_sessions(self, conn, principal, start, end):
+        return _utc_rows(
+            conn,
+            "SELECT u.machine_id,m.store_id,s.name AS store_name,u.started_at,u.ended_at,u.status "
+            "FROM usage_sessions u JOIN machines m ON m.id=u.machine_id JOIN stores s ON s.id=m.store_id "
+            "WHERE u.customer_id=%s AND u.status IN ('ACTIVE','COMPLETED') "
+            "AND u.started_at < %s AND (u.ended_at IS NULL OR u.ended_at>%s) ORDER BY u.started_at,u.id",
+            (principal.customer_id, _db_time(end), _db_time(start)),
+        )
+
     def portal_totals(self, conn, principal, start, end, now):
         start, end, now = map(_db_time, (start, end, now))
-        paid = _rows(
+        paid = _utc_rows(
             conn,
             "SELECT COALESCE(SUM(usage_cost),0) AS spent, COUNT(*) AS paid_invoices, "
             "COALESCE(SUM(bonus_used),0) AS bonus_spent FROM invoices "
             "WHERE customer_id=%s AND status='PAID' AND created_at >= %s AND created_at < %s",
             (principal.customer_id, start, end),
         )[0]
-        credits = _rows(
+        credits = _utc_rows(
             conn,
             "SELECT COALESCE(SUM(CASE WHEN type='TOP_UP' THEN amount ELSE 0 END),0) AS topped_up, "
             "COALESCE(SUM(CASE WHEN type='PROMOTION' THEN amount ELSE 0 END),0) AS bonus_received "
             "FROM account_transactions WHERE account_id=%s AND created_at >= %s AND created_at < %s",
             (principal.account_id, start, end),
         )[0]
-        usage = _rows(
+        usage = _utc_rows(
             conn,
             "SELECT COALESCE(SUM(GREATEST(0,TIMESTAMPDIFF(SECOND,GREATEST(started_at,%s),"
             "LEAST(COALESCE(ended_at,%s),%s,%s)))),0) AS usage_seconds FROM usage_sessions "
@@ -146,14 +201,14 @@ class PortalRepositoryMixin:
             "AND started_at < %s AND (ended_at IS NULL OR ended_at > %s)",
             (start, now, now, end, principal.customer_id, end, start),
         )[0]
-        daily_paid = _rows(
+        daily_paid = _utc_rows(
             conn,
             "SELECT DATE(DATE_ADD(created_at,INTERVAL 7 HOUR)) AS day, SUM(usage_cost) AS spent "
             "FROM invoices WHERE customer_id=%s AND status='PAID' "
             "AND created_at >= %s AND created_at < %s GROUP BY day ORDER BY day",
             (principal.customer_id, start, end),
         )
-        daily_topups = _rows(
+        daily_topups = _utc_rows(
             conn,
             "SELECT DATE(DATE_ADD(created_at,INTERVAL 7 HOUR)) AS day, SUM(amount) AS topped_up "
             "FROM account_transactions WHERE account_id=%s AND type='TOP_UP' "
@@ -163,7 +218,7 @@ class PortalRepositoryMixin:
         return {**paid, **credits, **usage}, daily_paid, daily_topups
 
     def portal_active_sessions(self, conn, principal):
-        return _rows(
+        return _utc_rows(
             conn,
             "SELECT u.id,u.code,m.code AS machine_code,s.name AS store_name,u.started_at,u.hourly_rate "
             "FROM usage_sessions u JOIN machines m ON m.id=u.machine_id JOIN stores s ON s.id=m.store_id "
@@ -209,13 +264,12 @@ class PortalRepositoryMixin:
         if status != "all":
             where += f" AND {status_column}=%s"
             params.append(status)
-        total = _rows(
+        total = _utc_rows(
             conn, f"SELECT COUNT(*) AS total FROM {source} WHERE {where}", tuple(params)
         )[0]["total"]
-        items = _rows(
+        items = _utc_rows(
             conn,
             f"SELECT {fields} FROM {source} WHERE {where} ORDER BY {time} DESC,h.id DESC LIMIT %s OFFSET %s",
             (*params, page_size, (page - 1) * page_size),
         )
         return dict(items=items, total=total, page=page, page_size=page_size)
-

@@ -9,7 +9,7 @@ from getpass import getpass
 from uuid import uuid4
 
 from cyberhub_manager.database.connection import get_connection
-from cyberhub_manager.repositories.p1_repository import rows, execute
+from cyberhub_manager.repositories.sql import execute, rows
 from cyberhub_manager.security import hash_password
 from cyberhub_manager.domain.exceptions import ConflictError, ValidationError
 from cyberhub_manager.services.management_service import text

@@ -7,7 +7,7 @@ import pytest
 
 from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ConflictError
-from cyberhub_manager.repositories.p1_repository import execute
+from cyberhub_manager.repositories.sql import execute
 from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.services.management_service import ManagementService
 from cyberhub_manager.services.portal_service import PortalService

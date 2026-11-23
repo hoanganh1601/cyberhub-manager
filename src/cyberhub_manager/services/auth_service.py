@@ -19,7 +19,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.repositories.management_repository import ManagementRepository
 from cyberhub_manager.security import hash_password, verify_password
 from cyberhub_manager.services.db_errors import translate_db_errors
 
@@ -30,11 +30,11 @@ class AuthService:
     def __init__(
         self,
         auth_repo: AuthRepository | None = None,
-        audit_repo: P1Repository | None = None,
+        audit_repo: ManagementRepository | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
     ) -> None:
         self._auth = auth_repo or AuthRepository()
-        self._audit = audit_repo or P1Repository()
+        self._audit = audit_repo or ManagementRepository()
         self._transaction = transaction_factory
 
     def login(self, username: str, password: str) -> EmployeeSession:

@@ -94,7 +94,7 @@ class MenuOrderMixin:
                 conn, order.id, status, current.employee_id, reason=reason,
             ):
                 raise ConflictError(ORDER_ALREADY_HANDLED)
-            self._p1.audit(conn, current, f"MENU_ORDER_{status.value}", order.id)
+            self._management.audit(conn, current, f"MENU_ORDER_{status.value}", order.id)
             updated = self._repo.get_order(conn, order.id)
             return updated
 
@@ -111,7 +111,7 @@ class MenuOrderMixin:
                 raise NotFoundError(ORDER_NOT_FOUND)
             if not self._repo.pay_order(conn, order.id, method, current.employee_id, self._clock()):
                 raise ConflictError("Chỉ thanh toán đơn đã phục vụ và chưa thanh toán")
-            self._p1.audit(conn, current, f"MENU_ORDER_PAID_{method.value}", order.id)
+            self._management.audit(conn, current, f"MENU_ORDER_PAID_{method.value}", order.id)
             updated = self._repo.get_order(conn, order.id)
             return updated
 
@@ -133,7 +133,7 @@ class MenuOrderMixin:
                                                       reason, disposition)
             if not reversal_id:
                 raise ConflictError("Đơn này đã có yêu cầu hủy/hoàn")
-            self._p1.audit(conn, current, "POS_REVERSAL_REQUEST", order.id)
+            self._management.audit(conn, current, "POS_REVERSAL_REQUEST", order.id)
             return self._repo.get_reversal(conn, order.id)
 
     def list_reversals(self, actor, status="PENDING"):
@@ -182,6 +182,6 @@ class MenuOrderMixin:
                                                       request["reason"]):
                     raise ConflictError("Trạng thái đơn đã thay đổi")
                 updated = self._repo.get_order(conn, order.id)
-            self._p1.audit(conn, current,
+            self._management.audit(conn, current,
                            "POS_REVERSAL_APPROVED" if approve else "POS_REVERSAL_REJECTED", order.id)
             return self._repo.get_reversal(conn, order.id)

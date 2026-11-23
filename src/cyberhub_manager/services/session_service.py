@@ -54,7 +54,7 @@ from cyberhub_manager.repositories.auth_repository import AuthRepository
 from cyberhub_manager.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
-from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.repositories.management_repository import ManagementRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import retry_on_transient, translate_db_errors
 from cyberhub_manager.domain.identifiers import new_transaction_code
@@ -261,7 +261,7 @@ class SessionService:
         self._transaction = transaction_factory
         self._clock = clock
         self._shifts = shift_service
-        self._audit = audit_repo if audit_repo is not None else (P1Repository() if session_repo is None else None)
+        self._audit = audit_repo if audit_repo is not None else (ManagementRepository() if session_repo is None else None)
 
     def preview_open(
         self,

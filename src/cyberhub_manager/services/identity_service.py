@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.repositories.management_repository import ManagementRepository
 
 from .access import operating_actor
 from .db_errors import translate_db_errors
@@ -21,7 +21,7 @@ class IdentityService:
 
             transaction_factory = transaction
         self._auth = auth_repo or AuthRepository()
-        self._stores = store_repo or P1Repository()
+        self._stores = store_repo or ManagementRepository()
         self._transaction = transaction_factory
 
     def resolve(

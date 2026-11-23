@@ -34,7 +34,7 @@ from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import translate_db_errors
-from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.repositories.management_repository import ManagementRepository
 from cyberhub_manager.domain.p1 import Permission, business_manager, can, chain_director
 
 ActorProvider = Callable[[], EmployeeSession | None]
@@ -153,7 +153,7 @@ class ReportService:
         session_repo: SessionRepository | None = None,
         machine_repo: MachineRepository | None = None,
         customer_repo: CustomerRepository | None = None,
-        audit_repo: P1Repository | None = None,
+        audit_repo: ManagementRepository | None = None,
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
     ) -> None:
@@ -165,7 +165,7 @@ class ReportService:
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
-        self._audit = audit_repo or P1Repository()
+        self._audit = audit_repo or ManagementRepository()
 
     def list_invoices(
         self,

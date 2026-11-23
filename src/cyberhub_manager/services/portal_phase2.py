@@ -18,7 +18,7 @@ class PortalPhase2Mixin:
             self._principal(conn, principal)
             if type(store_id) is not int or store_id <= 0:
                 raise ValidationError(field_errors={"store_id": "Vui lòng chọn cơ sở"})
-            store = self._repo.store(conn, store_id)
+            store = self._management.store(conn, store_id)
             if not store or store.status != "ACTIVE":
                 raise ValidationError(field_errors={"store_id": "Cơ sở không khả dụng"})
             counts = self._repo.portal_room_counts(conn, store_id)

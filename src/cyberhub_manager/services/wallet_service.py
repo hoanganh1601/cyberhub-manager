@@ -16,7 +16,7 @@ from cyberhub_manager.domain.identifiers import (
     new_transaction_code,
 )
 from cyberhub_manager.domain.p1 import Permission, can, quote_top_up, separated_rbac, chain_director
-from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.repositories.management_repository import ManagementRepository
 from cyberhub_manager.services.access import operating_actor
 
 from cyberhub_manager.database.transaction import transaction
@@ -102,7 +102,7 @@ class WalletService:
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
-        self._promotions = promotion_repo or P1Repository()
+        self._promotions = promotion_repo or ManagementRepository()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._shifts = shift_service
 

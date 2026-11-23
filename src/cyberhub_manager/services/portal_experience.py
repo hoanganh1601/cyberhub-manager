@@ -44,7 +44,7 @@ class PortalExperienceMixin:
         return record[0]
 
     def _offers(self, conn, now, store_id=None, principal=None):
-        stores = [s for s in self._repo.list_stores(conn) if s.status == "ACTIVE"]
+        stores = [s for s in self._management.list_stores(conn) if s.status == "ACTIVE"]
         if store_id is not None and (
             type(store_id) is not int or store_id not in {s.id for s in stores}
         ):
@@ -53,7 +53,7 @@ class PortalExperienceMixin:
             store_id if store_id is not None else (stores[0].id if stores else None)
         )
         policies = (
-            self._repo.list_promotions(conn, selected) if selected is not None else []
+            self._management.list_promotions(conn, selected) if selected is not None else []
         )
         # This compact schema applies only general promotions, not member tiers.
         member = None

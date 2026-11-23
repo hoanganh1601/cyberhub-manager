@@ -5,7 +5,8 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
 )
 from cyberhub_manager.domain.p1 import CustomerSession
-from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.repositories.management_repository import ManagementRepository
+from cyberhub_manager.repositories.portal_repository import PortalRepository
 from cyberhub_manager.security import verify_password
 from .p1_runtime import errors
 from .portal_experience import PortalExperienceMixin
@@ -14,14 +15,26 @@ from datetime import datetime, timezone
 
 
 class PortalService(PortalExperienceMixin, PortalPhase2Mixin):
-    def __init__(self, repo=None, transaction_factory=None, clock=None, invoice_query=None):
+    def __init__(
+        self,
+        repo=None,
+        transaction_factory=None,
+        clock=None,
+        invoice_query=None,
+        management_repo=None,
+    ):
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._memory = hasattr(repo, "resolve_actor")
         if transaction_factory is None:
             from cyberhub_manager.database.transaction import transaction
 
             transaction_factory = transaction
-        self._repo = repo or P1Repository()
+        self._repo = repo or PortalRepository()
+        self._management = (
+            management_repo
+            if management_repo is not None
+            else (self._repo if repo is not None else ManagementRepository())
+        )
         if invoice_query is None and repo is None:
             from .customer_invoice_query import CustomerInvoiceQuery
 

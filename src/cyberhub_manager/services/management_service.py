@@ -13,7 +13,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.p1 import Permission, Promotion, can, chain_director, separated_rbac
-from cyberhub_manager.repositories.p1_repository import P1Repository
+from cyberhub_manager.repositories.management_repository import ManagementRepository
 from cyberhub_manager.security import hash_password
 from .p1_runtime import errors, retry_on_transient
 
@@ -75,7 +75,7 @@ class ManagementService:
 
             transaction_factory = transaction_factory or transaction
             auth_repo = auth_repo or AuthRepository()
-        self._repo = repo or P1Repository()
+        self._repo = repo or ManagementRepository()
         self._auth = auth_repo
         self._transaction = transaction_factory
         self._actor_provider = actor_provider
