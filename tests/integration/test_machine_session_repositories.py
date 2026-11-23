@@ -1,4 +1,4 @@
-"""Integration tests for HA-07 repositories."""
+"""Integration tests for MachineRepository and SessionRepository."""
 
 import pytest
 from uuid import uuid4

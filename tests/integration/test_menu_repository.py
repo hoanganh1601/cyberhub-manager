@@ -1,4 +1,4 @@
-"""Đợt 1 — MenuRepository và ràng buộc của migration 007 trên MySQL thật.
+"""Integration tests for MenuRepository and POS database constraints on MySQL.
 
 Mọi dữ liệu nằm trong transaction của `db_conn` và bị rollback sau test.
 """

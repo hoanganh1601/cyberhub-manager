@@ -1,4 +1,4 @@
-"""Run P1 money and ownership rules against the migrated real MySQL schema."""
+"""Integration tests for top-up promotions, management rules, and admin bootstrap on MySQL."""
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone

@@ -1,3 +1,5 @@
+"""Integration tests for billing repositories (AccountRepository, SessionRepository, InvoiceRepository)."""
+
 import pytest
 from mysql.connector.errors import IntegrityError
 

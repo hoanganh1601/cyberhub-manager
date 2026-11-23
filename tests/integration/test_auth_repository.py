@@ -1,4 +1,4 @@
-"""Integration tests for HA-05 authentication repository."""
+"""Integration tests for AuthRepository (employee authentication & active sessions)."""
 from uuid import uuid4
 
 import pytest

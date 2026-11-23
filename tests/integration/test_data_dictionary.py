@@ -1,4 +1,4 @@
-"""HA-10 — docs/diagrams/data_dictionary.md phải khớp schema sau migration.
+"""Schema parity test: docs/diagrams/data_dictionary.md phải khớp schema sau migration.
 
 Đổi schema (thêm cột, ràng buộc, index) mà quên chạy `python scripts/gen_data_dictionary.py`
 thì test này fail; cột mới chưa có mô tả cũng fail.

@@ -1,4 +1,4 @@
-"""Phase 2 runs on the migrated MySQL schema, not just the demo adapter."""
+"""Integration tests for customer portal room availability, usage analysis, profile, and password rotation."""
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone

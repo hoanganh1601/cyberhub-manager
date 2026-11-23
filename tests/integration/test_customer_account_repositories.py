@@ -1,4 +1,4 @@
-"""Integration tests for HA-06 repositories."""
+"""Integration tests for CustomerRepository and AccountRepository."""
 
 from uuid import uuid4
 from datetime import timezone
