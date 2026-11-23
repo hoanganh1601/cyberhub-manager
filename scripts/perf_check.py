@@ -105,11 +105,12 @@ def cleanup(conn) -> None:
         _run(conn, "DELETE FROM invoices WHERE store_id = %s", (sid,))
         _run(
             conn,
-            "DELETE t FROM account_transactions t"
-            " JOIN employees e ON e.id = t.employee_id"
-            " JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+            "DELETE st FROM session_transactions st"
+            " JOIN usage_sessions s ON s.id = st.session_id"
+            " JOIN machines m ON m.id = s.machine_id WHERE m.store_id = %s",
             (sid,),
         )
+        _run(conn, "DELETE FROM account_transactions WHERE store_id = %s", (sid,))
         _run(
             conn,
             "DELETE s FROM usage_sessions s JOIN machines m ON m.id = s.machine_id WHERE m.store_id = %s",
@@ -211,18 +212,29 @@ def seed(conn, scale: float) -> dict[str, Any]:
         " VALUES (%s,%s,%s,%s,%s,%s,%s)",
         [(f"{PREFIX}I{sid:07d}", sid, cid, employee_id, store_id, cost, ended) for sid, cid, ended, cost in rows],
     )
-    tx = [(f"{PREFIX}U{sid:07d}", accounts[cid], employee_id, sid, "USAGE_PAYMENT", -cost, "ACCOUNT_BALANCE", ended)
+    usage_code_to_sid = {f"{PREFIX}U{sid:07d}": sid for sid, _, _, cost in rows if cost > 0}
+    tx = [(f"{PREFIX}U{sid:07d}", accounts[cid], employee_id, store_id, "USAGE_PAYMENT", -cost, "ACCOUNT_BALANCE", ended)
           for sid, cid, ended, cost in rows if cost > 0]
-    tx += [(f"{PREFIX}T{i:07d}", accounts[rng.choice(customer_ids)], employee_id, None, "TOP_UP", 50_000, "CASH",
+    tx += [(f"{PREFIX}T{i:07d}", accounts[rng.choice(customer_ids)], employee_id, store_id, "TOP_UP", 50_000, "CASH",
             now - timedelta(minutes=rng.randint(1, 90 * 24 * 60))) for i in range(n_topups)]
     _many(
         conn,
-        "INSERT INTO account_transactions (code, account_id, employee_id, session_id, type, amount, method, created_at)"
+        "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method, created_at)"
         " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
         tx,
     )
+    usage_tx_rows = _run(
+        conn,
+        "SELECT id, code FROM account_transactions WHERE store_id = %s AND type = 'USAGE_PAYMENT'",
+        (store_id,),
+    )
+    _many(
+        conn,
+        "INSERT INTO session_transactions (transaction_id, session_id) VALUES (%s,%s)",
+        [(tx_id, usage_code_to_sid[code]) for tx_id, code in usage_tx_rows if code in usage_code_to_sid],
+    )
     conn.commit()
-    for table in ("customers", "accounts", "machines", "usage_sessions", "invoices", "account_transactions"):
+    for table in ("customers", "accounts", "machines", "usage_sessions", "invoices", "account_transactions", "session_transactions"):
         _run(conn, f"ANALYZE TABLE {table}")
     return {
         "store_id": store_id, "customers": n_customers, "sessions": n_sessions, "transactions": len(tx),

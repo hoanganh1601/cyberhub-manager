@@ -72,6 +72,7 @@ class MemoryMenuRepository:
         self.images: dict[int, bytes] = {}
         self.changes: list[MenuItemChange] = []
         self.orders: dict[int, MenuOrder] = {}
+        self.order_sessions: dict[int, int] = {}
         self.promotions: dict[int, dict] = {}
         self.order_pricing: dict[int, dict] = {}
         self.reversals: dict[int, dict] = {}
@@ -85,7 +86,7 @@ class MemoryMenuRepository:
         with self.p1.transaction() as conn:
             snapshot = deepcopy(
                 (self.categories, self.items, self.images, self.changes, self.orders,
-                 self.promotions, self.order_pricing, self.reversals, self._ids)
+                 self.order_sessions, self.promotions, self.order_pricing, self.reversals, self._ids)
             )
             inventory_snapshot = (
                 self.inventory_repo.snapshot_state() if self.inventory_repo is not None else None
@@ -94,7 +95,7 @@ class MemoryMenuRepository:
                 yield conn
             except Exception:
                 (self.categories, self.items, self.images, self.changes, self.orders,
-                 self.promotions, self.order_pricing, self.reversals, self._ids) = snapshot
+                 self.order_sessions, self.promotions, self.order_pricing, self.reversals, self._ids) = snapshot
                 if self.inventory_repo is not None:
                     self.inventory_repo.restore_state(inventory_snapshot)
                 raise
@@ -264,6 +265,7 @@ class MemoryMenuRepository:
             MenuOrderStatus.NEW, sum(line.amount for line in lines), note, tuple(lines), self.clock(),
             reservation_expires_at=expires_at,
         )
+        self.order_sessions[order_id] = session_id
         return order_id
 
     def list_promotions(self, conn, store_id):

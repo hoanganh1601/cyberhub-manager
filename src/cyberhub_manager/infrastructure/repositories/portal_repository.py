@@ -1,12 +1,12 @@
-"""Customer analytics over full history; all predicates are bound to the owner."""
+"""Customer self-service persistence: credentials, snapshots, analytics, and read receipts."""
 
 from datetime import timezone
 
+from cyberhub_manager.domain.p1 import CustomerSession
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows, utc
+
 
 def _rows(conn, sql, params=()):
-    # Local import avoids a circular dependency with the existing P1 adapter.
-    from cyberhub_manager.infrastructure.repositories.sql import rows
-
     result = rows(conn, sql, params)
     for item in result:
         for key, value in item.items():
@@ -19,35 +19,80 @@ def _db_time(value):
     return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
-class PortalRepositoryMixin:
-    def list_machine_rooms(self, conn, store_id):
-        return _rows(
+class PortalRepository:
+    """Owner-scoped customer portal queries and self-service mutations."""
+
+    def customer_credentials(self, conn, *, username=None, account_id=None, lock=False):
+        column, value = (
+            ("a.username", username) if username is not None else ("a.id", account_id)
+        )
+        result = rows(
             conn,
-            "SELECT m.id AS machine_id,m.code AS machine_code,m.name,m.status,"
-            "COALESCE(r.room_type,'STANDARD') AS room_type FROM machines m "
-            "LEFT JOIN machine_room_types r ON r.machine_id=m.id "
-            "WHERE m.store_id=%s AND m.is_active=1 ORDER BY m.code",
-            (store_id,),
+            "SELECT c.id AS customer_id,a.id AS account_id,c.full_name,a.username,"
+            "a.password_hash,a.auth_version "
+            "FROM accounts a JOIN customers c ON c.id=a.customer_id WHERE "
+            + column
+            + "=%s AND a.status='ACTIVE' AND a.web_login_enabled=TRUE AND c.status='ACTIVE'"
+            + (" FOR UPDATE" if lock else ""),
+            (value,),
+        )
+        if not result:
+            return None
+        record = result[0]
+        return (
+            CustomerSession(
+                record["customer_id"],
+                record["account_id"],
+                record["full_name"],
+                record["username"],
+                record["auth_version"],
+            ),
+            record["password_hash"],
         )
 
-    def room_machine(self, conn, machine_id):
-        result = _rows(
+    def customer_snapshot(self, conn, principal):
+        account_id, customer_id = principal.account_id, principal.customer_id
+        wallet = rows(
             conn,
-            "SELECT m.id,m.store_id,m.status,m.is_active,EXISTS(SELECT 1 FROM usage_sessions u "
-            "WHERE u.machine_id=m.id AND u.status='ACTIVE') AS active_session FROM machines m WHERE m.id=%s FOR UPDATE",
-            (machine_id,),
-        )
-        return result[0] if result else None
-
-    def set_machine_room(self, conn, machine_id, room_type):
-        from cyberhub_manager.infrastructure.repositories.sql import execute
-
-        execute(
+            "SELECT a.code AS account_code,a.balance,a.bonus_balance,(a.balance - a.bonus_balance) AS cash_balance,c.phone "
+            "FROM accounts a JOIN customers c ON c.id=a.customer_id WHERE a.id=%s",
+            (account_id,),
+        )[0]
+        history = rows(
             conn,
-            "INSERT INTO machine_room_types(machine_id,room_type) VALUES(%s,%s) "
-            "ON DUPLICATE KEY UPDATE room_type=%s",
-            (machine_id, room_type, room_type),
+            "SELECT t.code,t.type,t.amount,t.method,t.created_at,s.name AS store_name "
+            "FROM account_transactions t LEFT JOIN stores s ON s.id=t.store_id "
+            "WHERE t.account_id=%s ORDER BY t.created_at DESC,t.id DESC LIMIT 100",
+            (account_id,),
         )
+        sessions = rows(
+            conn,
+            "SELECT u.code,m.code AS machine_code,s.name AS store_name,u.started_at,u.ended_at,"
+            "u.hourly_rate,u.status,u.cost FROM usage_sessions u "
+            "JOIN machines m ON m.id=u.machine_id JOIN stores s ON s.id=m.store_id "
+            "WHERE u.customer_id=%s ORDER BY u.id DESC LIMIT 100",
+            (customer_id,),
+        )
+        invoices = rows(
+            conn,
+            "SELECT i.id,i.code,i.usage_cost,i.settlement_amount,i.bonus_used,i.status,"
+            "i.created_at,s.name AS store_name FROM invoices i "
+            "JOIN stores s ON s.id=i.store_id WHERE i.customer_id=%s "
+            "ORDER BY i.id DESC LIMIT 100",
+            (customer_id,),
+        )
+        for group in (history, sessions, invoices):
+            for row in group:
+                for key, value in row.items():
+                    if hasattr(value, "tzinfo") and value.tzinfo is None:
+                        row[key] = utc(value)
+        return {
+            "profile": principal,
+            "wallet": wallet,
+            "transactions": history,
+            "sessions": sessions,
+            "invoices": invoices,
+        }
 
     def portal_room_counts(self, conn, store_id):
         result = _rows(
@@ -105,8 +150,6 @@ class PortalRepositoryMixin:
         )
 
     def portal_update_profile(self, conn, principal, name, phone):
-        from cyberhub_manager.infrastructure.repositories.sql import execute
-
         execute(
             conn,
             "UPDATE customers SET full_name=%s,phone=%s WHERE id=%s",
@@ -114,8 +157,6 @@ class PortalRepositoryMixin:
         )
 
     def portal_change_password(self, conn, principal, password_hash):
-        from cyberhub_manager.infrastructure.repositories.sql import execute
-
         execute(
             conn,
             "UPDATE accounts SET password_hash=%s,auth_version=auth_version+1 WHERE id=%s",
@@ -260,8 +301,6 @@ class PortalRepositoryMixin:
         }
 
     def portal_mark_read(self, conn, principal, keys):
-        from cyberhub_manager.infrastructure.repositories.sql import execute
-
         for key in keys:
             execute(
                 conn,

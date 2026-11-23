@@ -191,6 +191,7 @@ def test_dropped_derived_and_transitive_columns_are_absent(db_conn):
         ("menu_order_pricing", "snapshot_json"),
         ("game_sessions", "played_on"),
         ("ad_reward_events", "played_on"),
+        ("account_transactions", "session_id"),
     )
     existing = {
         (r["TABLE_NAME"], r["COLUMN_NAME"])
@@ -750,3 +751,98 @@ def test_loyalty_policy_version_preserves_historical_invoice_points(db_conn, tes
     assert inv_view["loyalty_eligible_amount"] == 40_000
     assert inv_view["loyalty_unit"] == 10_000
     assert inv_view["loyalty_points"] == 4
+
+
+# ---------------------------------------------------------------------------
+# 6. Migration 032: 3NF session_transactions & immutable financial ledger
+# ---------------------------------------------------------------------------
+def test_migration_032_ledger_immutability_and_session_transactions(db_conn, test_scenario):
+    s = test_scenario(db_conn)
+    store_b = _make_store(db_conn)
+    cust2, acc2 = _make_customer_account(db_conn)
+
+    # NULL store_id on account_transactions MUST be rejected.
+    with pytest.raises(MySQLError):
+        execute(
+            db_conn,
+            "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method)"
+            " VALUES (%s, %s, %s, NULL, 'TOP_UP', 1000, 'CASH')",
+            (f"TXNULL-{s.token}", s.account_id, s.employee_id),
+        )
+
+    sess_id = int(
+        execute(
+            db_conn,
+            "INSERT INTO usage_sessions (code, customer_id, machine_id, opened_by, closed_by,"
+            " started_at, ended_at, hourly_rate, cost, status)"
+            " VALUES (%s, %s, %s, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP(), 10000, 10000, 'COMPLETED')",
+            (f"S032-{s.token}", s.customer_id, s.machine_id, s.employee_id, s.employee_id),
+        )
+    )
+    topup_id = int(
+        execute(
+            db_conn,
+            "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method)"
+            " VALUES (%s, %s, %s, %s, 'TOP_UP', 50000, 'CASH')",
+            (f"TXTOP-{s.token}", s.account_id, s.employee_id, s.store_id),
+        )
+    )
+    # TOP_UP cannot link to session_transactions.
+    with pytest.raises(MySQLError):
+        execute(
+            db_conn,
+            "INSERT INTO session_transactions (transaction_id, session_id) VALUES (%s, %s)",
+            (topup_id, sess_id),
+        )
+    # Cross-owner usage payment cannot link to session_transactions.
+    other_tx = int(
+        execute(
+            db_conn,
+            "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method)"
+            " VALUES (%s, %s, %s, %s, 'USAGE_PAYMENT', -10000, 'ACCOUNT_BALANCE')",
+            (f"TXOWN-{s.token}", acc2, s.employee_id, s.store_id),
+        )
+    )
+    with pytest.raises(MySQLError):
+        execute(
+            db_conn,
+            "INSERT INTO session_transactions (transaction_id, session_id) VALUES (%s, %s)",
+            (other_tx, sess_id),
+        )
+    # Cross-store usage payment cannot link to session_transactions.
+    cross_store_tx = int(
+        execute(
+            db_conn,
+            "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method)"
+            " VALUES (%s, %s, %s, %s, 'USAGE_PAYMENT', -10000, 'ACCOUNT_BALANCE')",
+            (f"TXSTR-{s.token}", s.account_id, s.employee_id, store_b),
+        )
+    )
+    with pytest.raises(MySQLError):
+        execute(
+            db_conn,
+            "INSERT INTO session_transactions (transaction_id, session_id) VALUES (%s, %s)",
+            (cross_store_tx, sess_id),
+        )
+
+    # Valid link -> immutable via BEFORE UPDATE & protected by ON DELETE RESTRICT.
+    valid_tx = int(
+        execute(
+            db_conn,
+            "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method)"
+            " VALUES (%s, %s, %s, %s, 'USAGE_PAYMENT', -10000, 'ACCOUNT_BALANCE')",
+            (f"TXOK-{s.token}", s.account_id, s.employee_id, s.store_id),
+        )
+    )
+    execute(
+        db_conn,
+        "INSERT INTO session_transactions (transaction_id, session_id) VALUES (%s, %s)",
+        (valid_tx, sess_id),
+    )
+    with pytest.raises(MySQLError):
+        execute(db_conn, "UPDATE account_transactions SET amount = -1 WHERE id = %s", (valid_tx,))
+    with pytest.raises(MySQLError):
+        execute(db_conn, "UPDATE session_transactions SET session_id = %s WHERE transaction_id = %s", (sess_id, valid_tx))
+    with pytest.raises(IntegrityError):
+        execute(db_conn, "DELETE FROM account_transactions WHERE id = %s", (valid_tx,))
+

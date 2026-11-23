@@ -76,23 +76,42 @@ def _positive_id(value: object) -> bool:
 
 
 class VoucherService:
-    def __init__(self, repo=None, p1_repo=None, menu_repo=None, auth_repo=None, transaction_factory=None,
-                 actor_provider=None, clock=None):
-        self._memory = hasattr(p1_repo, "resolve_actor")
+    def __init__(
+        self,
+        repo=None,
+        p1_repo=None,
+        menu_repo=None,
+        auth_repo=None,
+        transaction_factory=None,
+        actor_provider=None,
+        clock=None,
+        management_repo=None,
+        portal_repo=None,
+    ):
+        memory_repo = management_repo or p1_repo
+        self._memory = hasattr(memory_repo, "resolve_actor")
         if not self._memory:
             from cyberhub_manager.infrastructure.database.transaction import transaction
             from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+            from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
             from cyberhub_manager.infrastructure.repositories.menu_repository import MenuRepository
-            from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+            from cyberhub_manager.infrastructure.repositories.portal_repository import PortalRepository
             from cyberhub_manager.infrastructure.repositories.voucher_repository import VoucherRepository
 
             transaction_factory = transaction_factory or transaction
             auth_repo = auth_repo or AuthRepository()
             repo = repo or VoucherRepository()
-            p1_repo = p1_repo or P1Repository()
+            management_repo = management_repo or p1_repo or ManagementRepository()
+            portal_repo = portal_repo or (
+                p1_repo if hasattr(p1_repo, "customer_credentials") else PortalRepository()
+            )
             menu_repo = menu_repo or MenuRepository()
+        else:
+            management_repo = memory_repo
+            portal_repo = portal_repo or memory_repo
         self._repo = repo
-        self._p1 = p1_repo
+        self._management = management_repo
+        self._portal = portal_repo
         self._menu = menu_repo
         self._auth = auth_repo
         self._transaction = transaction_factory
@@ -110,7 +129,7 @@ class VoucherService:
         if actor is None:
             raise PermissionDeniedError()
         if self._memory:
-            current = self._p1.resolve_actor(actor)
+            current = self._management.resolve_actor(actor)
         else:
             from cyberhub_manager.application.services.access import operating_actor
 
@@ -129,7 +148,7 @@ class VoucherService:
     def _customer(self, conn, principal):
         if not isinstance(principal, CustomerSession):
             raise PermissionDeniedError()
-        record = self._p1.customer_credentials(conn, account_id=principal.account_id)
+        record = self._portal.customer_credentials(conn, account_id=principal.account_id)
         if (
             not record
             or record[0].customer_id != principal.customer_id
@@ -158,7 +177,7 @@ class VoucherService:
         )
 
     def _store_names(self, conn):
-        return {s.id: s.name for s in self._p1.list_stores(conn)}
+        return {s.id: s.name for s in self._management.list_stores(conn)}
 
     # =================================================================================
     # Khách hàng
@@ -239,7 +258,7 @@ class VoucherService:
                 catalog_id = self._repo.insert_catalog(conn, **fields)
             else:
                 self._repo.update_catalog(conn, catalog_id, **fields)
-            self._p1.audit(conn, current, "REWARD_SAVE", catalog_id)
+            self._management.audit(conn, current, "REWARD_SAVE", catalog_id)
             return self._repo.get_catalog(conn, catalog_id)
 
     @retry_on_transient
@@ -259,7 +278,7 @@ class VoucherService:
                 conn, catalog=catalog, account_id=customer["account_id"], source=VoucherSource.MANUAL,
                 source_ref=None, employee_id=current.employee_id, store_id=current.store_id,
             )
-            self._p1.audit(conn, current, "VOUCHER_ISSUE", voucher.id)
+            self._management.audit(conn, current, "VOUCHER_ISSUE", voucher.id)
             return voucher
 
     def issue_in_transaction(self, conn, *, catalog, account_id, source: VoucherSource, source_ref,
@@ -387,7 +406,7 @@ class VoucherService:
         self._repo.insert_event(conn, voucher_id=voucher.id, action=VoucherAction.REDEEM,
                                 employee_id=current.employee_id, store_id=current.store_id,
                                 reason=f"order={order_id}" if order_id else "")
-        self._p1.audit(conn, current, "VOUCHER_REDEEM", voucher.id)
+        self._management.audit(conn, current, "VOUCHER_REDEEM", voucher.id)
         return RedeemResult(
             voucher=self._repo.get_voucher(conn, voucher_id=voucher.id),
             reward_type=voucher.reward_type,
@@ -410,5 +429,5 @@ class VoucherService:
             self._repo.insert_event(conn, voucher_id=voucher.id, action=VoucherAction.REVOKE,
                                     employee_id=current.employee_id, store_id=current.store_id,
                                     reason=reason.strip())
-            self._p1.audit(conn, current, "VOUCHER_REVOKE", voucher.id)
+            self._management.audit(conn, current, "VOUCHER_REVOKE", voucher.id)
             return self._repo.get_voucher(conn, voucher_id=voucher.id)

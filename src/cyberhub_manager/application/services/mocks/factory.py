@@ -134,7 +134,7 @@ def build_mock_services(
         customers=MockCustomerService(data, clock, scenario),
         wallet=MockWalletService(data, clock, scenario),
         machines=MockMachineService(data, clock, scenario),
-        sessions=MockSessionService(data, clock, scenario),
+        sessions=MockSessionService(data, clock, scenario, menu_repo=menu_repo),
         reports=MockReportService(data, clock, scenario),
         management=ManagementService(repo=repo,transaction_factory=repo.transaction),
         portal=PortalService(repo=repo,transaction_factory=repo.transaction,clock=clock.now),

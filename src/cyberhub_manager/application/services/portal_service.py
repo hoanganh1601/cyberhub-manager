@@ -5,7 +5,9 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
 )
 from cyberhub_manager.domain.p1 import CustomerSession
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
+from cyberhub_manager.infrastructure.repositories.portal_repository import PortalRepository
 from cyberhub_manager.infrastructure.security import verify_password
 from cyberhub_manager.application.services.p1_runtime import errors
 from cyberhub_manager.application.services.portal_experience import PortalExperienceMixin
@@ -14,15 +16,29 @@ from cyberhub_manager.application.services.portal_membership import PortalMember
 from datetime import datetime, timezone
 
 
-class PortalService(PortalExperienceMixin, PortalPhase2Mixin,PortalMembershipMixin):
-    def __init__(self, repo=None, transaction_factory=None, clock=None, invoice_query=None):
+class PortalService(PortalExperienceMixin, PortalPhase2Mixin, PortalMembershipMixin):
+    def __init__(
+        self,
+        repo=None,
+        transaction_factory=None,
+        clock=None,
+        invoice_query=None,
+        management_repo=None,
+        loyalty_repo=None,
+    ):
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._memory = hasattr(repo, "resolve_actor")
         if transaction_factory is None:
             from cyberhub_manager.infrastructure.database.transaction import transaction
 
             transaction_factory = transaction
-        self._repo = repo or P1Repository()
+        self._repo = repo or PortalRepository()
+        self._management = management_repo or (
+            repo if hasattr(repo, "list_stores") else ManagementRepository()
+        )
+        self._loyalty = loyalty_repo or (
+            repo if hasattr(repo, "loyalty_summary") else LoyaltyRepository()
+        )
         if invoice_query is None and repo is None:
             from cyberhub_manager.application.services.customer_invoice_query import CustomerInvoiceQuery
 

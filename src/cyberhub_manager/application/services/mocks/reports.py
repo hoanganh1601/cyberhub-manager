@@ -16,7 +16,7 @@ from cyberhub_manager.domain.dtos import (
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import InvoiceStatus, Role
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
-from cyberhub_manager.domain.p1 import Permission, can, chain_director
+from cyberhub_manager.domain.p1 import Permission, business_manager, can, chain_director
 
 from cyberhub_manager.application.services.mocks.base import MockServiceBase, clean_text, raise_if_errors
 from cyberhub_manager.application.services.mocks.store import VN_TZ, local_date
@@ -78,6 +78,20 @@ class MockReportService(MockServiceBase):
     def get_invoice(self, invoice_id: int) -> InvoiceDetail:
         self._check_scenario("get_invoice")
         return self._data.to_invoice_detail(self._data.get_invoice(invoice_id))
+
+    def void_invoice(
+        self,
+        invoice_id: int,
+        actor: EmployeeSession,
+    ) -> InvoiceDetail:
+        self._require_actor(actor)
+        self._check_scenario("void_invoice")
+        if not business_manager(actor.role):
+            raise PermissionDeniedError()
+        invoice = self._data.get_invoice(invoice_id)
+        self._require_store(actor, invoice.store_id)
+        invoice.void()
+        return self._data.to_invoice_detail(invoice)
 
     def daily_revenue(
         self,

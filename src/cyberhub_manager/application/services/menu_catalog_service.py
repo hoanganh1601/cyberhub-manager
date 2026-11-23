@@ -78,7 +78,7 @@ class MenuCatalogMixin:
                 raise NotFoundError("Không tìm thấy ưu đãi")
             promo_id = self._repo.save_promotion(conn, current.store_id, promotion_id,
                 code, kind, item_id, value, minimum_tier, starts_at, ends_at, is_active)
-            self._p1.audit(conn, current, "POS_PROMOTION_SAVE", promo_id)
+            self._management.audit(conn, current, "POS_PROMOTION_SAVE", promo_id)
             return self._repo.get_promotion(conn, promo_id)
 
     @retry_on_transient
@@ -106,7 +106,7 @@ class MenuCatalogMixin:
                     raise NotFoundError(CATEGORY_NOT_FOUND)
                 self._repo.update_category(conn, category_id, page=page, name=name,
                                            sort_order=sort_order, is_active=is_active)
-            self._p1.audit(conn, current, "MENU_CATEGORY_SAVE", category_id)
+            self._management.audit(conn, current, "MENU_CATEGORY_SAVE", category_id)
             return self._repo.get_category(conn, category_id)
 
     @retry_on_transient
@@ -143,7 +143,7 @@ class MenuCatalogMixin:
                 ):
                     if old != new:
                         self._change(conn, current, item_id, field, old, new)
-            self._p1.audit(conn, current, "MENU_ITEM_SAVE", item_id)
+            self._management.audit(conn, current, "MENU_ITEM_SAVE", item_id)
             return self._repo.get_item(conn, item_id)
 
     @retry_on_transient
@@ -156,7 +156,7 @@ class MenuCatalogMixin:
             if item.is_available != available:
                 self._repo.set_item_available(conn, item.id, available)
                 self._change(conn, current, item.id, MenuChangeField.AVAILABLE, item.is_available, available)
-                self._p1.audit(conn, current, "MENU_ITEM_AVAILABILITY", item.id)
+                self._management.audit(conn, current, "MENU_ITEM_AVAILABILITY", item.id)
             return self._repo.get_item(conn, item.id)
 
     @retry_on_transient
@@ -172,7 +172,7 @@ class MenuCatalogMixin:
             item = self._item_in_store(conn, item_id, current.store_id, lock=True)
             self._repo.save_image(conn, item.id, data, digest)
             self._change(conn, current, item.id, MenuChangeField.IMAGE, item.image_version, digest[:12])
-            self._p1.audit(conn, current, "MENU_ITEM_IMAGE", item.id)
+            self._management.audit(conn, current, "MENU_ITEM_IMAGE", item.id)
             return self._repo.get_item(conn, item.id)
 
     def item_image(self, actor, item_id):

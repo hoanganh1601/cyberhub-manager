@@ -60,25 +60,52 @@ from cyberhub_manager.application.services.menu_order_service import MenuOrderMi
 
 
 class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
-    def __init__(self, repo=None, p1_repo=None, auth_repo=None, transaction_factory=None,
-                 actor_provider=None, clock=None, inventory_repo=None, shift_service=None):
+    def __init__(
+        self,
+        repo=None,
+        p1_repo=None,
+        auth_repo=None,
+        transaction_factory=None,
+        actor_provider=None,
+        clock=None,
+        inventory_repo=None,
+        shift_service=None,
+        management_repo=None,
+        portal_repo=None,
+        loyalty_repo=None,
+    ):
         # Bản demo dùng repository bộ nhớ có resolve_actor; bản thật dùng MySQL.
-        self._memory = hasattr(p1_repo, "resolve_actor")
+        memory_repo = management_repo or p1_repo
+        self._memory = hasattr(memory_repo, "resolve_actor")
         if not self._memory:
             from cyberhub_manager.infrastructure.database.transaction import transaction
             from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
-            from cyberhub_manager.infrastructure.repositories.menu_repository import MenuRepository
             from cyberhub_manager.infrastructure.repositories.inventory_repository import InventoryRepository
-            from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+            from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
+            from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
+            from cyberhub_manager.infrastructure.repositories.menu_repository import MenuRepository
+            from cyberhub_manager.infrastructure.repositories.portal_repository import PortalRepository
 
             transaction_factory = transaction_factory or transaction
             auth_repo = auth_repo or AuthRepository()
             repo = repo or MenuRepository()
-            p1_repo = p1_repo or P1Repository()
+            management_repo = management_repo or p1_repo or ManagementRepository()
+            portal_repo = portal_repo or (
+                p1_repo if hasattr(p1_repo, "customer_credentials") else PortalRepository()
+            )
+            loyalty_repo = loyalty_repo or (
+                p1_repo if hasattr(p1_repo, "loyalty_summary") else LoyaltyRepository()
+            )
             inventory_repo = inventory_repo or InventoryRepository()
+        else:
+            management_repo = memory_repo
+            portal_repo = portal_repo or memory_repo
+            loyalty_repo = loyalty_repo or memory_repo
         self._repo = repo
         self._inventory = inventory_repo
-        self._p1 = p1_repo
+        self._management = management_repo
+        self._portal = portal_repo
+        self._loyalty = loyalty_repo
         self._auth = auth_repo
         self._transaction = transaction_factory
         self._actor_provider = actor_provider
@@ -98,7 +125,7 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
         if actor is None:
             raise PermissionDeniedError()
         if self._memory:
-            current = self._p1.resolve_actor(actor)
+            current = self._management.resolve_actor(actor)
         else:
             from cyberhub_manager.application.services.access import operating_actor
 
@@ -117,7 +144,7 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
     def _customer(self, conn, principal):
         if not isinstance(principal, CustomerSession):
             raise PermissionDeniedError()
-        record = self._p1.customer_credentials(conn, account_id=principal.account_id)
+        record = self._portal.customer_credentials(conn, account_id=principal.account_id)
         if (
             not record
             or record[0].customer_id != principal.customer_id
@@ -127,7 +154,7 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
         return record[0]
 
     def _active_store(self, conn, store_id):
-        store = self._p1.store(conn, store_id) if _positive_id(store_id) else None
+        store = self._management.store(conn, store_id) if _positive_id(store_id) else None
         if store is None or store.status != "ACTIVE":
             raise ValidationError(field_errors={"store_id": STORE_INVALID})
         return store
@@ -172,7 +199,7 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
         with self._errors(), self._transaction() as conn:
             customer = self._customer(conn, principal)
             session = self._repo.active_session(conn, customer.customer_id)
-            stores = [s for s in self._p1.list_stores(conn) if s.status == "ACTIVE"]
+            stores = [s for s in self._management.list_stores(conn) if s.status == "ACTIVE"]
             if store_id is None:
                 store_id = session["store_id"] if session else (stores[0].id if stores else None)
             store = self._active_store(conn, store_id)
@@ -244,7 +271,7 @@ class MenuService(MenuCatalogMixin, MenuInventoryMixin, MenuOrderMixin):
             if unavailable:
                 message = f"{ITEM_UNAVAILABLE}: {', '.join(unavailable)}"
                 raise ConflictError(message, field_errors={"lines": message})
-            member = self._p1.loyalty_summary(conn, customer.customer_id)
+            member = self._loyalty.loyalty_summary(conn, customer.customer_id)
             pricing = price_order(order_lines,
                 self._repo.active_promotions(conn, session["store_id"], self._clock()),
                 member["tier"] if member["enabled"] else "BRONZE")

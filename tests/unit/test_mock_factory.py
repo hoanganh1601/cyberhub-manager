@@ -88,10 +88,12 @@ OPERATION_CALLS: dict[str, Callable[[ServiceBundle, MockClock], object]] = {
     "complete_checkout": lambda b, c: b.sessions.complete_checkout(
         PC05, manager(b), 0, None
     ),
+    "cancel_session": lambda b, c: b.sessions.cancel_session(PC05, manager(b)),
     "list_invoices": lambda b, c: b.reports.list_invoices(
         manager(b).store_id, InvoiceFilters()
     ),
     "get_invoice": lambda b, c: b.reports.get_invoice(1),
+    "void_invoice": lambda b, c: b.reports.void_invoice(1, manager(b)),
     "daily_revenue": lambda b, c: b.reports.daily_revenue(
         manager(b).store_id, date(2026, 10, 16), date(2026, 10, 18)
     ),

@@ -369,8 +369,9 @@ class FakeAccountRepository:
 
     def insert_debt_settlement_transaction(
         self, conn, *, code, account_id, employee_id, session_id, settlement_amount,
-        method,
+        method, store_id=None,
     ):
+        self.db.transaction_store_id = store_id
         self.db.write("settlement_transaction", settlement_amount)
         self.db.transactions.append(
             ("DEBT_SETTLEMENT", account_id, session_id, settlement_amount, method)
@@ -378,8 +379,10 @@ class FakeAccountRepository:
         return len(self.db.transactions)
 
     def insert_usage_payment_transaction(
-        self, conn, *, code, account_id, employee_id, session_id, usage_cost
+        self, conn, *, code, account_id, employee_id, session_id, usage_cost,
+        store_id=None,
     ):
+        self.db.transaction_store_id = store_id
         self.db.write("usage_transaction", usage_cost)
         self.db.transactions.append(
             (

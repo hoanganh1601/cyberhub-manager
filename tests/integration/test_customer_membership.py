@@ -7,7 +7,8 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository, execute, rows
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.domain.p1 import Promotion, CustomerSession
 from cyberhub_manager.domain.enums import PaymentMethod
@@ -76,7 +77,7 @@ def test_real_targeted_topup_uses_server_membership_and_excludes_other_customer(
         yield db_conn
 
     now = datetime.now(timezone.utc)
-    P1Repository().save_promotion(
+    ManagementRepository().save_promotion(
         db_conn,
         Promotion(
             0,

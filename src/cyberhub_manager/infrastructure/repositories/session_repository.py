@@ -169,6 +169,61 @@ class SessionRepository:
         finally:
             cursor.close()
 
+    def has_open_pos_orders(
+        self,
+        conn: PooledMySQLConnection,
+        session_id: int,
+    ) -> bool:
+        """Return True if the session has any non-cancelled/non-refunded POS order."""
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                SELECT 1
+                FROM menu_orders
+                WHERE session_id = %s
+                  AND status NOT IN ('CANCELLED', 'REFUNDED')
+                LIMIT 1
+                """,
+                (session_id,),
+            )
+            return cursor.fetchone() is not None
+        finally:
+            cursor.close()
+
+    def cancel(
+        self,
+        conn: PooledMySQLConnection,
+        session: UsageSession,
+    ) -> bool:
+        """Persist a cancelled session without committing."""
+        if (
+            session.status != SessionStatus.CANCELLED
+            or session.closed_by is None
+            or session.ended_at is None
+        ):
+            raise ValueError("Session must be cancelled before persistence")
+
+        ended_at_utc = (
+            session.ended_at
+            .astimezone(timezone.utc)
+            .replace(tzinfo=None)
+        )
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE usage_sessions
+                SET closed_by = %s, ended_at = %s, status = 'CANCELLED'
+                WHERE id = %s AND status = 'ACTIVE'
+                """,
+                (session.closed_by, ended_at_utc, session.id),
+            )
+            return cursor.rowcount == 1
+        finally:
+            cursor.close()
+
     @staticmethod
     def _to_model(row: Mapping[str, Any]) -> UsageSession:
         """Map a database row to a domain session."""

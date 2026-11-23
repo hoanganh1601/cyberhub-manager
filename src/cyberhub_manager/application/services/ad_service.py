@@ -57,25 +57,38 @@ EXPIRED = "Lượt quảng cáo đã hết hạn"
 
 
 class AdService:
-    def __init__(self, repo=None, game_repo=None, vouchers=None, p1_repo=None, transaction_factory=None,
-                 actor_provider=None, clock=None, ssv_secret=None):
-        self._memory = hasattr(p1_repo, "resolve_actor")
+    def __init__(
+        self,
+        repo=None,
+        game_repo=None,
+        vouchers=None,
+        p1_repo=None,
+        transaction_factory=None,
+        actor_provider=None,
+        clock=None,
+        ssv_secret=None,
+        management_repo=None,
+    ):
+        memory_repo = management_repo or p1_repo
+        self._memory = hasattr(memory_repo, "resolve_actor")
         if not self._memory:
             from cyberhub_manager.infrastructure.database.transaction import transaction
             from cyberhub_manager.infrastructure.repositories.ad_repository import AdRepository
             from cyberhub_manager.infrastructure.repositories.game_repository import GameRepository
-            from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+            from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
             from cyberhub_manager.application.services.voucher_service import VoucherService
 
             transaction_factory = transaction_factory or transaction
             repo = repo or AdRepository()
             game_repo = game_repo or GameRepository()
-            p1_repo = p1_repo or P1Repository()
+            management_repo = management_repo or p1_repo or ManagementRepository()
             vouchers = vouchers or VoucherService(actor_provider=actor_provider)
+        else:
+            management_repo = memory_repo
         self._repo = repo
         self._games = game_repo
         self._vouchers = vouchers  # dùng lại xác thực khách/nhân viên
-        self._p1 = p1_repo
+        self._management = management_repo
         self._transaction = transaction_factory
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         secret = ssv_secret if ssv_secret is not None else os.getenv("CYBERHUB_AD_SSV_SECRET", "")
@@ -268,7 +281,7 @@ class AdService:
             current = self._admin(conn, actor)
             settings = AdSettings(enabled, mode, daily_cap, reward_type, reward_amount)
             self._repo.save_settings(conn, settings)
-            self._p1.audit(conn, current, "AD_SETTINGS_SAVE", 1)
+            self._management.audit(conn, current, "AD_SETTINGS_SAVE", 1)
             return self._repo.settings(conn)
 
     @retry_on_transient
@@ -291,7 +304,7 @@ class AdService:
                 raise ConflictError("Mã đã tồn tại", field_errors={"code": "Mã đã tồn tại"})
             saved_id = self._repo.save_creative(conn, creative_id, code=code, title=title.strip(), body=body.strip(),
                                                 cta=cta.strip(), duration_seconds=duration_seconds, is_active=is_active)
-            self._p1.audit(conn, current, "AD_CREATIVE_SAVE", saved_id)
+            self._management.audit(conn, current, "AD_CREATIVE_SAVE", saved_id)
             return next(c for c in self._repo.creatives(conn) if c.id == saved_id)
 
 

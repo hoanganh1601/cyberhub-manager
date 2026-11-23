@@ -150,6 +150,16 @@ const copy = {
   ACCOUNT_BALANCE: ["Số dư tài khoản", "Account balance"],
   accountBalance: ["Số dư tài khoản", "Account balance"],
   cancel: ["Hủy", "Cancel"],
+  cancelSession: ["Hủy phiên", "Cancel session"],
+  cancelSessionNote: [
+    "Hủy phiên máy đang mở về trạng thái Đã hủy (CANCELLED) và giải phóng máy ngay lập tức, không trừ ví khách. Bị chặn nếu phiên đã có đơn gọi món chưa hủy.",
+    "Cancel the active session (CANCELLED) and free the workstation immediately without charging the wallet. Blocked if open POS orders exist.",
+  ],
+  voidInvoice: ["Hủy hóa đơn", "Void invoice"],
+  voidInvoiceNote: [
+    "Chuyển hóa đơn đã thanh toán sang Đã hủy (VOID) và tự động loại khỏi doanh thu báo cáo và điểm tích lũy. Thao tác này được ghi nhận vào lịch sử quản trị.",
+    "Mark this paid invoice as VOID, excluding it from reported revenue and loyalty points. This action is recorded in the administration audit.",
+  ],
   close: ["Đóng", "Close"],
   confirm: ["Xác nhận", "Confirm"],
   actions: ["Thao tác", "Actions"],
@@ -812,7 +822,7 @@ function dashboard() {
     `<div class="machine-grid">${list
       .map((m) => {
         const active = m.active_session;
-        return `<article class="machine-card ${esc(m.status)}"><div class="row between"><strong>${esc(m.machine_code)}</strong>${badge(m.status)}</div><p class="machine-name">${esc(m.name)}</p><span class="machine-room-type ${esc((m.room_type || "STANDARD").toLowerCase())}">${t(m.room_type || "STANDARD")}</span><div class="machine-body">${active ? `<div class="row between"><span class="muted">${t("customer")}</span><strong>${esc(active.session.customer_name)}</strong></div><div class="row between"><span class="muted">${t("elapsed")}</span><span>${duration(active.elapsed_seconds)}</span></div><div class="row between"><span class="muted">${t("estimated")}</span><span class="money">${money(active.estimated_cost)}</span></div><div class="row between"><span class="muted">${t("projected")}</span><span class="money ${active.projected_balance < 0 ? "red" : "green"}">${money(active.projected_balance)}</span></div>` : m.status === "MAINTENANCE" ? `<div class="notice">${t("maintenanceNote")}</div>` : `<p class="muted">${t("idleNote")}</p><div class="row between"><span class="muted">${t("hourly")}</span><span class="money">${money(m.hourly_rate)}${t("perHour")}</span></div>`}</div>${m.status === "AVAILABLE" ? `<button class="btn success full" data-action="open" data-id="${m.machine_id}">${icon("plus")}${t("open")}</button>` : m.status === "IN_USE" ? `<button class="btn danger full" data-action="checkout" data-id="${m.machine_id}">${icon("wallet")}${t("checkout")}</button>` : isManager() ? `<button class="btn warning full" data-action="maintenance" data-id="${m.machine_id}">${icon("check")}${t("endMaintenance")}</button>` : `<button class="btn full" disabled>${t("maintenance")}</button>`}</article>`;
+        return `<article class="machine-card ${esc(m.status)}"><div class="row between"><strong>${esc(m.machine_code)}</strong>${badge(m.status)}</div><p class="machine-name">${esc(m.name)}</p><span class="machine-room-type ${esc((m.room_type || "STANDARD").toLowerCase())}">${t(m.room_type || "STANDARD")}</span><div class="machine-body">${active ? `<div class="row between"><span class="muted">${t("customer")}</span><strong>${esc(active.session.customer_name)}</strong></div><div class="row between"><span class="muted">${t("elapsed")}</span><span>${duration(active.elapsed_seconds)}</span></div><div class="row between"><span class="muted">${t("estimated")}</span><span class="money">${money(active.estimated_cost)}</span></div><div class="row between"><span class="muted">${t("projected")}</span><span class="money ${active.projected_balance < 0 ? "red" : "green"}">${money(active.projected_balance)}</span></div>` : m.status === "MAINTENANCE" ? `<div class="notice">${t("maintenanceNote")}</div>` : `<p class="muted">${t("idleNote")}</p><div class="row between"><span class="muted">${t("hourly")}</span><span class="money">${money(m.hourly_rate)}${t("perHour")}</span></div>`}</div>${m.status === "AVAILABLE" ? `<button class="btn success full" data-action="open" data-id="${m.machine_id}">${icon("plus")}${t("open")}</button>` : m.status === "IN_USE" ? `<div class="actions"><button class="btn danger" style="flex:1" data-action="checkout" data-id="${m.machine_id}">${icon("wallet")}${t("checkout")}</button><button class="btn ghost small" data-action="cancel-session" data-id="${m.machine_id}">${t("cancelSession")}</button></div>` : isManager() ? `<button class="btn warning full" data-action="maintenance" data-id="${m.machine_id}">${icon("check")}${t("endMaintenance")}</button>` : `<button class="btn full" disabled>${t("maintenance")}</button>`}</article>`;
       })
       .join("")}</div>${!list.length ? empty() : ""}`
   );
@@ -902,7 +912,7 @@ function invoiceDetail() {
   if (!state.detail?.invoice) return empty("selectInvoice");
   const detail = state.detail;
   const inv = detail.invoice;
-  return `<header class="panel-heading"><h3>${t("invoiceDetail")}</h3>${badge(inv.status)}</header><div class="panel-body stack"><div class="key-values">${kv("invoiceCode", `<span class="cyan">${esc(inv.invoice_code)}</span>`)}${kv("sessionCode", esc(detail.session.session_code))}${kv("createdAt", dt(inv.created_at))}${kv("employee", esc(inv.employee_name))}</div><div class="divider"></div><div class="key-values">${kv("customer", esc(inv.customer_name))}${kv("machines", esc(detail.session.machine_code))}${kv("startAt", dt(detail.session.started_at))}${kv("endAt", dt(detail.ended_at))}${kv("duration", `${detail.billed_minutes} ${t("minute")}`)}${kv("hourly", money(detail.session.hourly_rate))}</div><div class="divider"></div><div class="key-values">${kv("usageCost", money(inv.usage_cost))}${kv("settlement", money(inv.settlement_amount))}${kv("total", `<strong class="cyan">${money(inv.total_amount)}</strong>`)}</div><button class="btn small" data-action="copy-invoice" data-code="${esc(inv.invoice_code)}">${icon("copy")}${t("copyCode")}</button></div>`;
+  return `<header class="panel-heading"><h3>${t("invoiceDetail")}</h3>${badge(inv.status)}</header><div class="panel-body stack"><div class="key-values">${kv("invoiceCode", `<span class="cyan">${esc(inv.invoice_code)}</span>`)}${kv("sessionCode", esc(detail.session.session_code))}${kv("createdAt", dt(inv.created_at))}${kv("employee", esc(inv.employee_name))}</div><div class="divider"></div><div class="key-values">${kv("customer", esc(inv.customer_name))}${kv("machines", esc(detail.session.machine_code))}${kv("startAt", dt(detail.session.started_at))}${kv("endAt", dt(detail.ended_at))}${kv("duration", `${detail.billed_minutes} ${t("minute")}`)}${kv("hourly", money(detail.session.hourly_rate))}</div><div class="divider"></div><div class="key-values">${kv("usageCost", money(inv.usage_cost))}${kv("settlement", money(inv.settlement_amount))}${kv("total", `<strong class="cyan">${money(inv.total_amount)}</strong>`)}</div><div class="actions"><button class="btn small" data-action="copy-invoice" data-code="${esc(inv.invoice_code)}">${icon("copy")}${t("copyCode")}</button>${inv.status === "PAID" && isManager() ? `<button class="btn danger small" data-action="void-invoice" data-id="${inv.invoice_id}">${t("voidInvoice")}</button>` : ""}</div></div>`;
 }
 function revenuePage() {
   const data = state.items;
@@ -1359,6 +1369,29 @@ document.addEventListener("click", async (event) => {
     if (action === "machine-edit") showMachineForm(id);
     if (action === "open") await showOpen(id);
     if (action === "checkout") await showCheckout(id);
+    if (action === "cancel-session") {
+      const m = state.items.find((item) => item.machine_id === id);
+      const custName = m?.active_session?.session.customer_name || "";
+      modal(
+        "cancelSession",
+        "dashboardSub",
+        `<div class="form-card"><strong>${esc(m?.machine_code || "")}</strong><p>${esc(custName)}</p></div><div class="notice">${t("cancelSessionNote")}</div>`,
+        "confirm",
+        { url: `/machines/${id}/cancel`, body: {} },
+        "cancelSession",
+      );
+    }
+    if (action === "void-invoice") {
+      const inv = state.detail?.invoice;
+      modal(
+        "voidInvoice",
+        "invoicesSub",
+        `<div class="form-card"><strong class="cyan">${esc(inv?.invoice_code || "")}</strong><p>${esc(inv?.customer_name || "")} · ${money(inv?.total_amount || 0)}</p></div><div class="notice">${t("voidInvoiceNote")}</div>`,
+        "confirm",
+        { url: `/invoices/${id}/void`, body: {} },
+        "voidInvoice",
+      );
+    }
     if (action === "customer-status") {
       const c = (await api(`/customers/${id}`)).customer;
       const locking = c.customer_status === "ACTIVE";

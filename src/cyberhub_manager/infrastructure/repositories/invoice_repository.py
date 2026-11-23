@@ -76,8 +76,8 @@ class InvoiceRepository:
         if type(bonus_used) is not int or not 0 <= bonus_used <= usage_cost:
             raise ValueError("Invalid bonus debit")
 
-        from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepositoryMixin
-        settings = LoyaltyRepositoryMixin().loyalty_settings(conn)
+        from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
+        settings = LoyaltyRepository().loyalty_settings(conn)
 
         cursor = conn.cursor()
         try:
@@ -113,20 +113,22 @@ class InvoiceRepository:
         self,
         conn: PooledMySQLConnection,
         invoice_id: int,
+        *,
+        for_update: bool = False,
     ) -> Invoice | None:
-        """Return an invoice by ID, or None if it does not exist."""
+        """Return an invoice by ID, optionally locking its row for an update."""
+        query = """
+            SELECT id, code, session_id, customer_id, employee_id,
+                   store_id, usage_cost, settlement_amount,
+                   usage_cost AS total_amount, status, created_at
+            FROM invoices
+            WHERE id = %s
+        """
+        if for_update:
+            query += " FOR UPDATE"
         cursor = conn.cursor(dictionary = True)
         try:
-            cursor.execute(
-                """
-                SELECT id, code, session_id, customer_id, employee_id,
-                       store_id, usage_cost, settlement_amount,
-                       usage_cost AS total_amount, status, created_at
-                FROM invoices
-                WHERE id = %s
-                """,
-                (invoice_id,),
-            )
+            cursor.execute(query, (invoice_id,))
             row = cursor.fetchone()
         finally:
             cursor.close()
@@ -147,6 +149,26 @@ class InvoiceRepository:
             status = InvoiceStatus(row["status"]),
             created_at = row["created_at"].replace(tzinfo=timezone.utc),
         )
+
+    def void(
+        self,
+        conn: PooledMySQLConnection,
+        invoice_id: int,
+    ) -> bool:
+        """Mark a PAID invoice as VOID without committing."""
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE invoices
+                SET status = 'VOID'
+                WHERE id = %s AND status = 'PAID'
+                """,
+                (invoice_id,),
+            )
+            return cursor.rowcount == 1
+        finally:
+            cursor.close()
 
     def list_by_store(
         self,

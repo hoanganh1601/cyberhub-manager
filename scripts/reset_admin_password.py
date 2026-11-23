@@ -13,7 +13,7 @@ from getpass import getpass
 
 from cyberhub_manager.infrastructure.database.connection import get_connection
 from cyberhub_manager.domain.exceptions import NotFoundError, ValidationError
-from cyberhub_manager.infrastructure.repositories.p1_repository import execute, rows
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 from cyberhub_manager.infrastructure.security import hash_password
 
 

@@ -292,6 +292,20 @@ class SessionServiceProtocol(Protocol):
         """
         ...
 
+    def cancel_session(
+        self,
+        machine_id: int,
+        actor: EmployeeSession,
+    ) -> SessionSummary:
+        """Hủy phiên đang hoạt động trên máy (chuyển sang CANCELLED, không tính phí).
+
+        Raises:
+            NotFoundError: không tồn tại máy.
+            PermissionDeniedError: máy thuộc cửa hàng khác hoặc thiếu quyền vận hành.
+            ConflictError: máy không có phiên ACTIVE hoặc phiên còn đơn POS chưa hủy.
+        """
+        ...
+
 
 @runtime_checkable
 class ReportServiceProtocol(Protocol):
@@ -312,6 +326,20 @@ class ReportServiceProtocol(Protocol):
         """Raises:
         NotFoundError: không tồn tại hóa đơn.
         PermissionDeniedError: chưa đăng nhập hợp lệ hoặc hóa đơn khác cửa hàng.
+        """
+        ...
+
+    def void_invoice(
+        self,
+        invoice_id: int,
+        actor: EmployeeSession,
+    ) -> InvoiceDetail:
+        """Hủy hóa đơn đã thanh toán (PAID -> VOID); chỉ quản lý vận hành cửa hàng được phép.
+
+        Raises:
+            NotFoundError: không tồn tại hóa đơn.
+            PermissionDeniedError: không đủ quyền hoặc hóa đơn thuộc cửa hàng khác.
+            ConflictError: hóa đơn đã bị hủy trước đó.
         """
         ...
 

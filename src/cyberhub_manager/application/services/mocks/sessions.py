@@ -48,6 +48,10 @@ def _conflict(field: str, message: str) -> ConflictError:
 
 
 class MockSessionService(MockServiceBase):
+    def __init__(self, data, clock, scenario, menu_repo=None) -> None:
+        super().__init__(data, clock, scenario)
+        self._menu_repo = menu_repo
+
     def preview_open(
         self,
         customer_id: int,
@@ -226,6 +230,38 @@ class MockSessionService(MockServiceBase):
             bonus_used=bonus_used,
             bonus_balance_after=account.bonus_balance,
         )
+
+    def cancel_session(
+        self,
+        machine_id: int,
+        actor: EmployeeSession,
+    ) -> SessionSummary:
+        employee = self._require_actor(actor)
+        self._check_scenario("cancel_session")
+        machine = self._data.get_machine(machine_id)
+        self._require_store(actor, machine.store_id)
+        session = self._active_session_on(machine_id)
+        if self._menu_repo is not None:
+            open_orders = [
+                o
+                for o in self._menu_repo.orders.values()
+                if self._menu_repo.order_sessions.get(o.id) == session.id
+                and o.status.value not in ("CANCELLED", "REFUNDED")
+            ]
+        else:
+            open_orders = [
+                o
+                for o in getattr(self._data, "menu_orders", {}).values()
+                if getattr(o, "session_id", None) == session.id
+                and o.status.value not in ("CANCELLED", "REFUNDED")
+            ]
+        if open_orders:
+            raise _conflict("machine_id", "Không thể hủy phiên đã phát sinh đơn gọi món chưa hủy")
+        now = max(self._clock.now(), session.started_at)
+        session.cancel(employee.id, now)
+        machine.finish_session()
+        self._data.touch_machine(machine.id, now)
+        return self._data.to_session_summary(session)
 
     # ----- Nội bộ --------------------------------------------------------
 

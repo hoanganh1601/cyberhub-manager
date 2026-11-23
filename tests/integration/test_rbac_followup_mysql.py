@@ -9,7 +9,7 @@ import pytest
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.infrastructure.repositories.customer_email_repository import CustomerEmailRepository
-from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepositoryMixin
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.application.services.access import operating_actor
 from cyberhub_manager.application.services.customer_email_service import CustomerEmailService, token_from_nonce
 
@@ -84,7 +84,7 @@ def test_manager_can_only_switch_to_explicitly_assigned_store(db_conn, test_scen
     target = replace(current, store_id=other_store)
     with pytest.raises(PermissionDeniedError):
         operating_actor(db_conn, auth, target)
-    repo = ManagementRepositoryMixin()
+    repo = ManagementRepository()
     repo.set_store_assignment(db_conn, scenario.employee_id, other_store, scenario.employee_id, True)
     assert operating_actor(db_conn, auth, target).store_id == other_store
     repo.set_store_assignment(db_conn, scenario.employee_id, other_store, scenario.employee_id, False)

@@ -142,7 +142,7 @@ def test_manager_unlocks_wallet_and_counter_resets(ctx):
 
     assert wallet.is_locked is False and wallet.suspicious_count == 0
     assert spin(ctx)["coins"] == 100
-    audit = ctx["bundle"].games._p1.data.management_audit
+    audit = ctx["bundle"].games._management.data.management_audit
     assert [a[2] for a in audit[-2:]] == ["GAME_WALLET_LOCK", "GAME_WALLET_UNLOCK"]
 
 

@@ -54,6 +54,7 @@ from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRep
 from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.infrastructure.repositories.invoice_repository import InvoiceRepository
 from cyberhub_manager.infrastructure.repositories.machine_repository import MachineRepository
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
 from cyberhub_manager.infrastructure.db_errors import retry_on_transient, translate_db_errors
 from cyberhub_manager.domain.identifiers import new_transaction_code
@@ -86,6 +87,8 @@ CUSTOMER_INACTIVE = "Khách hàng đã ngừng hoạt động"
 ACCOUNT_LOCKED = "Tài khoản khách hàng đã bị khóa"
 NOT_ENOUGH_BALANCE = f"Số dư chưa đủ cho {MINIMUM_SESSION_MINUTES} phút sử dụng"
 NO_ACTIVE_SESSION = "Máy không có phiên đang hoạt động"
+SESSION_HAS_POS_ORDERS = "Không thể hủy phiên đã phát sinh đơn gọi món chưa hủy"
+SESSION_CANCEL_AUDIT = "SESSION_CANCEL"
 CURRENT_TIME_INVALID = "Thời gian tính phí phải có timezone"
 ALREADY_CHECKED_OUT = "Phiên này đã được checkout"
 BALANCE_CHANGED = "Số dư tài khoản vừa thay đổi, vui lòng xem lại"
@@ -241,6 +244,7 @@ class SessionService:
         account_repo: AccountRepository | None = None,
         auth_repo: AuthRepository | None = None,
         invoice_repo: InvoiceRepository | None = None,
+        audit_repo: Any | None = None,
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
         clock: Callable[[], datetime] = _utc_now,
@@ -252,6 +256,7 @@ class SessionService:
         self._accounts = account_repo or AccountRepository()
         self._auth = auth_repo or AuthRepository()
         self._invoices = invoice_repo or InvoiceRepository()
+        self._audit = audit_repo or ManagementRepository()
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
@@ -397,9 +402,9 @@ class SessionService:
                     session_id=session.id,
                     settlement_amount=settlement_amount,
                     method=method,
+                    store_id=current.store_id,
                 )
                 account.credit(settlement_amount)
-                self._accounts.tag_transaction_store(conn,settlement_id,current.store_id)
                 if self._shifts is not None:
                     self._shifts.record_system_entry(
                         conn, current, kind="RECEIPT", payment_method=method.value,
@@ -416,8 +421,8 @@ class SessionService:
                 employee_id=current.employee_id,
                 session_id=session.id,
                 usage_cost=cost,
+                store_id=current.store_id,
             )
-            self._accounts.tag_transaction_store(conn,usage_transaction_id,current.store_id)
 
             if not self._sessions.complete(conn, session):
                 raise _conflict("machine_id", ALREADY_CHECKED_OUT)
@@ -468,6 +473,30 @@ class SessionService:
             bonus_used=preview.bonus_used,
             bonus_balance_after=account.bonus_balance,
         )
+
+    @retry_on_transient
+    def cancel_session(
+        self,
+        machine_id: int,
+        actor: EmployeeSession,
+    ) -> SessionSummary:
+        with self._database() as conn:
+            current = self._require_actor(conn, actor)
+            machine, session, customer, _account = self._lock_for_checkout(
+                conn, current, machine_id
+            )
+            if self._sessions.has_open_pos_orders(conn, session.id):
+                raise _conflict("machine_id", SESSION_HAS_POS_ORDERS)
+
+            ended_at = max(self._clock().replace(microsecond=0), session.started_at)
+            session.cancel(current.employee_id, ended_at)
+            if not self._sessions.cancel(conn, session):
+                raise _conflict("machine_id", NO_ACTIVE_SESSION)
+            if not self._machines.mark_available(conn, machine.id):
+                raise _conflict("machine_id", NO_ACTIVE_SESSION)
+            self._audit.audit(conn, current, SESSION_CANCEL_AUDIT, session.id)
+
+        return _session_summary(session, customer, machine)
 
     def _require_actor(
         self, conn: Any, requested_actor: EmployeeSession

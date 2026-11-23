@@ -9,7 +9,8 @@ from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import ValidationError, PermissionDeniedError
 from cyberhub_manager.domain.p1 import CustomerSession, Promotion
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository, execute, rows
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 from cyberhub_manager.application.services.portal_service import PortalService
 from cyberhub_manager.application.services.session_service import SessionService
 from cyberhub_manager.application.services.wallet_service import WalletService
@@ -41,7 +42,7 @@ def test_full_analytics_bonus_split_and_vietnam_midnight(db_conn, test_scenario)
     scenario = test_scenario(db_conn, hourly_rate=10000)
     now = [datetime(2026, 11, 7, 15, 30, tzinfo=timezone.utc)]
     wallet, sessions, portal, actor = services(db_conn, scenario, now)
-    P1Repository().save_promotion(
+    ManagementRepository().save_promotion(
         db_conn,
         Promotion(
             0,

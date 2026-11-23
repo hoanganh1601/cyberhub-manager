@@ -170,6 +170,15 @@ def db():
                 _execute(conn, "DELETE FROM invoices WHERE store_id = %s", (sid,))
             _execute(
                 conn,
+                """
+                DELETE st FROM session_transactions AS st
+                JOIN account_transactions AS t ON t.id = st.transaction_id
+                WHERE t.account_id = %s
+                """,
+                (account_id,),
+            )
+            _execute(
+                conn,
                 "DELETE FROM account_transactions WHERE account_id = %s",
                 (account_id,),
             )
@@ -228,10 +237,11 @@ def _transactions(db):
         try:
             cursor.execute(
                 """
-                SELECT type, amount, method, session_id, employee_id
-                FROM account_transactions
-                WHERE account_id = %s
-                ORDER BY id
+                SELECT t.type, t.amount, t.method, st.session_id, t.employee_id
+                FROM account_transactions AS t
+                LEFT JOIN session_transactions AS st ON st.transaction_id = t.id
+                WHERE t.account_id = %s
+                ORDER BY t.id
                 """,
                 (db.account_id,),
             )

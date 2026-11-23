@@ -55,21 +55,33 @@ def _positive_id(value: object) -> bool:
 
 
 class GameService:
-    def __init__(self, repo=None, p1_repo=None, vouchers=None, transaction_factory=None, actor_provider=None,
-                 clock=None, random=None):
-        self._memory = hasattr(p1_repo, "resolve_actor")
+    def __init__(
+        self,
+        repo=None,
+        p1_repo=None,
+        vouchers=None,
+        transaction_factory=None,
+        actor_provider=None,
+        clock=None,
+        random=None,
+        management_repo=None,
+    ):
+        memory_repo = management_repo or p1_repo
+        self._memory = hasattr(memory_repo, "resolve_actor")
         if not self._memory:
             from cyberhub_manager.infrastructure.database.transaction import transaction
             from cyberhub_manager.infrastructure.repositories.game_repository import GameRepository
-            from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+            from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
             from cyberhub_manager.application.services.voucher_service import VoucherService
 
             transaction_factory = transaction_factory or transaction
             repo = repo or GameRepository()
-            p1_repo = p1_repo or P1Repository()
+            management_repo = management_repo or p1_repo or ManagementRepository()
             vouchers = vouchers or VoucherService(actor_provider=actor_provider)
+        else:
+            management_repo = memory_repo
         self._repo = repo
-        self._p1 = p1_repo
+        self._management = management_repo
         # Dùng lại VoucherService: xác thực nhân viên/khách và phát voucher trong cùng transaction.
         self._vouchers = vouchers
         self._transaction = transaction_factory
@@ -104,7 +116,7 @@ class GameService:
             today = self._local_day(now)
             used = self._repo.count_sessions(conn, customer.account_id, game.id, today)
             bonus = self._repo.count_ad_spins(conn, customer.account_id, today)  # Đợt 4
-            stores = {s.id: s.name for s in self._p1.list_stores(conn)}
+            stores = {s.id: s.name for s in self._management.list_stores(conn)}
             playable = game.is_active and not wallet.is_locked
             return dict(
                 catalog=[dict(entry) for entry in GAME_CENTER_CATALOG],
@@ -181,7 +193,7 @@ class GameService:
             # Khóa ví trước khi kiểm tra khóa yêu cầu: hai request trùng khóa chạy tuần tự.
             wallet = self._repo.wallet(conn, customer.account_id, lock=True)
             now = self._now()
-            stores = {s.id: s.name for s in self._p1.list_stores(conn)}
+            stores = {s.id: s.name for s in self._management.list_stores(conn)}
             replay = self._repo.ledger_by_ref(conn, LedgerReason.REDEEM, request_key)
             if replay is not None:
                 if replay.account_id != customer.account_id:
@@ -258,7 +270,7 @@ class GameService:
             game = self._game(conn, lock=True)
             self._repo.save_game(conn, game.id, is_active=is_active, daily_limit=daily_limit,
                                  min_interval_seconds=min_interval_seconds, prizes=cleaned)
-            self._p1.audit(conn, current, "GAME_SAVE", game.id)
+            self._management.audit(conn, current, "GAME_SAVE", game.id)
             return self._game(conn)
 
     @retry_on_transient
@@ -278,5 +290,5 @@ class GameService:
                 self._repo.lock_wallet(conn, account_id, reason.strip(), self._now())
             else:
                 self._repo.unlock_wallet(conn, account_id)
-            self._p1.audit(conn, current, "GAME_WALLET_LOCK" if locked else "GAME_WALLET_UNLOCK", account_id)
+            self._management.audit(conn, current, "GAME_WALLET_LOCK" if locked else "GAME_WALLET_UNLOCK", account_id)
             return self._repo.wallet(conn, account_id)

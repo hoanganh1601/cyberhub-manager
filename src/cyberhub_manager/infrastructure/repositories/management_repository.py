@@ -8,8 +8,8 @@ from cyberhub_manager.domain.p1 import EmployeeSummary, Promotion, StoreSummary
 from cyberhub_manager.infrastructure.repositories.sql import execute, rows, utc
 
 
-class ManagementRepositoryMixin:
-    """Management queries composed into the backwards-compatible P1 facade."""
+class ManagementRepository:
+    """Persistence for stores, employees, profiles, promotions, rooms, and management audit."""
 
     def list_stores(self, conn, store_id=None):
         return [
@@ -244,4 +244,34 @@ class ManagementRepositoryMixin:
             conn,
             "INSERT INTO management_audit(employee_id,store_id,action,entity_id) VALUES(%s,%s,%s,%s)",
             (actor.employee_id, actor.store_id, action, entity_id),
+        )
+
+    def target_customer_exists(self, conn, customer_id):
+        return bool(rows(conn, "SELECT id FROM customers WHERE id=%s", (customer_id,)))
+
+    def list_machine_rooms(self, conn, store_id):
+        return rows(
+            conn,
+            "SELECT m.id AS machine_id,m.code AS machine_code,m.name,m.status,"
+            "COALESCE(r.room_type,'STANDARD') AS room_type FROM machines m "
+            "LEFT JOIN machine_room_types r ON r.machine_id=m.id "
+            "WHERE m.store_id=%s AND m.is_active=1 ORDER BY m.code",
+            (store_id,),
+        )
+
+    def room_machine(self, conn, machine_id):
+        result = rows(
+            conn,
+            "SELECT m.id,m.store_id,m.status,m.is_active,EXISTS(SELECT 1 FROM usage_sessions u "
+            "WHERE u.machine_id=m.id AND u.status='ACTIVE') AS active_session FROM machines m WHERE m.id=%s FOR UPDATE",
+            (machine_id,),
+        )
+        return result[0] if result else None
+
+    def set_machine_room(self, conn, machine_id, room_type):
+        execute(
+            conn,
+            "INSERT INTO machine_room_types(machine_id,room_type) VALUES(%s,%s) "
+            "ON DUPLICATE KEY UPDATE room_type=%s",
+            (machine_id, room_type, room_type),
         )

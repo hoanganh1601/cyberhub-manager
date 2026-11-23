@@ -1,6 +1,6 @@
-# ERD hiện hành — đối chiếu migration 001–031 (chuẩn 3NF nghiêm ngặt)
+# ERD hiện hành — đối chiếu migration 001–032 (chuẩn 3NF nghiêm ngặt)
 
-Nguồn: `sql/001_initial_schema.sql` → `sql/031_strict_3nf_game_ad_business_day.sql`, theo thứ tự [runner](../../scripts/init_db.py). 74 bảng nghiệp vụ dưới đây đã được đối chiếu bằng [data dictionary](data_dictionary.md) sinh từ `INFORMATION_SCHEMA` của MySQL test và chứng minh 3NF tại [DATABASE_3NF_PROOFS.md](../architecture/DATABASE_3NF_PROOFS.md). Bảng kỹ thuật `schema_migrations` do runner tạo riêng; 18 view `v_*` cung cấp các trường dẫn xuất cho báo cáo/đọc tương thích.
+Nguồn: `sql/001_initial_schema.sql` → `sql/032_strict_3nf_ledger_and_immutability.sql`, theo thứ tự [runner](../../scripts/init_db.py). 75 bảng nghiệp vụ dưới đây đã được đối chiếu bằng [data dictionary](data_dictionary.md) sinh từ `INFORMATION_SCHEMA` của MySQL test và chứng minh 3NF tại [DATABASE_3NF_PROOFS.md](../architecture/DATABASE_3NF_PROOFS.md). Bảng kỹ thuật `schema_migrations` do runner tạo riêng; 18 view `v_*` cung cấp các trường dẫn xuất cho báo cáo/đọc tương thích và 28 trigger thực thi toàn vẹn chéo cơ sở, tách nhiệm vụ và bất biến sổ cái.
 
 Mỗi quan hệ có tên **cột FK của bảng con** sau dấu `:`; đường liên kết không thay thế định nghĩa NULL, UNIQUE, `ON DELETE` hay CHECK/TRIGGER trong SQL. Bảng độc lập có khối riêng. PK mặc định `id`, ngoại trừ các bảng liệt kê dưới đây. Dùng [data dictionary](data_dictionary.md) để xem kiểu cột, index và ràng buộc đầy đủ.
 
@@ -9,6 +9,7 @@ Mỗi quan hệ có tên **cột FK của bảng con** sau dấu `:`; đường 
 | `customer_avatars`, `game_wallets` | `account_id` |
 | `machine_room_types` | `machine_id` |
 | `active_usage_sessions` | `session_id` |
+| `session_transactions` | `transaction_id` |
 | `active_employee_shifts` | `shift_id` |
 | `loyalty_policy_versions` | `version` |
 | `menu_item_images` | `item_id` |
@@ -25,13 +26,14 @@ Mỗi quan hệ có tên **cột FK của bảng con** sau dấu `:`; đường 
 | `customer_store_links` | `(customer_id, store_id)` |
 | `supplier_payable_approvals` | `payable_id` |
 
-## Cửa hàng, định danh, phiên và tiền (16 bảng)
+## Cửa hàng, định danh, phiên và tiền (17 bảng)
 
 ```mermaid
 erDiagram
     stores ||--o{ employee_profiles : home_store_id
     employee_profiles ||--o| employees : profile_id
     stores ||--o{ machines : store_id
+    stores ||--o{ account_transactions : store_id
     stores ||--o{ invoices : store_id
     stores o|--o{ promotions : store_id
     stores ||--o{ management_audit : store_id
@@ -50,7 +52,8 @@ erDiagram
     accounts ||--o{ customer_notification_reads : account_id
     accounts ||--o| customer_avatars : account_id
     usage_sessions ||--o| invoices : session_id
-    usage_sessions o|--o{ account_transactions : session_id
+    account_transactions ||--o| session_transactions : transaction_id
+    usage_sessions ||--o{ session_transactions : session_id
     promotions o|--o{ account_transactions : promotion_id
     loyalty_policy_versions ||--o{ loyalty_settings : current_version
     loyalty_policy_versions ||--o{ invoices : loyalty_rule_version

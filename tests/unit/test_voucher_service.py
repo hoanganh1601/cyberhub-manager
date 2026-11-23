@@ -166,7 +166,7 @@ def test_voucher_scoped_to_other_store_is_rejected(ctx):
                              value=5_000, min_order_amount=0, valid_days=7, coin_cost=None, is_active=True,
                              all_stores=False)
     voucher = svc.issue_voucher(manager, reward.id, ctx["an"].customer_id)
-    other_store = next(s for s in ctx["bundle"].vouchers._p1.list_stores(None) if s.id != manager.store_id)
+    other_store = next(s for s in ctx["bundle"].vouchers._management.list_stores(None) if s.id != manager.store_id)
     admin_elsewhere = replace(ctx["admin"], store_id=other_store.id)
 
     with pytest.raises(ConflictError) as info:

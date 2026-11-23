@@ -11,14 +11,14 @@ class PortalMembershipMixin:
         with self._errors(), self._transaction() as conn:
             principal = self._principal(conn, principal)
             return dict(
-                **self._repo.loyalty_summary(conn, principal.customer_id),
-                history=self._repo.loyalty_history(conn, principal.customer_id, page),
+                **self._loyalty.loyalty_summary(conn, principal.customer_id),
+                history=self._loyalty.loyalty_history(conn, principal.customer_id, page),
             )
 
     def avatar(self, principal):
         with self._errors(), self._transaction() as conn:
             principal = self._principal(conn, principal)
-            image = self._repo.avatar_image(conn, principal.account_id)
+            image = self._loyalty.avatar_image(conn, principal.account_id)
             if image is None:
                 raise NotFoundError()
             return image
@@ -29,11 +29,11 @@ class PortalMembershipMixin:
         data, digest = normalize_avatar(content)
         with self._errors(), self._transaction() as conn:
             principal = self._principal(conn, principal)
-            self._repo.save_avatar(conn, principal.account_id, data, digest)
+            self._loyalty.save_avatar(conn, principal.account_id, data, digest)
         return dict(avatar_version=digest)
 
     def remove_avatar(self, principal):
         with self._errors(), self._transaction() as conn:
             principal = self._principal(conn, principal)
-            self._repo.delete_avatar(conn, principal.account_id)
+            self._loyalty.delete_avatar(conn, principal.account_id)
         return dict(avatar_version=None)

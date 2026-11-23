@@ -13,7 +13,8 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.p1 import Permission, Promotion, can, chain_director, separated_rbac
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.infrastructure.security import hash_password
 from cyberhub_manager.application.services.p1_runtime import errors, retry_on_transient
 from cyberhub_manager.domain.loyalty import TIERS, LoyaltySettings
@@ -39,7 +40,7 @@ class ManagementService:
             current = self._actor(conn, actor, Permission.MANAGE_PROMOTIONS)
             if separated_rbac() and not chain_director(current.role):
                 raise PermissionDeniedError()
-            return self._repo.loyalty_settings(conn)
+            return self._loyalty.loyalty_settings(conn)
 
     @retry_on_transient
     def update_loyalty_settings(self, actor, settings):
@@ -77,11 +78,11 @@ class ManagementService:
             actor = self._actor(conn, actor)
             if not chain_director(actor.role):
                 raise PermissionDeniedError()
-            current = self._repo.loyalty_settings(conn, lock=True)
+            current = self._loyalty.loyalty_settings(conn, lock=True)
             if type(settings.version) is not int or settings.version != current.version:
                 raise ConflictError("Cấu hình đã thay đổi. Vui lòng tải lại")
             result = replace(settings, version=current.version + 1)
-            self._repo.save_loyalty_settings(conn, result)
+            self._loyalty.save_loyalty_settings(conn, result)
             self._repo.audit(conn, actor, "LOYALTY_SETTINGS_SAVE", 1)
             return result
 
@@ -118,7 +119,12 @@ class ManagementService:
             return self._actor(conn, actor)
 
     def __init__(
-        self, repo=None, auth_repo=None, transaction_factory=None, actor_provider=None
+        self,
+        repo=None,
+        auth_repo=None,
+        transaction_factory=None,
+        actor_provider=None,
+        loyalty_repo=None,
     ):
         self._memory = hasattr(repo, "resolve_actor")
         if not self._memory:
@@ -127,7 +133,10 @@ class ManagementService:
 
             transaction_factory = transaction_factory or transaction
             auth_repo = auth_repo or AuthRepository()
-        self._repo = repo or P1Repository()
+        self._repo = repo or ManagementRepository()
+        self._loyalty = loyalty_repo or (
+            repo if hasattr(repo, "loyalty_settings") else LoyaltyRepository()
+        )
         self._auth = auth_repo
         self._transaction = transaction_factory
         self._actor_provider = actor_provider

@@ -5,7 +5,7 @@ from dataclasses import replace
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.p1 import Permission, can
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 
 
 def operating_actor(
@@ -16,7 +16,7 @@ def operating_actor(
         raise PermissionDeniedError()
     if current.store_id == requested.store_id:
         return current
-    stores = store_repo or P1Repository()
+    stores = store_repo or ManagementRepository()
     if not can(current.role, Permission.SWITCH_STORE):
         if current.role.value != "MANAGER" or requested.store_id not in stores.assigned_store_ids(
             conn, current.employee_id

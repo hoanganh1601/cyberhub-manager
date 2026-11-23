@@ -109,7 +109,7 @@ class FakeAccountRepository:
         return True
 
     def insert_top_up_transaction(
-        self, conn, *, code, account_id, employee_id, amount, method
+        self, conn, *, code, account_id, employee_id, amount, method, store_id=None
     ):
         if self.insert_error is not None:
             raise self.insert_error

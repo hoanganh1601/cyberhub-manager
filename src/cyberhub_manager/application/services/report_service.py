@@ -34,8 +34,8 @@ from cyberhub_manager.infrastructure.repositories.invoice_repository import Invo
 from cyberhub_manager.infrastructure.repositories.machine_repository import MachineRepository
 from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
 from cyberhub_manager.infrastructure.db_errors import translate_db_errors
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
-from cyberhub_manager.domain.p1 import Permission, can, chain_director
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
+from cyberhub_manager.domain.p1 import Permission, business_manager, can, chain_director
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
@@ -44,6 +44,7 @@ INVOICE_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN, Role.DIRECTOR})
 REVENUE_ROLES = frozenset({Role.MANAGER, Role.ADMIN, Role.DIRECTOR})
 REPORT_ROLES = INVOICE_ROLES  # giữ tên cũ cho code đang import
 REVENUE_VIEW_AUDIT = "REVENUE_VIEW"
+INVOICE_VOID_AUDIT = "INVOICE_VOID"
 AI_REVENUE_ANALYSIS_AUDIT = "AI_REVENUE_ANALYSIS"
 
 # Asia/Ho_Chi_Minh không có giờ mùa hè; tránh phụ thuộc gói tzdata trên Windows.
@@ -60,6 +61,7 @@ KEYWORD_INVALID = "Từ khóa tìm kiếm không hợp lệ"
 CUSTOMER_ID_INVALID = "Mã khách hàng không hợp lệ"
 STATUS_INVALID = "Trạng thái hóa đơn không hợp lệ"
 INVOICE_NOT_FOUND = "Không tìm thấy hóa đơn"
+INVOICE_ALREADY_VOID = "Hóa đơn đã bị hủy"
 INCONSISTENT_INVOICE = "Dữ liệu hóa đơn và phiên không nhất quán"
 
 
@@ -152,7 +154,7 @@ class ReportService:
         session_repo: SessionRepository | None = None,
         machine_repo: MachineRepository | None = None,
         customer_repo: CustomerRepository | None = None,
-        audit_repo: P1Repository | None = None,
+        audit_repo: ManagementRepository | None = None,
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
     ) -> None:
@@ -164,7 +166,7 @@ class ReportService:
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
-        self._audit = audit_repo or P1Repository()
+        self._audit = audit_repo or ManagementRepository()
 
     def list_invoices(
         self,
@@ -195,18 +197,57 @@ class ReportService:
 
         with self._database() as conn:
             current = self._require_actor(conn)
-            summary = self._invoices.get_summary_by_id(conn, invoice_id)
-            if summary is None:
+            return self._load_invoice_detail(conn, invoice_id, current)
+
+    def void_invoice(
+        self,
+        invoice_id: int,
+        actor: EmployeeSession,
+    ) -> InvoiceDetail:
+        if not _is_positive_id(invoice_id):
+            raise NotFoundError(INVOICE_NOT_FOUND)
+
+        with self._database() as conn:
+            current = self._require_actor(conn, REVENUE_ROLES)
+            if (
+                not isinstance(actor, EmployeeSession)
+                or current.employee_id != actor.employee_id
+                or current.role != actor.role
+                or current.store_id != actor.store_id
+                or not business_manager(current.role)
+            ):
+                raise PermissionDeniedError()
+
+            invoice = self._invoices.get_by_id(conn, invoice_id, for_update=True)
+            if invoice is None:
                 raise NotFoundError(INVOICE_NOT_FOUND)
-            if summary.store_id != current.store_id:
+            if invoice.store_id != current.store_id:
                 raise PermissionDeniedError(WRONG_STORE)
-            session = self._sessions.get_by_id(conn, summary.session_id)
-            machine = (
-                None
-                if session is None
-                else self._machines.get_by_id(conn, session.machine_id)
-            )
-            customer = self._customers.get_by_id(conn, summary.customer_id)
+
+            invoice.void()
+            if not self._invoices.void(conn, invoice.id):
+                raise ConflictError(INVOICE_ALREADY_VOID)
+            self._audit.audit(conn, current, INVOICE_VOID_AUDIT, invoice.id)
+            return self._load_invoice_detail(conn, invoice.id, current)
+
+    def _load_invoice_detail(
+        self,
+        conn: Any,
+        invoice_id: int,
+        current: EmployeeSession,
+    ) -> InvoiceDetail:
+        summary = self._invoices.get_summary_by_id(conn, invoice_id)
+        if summary is None:
+            raise NotFoundError(INVOICE_NOT_FOUND)
+        if summary.store_id != current.store_id:
+            raise PermissionDeniedError(WRONG_STORE)
+        session = self._sessions.get_by_id(conn, summary.session_id)
+        machine = (
+            None
+            if session is None
+            else self._machines.get_by_id(conn, session.machine_id)
+        )
+        customer = self._customers.get_by_id(conn, summary.customer_id)
 
         # Hóa đơn luôn gắn với một phiên đã kết thúc; thiếu dữ liệu là lỗi hệ thống.
         if session is None or machine is None or customer is None:

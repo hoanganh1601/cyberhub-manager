@@ -17,7 +17,8 @@ from cyberhub_manager.domain.identifiers import (
 )
 from cyberhub_manager.domain.p1 import Permission, can, quote_top_up, separated_rbac, chain_director
 from cyberhub_manager.domain.loyalty import personalized
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.application.services.access import operating_actor
 
 from cyberhub_manager.infrastructure.database.transaction import transaction
@@ -94,6 +95,7 @@ class WalletService:
         actor_provider: ActorProvider | None = None,
         transaction_factory: Callable[[], AbstractContextManager[Any]] = transaction,
         promotion_repo=None,
+        loyalty_repo=None,
         clock=None,
         shift_service=None,
     ) -> None:
@@ -103,7 +105,10 @@ class WalletService:
         # Không có provider thì không có phiên đăng nhập, mọi thao tác bị từ chối.
         self._actor_provider = actor_provider
         self._transaction = transaction_factory
-        self._promotions = promotion_repo or P1Repository()
+        self._promotions = promotion_repo or ManagementRepository()
+        self._loyalty = loyalty_repo or (
+            promotion_repo if hasattr(promotion_repo, "loyalty_summary") else LoyaltyRepository()
+        )
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._shifts = shift_service
 
@@ -117,7 +122,7 @@ class WalletService:
         policies=self._promotions.list_promotions(conn,store_id,lock='share')
         if str(customer.status)!='ACTIVE' or str(customer.account.status)!='ACTIVE':
             policies=[p for p in policies if not personalized(p)]
-        member=self._promotions.loyalty_summary(conn,customer.id,current=True) if any(personalized(p) for p in policies) else None
+        member=self._loyalty.loyalty_summary(conn,customer.id,current=True) if any(personalized(p) for p in policies) else None
         return quote_top_up(amount,policies,store_id,self._clock(),customer_id=customer.id,member=member)
 
     @retry_on_transient
@@ -160,11 +165,11 @@ class WalletService:
                     employee_id=actor.employee_id,
                     amount=amount,
                     method=method,
+                    store_id=actor.store_id,
                 )
                 summary = self._get_created_transaction(
                     conn, account.id, transaction_id
                 )
-                self._accounts.tag_transaction_store(conn,transaction_id,actor.store_id)
                 if self._shifts is not None:
                     self._shifts.record_system_entry(
                         conn, actor, kind="RECEIPT", payment_method=method.value,

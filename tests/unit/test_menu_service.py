@@ -406,7 +406,7 @@ def test_price_change_is_recorded_in_history_and_audit(ctx):
     history = menu.item_history(manager, item.id)
     assert history[0].field == MenuChangeField.PRICE
     assert (history[0].old_value, history[0].new_value) == (str(item.price), str(item.price + 5_000))
-    audit = ctx["bundle"].menu._p1.data.management_audit
+    audit = ctx["bundle"].menu._management.data.management_audit
     assert audit[-1][2:] == ("MENU_ITEM_SAVE", item.id)
 
 
@@ -603,7 +603,7 @@ def test_failed_save_rolls_back_menu_changes(ctx, monkeypatch):
     def broken_audit(*_args):
         raise RuntimeError("audit lỗi")
 
-    monkeypatch.setattr(menu._p1, "audit", broken_audit)
+    monkeypatch.setattr(menu._management, "audit", broken_audit)
     with pytest.raises(RuntimeError):
         menu.save_item(manager, item.id, category_id=item.category_id, name=item.name, description="",
                        price=item.price + 1_000, sort_order=0, is_visible=True, is_available=True)

@@ -1,21 +1,14 @@
-"""Membership and avatar persistence; callers supply the authenticated account."""
+"""Membership policy, loyalty points, and customer avatar persistence."""
+
+from datetime import timezone
 
 from cyberhub_manager.domain.loyalty import LoyaltySettings, membership
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 
 
-def rows(conn, sql, params=()):
-    from cyberhub_manager.infrastructure.repositories.sql import rows as query
+class LoyaltyRepository:
+    """Persistence for loyalty policy versions, point history, and customer avatars."""
 
-    return query(conn, sql, params)
-
-
-def execute(conn, sql, params=()):
-    from cyberhub_manager.infrastructure.repositories.sql import execute as command
-
-    return command(conn, sql, params)
-
-
-class LoyaltyRepositoryMixin:
     def loyalty_settings(self, conn, lock=False):
         row = rows(
             conn,
@@ -102,15 +95,10 @@ class LoyaltyRepositoryMixin:
             "JOIN stores s ON s.id=i.store_id WHERE i.customer_id=%s ORDER BY i.created_at DESC,i.id DESC LIMIT %s OFFSET %s",
             (customer_id, page_size, (page - 1) * page_size),
         )
-        from datetime import timezone
-
         for item in entries:
             item["created_at"] = item["created_at"].replace(tzinfo=timezone.utc)
             item["effective_points"] = item["points"] if item["status"] == "PAID" else 0
         return dict(items=entries, total=total, page=page, page_size=page_size)
-
-    def target_customer_exists(self, conn, customer_id):
-        return bool(rows(conn, "SELECT id FROM customers WHERE id=%s", (customer_id,)))
 
     def avatar_metadata(self, conn, account_id):
         result = rows(

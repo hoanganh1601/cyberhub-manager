@@ -147,9 +147,46 @@ class AccountRepository:
                        "VALUES(%s,%s,%s,%s,%s,'PROMOTION',%s,'PROMOTION')",
                        (code,account_id,employee_id,store_id,promotion_id,amount))
 
-    def tag_transaction_store(self, conn, transaction_id, store_id):
-        from cyberhub_manager.infrastructure.repositories.sql import execute
-        execute(conn,"UPDATE account_transactions SET store_id=%s WHERE id=%s",(store_id,transaction_id))
+    @staticmethod
+    def _resolve_store_id(
+        conn: PooledMySQLConnection,
+        *,
+        store_id: int | None,
+        employee_id: int,
+        session_id: int | None = None,
+    ) -> int:
+        if store_id is not None:
+            return int(store_id)
+        cursor = conn.cursor()
+        try:
+            if session_id is not None:
+                cursor.execute(
+                    """
+                    SELECT m.store_id
+                    FROM usage_sessions AS u
+                    JOIN machines AS m ON m.id = u.machine_id
+                    WHERE u.id = %s
+                    """,
+                    (session_id,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    return int(row[0])
+            cursor.execute(
+                """
+                SELECT p.home_store_id
+                FROM employees AS e
+                JOIN employee_profiles AS p ON p.id = e.profile_id
+                WHERE e.id = %s
+                """,
+                (employee_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise RuntimeError("Failed to resolve store_id for account transaction")
+            return int(row[0])
+        finally:
+            cursor.close()
 
     def insert_top_up_transaction(
         self,
@@ -160,6 +197,7 @@ class AccountRepository:
         employee_id: int,
         amount: int,
         method: PaymentMethod,
+        store_id: int | None = None,
     ) -> int:
         """Record a top-up without committing."""
         if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
@@ -167,15 +205,18 @@ class AccountRepository:
         if method not in (PaymentMethod.CASH, PaymentMethod.TRANSFER):
             raise ValueError("Top-up method must be CASH or TRANSFER")
 
+        resolved_store = self._resolve_store_id(
+            conn, store_id=store_id, employee_id=employee_id
+        )
         cursor = conn.cursor()
         try:
             cursor.execute(
                 """
                 INSERT INTO account_transactions
-                    (code, account_id, employee_id, type, amount, method)
-                VALUES (%s, %s, %s, 'TOP_UP', %s, %s)
+                    (code, account_id, employee_id, store_id, type, amount, method)
+                VALUES (%s, %s, %s, %s, 'TOP_UP', %s, %s)
                 """,
-                (code, account_id, employee_id, amount, method.value),
+                (code, account_id, employee_id, resolved_store, amount, method.value),
             )
             transaction_id = cursor.lastrowid
             if not transaction_id:
@@ -204,7 +245,7 @@ class AccountRepository:
                     t.id AS transaction_id,
                     t.code AS transaction_code,
                     t.account_id,
-                    t.session_id,
+                    st.session_id,
                     t.type,
                     t.amount,
                     t.method,
@@ -212,6 +253,7 @@ class AccountRepository:
                     ep.full_name AS employee_name,
                     t.created_at
                 FROM account_transactions AS t
+                LEFT JOIN session_transactions AS st ON st.transaction_id = t.id
                 JOIN employees AS e ON e.id = t.employee_id
                 JOIN employee_profiles AS ep ON ep.id = e.profile_id
                 WHERE t.account_id = %s
@@ -250,17 +292,21 @@ class AccountRepository:
         employee_id: int,
         session_id: int,
         usage_cost: int,
+        store_id: int | None = None,
     ) -> int:
-        """Record a session charge without committing."""
+        """Record a session charge and link it via session_transactions without committing."""
         if isinstance(usage_cost, bool) or not isinstance(usage_cost, int) or usage_cost <= 0:
             raise ValueError("Usage cost must be a positive integer")
 
+        resolved_store = self._resolve_store_id(
+            conn, store_id=store_id, employee_id=employee_id, session_id=session_id
+        )
         cursor = conn.cursor()
         try:
             cursor.execute(
                 """
                 INSERT INTO account_transactions
-                    (code, account_id, employee_id, session_id,
+                    (code, account_id, employee_id, store_id,
                      type, amount, method)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
@@ -268,7 +314,7 @@ class AccountRepository:
                     code,
                     account_id,
                     employee_id,
-                    session_id,
+                    resolved_store,
                     TransactionType.USAGE_PAYMENT.value,
                     -usage_cost,
                     PaymentMethod.ACCOUNT_BALANCE.value,
@@ -277,6 +323,13 @@ class AccountRepository:
             transaction_id = cursor.lastrowid
             if not transaction_id:
                 raise RuntimeError("Failed to retrieve the new transaction ID")
+            cursor.execute(
+                """
+                INSERT INTO session_transactions (transaction_id, session_id)
+                VALUES (%s, %s)
+                """,
+                (transaction_id, session_id),
+            )
             return int(transaction_id)
         finally:
             cursor.close()
@@ -291,8 +344,9 @@ class AccountRepository:
         session_id: int,
         settlement_amount: int,
         method: PaymentMethod,
+        store_id: int | None = None,
     ) -> int:
-        """Record a cash or transfer settlement without committing."""
+        """Record a cash or transfer settlement and link it via session_transactions."""
         if (
             isinstance(settlement_amount, bool)
             or not isinstance(settlement_amount, int)
@@ -302,12 +356,15 @@ class AccountRepository:
         if method not in (PaymentMethod.CASH, PaymentMethod.TRANSFER):
             raise ValueError("Settlement method must be CASH or TRANSFER")
 
+        resolved_store = self._resolve_store_id(
+            conn, store_id=store_id, employee_id=employee_id, session_id=session_id
+        )
         cursor = conn.cursor()
         try:
             cursor.execute(
                 """
                 INSERT INTO account_transactions
-                    (code, account_id, employee_id, session_id,
+                    (code, account_id, employee_id, store_id,
                      type, amount, method)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
@@ -315,7 +372,7 @@ class AccountRepository:
                     code,
                     account_id,
                     employee_id,
-                    session_id,
+                    resolved_store,
                     TransactionType.DEBT_SETTLEMENT.value,
                     settlement_amount,
                     method.value,
@@ -324,6 +381,13 @@ class AccountRepository:
             transaction_id = cursor.lastrowid
             if not transaction_id:
                 raise RuntimeError("Failed to retrieve the new transaction ID")
+            cursor.execute(
+                """
+                INSERT INTO session_transactions (transaction_id, session_id)
+                VALUES (%s, %s)
+                """,
+                (transaction_id, session_id),
+            )
             return int(transaction_id)
         finally:
             cursor.close()

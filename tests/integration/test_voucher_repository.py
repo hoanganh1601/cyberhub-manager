@@ -6,7 +6,7 @@ import pytest
 from mysql.connector import Error as MySQLError
 
 from cyberhub_manager.domain.voucher import RewardType, VoucherAction, VoucherSource, VoucherStatus
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
 from cyberhub_manager.infrastructure.repositories.voucher_repository import VoucherRepository
 
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
@@ -69,12 +69,12 @@ def test_used_state_requires_audit_columns(voucher_db):
 def test_point_grant_counts_in_membership(voucher_db):
     conn, repo, rows, _, issue = voucher_db
     voucher_id = issue()
-    before = P1Repository().loyalty_summary(conn, rows.customer_id)["points"]
+    before = LoyaltyRepository().loyalty_summary(conn, rows.customer_id)["points"]
 
     repo.grant_points(conn, customer_id=rows.customer_id, voucher_id=voucher_id, points=30,
                       employee_id=rows.employee_id)
 
-    assert P1Repository().loyalty_summary(conn, rows.customer_id)["points"] == before + 30
+    assert LoyaltyRepository().loyalty_summary(conn, rows.customer_id)["points"] == before + 30
     with pytest.raises(MySQLError):  # một voucher chỉ tặng điểm một lần
         repo.grant_points(conn, customer_id=rows.customer_id, voucher_id=voucher_id, points=30,
                           employee_id=rows.employee_id)

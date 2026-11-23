@@ -9,7 +9,8 @@ from cyberhub_manager.domain.p1 import Promotion, CustomerSession
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository, rows, execute
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 from cyberhub_manager.application.services.wallet_service import WalletService
 from cyberhub_manager.application.services.session_service import SessionService
 from cyberhub_manager.application.services.management_service import ManagementService
@@ -148,7 +149,7 @@ def test_p1_money_rolls_back_if_bonus_ledger_fails(db_conn, test_scenario):
     scenario = test_scenario(db_conn)
     actor = AuthRepository().get_active_session_by_id(db_conn, scenario.employee_id)
     now = datetime.now(timezone.utc)
-    P1Repository().save_promotion(
+    ManagementRepository().save_promotion(
         db_conn,
         Promotion(
             0,
@@ -209,7 +210,7 @@ def test_bootstrap_admin_only_once_without_elevating_existing_employee(
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     scenario = test_scenario(db_conn)
-    store = P1Repository().store(db_conn, scenario.store_id)
+    store = ManagementRepository().store(db_conn, scenario.store_id)
     new_id = module.bootstrap(
         db_conn,
         "cyberhub_manager_test",

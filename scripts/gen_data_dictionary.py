@@ -34,6 +34,7 @@ TABLES = (
     "usage_sessions",
     "active_usage_sessions",
     "account_transactions",
+    "session_transactions",
     "invoices",
     "promotions",
     "management_audit",
@@ -205,17 +206,23 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
         },
     ),
     "account_transactions": (
-        "Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa.",
+        "Sổ cái biến động số dư bất biến (chuẩn 3NF, bảo vệ qua trigger `trg_account_transactions_bi/bu`): mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; liên kết phiên tách sang `session_transactions` (migration 032).",
         {
             "id": "Khóa chính.",
             "code": "Mã giao dịch, duy nhất (`TX-` + hex).",
             "account_id": "Tài khoản bị thay đổi số dư.",
             "employee_id": "Nhân viên thực hiện.",
-            "session_id": "Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập.",
             "type": "`TOP_UP` / `PROMOTION` / `USAGE_PAYMENT` / `DEBT_SETTLEMENT`.",
             "amount": "Số tiền có dấu (VND): dương khi cộng, âm khi `USAGE_PAYMENT`.",
             "method": "`CASH` / `TRANSFER` / `ACCOUNT_BALANCE` / `PROMOTION`, phải hợp với `type`.",
             "created_at": "Thời điểm ghi (UTC).",
+        },
+    ),
+    "session_transactions": (
+        "Bảng phân rã 3NF liên kết giao dịch ví (`USAGE_PAYMENT`, `DEBT_SETTLEMENT`) với phiên sử dụng máy; loại bỏ cột `session_id` nullable khỏi `account_transactions` (migration 032).",
+        {
+            "transaction_id": "Giao dịch sổ cái gắn với phiên; PK và FK tới `account_transactions.id`.",
+            "session_id": "Phiên sử dụng máy tương ứng (`usage_sessions.id`); khớp `account_id` và `store_id` qua trigger `trg_session_transactions_bi/bu`.",
         },
     ),
     "invoices": (
@@ -398,7 +405,7 @@ DESCRIPTIONS["supplier_payables"] = ("Công nợ phát sinh từ phiếu nhận 
     "amount":"Tổng phải trả.", "paid_amount":"Số đã trả.", "due_date":"Hạn thanh toán.", "status":"`UNPAID` / `PAID`.",
     "paid_at":"Thời điểm thanh toán (UTC).", "paid_by":"Người thanh toán (khác người duyệt nhờ trigger).", "payment_method":"`CASH` / `TRANSFER`; NULL khi chưa trả.",
 })
-DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
+DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh (NOT NULL sau migration 032).","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
 DESCRIPTIONS["promotions"] = ("Chính sách thưởng theo mốc nạp, phạm vi và thời gian.",{
     "id":"Khóa chính.","code":"Mã chính sách duy nhất.","name":"Tên chính sách.","store_id":"Cơ sở áp dụng; NULL = toàn hệ thống.",
     "minimum_amount":"Mốc tiền nạp tối thiểu (VND).","bonus_percent":"Phần trăm thưởng, số nguyên 0–100.",
@@ -839,7 +846,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: các migration `sql/001_*.sql` đến `sql/031_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt). Quy ước:")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/032_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt — 75 bảng nghiệp vụ, 18 view `v_*`, 28 trigger). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")

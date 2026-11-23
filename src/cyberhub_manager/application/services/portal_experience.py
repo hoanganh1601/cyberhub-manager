@@ -50,7 +50,7 @@ class PortalExperienceMixin:
         return record[0]
 
     def _offers(self, conn, now, store_id=None, principal=None):
-        stores = [s for s in self._repo.list_stores(conn) if s.status == "ACTIVE"]
+        stores = [s for s in self._management.list_stores(conn) if s.status == "ACTIVE"]
         if store_id is not None and (
             type(store_id) is not int or store_id not in {s.id for s in stores}
         ):
@@ -59,11 +59,11 @@ class PortalExperienceMixin:
             store_id if store_id is not None else (stores[0].id if stores else None)
         )
         policies = (
-            self._repo.list_promotions(conn, selected) if selected is not None else []
+            self._management.list_promotions(conn, selected) if selected is not None else []
         )
         # Show the exact policy that the wallet would apply at each threshold.
         member = (
-            self._repo.loyalty_summary(conn, principal.customer_id)
+            self._loyalty.loyalty_summary(conn, principal.customer_id)
             if principal
             else None
         )
@@ -141,8 +141,8 @@ class PortalExperienceMixin:
                 stores=stores,
                 store_id=selected,
                 promotions=policies,
-                member=self._repo.loyalty_summary(conn, principal.customer_id),
-                avatar_version=self._repo.avatar_metadata(conn, principal.account_id),
+                member=self._loyalty.loyalty_summary(conn, principal.customer_id),
+                avatar_version=self._loyalty.avatar_metadata(conn, principal.account_id),
             )
 
     def history(
@@ -194,7 +194,7 @@ class PortalExperienceMixin:
                 selected,
                 now,
                 customer_id=principal.customer_id,
-                member=self._repo.loyalty_summary(conn, principal.customer_id),
+                member=self._loyalty.loyalty_summary(conn, principal.customer_id),
             )
             higher = next((p for p in policies if p.minimum_amount > amount), None)
             return dict(
@@ -237,11 +237,11 @@ class PortalExperienceMixin:
             }
             for r in menu_orders
         ]
-        stores = [s for s in self._repo.list_stores(conn) if s.status == "ACTIVE"]
+        stores = [s for s in self._management.list_stores(conn) if s.status == "ACTIVE"]
         # All active, effective offers across locations; one notification per policy revision.
         offers = {}
-        policies = self._repo.list_promotions(conn)
-        member = self._repo.loyalty_summary(conn, principal.customer_id)
+        policies = self._management.list_promotions(conn)
+        member = self._loyalty.loyalty_summary(conn, principal.customer_id)
         for store in stores:
             for p in effective_policies(
                 policies, store.id, now, principal.customer_id, member

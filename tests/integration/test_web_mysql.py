@@ -55,6 +55,12 @@ def mysql_web(test_scenario):
                 )
                 for cid in customer_ids:
                     cursor.execute(
+                        "DELETE st FROM session_transactions st "
+                        "JOIN account_transactions t ON t.id = st.transaction_id "
+                        "JOIN accounts a ON a.id = t.account_id WHERE a.customer_id = %s",
+                        (cid,),
+                    )
+                    cursor.execute(
                         "DELETE t FROM account_transactions t JOIN accounts a ON a.id = t.account_id WHERE a.customer_id = %s",
                         (cid,),
                     )

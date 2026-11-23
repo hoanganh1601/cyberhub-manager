@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.domain.p1 import can
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
-from cyberhub_manager.infrastructure.repositories.p1_repository import P1Repository
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 
 from cyberhub_manager.infrastructure.db_errors import translate_db_errors
 
@@ -16,7 +16,7 @@ class OperationalServiceBase:
             from cyberhub_manager.infrastructure.database.transaction import transaction
             transaction_factory = transaction
         self._auth = auth_repo or AuthRepository()
-        self._audit = audit_repo or P1Repository()
+        self._audit = audit_repo or ManagementRepository()
         self._transaction = transaction_factory
 
     def _actor(self, conn, actor, permission):

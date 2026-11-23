@@ -8,7 +8,7 @@ from cyberhub_manager.domain.exceptions import ConflictError
 from cyberhub_manager.domain.menu import MenuOrderLine, MenuOrderStatus, MenuPage
 from cyberhub_manager.infrastructure.repositories.inventory_repository import InventoryRepository
 from cyberhub_manager.infrastructure.repositories.menu_repository import MenuRepository
-from cyberhub_manager.infrastructure.repositories.p1_repository import rows
+from cyberhub_manager.infrastructure.repositories.sql import rows
 
 
 @pytest.fixture

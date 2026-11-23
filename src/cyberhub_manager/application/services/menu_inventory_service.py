@@ -80,7 +80,7 @@ class MenuInventoryMixin:
                 code="ING-" + uuid4().hex[:16].upper(), name=name, unit=unit,
                 reorder_point=reorder_point,
             )
-            self._p1.audit(conn, current, "INVENTORY_INGREDIENT_CREATE", ingredient_id)
+            self._management.audit(conn, current, "INVENTORY_INGREDIENT_CREATE", ingredient_id)
             return self._inventory.get_ingredient(conn, ingredient_id)
 
     @retry_on_transient
@@ -115,7 +115,7 @@ class MenuInventoryMixin:
                 idempotency_key="receive:" + request_uuid.hex,
             )
             if changed:
-                self._p1.audit(conn, current, "INVENTORY_RECEIVE", ingredient_id)
+                self._management.audit(conn, current, "INVENTORY_RECEIVE", ingredient_id)
             return self._inventory.get_ingredient(conn, ingredient_id)
 
     @retry_on_transient
@@ -145,7 +145,7 @@ class MenuInventoryMixin:
                 idempotency_key=f"{kind.lower()}:{request_hex}", kind=kind,
             )
             if changed:
-                self._p1.audit(conn, current, f"INVENTORY_{kind}", ingredient_id)
+                self._management.audit(conn, current, f"INVENTORY_{kind}", ingredient_id)
             return self._inventory.get_ingredient(conn, ingredient_id)
 
     @retry_on_transient
@@ -171,7 +171,7 @@ class MenuInventoryMixin:
                 reason=reason, employee_id=current.employee_id, request_id=request_hex,
             )
             if created:
-                self._p1.audit(conn, current, "INVENTORY_COUNT_PROPOSE", proposal["id"])
+                self._management.audit(conn, current, "INVENTORY_COUNT_PROPOSE", proposal["id"])
             return proposal
 
     @retry_on_transient
@@ -199,7 +199,7 @@ class MenuInventoryMixin:
                 conn, count=proposal, ingredient=ingredient,
                 employee_id=current.employee_id, approve=approve,
             )
-            self._p1.audit(conn, current,
+            self._management.audit(conn, current,
                            "INVENTORY_COUNT_APPROVE" if approve else "INVENTORY_COUNT_REJECT",
                            count_id)
             return decided
@@ -230,6 +230,6 @@ class MenuInventoryMixin:
                 if ingredient["store_id"] != current.store_id or not ingredient["is_active"]:
                     raise ValidationError(field_errors={"parts": "Nguyên liệu không khả dụng tại cửa hàng"})
             self._inventory.replace_recipe(conn, item.id, parsed, track_stock)
-            self._p1.audit(conn, current, "INVENTORY_RECIPE_SAVE", item.id)
+            self._management.audit(conn, current, "INVENTORY_RECIPE_SAVE", item.id)
             return dict(item_id=item.id, track_stock=track_stock,
                         parts=self._inventory.get_recipe(conn, item.id))

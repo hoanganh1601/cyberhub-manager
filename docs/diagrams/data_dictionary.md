@@ -3,7 +3,7 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: các migration `sql/001_*.sql` đến `sql/031_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt). Quy ước:
+Nguồn: các migration `sql/001_*.sql` đến `sql/032_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt — 75 bảng nghiệp vụ, 18 view `v_*`, 28 trigger). Quy ước:
 tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.
 
 ## 1. Danh sách bảng
@@ -20,7 +20,8 @@ tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch 
 | [`machines`](#machines) | Máy trạm của cửa hàng và trạng thái hiện tại. | 9 |
 | [`usage_sessions`](#usage_sessions) | Một lần khách dùng một máy, từ lúc mở đến lúc checkout; ràng buộc chiếm dụng đang hoạt động nằm tại `active_usage_sessions` (chuẩn 3NF). | 11 |
 | [`active_usage_sessions`](#active_usage_sessions) | Bảng chiếm dụng 3NF ghi nhận các phiên đang ACTIVE; UNIQUE trên `machine_id` và `customer_id` thay cột sinh để chặn mở trùng. | 3 |
-| [`account_transactions`](#account_transactions) | Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa. | 11 |
+| [`account_transactions`](#account_transactions) | Sổ cái biến động số dư bất biến (chuẩn 3NF, bảo vệ qua trigger `trg_account_transactions_bi/bu`): mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; liên kết phiên tách sang `session_transactions` (migration 032). | 10 |
+| [`session_transactions`](#session_transactions) | Bảng phân rã 3NF liên kết giao dịch ví (`USAGE_PAYMENT`, `DEBT_SETTLEMENT`) với phiên sử dụng máy; loại bỏ cột `session_id` nullable khỏi `account_transactions` (migration 032). | 2 |
 | [`invoices`](#invoices) | Hóa đơn tạo khi checkout thành công; khóa ứng viên `session_id` (UNIQUE), tham chiếu phiên bản chính sách điểm bất biến (`loyalty_policy_versions`). Các giá trị dẫn xuất (`total_amount`, `loyalty_eligible_amount`, `loyalty_points`, `loyalty_unit`) tính qua view `v_invoices`. | 12 |
 | [`promotions`](#promotions) | Chính sách thưởng theo mốc nạp, phạm vi và thời gian. | 13 |
 | [`management_audit`](#management_audit) | Lịch sử thay đổi quản trị, không lưu mật khẩu. | 6 |
@@ -96,7 +97,7 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `stores` | 1 — 0..n | `employee_store_assignments` | `employee_store_assignments.store_id` → `stores.id` | Cơ sở được phép vận hành; phần thứ hai của khóa chính. |
 | `stores` | 1 — 0..n | `customer_store_links` | `customer_store_links.store_id` → `stores.id` | Cơ sở liên quan; phần thứ hai của khóa chính. |
 | `stores` | 1 — 0..n | `machines` | `machines.store_id` → `stores.id` | Cửa hàng sở hữu máy. |
-| `stores` | 0..1 — 0..n | `account_transactions` | `account_transactions.store_id` → `stores.id` | Cơ sở ghi nhận giao dịch tại thời điểm phát sinh. |
+| `stores` | 1 — 0..n | `account_transactions` | `account_transactions.store_id` → `stores.id` | Cơ sở ghi nhận giao dịch tại thời điểm phát sinh (NOT NULL sau migration 032). |
 | `stores` | 1 — 0..n | `invoices` | `invoices.store_id` → `stores.id` | Cửa hàng (khớp `machines.store_id` của phiên nhờ trigger `trg_invoices_bi/bu`). |
 | `stores` | 0..1 — 0..n | `promotions` | `promotions.store_id` → `stores.id` | Cơ sở áp dụng; NULL = toàn hệ thống. |
 | `stores` | 1 — 0..n | `management_audit` | `management_audit.store_id` → `stores.id` | Cơ sở đang vận hành. |
@@ -180,9 +181,10 @@ phía con là `0..1` khi bộ cột FK có UNIQUE, ngược lại `0..n`.
 | `machines` | 1 — 0..1 | `machine_room_types` | `machine_room_types.machine_id` → `machines.id` | Máy được phân loại; khóa chính và khóa ngoại; CASCADE chỉ xóa ánh xạ khi máy được phép xóa. |
 | `machines` | 1 — 0..n | `machine_incidents` | `machine_incidents.machine_id` → `machines.id` | Máy gặp sự cố. |
 | `usage_sessions` | 1 — 0..1 | `active_usage_sessions` | `active_usage_sessions.session_id` → `usage_sessions.id` | Phiên đang ACTIVE; PK/FK tới `usage_sessions.id` (tự đồng bộ qua trigger khi mở/đóng phiên). |
-| `usage_sessions` | 0..1 — 0..n | `account_transactions` | `account_transactions.session_id` → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
+| `usage_sessions` | 1 — 0..n | `session_transactions` | `session_transactions.session_id` → `usage_sessions.id` | Phiên sử dụng máy tương ứng (`usage_sessions.id`); khớp `account_id` và `store_id` qua trigger `trg_session_transactions_bi/bu`. |
 | `usage_sessions` | 1 — 0..1 | `invoices` | `invoices.session_id` → `usage_sessions.id` | Phiên được thanh toán; UNIQUE ⇒ mỗi phiên tối đa một hóa đơn. |
 | `usage_sessions` | 1 — 0..n | `menu_orders` | `menu_orders.session_id` → `usage_sessions.id` | Phiên ACTIVE lúc đặt (xác định khách, máy và cơ sở phục vụ). |
+| `account_transactions` | 1 — 0..1 | `session_transactions` | `session_transactions.transaction_id` → `account_transactions.id` | Giao dịch sổ cái gắn với phiên; PK và FK tới `account_transactions.id`. |
 | `promotions` | 0..1 — 0..n | `account_transactions` | `account_transactions.promotion_id` → `promotions.id` | Chính sách thưởng đã áp dụng, NULL với giao dịch thường. |
 | `loyalty_policy_versions` | 1 — 0..n | `invoices` | `invoices.loyalty_rule_version` → `loyalty_policy_versions.version` | FK tới `loyalty_policy_versions.version` chụp bất biến tại lúc lập hóa đơn. |
 | `loyalty_policy_versions` | 1 — 0..n | `loyalty_settings` | `loyalty_settings.current_version` → `loyalty_policy_versions.version` | FK tới `loyalty_policy_versions.version` đang áp dụng. |
@@ -513,7 +515,7 @@ Ràng buộc:
 
 ### account_transactions
 
-Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa.
+Sổ cái biến động số dư bất biến (chuẩn 3NF, bảo vệ qua trigger `trg_account_transactions_bi/bu`): mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; liên kết phiên tách sang `session_transactions` (migration 032).
 
 | Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
 |---|---|:---:|---|---|---|
@@ -521,12 +523,11 @@ Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` �
 | `code` | `varchar(20)` | Không | — | UK | Mã giao dịch, duy nhất (`TX-` + hex). |
 | `account_id` | `bigint unsigned` | Không | — | FK → `accounts.id` | Tài khoản bị thay đổi số dư. |
 | `employee_id` | `bigint unsigned` | Không | — | FK → `employees.id` | Nhân viên thực hiện. |
-| `session_id` | `bigint unsigned` | Có | — | FK → `usage_sessions.id` | Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập. |
 | `type` | `varchar(20)` | Không | — | — | `TOP_UP` / `PROMOTION` / `USAGE_PAYMENT` / `DEBT_SETTLEMENT`. |
 | `amount` | `bigint` | Không | — | — | Số tiền có dấu (VND): dương khi cộng, âm khi `USAGE_PAYMENT`. |
 | `method` | `varchar(20)` | Không | — | — | `CASH` / `TRANSFER` / `ACCOUNT_BALANCE` / `PROMOTION`, phải hợp với `type`. |
 | `created_at` | `datetime` | Không | `CURRENT_TIMESTAMP` | — | Thời điểm ghi (UTC). |
-| `store_id` | `bigint unsigned` | Có | — | FK → `stores.id` | Cơ sở ghi nhận giao dịch tại thời điểm phát sinh. |
+| `store_id` | `bigint unsigned` | Không | — | FK → `stores.id` | Cơ sở ghi nhận giao dịch tại thời điểm phát sinh (NOT NULL sau migration 032). |
 | `promotion_id` | `bigint unsigned` | Có | — | FK → `promotions.id` | Chính sách thưởng đã áp dụng, NULL với giao dịch thường. |
 
 Ràng buộc:
@@ -535,7 +536,6 @@ Ràng buộc:
 - UNIQUE `uq_account_transactions_code` (`code`)
 - FOREIGN KEY `fk_account_transactions_account` (`account_id`) → `accounts` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_account_transactions_employee` (`employee_id`) → `employees` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
-- FOREIGN KEY `fk_account_transactions_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_transactions_promotion` (`promotion_id`) → `promotions` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
 - FOREIGN KEY `fk_transactions_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
 - CHECK `chk_account_transactions_amount`: `(((type in ('TOP_UP','PROMOTION','DEBT_SETTLEMENT')) and (amount > 0)) or ((type = 'USAGE_PAYMENT') and (amount < 0)))`
@@ -547,6 +547,25 @@ Ràng buộc:
 Index bổ sung (`002_indexes.sql`):
 
 - INDEX `idx_account_transactions_account_created_at` (`account_id, created_at`)
+
+### session_transactions
+
+Bảng phân rã 3NF liên kết giao dịch ví (`USAGE_PAYMENT`, `DEBT_SETTLEMENT`) với phiên sử dụng máy; loại bỏ cột `session_id` nullable khỏi `account_transactions` (migration 032).
+
+| Cột | Kiểu | NULL | Mặc định | Khóa | Ý nghĩa |
+|---|---|:---:|---|---|---|
+| `transaction_id` | `bigint unsigned` | Không | — | PK, FK → `account_transactions.id` | Giao dịch sổ cái gắn với phiên; PK và FK tới `account_transactions.id`. |
+| `session_id` | `bigint unsigned` | Không | — | FK → `usage_sessions.id` | Phiên sử dụng máy tương ứng (`usage_sessions.id`); khớp `account_id` và `store_id` qua trigger `trg_session_transactions_bi/bu`. |
+
+Ràng buộc:
+
+- PRIMARY KEY (`transaction_id`)
+- FOREIGN KEY `fk_session_transactions_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+- FOREIGN KEY `fk_session_transactions_tx` (`transaction_id`) → `account_transactions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
+
+Index bổ sung (`002_indexes.sql`):
+
+- INDEX `idx_session_transactions_session` (`session_id`)
 
 ### invoices
 

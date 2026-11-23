@@ -449,6 +449,10 @@ def register_operations_routes(
             g.services.sessions.complete_checkout(machine_id, g.actor, amount, payment)
         )
 
+    @app.post("/api/machines/<int:machine_id>/cancel")
+    def cancel_session(machine_id):
+        return reply(g.services.sessions.cancel_session(machine_id, g.actor))
+
     @app.get("/api/invoices")
     def invoices():
         status = request.args.get("status") or None
@@ -468,6 +472,10 @@ def register_operations_routes(
         if detail.invoice.store_id!=g.actor.store_id:
             raise PermissionDeniedError()
         return reply(detail)
+
+    @app.post("/api/invoices/<int:invoice_id>/void")
+    def void_invoice(invoice_id):
+        return reply(g.services.reports.void_invoice(invoice_id, g.actor))
 
     @app.get("/api/revenue")
     @revenue_reader
