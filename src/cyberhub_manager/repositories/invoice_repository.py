@@ -104,24 +104,26 @@ class InvoiceRepository:
         finally:
             cursor.close()
 
-    def get_by_id (
+    def get_by_id(
         self,
         conn: PooledMySQLConnection,
         invoice_id: int,
+        *,
+        for_update: bool = False,
     ) -> Invoice | None:
-        """Return an invoice by ID, or None if it does not exist."""
-        cursor = conn.cursor(dictionary = True)
-        try:
-            cursor.execute(
-                """
+        """Return an invoice by ID, optionally locking its row for update."""
+        query = """
                 SELECT id, code, session_id, customer_id, employee_id,
                        store_id, usage_cost, settlement_amount,
                        usage_cost AS total_amount, status, created_at
                 FROM invoices
                 WHERE id = %s
-                """,
-                (invoice_id,),
-            )
+                """
+        if for_update:
+            query += " FOR UPDATE"
+        cursor = conn.cursor(dictionary = True)
+        try:
+            cursor.execute(query, (invoice_id,))
             row = cursor.fetchone()
         finally:
             cursor.close()
@@ -142,6 +144,26 @@ class InvoiceRepository:
             status = InvoiceStatus(row["status"]),
             created_at = row["created_at"].replace(tzinfo=timezone.utc),
         )
+
+    def void(
+        self,
+        conn: PooledMySQLConnection,
+        invoice_id: int,
+    ) -> bool:
+        """Mark a PAID invoice as VOID without committing."""
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+                UPDATE invoices
+                SET status = %s
+                WHERE id = %s AND status = %s
+                """,
+                (InvoiceStatus.VOID.value, invoice_id, InvoiceStatus.PAID.value),
+            )
+            return cursor.rowcount == 1
+        finally:
+            cursor.close()
 
     def list_by_store(
         self,

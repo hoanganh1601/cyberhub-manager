@@ -276,7 +276,7 @@ def cloud_app(tmp_path):
         retriever.rebuild([KnowledgeDocument(
             document_id=role.lower(), title=role, content=QUOTE,
             source=f"shared/{role.lower()}.md", audience=(role,), status="APPROVED", version=1,
-        ) for role in ("CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN")])
+        ) for role in ("CUSTOMER", "STAFF", "KITCHEN", "MANAGER", "ADMIN")])
         return RAGAssistantService(retriever, GeminiLLMProvider(transport), audit=sink)
     app = create_app({"TESTING": True, "WEB_MODE": "demo", "ASSISTANT_ENABLED": True,
                       "ASSISTANT_SERVICE_FACTORY": factory,
@@ -295,7 +295,7 @@ def cloud_login(app, username="nguyenvanan", kind="customer"):
 
 @pytest.mark.parametrize("username,kind,role", [
     ("nguyenvanan", "customer", "CUSTOMER"), ("nhanvien01", "employee", "STAFF"),
-    ("bep01", "employee", "KITCHEN"), ("thukho01", "employee", "INVENTORY"),
+    ("bep01", "employee", "KITCHEN"),
     ("quanly01", "employee", "MANAGER"), ("admin01", "employee", "ADMIN"),
 ])
 def test_gemini_http_pipeline_returns_only_role_authorized_citations(cloud_app, username, kind, role):

@@ -61,8 +61,6 @@ def test_sold_out_item_order_returns_conflict(app):
 
     assert result.status_code == 409
     assert "lines" in result.json["error"]["field_errors"]
-    notices = c.get("/api/portal/notifications").json["items"]
-    assert any(n["kind"] == "MENU_ITEM_UNAVAILABLE" for n in notices)
 
 
 def test_customer_cannot_use_staff_menu_api(app):
@@ -87,40 +85,6 @@ def test_staff_handles_menu_but_cannot_edit_items(app):
     assert edit.status_code == 403
     toggle = c.post(f"/api/menu/items/{item['id']}/availability", json={"available": False}, headers=headers)
     assert toggle.status_code == 200 and toggle.json["is_available"] is False
-
-
-def test_inventory_api_rechecks_role_and_csrf(app):
-    staff = app.test_client()
-    staff_headers = sign_in(staff, "nhanvien01")
-    overview = staff.get("/api/inventory")
-    assert overview.status_code == 200
-    assert overview.json["can_count"] is True
-    assert overview.json["can_approve"] is False
-    assert overview.json["can_issue"] is False
-
-    decision = "/api/inventory/counts/1/decision"
-    assert staff.post(decision, json={"approve": True}).status_code == 403
-    assert staff.post(decision, json={"approve": True}, headers=staff_headers).status_code == 403
-
-    manager = app.test_client()
-    sign_in(manager, "quanly01")
-    manager_overview = manager.get("/api/inventory")
-    assert manager_overview.status_code == 200
-    assert manager_overview.json["can_approve"] is True
-    assert manager_overview.json["can_issue"] is True
-
-
-def test_inventory_specialist_sees_stock_but_not_customer_orders(app):
-    client = app.test_client()
-    sign_in(client, "thukho01")
-
-    inventory = client.get("/api/inventory")
-    assert inventory.status_code == 200
-    assert inventory.json["enabled"] is True
-    assert inventory.json["ingredients"]
-    assert inventory.json["movements"]
-    assert client.get("/api/menu").status_code == 403
-    assert client.get("/api/menu/orders?status=ALL").status_code == 403
 
 
 def test_staff_can_advance_and_pay_menu_order(app):
@@ -165,33 +129,6 @@ def test_demo_pos_samples_and_revenue_change_only_when_paid(app):
     assert client.get("/api/revenue").json == after
 
 
-def test_food_voucher_reduces_paid_revenue(app):
-    client = app.test_client()
-    headers = sign_in(client, "quanly01")
-    with client.session_transaction() as session:
-        workspace = app.extensions["cyberhub_demo"].get(session["workspace"])
-    customer = workspace.services.portal.login("lethibinh", "demo123")
-    item = next(i for i in workspace.services.menu.portal_menu(customer)["pages"][0]["categories"][0]["items"]
-                if i.price >= 25_000)
-    order = workspace.services.menu.place_order(customer, [{"item_id": item.id, "quantity": 2}])
-    workspace.services.menu.finish_order(workspace.actor, order.id, "SERVED")
-    baseline = client.get("/api/revenue").json
-    discount = client.post("/api/vouchers/redeem",
-                           json={"code": "CHDEMO0004", "customer_id": customer.customer_id,
-                                 "order_id": order.id}, headers=headers)
-    assert discount.status_code == 200, discount.json
-    assert discount.json["discount"] == 20_000
-    paid = client.post(f"/api/menu/orders/{order.id}/payment",
-                       json={"method": "TRANSFER"}, headers=headers)
-    assert paid.status_code == 200, paid.json
-    assert paid.json["discount_amount"] == 20_000
-    report = client.get("/api/revenue").json
-    assert report["menu_revenue"] == baseline["menu_revenue"] + order.total_amount - 20_000
-    assert client.post("/api/vouchers/redeem",
-                       json={"code": "CHDEMO0005", "customer_id": customer.customer_id,
-                             "order_id": order.id}, headers=headers).status_code == 409
-
-
 def test_manager_approves_other_employee_full_refund(app):
     client = app.test_client()
     headers = sign_in(client, "quanly01")
@@ -219,7 +156,7 @@ def test_manager_approves_other_employee_full_refund(app):
               "refund_method": "CASH"}, headers=headers).status_code == 409
 
 
-def test_manager_creates_item_and_history_is_kept(app):
+def test_manager_creates_and_updates_item(app):
     c = app.test_client()
     headers = sign_in(c, "quanly01")
     category = c.get("/api/menu").json["categories"][0]
@@ -230,9 +167,8 @@ def test_manager_creates_item_and_history_is_kept(app):
     assert created.status_code == 200, created.json
     item_id = created.json["id"]
     updated = c.patch(f"/api/menu/items/{item_id}", json={**body, "price": 22000}, headers=headers)
+    assert updated.status_code == 200
     assert updated.json["price"] == 22000
-    history = c.get(f"/api/menu/items/{item_id}/history").json
-    assert [h["field"] for h in history] == ["PRICE", "CREATE"]
 
 
 def test_invalid_price_returns_field_error(app):

@@ -87,17 +87,28 @@ def db():
 
         employee_ids = {}
         for role in Role:
-            employee_ids[role] = _execute(
+            profile_id = _execute(
                 conn,
                 """
-                INSERT INTO employees
-                    (code, store_id, full_name, username, password_hash, role)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO employee_profiles
+                    (code, home_store_id, full_name, employment_status)
+                VALUES (%s, %s, %s, 'ACTIVE')
                 """,
                 (
                     f"EMP-{role.value[:3]}-{token}",
                     store_id,
                     f"LI07 {role.value}",
+                ),
+            )
+            employee_ids[role] = _execute(
+                conn,
+                """
+                INSERT INTO employees
+                    (profile_id, username, password_hash, role)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (
+                    profile_id,
                     f"li07.{role.value.lower()}.{token}",
                     "x",
                     role.value,
@@ -167,6 +178,15 @@ def db():
                 _execute(conn, "DELETE FROM invoices WHERE store_id = %s", (sid,))
             _execute(
                 conn,
+                """
+                DELETE st FROM session_transactions AS st
+                JOIN account_transactions AS t ON t.id = st.transaction_id
+                WHERE t.account_id = %s
+                """,
+                (account_id,),
+            )
+            _execute(
+                conn,
                 "DELETE FROM account_transactions WHERE account_id = %s",
                 (account_id,),
             )
@@ -184,7 +204,16 @@ def db():
             _execute(conn, "DELETE FROM accounts WHERE id = %s", (account_id,))
             _execute(conn, "DELETE FROM customers WHERE id = %s", (customer_id,))
             for sid in store_ids:
-                _execute(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
+                _execute(
+                    conn,
+                    """
+                    DELETE e FROM employees AS e
+                    JOIN employee_profiles AS p ON p.id = e.profile_id
+                    WHERE p.home_store_id = %s
+                    """,
+                    (sid,),
+                )
+                _execute(conn, "DELETE FROM employee_profiles WHERE home_store_id = %s", (sid,))
                 _execute(conn, "DELETE FROM stores WHERE id = %s", (sid,))
 
 

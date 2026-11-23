@@ -77,7 +77,8 @@ def test_index_assets_health_and_response_headers(app):
     client = app.test_client()
     assert client.get("/").status_code == 200
     assert client.get("/static/app.js").status_code == 200
-    assert client.get("/static/operations_admin.js").status_code == 200
+    assert client.get("/static/menu_admin.js").status_code == 200
+    assert client.get("/static/p1.js").status_code == 200
     assert client.get("/static/app.css").status_code == 200
     assert client.get("/assets/cyberhub_logo_dark.png").mimetype == "image/png"
     assert client.get("/assets/fonts/Inter-400.ttf").status_code == 200
@@ -219,10 +220,10 @@ def test_manager_reads_revenue(app):
 
 
 @pytest.mark.parametrize("path", ["/api/shifts", "/api/maintenance", "/api/procurement"])
-def test_mysql_only_operations_fail_closed_in_demo(app, path):
+def test_removed_operations_routes_return_not_found(app, path):
     c = app.test_client()
     login(c, "quanly01")
-    assert c.get(path).status_code == 503
+    assert c.get(path).status_code == 404
 
 
 @pytest.mark.parametrize("value", [True, 1.5, "50000", [], {}, -1, 0, 100_000_001])

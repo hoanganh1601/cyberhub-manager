@@ -16,18 +16,14 @@ NOW = datetime(2026, 11, 13, 8, tzinfo=timezone.utc)
 
 def test_best_single_rule_and_tie_priority():
     lines = [MenuOrderLine(1, "Coca", 10_000, 3)]
-    rules = [dict(id=1, code="DRINK", kind="PLAY_DRINK", item_id=1,
-                  value=5000, minimum_tier=None),
-             dict(id=2, code="THREE", kind="BOGO", item_id=1,
-                  value=1, minimum_tier=None),
-             dict(id=3, code="VIP", kind="TIER_PERCENT", item_id=None,
-                  value=10, minimum_tier="GOLD")]
-    priced = price_order(lines, rules, "GOLD")
+    rules = [dict(id=1, code="DRINK", kind="PLAY_DRINK", item_id=1, value=5000),
+             dict(id=2, code="THREE", kind="BOGO", item_id=1, value=1)]
+    priced = price_order(lines, rules)
     assert priced["promotion_code"] == "DRINK"
     assert priced["discount_amount"] == 15_000
     assert priced["final_amount"] == 15_000
     rules[0]["value"] = 3_333
-    assert price_order(lines, rules, "BRONZE")["promotion_code"] == "THREE"
+    assert price_order(lines, rules)["promotion_code"] == "THREE"
 
 
 def test_demo_pricing_snapshot_survives_rule_change_and_manager_can_edit():

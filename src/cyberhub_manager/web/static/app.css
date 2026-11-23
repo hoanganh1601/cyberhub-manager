@@ -871,17 +871,39 @@ input[aria-invalid="true"] {
   min-width: 0;
   overflow: hidden;
 }
+.panel + .panel {
+  margin-top: 20px;
+}
 .panel-heading {
-  padding: 17px 18px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.panel-heading-copy {
+  display: grid;
+  gap: 4px;
+}
+.panel-heading-copy small {
+  font-size: 11px;
 }
 .panel-heading .icon {
   color: var(--cyan);
   width: 16px;
+}
+.badge .icon {
+  width: 12px;
+  height: 12px;
+}
+.actions-col {
+  width: 1%;
+  white-space: nowrap;
+}
+.actions-col .actions {
+  flex-wrap: nowrap;
 }
 .panel-body {
   padding: 18px;

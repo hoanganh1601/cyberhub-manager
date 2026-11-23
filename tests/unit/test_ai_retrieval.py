@@ -263,7 +263,7 @@ Approved business rule.
 def test_real_corpus_role_isolation_and_draft_exclusion():
     retriever = KnowledgeRetriever(FakeEmbeddingProvider())
     retriever.refresh(KnowledgeDocumentLoader())
-    for role in ("CUSTOMER", "STAFF", "KITCHEN", "INVENTORY", "MANAGER", "ADMIN"):
+    for role in ("CUSTOMER", "STAFF", "KITCHEN", "MANAGER", "ADMIN"):
         chunks = retriever.search(question="Cách dùng CyberHub?", access=actor(role), limit=20)
         assert chunks
         assert all(role in chunk.audience for chunk in chunks)

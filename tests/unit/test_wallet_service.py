@@ -131,7 +131,7 @@ class FakeAccountRepository:
         )
         return transaction_id
 
-    def list_transactions(self, conn, account_id, *, limit=50):
+    def list_transactions(self, conn, account_id, *, limit=50, store_id=None):
         return self.history[:limit]
 
 

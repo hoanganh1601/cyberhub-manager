@@ -32,7 +32,7 @@ def test_success_has_expected_store_staff_and_machine_counts() -> None:
     roles = Counter(employee.role for employee in data.employees.values())
 
     assert len(data.stores) == 1
-    assert roles == {"MANAGER": 1, "STAFF": 2, "KITCHEN": 1, "INVENTORY": 1}
+    assert roles == {"MANAGER": 1, "STAFF": 2, "KITCHEN": 1}
     assert len(data.machines) == 20
     assert statuses == {
         MachineStatus.AVAILABLE: 17,
@@ -119,7 +119,7 @@ def test_empty_keeps_only_store_and_employees() -> None:
     seed_empty(data, DEFAULT_NOW)
 
     assert len(data.stores) == 1
-    assert len(data.employees) == 5
+    assert len(data.employees) == 4
     assert not data.customers
     assert not data.machines
     assert not data.sessions

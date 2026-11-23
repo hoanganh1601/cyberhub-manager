@@ -24,8 +24,7 @@ class Permission(StrEnum):
     SWITCH_STORE = "switch_store"
     EXPORT_INVOICE = "export_invoice"
     VIEW_REVENUE = "view_revenue"
-    MANAGE_MENU = "manage_menu"  # Đợt 1: thêm/sửa/ẩn món, nhóm món, giá, ảnh (MANAGER/ADMIN)
-    MANAGE_REWARDS = "manage_rewards"  # Đợt 2: danh mục phần thưởng, phát/thu hồi voucher (MANAGER/ADMIN)
+    MANAGE_MENU = "manage_menu"  # Đợt 1: thêm/sửa/ẩn món, nhóm món, giá (MANAGER/ADMIN)
     POS_VIEW_ORDERS = "pos_view_orders"
     POS_PREPARE_ORDERS = "pos_prepare_orders"
     POS_SERVE_ORDERS = "pos_serve_orders"
@@ -33,23 +32,6 @@ class Permission(StrEnum):
     POS_COLLECT_PAYMENT = "pos_collect_payment"
     POS_REQUEST_REVERSAL = "pos_request_reversal"
     POS_APPROVE_REVERSAL = "pos_approve_reversal"
-    SHIFT_VIEW = "shift_view"
-    SHIFT_OPERATE = "shift_operate"
-    SHIFT_REVIEW = "shift_review"
-    MAINTENANCE_VIEW = "maintenance_view"
-    MAINTENANCE_REPORT = "maintenance_report"
-    MAINTENANCE_UPDATE = "maintenance_update"
-    MAINTENANCE_MANAGE = "maintenance_manage"
-    PROCUREMENT_VIEW = "procurement_view"
-    PROCUREMENT_REQUEST = "procurement_request"
-    PROCUREMENT_APPROVE = "procurement_approve"
-    PROCUREMENT_RECEIVE = "procurement_receive"
-    PROCUREMENT_PAY = "procurement_pay"
-    PROCUREMENT_APPROVE_PAYMENT = "procurement_approve_payment"
-    PROCUREMENT_MANAGE_SUPPLIERS = "procurement_manage_suppliers"
-    COMMERCIAL_VIEW = "commercial_view"
-    COMMERCIAL_MANAGE = "commercial_manage"
-    COMMERCIAL_RECONCILE = "commercial_reconcile"
 
 
 # Grant every capability deliberately. A new Permission must not silently become
@@ -67,11 +49,6 @@ _STAFF_PERMISSIONS = frozenset({
     Permission.POS_CANCEL_ORDERS,
     Permission.POS_COLLECT_PAYMENT,
     Permission.POS_REQUEST_REVERSAL,
-    Permission.SHIFT_VIEW,
-    Permission.SHIFT_OPERATE,
-    Permission.MAINTENANCE_VIEW,
-    Permission.MAINTENANCE_REPORT,
-    Permission.MAINTENANCE_UPDATE,
 })
 _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
     Permission.VIEW_REVENUE,
@@ -80,42 +57,29 @@ _MANAGER_PERMISSIONS = _STAFF_PERMISSIONS | frozenset({
     Permission.MANAGE_EMPLOYEES,
     Permission.MANAGE_PROMOTIONS,
     Permission.MANAGE_MENU,
-    Permission.MANAGE_REWARDS,
     Permission.POS_APPROVE_REVERSAL,
-    Permission.SHIFT_REVIEW,
-    Permission.MAINTENANCE_MANAGE,
-    Permission.PROCUREMENT_VIEW,
-    Permission.PROCUREMENT_REQUEST,
-    Permission.PROCUREMENT_APPROVE,
-    Permission.PROCUREMENT_RECEIVE,
-    Permission.PROCUREMENT_PAY,
-    Permission.PROCUREMENT_APPROVE_PAYMENT,
-    Permission.PROCUREMENT_MANAGE_SUPPLIERS,
-    Permission.COMMERCIAL_VIEW,
 })
 ROLE_PERMISSIONS = {
     Role.STAFF: _STAFF_PERMISSIONS,
-    Role.KITCHEN: frozenset({Permission.POS_VIEW_ORDERS, Permission.POS_PREPARE_ORDERS,
-                             Permission.POS_SERVE_ORDERS,
-                             Permission.MAINTENANCE_VIEW, Permission.MAINTENANCE_REPORT}),
+    Role.KITCHEN: frozenset({
+        Permission.POS_VIEW_ORDERS,
+        Permission.POS_PREPARE_ORDERS,
+        Permission.POS_SERVE_ORDERS,
+    }),
     Role.MANAGER: _MANAGER_PERMISSIONS,
     Role.ADMIN: _MANAGER_PERMISSIONS | frozenset({
         Permission.MANAGE_STORES,
         Permission.SWITCH_STORE,
-        Permission.COMMERCIAL_MANAGE,
-        Permission.COMMERCIAL_RECONCILE,
         Permission.MANAGE_EMPLOYEE_CREDENTIALS,
     }),
     Role.DIRECTOR: frozenset({
-        Permission.MANAGE_STORES, Permission.SWITCH_STORE,
+        Permission.MANAGE_STORES,
+        Permission.SWITCH_STORE,
         Permission.VIEW_REVENUE,
         Permission.VIEW_CUSTOMERS,
-        Permission.MANAGE_EMPLOYEES, Permission.MANAGE_PROMOTIONS,
-        Permission.MANAGE_REWARDS, Permission.COMMERCIAL_VIEW,
-        Permission.COMMERCIAL_MANAGE, Permission.COMMERCIAL_RECONCILE,
-        Permission.EXPORT_INVOICE, Permission.PROCUREMENT_VIEW,
-        Permission.PROCUREMENT_MANAGE_SUPPLIERS,
-        Permission.PROCUREMENT_APPROVE_PAYMENT,
+        Permission.MANAGE_EMPLOYEES,
+        Permission.MANAGE_PROMOTIONS,
+        Permission.EXPORT_INVOICE,
     }),
 }
 

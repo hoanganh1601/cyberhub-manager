@@ -56,11 +56,10 @@ def test_hold_warning_and_expiry_are_idempotent_and_leave_preparing_alone():
     preparing = bundle.menu.place_order(customer, [{"item_id": item.id, "quantity": 1}])
     bundle.menu.finish_order(manager, preparing.id, "PREPARING")
     clock.advance(minutes=13)
-    assert bundle.menu.maintain_holds() == {"warned": 1, "expired": 0}
-    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0}
+    assert bundle.menu.maintain_holds() == {"expired": 0}
     clock.advance(minutes=2)
-    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 1}
-    assert bundle.menu.maintain_holds() == {"warned": 0, "expired": 0}
+    assert bundle.menu.maintain_holds() == {"expired": 1}
+    assert bundle.menu.maintain_holds() == {"expired": 0}
     assert bundle.menu._repo.get_order(None, expiring.id).cancel_reason == "AUTO_EXPIRED"
     assert bundle.menu._repo.get_order(None, preparing.id).status == MenuOrderStatus.PREPARING
 
@@ -279,102 +278,6 @@ def test_staff_sees_menu_but_cannot_manage_it(ctx):
         menu.save_category(staff, None, page="FOOD", name="Mới", sort_order=0, is_active=True)
 
 
-def test_staff_inventory_overview_hides_recipes(ctx):
-    class Inventory:
-        def __init__(self):
-            self.recipe_reads = 0
-
-        def list_ingredients(self, conn, store_id):
-            return [{"id": 1, "available": 5}]
-
-        def list_counts(self, conn, store_id):
-            return []
-
-        def item_tracking(self, conn, store_id):
-            return [{"item_id": 1, "is_stock_tracked": True}]
-
-        def get_recipe(self, conn, item_id):
-            self.recipe_reads += 1
-            return [{"ingredient_id": 1, "quantity": 2}]
-
-    inventory = Inventory()
-    ctx["menu"]._inventory = inventory
-
-    staff_view = ctx["menu"].inventory_overview(ctx["staff"])
-    assert staff_view["actor_id"] == ctx["staff"].employee_id
-    assert staff_view["ingredients"] == [{"id": 1, "available": 5}]
-    assert staff_view["can_manage"] is False
-    assert staff_view["can_configure"] is False
-    assert staff_view["can_receive"] is False
-    assert staff_view["can_count"] is True
-    assert staff_view["recipes"] == []
-    assert staff_view["tracking"] == {}
-    assert inventory.recipe_reads == 0
-
-    manager_view = ctx["menu"].inventory_overview(ctx["manager"])
-    assert manager_view["actor_id"] == ctx["manager"].employee_id
-    assert manager_view["can_manage"] is True
-    assert manager_view["can_configure"] is True
-    assert manager_view["can_receive"] is True
-    assert manager_view["can_issue"] is True
-    assert manager_view["can_approve"] is True
-    assert manager_view["recipes"]
-    assert inventory.recipe_reads > 0
-
-
-@pytest.mark.parametrize(
-    "permission,operation",
-    [
-        (Permission.INVENTORY_CONFIGURE, "add"),
-        (Permission.INVENTORY_CONFIGURE, "recipe"),
-        (Permission.INVENTORY_RECEIVE, "receive"),
-    ],
-)
-def test_inventory_writes_require_their_specific_permission(ctx, monkeypatch,
-                                                             permission, operation):
-    menu, manager = ctx["menu"], ctx["manager"]
-    monkeypatch.setitem(
-        ROLE_PERMISSIONS, Role.MANAGER,
-        ROLE_PERMISSIONS[Role.MANAGER] - {permission},
-    )
-
-    with pytest.raises(PermissionDeniedError):
-        if operation == "add":
-            menu.add_ingredient(manager, name="Đường", unit="g")
-        elif operation == "recipe":
-            menu.set_item_recipe(manager, 1, parts=[{"ingredient_id": 1,
-                                                     "quantity_per_unit": 1}])
-        else:
-            menu.receive_ingredient(manager, 1, quantity=1,
-                                    reference_code="RC-1", request_id=str(uuid4()))
-
-
-def test_inventory_overview_reports_independent_capabilities(ctx, monkeypatch):
-    monkeypatch.setitem(
-        ROLE_PERMISSIONS, Role.MANAGER,
-        ROLE_PERMISSIONS[Role.MANAGER] - {Permission.INVENTORY_RECEIVE},
-    )
-    view = ctx["menu"].inventory_overview(ctx["manager"])
-
-    assert view["can_configure"] is True
-    assert view["can_receive"] is False
-    assert view["can_manage"] is False
-
-
-def test_inventory_count_and_manual_movement_permissions(ctx):
-    menu = ctx["menu"]
-    request_id = str(uuid4())
-    with pytest.raises(PermissionDeniedError):
-        menu.move_ingredient(ctx["staff"], 1, kind="ISSUE", quantity=1,
-                             reference_code="ISS-1", request_id=request_id,
-                             note="Hỏng trong kho")
-    with pytest.raises(PermissionDeniedError):
-        menu.decide_inventory_count(ctx["staff"], 1, approve=True)
-    with pytest.raises(ConflictError):
-        menu.propose_inventory_count(ctx["staff"], 1, counted_on_hand=1,
-                                     reason="Kiểm kê cuối ca", request_id=request_id)
-
-
 def test_menu_overview_reports_independent_pos_capabilities(ctx, monkeypatch):
     monkeypatch.setitem(
         ROLE_PERMISSIONS, Role.STAFF,
@@ -396,16 +299,14 @@ def test_menu_overview_requires_view_permission(ctx, monkeypatch):
         ctx["menu"].manage_menu(ctx["staff"])
 
 
-def test_price_change_is_recorded_in_history_and_audit(ctx):
+def test_price_change_is_recorded_in_audit(ctx):
     menu, manager = ctx["menu"], ctx["manager"]
     item = menu.manage_menu(manager)["items"][0]
 
-    menu.save_item(manager, item.id, category_id=item.category_id, name=item.name, description=item.description,
-                   price=item.price + 5_000, sort_order=item.sort_order, is_visible=True, is_available=item.is_available)
+    updated = menu.save_item(manager, item.id, category_id=item.category_id, name=item.name, description=item.description,
+                             price=item.price + 5_000, sort_order=item.sort_order, is_visible=True, is_available=item.is_available)
 
-    history = menu.item_history(manager, item.id)
-    assert history[0].field == MenuChangeField.PRICE
-    assert (history[0].old_value, history[0].new_value) == (str(item.price), str(item.price + 5_000))
+    assert updated.price == item.price + 5_000
     audit = ctx["bundle"].menu._p1.data.management_audit
     assert audit[-1][2:] == ("MENU_ITEM_SAVE", item.id)
 
@@ -464,24 +365,21 @@ def test_order_lifecycle_creates_idempotent_customer_notifications(ctx):
     menu.finish_order(ctx["staff"], order.id, "SERVED")
     menu.pay_order(ctx["staff"], order.id, "CASH")
 
-    notices = ctx["bundle"].portal.notifications(ctx["player"])
-    lifecycle = [
-        notice for notice in notices["items"]
-        if notice["key"].startswith(f"menu-order:{order.id}:")
-    ]
-    assert {notice["kind"] for notice in lifecycle} == {
-        "MENU_ORDER_NEW",
-        "MENU_ORDER_PREPARING",
-        "MENU_ORDER_SERVED",
-        "MENU_ORDER_PAID",
+    notices = menu.portal_menu(ctx["player"])["notifications"]
+    lifecycle = [notice for notice in notices if notice["order_id"] == order.id]
+    assert {notice["order_status"] for notice in lifecycle} == {
+        "NEW",
+        "PREPARING",
+        "SERVED",
+        "PAID",
     }
-    assert len({notice["key"] for notice in lifecycle}) == 4
-    assert all(not notice["read"] for notice in lifecycle)
+    assert len(lifecycle) == 4
+    assert all(notice["read_at"] is None for notice in lifecycle)
 
-    key = next(notice["key"] for notice in lifecycle if notice["kind"] == "MENU_ORDER_PAID")
-    ctx["bundle"].portal.mark_notifications_read(ctx["player"], [key])
-    refreshed = ctx["bundle"].portal.notifications(ctx["player"])["items"]
-    assert next(notice for notice in refreshed if notice["key"] == key)["read"] is True
+    paid_event = next(notice["event_id"] for notice in lifecycle if notice["order_status"] == "PAID")
+    menu.mark_notification_read(ctx["player"], paid_event)
+    refreshed = menu.portal_menu(ctx["player"])["notifications"]
+    assert next(notice for notice in refreshed if notice["event_id"] == paid_event)["read_at"] is not None
 
 
 def test_cancelled_order_creates_warning_notification(ctx):
@@ -490,12 +388,12 @@ def test_cancelled_order_creates_warning_notification(ctx):
     order = menu.place_order(ctx["player"], [{"item_id": item.id, "quantity": 1}])
     menu.finish_order(ctx["staff"], order.id, "CANCELLED", reason="Khách đổi ý")
 
+    notices = menu.portal_menu(ctx["player"])["notifications"]
     notice = next(
-        item for item in ctx["bundle"].portal.notifications(ctx["player"])["items"]
-        if item["key"] == f"menu-order:{order.id}:CANCELLED"
+        item for item in notices
+        if item["order_id"] == order.id and item["order_status"] == "CANCELLED"
     )
-    assert notice["kind"] == "MENU_ORDER_CANCELLED"
-    assert notice["severity"] == "warning"
+    assert notice["order_code"] == order.code
 
 
 def test_order_notification_repository_is_idempotent(ctx):
@@ -505,13 +403,11 @@ def test_order_notification_repository_is_idempotent(ctx):
     repository = menu._repo
 
     with repository.transaction() as conn:
-        repository.record_order_notification(
-            conn, order, MenuOrderStatus.NEW, order.created_at,
-        )
+        repository.record_order_status_notification(conn, order.id, MenuOrderStatus.NEW.value)
 
     matching = [
-        event for event in ctx["bundle"].portal._repo.order_notifications
-        if event["notification_key"] == f"menu-order:{order.id}:NEW"
+        event for event in repository.notifications.values()
+        if event["order_id"] == order.id and event["order_status"] == "NEW"
     ]
     assert len(matching) == 1
 
@@ -610,4 +506,3 @@ def test_failed_save_rolls_back_menu_changes(ctx, monkeypatch):
 
     monkeypatch.undo()
     assert next(i for i in menu.manage_menu(manager)["items"] if i.id == item.id).price == item.price
-    assert menu.item_history(manager, item.id) == []

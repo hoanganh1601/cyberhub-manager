@@ -125,6 +125,16 @@ def test_database_ready() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _default_legacy_rbac_for_unit_tests(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep unit tests deterministic regardless of CYBERHUB_RBAC_POLICY in .env."""
+
+    if request.node.get_closest_marker("integration") is None:
+        monkeypatch.setenv("CYBERHUB_RBAC_POLICY", "legacy")
+
+
+@pytest.fixture(autouse=True)
 def _integration_database(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -179,14 +189,23 @@ def test_scenario() -> Callable[..., SimpleNamespace]:
             "INSERT INTO stores (code, name, address) VALUES (%s, %s, %s)",
             (f"TEST-ST-{token}", "Test store", "Test address"),
         )
+        profile_id = _insert(
+            conn,
+            """
+            INSERT INTO employee_profiles
+                (code, home_store_id, full_name, employment_status)
+            VALUES (%s, %s, %s, 'ACTIVE')
+            """,
+            (f"TEST-EMP-{token}", store_id, "Test employee"),
+        )
         employee_id = _insert(
             conn,
             """
             INSERT INTO employees
-                (code, store_id, full_name, username, password_hash, role)
-            VALUES (%s, %s, %s, %s, 'x', 'STAFF')
+                (profile_id, username, password_hash, role)
+            VALUES (%s, %s, 'x', 'STAFF')
             """,
-            (f"TEST-EMP-{token}", store_id, "Test employee", f"test.e.{token}"),
+            (profile_id, f"test.e.{token}"),
         )
         customer_id = _insert(
             conn,

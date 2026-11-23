@@ -127,10 +127,8 @@ def register_operations_routes(
         except ValueError:
             raise ValidationError(field_errors={"ends_at":"Ngày giờ không hợp lệ"}) from None
         store_id = None if d.get("store_id") is None else integer(d,"store_id",minimum=1)
-        old=next((p for p in g.services.management.list_promotions(g.actor) if p.id==promotion_id),None) if promotion_id else None
         policy = Promotion(promotion_id or 0,text(d,"code"),text(d,"name"),store_id,
-                           integer(d,"minimum_amount",minimum=1),integer(d,"bonus_percent"),start,end,d.get("is_active",True),
-                           'BRONZE', 0, None)
+                           integer(d,"minimum_amount",minimum=1),integer(d,"bonus_percent"),start,end,d.get("is_active",True))
         return reply(g.services.management.save_promotion(g.actor,policy))
 
     @app.post("/api/customers/<int:customer_id>/topup-preview")
@@ -391,6 +389,10 @@ def register_operations_routes(
             g.services.sessions.complete_checkout(machine_id, g.actor, amount, payment)
         )
 
+    @app.post("/api/machines/<int:machine_id>/cancel")
+    def cancel_session(machine_id):
+        return reply(g.services.sessions.cancel_session(machine_id, g.actor))
+
     @app.get("/api/invoices")
     def invoices():
         status = request.args.get("status") or None
@@ -410,6 +412,10 @@ def register_operations_routes(
         if detail.invoice.store_id!=g.actor.store_id:
             raise PermissionDeniedError()
         return reply(detail)
+
+    @app.post("/api/invoices/<int:invoice_id>/void")
+    def void_invoice(invoice_id):
+        return reply(g.services.reports.void_invoice(invoice_id, g.actor))
 
     @app.get("/api/revenue")
     @revenue_reader

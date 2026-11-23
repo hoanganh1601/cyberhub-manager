@@ -27,9 +27,11 @@ from cyberhub_manager.domain.enums import (
 from cyberhub_manager.domain.exceptions import (
     ConflictError,
     InsufficientBalanceError,
+    PermissionDeniedError,
     SettlementRequiredError,
     ValidationError,
 )
+from cyberhub_manager.domain.p1 import Permission, can
 from cyberhub_manager.domain.models import (
     Customer,
     Invoice,
@@ -224,6 +226,28 @@ class MockSessionService(MockServiceBase):
             bonus_used=bonus_used,
             bonus_balance_after=account.bonus_balance,
         )
+
+    def cancel_session(
+        self,
+        machine_id: int,
+        actor: EmployeeSession,
+    ) -> SessionSummary:
+        employee = self._require_actor(actor)
+        if not can(employee.role, Permission.OPERATE):
+            raise PermissionDeniedError()
+        self._check_scenario("cancel_session")
+        machine = self._data.get_machine(machine_id)
+        self._require_store(actor, machine.store_id)
+        session = self._active_session_on(machine_id)
+
+        now = self._clock.now()
+        session.cancel(employee.id, now)
+        machine.finish_session()
+        self._data.touch_machine(machine.id, now)
+        self._data.management_audit.append(
+            (employee.id, machine.store_id, "SESSION_CANCEL", session.id)
+        )
+        return self._data.to_session_summary(session)
 
     # ----- Nội bộ --------------------------------------------------------
 

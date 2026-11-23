@@ -55,7 +55,18 @@ def mysql_web(test_scenario):
                 )
                 for cid in customer_ids:
                     cursor.execute(
+                        "DELETE st FROM session_transactions st "
+                        "JOIN account_transactions t ON t.id = st.transaction_id "
+                        "JOIN accounts a ON a.id = t.account_id WHERE a.customer_id = %s",
+                        (cid,),
+                    )
+                    cursor.execute(
                         "DELETE t FROM account_transactions t JOIN accounts a ON a.id = t.account_id WHERE a.customer_id = %s",
+                        (cid,),
+                    )
+                    cursor.execute(
+                        "DELETE aus FROM active_usage_sessions aus "
+                        "JOIN usage_sessions s ON s.id = aus.session_id WHERE s.customer_id = %s",
                         (cid,),
                     )
                     cursor.execute(
@@ -68,19 +79,16 @@ def mysql_web(test_scenario):
                 cursor.execute(
                     "DELETE FROM machines WHERE store_id = %s", (records.store_id,)
                 )
-                # Đợt 0: xem doanh thu ghi management_audit (FK RESTRICT tới employees).
                 cursor.execute(
                     "DELETE FROM management_audit WHERE store_id = %s", (records.store_id,)
                 )
                 cursor.execute(
-                    "DELETE e FROM cash_shift_entries e JOIN cash_shifts s ON s.id = e.shift_id "
-                    "WHERE s.store_id = %s", (records.store_id,)
+                    "DELETE e FROM employees e "
+                    "JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (records.store_id,),
                 )
                 cursor.execute(
-                    "DELETE FROM cash_shifts WHERE store_id = %s", (records.store_id,)
-                )
-                cursor.execute(
-                    "DELETE FROM employees WHERE store_id = %s", (records.store_id,)
+                    "DELETE FROM employee_profiles WHERE home_store_id = %s", (records.store_id,)
                 )
                 cursor.execute("DELETE FROM stores WHERE id = %s", (records.store_id,))
             finally:
@@ -125,9 +133,6 @@ def test_mysql_web_customer_wallet_session_invoice_and_revenue(mysql_web):
 
     def post(path, payload):
         return c.post(path, json=payload, headers={"X-CSRF-Token": csrf})
-
-    opened = post("/api/shifts/open", {"opening_cash": 0})
-    assert opened.status_code == 201, opened.json
 
     result = post(
         "/api/customers",

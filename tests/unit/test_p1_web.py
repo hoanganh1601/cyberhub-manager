@@ -108,11 +108,12 @@ def test_customer_cannot_call_employee_apis_or_export_another_invoice(client):
     assert client.get("/customer").status_code == 200
 
 
-def test_admin_reset_password_api_covers_kitchen_and_inventory_without_exposing_secret(client):
+def test_admin_reset_password_api_covers_kitchen_without_exposing_secret(client):
     headers = login(client, "admin01")
     employees = client.get("/api/employees").json
     specialist_roles = {employee["role"] for employee in employees}
-    assert {"KITCHEN", "INVENTORY"} <= specialist_roles
+    assert "KITCHEN" in specialist_roles
+    assert "INVENTORY" not in specialist_roles
     target = next(employee for employee in employees if employee["role"] == "KITCHEN")
     response = client.post(
         f'/api/employees/{target["id"]}/reset-password',

@@ -168,7 +168,6 @@ def test_admin_password_reset_supports_every_role_and_forces_change(bundle):
         bundle.auth.login("quanly01", "demo123"),
         bundle.auth.login("nhanvien01", "demo123"),
         bundle.auth.login("bep01", "demo123"),
-        bundle.auth.login("thukho01", "demo123"),
     ]
     second_admin = bundle.management.save_employee(
         admin, None, 1, "Second Admin", "admin02", "ADMIN", password="AdminPass!2026"
@@ -250,13 +249,12 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
         Permission.POS_REQUEST_REVERSAL,
     }
     assert ROLE_PERMISSIONS[Role.STAFF] == pos | {
-        Permission.OPERATE, Permission.EXPORT_INVOICE, Permission.INVENTORY_VIEW,
-        Permission.VIEW_CUSTOMERS, Permission.CREATE_CUSTOMERS,
-        Permission.EDIT_CUSTOMERS, Permission.OPERATE_WALLET,
-        Permission.INVENTORY_COUNT,
-        Permission.SHIFT_VIEW, Permission.SHIFT_OPERATE,
-        Permission.MAINTENANCE_VIEW, Permission.MAINTENANCE_REPORT,
-        Permission.MAINTENANCE_UPDATE,
+        Permission.OPERATE,
+        Permission.EXPORT_INVOICE,
+        Permission.VIEW_CUSTOMERS,
+        Permission.CREATE_CUSTOMERS,
+        Permission.EDIT_CUSTOMERS,
+        Permission.OPERATE_WALLET,
     }
     assert ROLE_PERMISSIONS[Role.MANAGER] == ROLE_PERMISSIONS[Role.STAFF] | {
         Permission.VIEW_REVENUE,
@@ -265,30 +263,22 @@ def test_pos_capabilities_are_explicitly_granted_without_cross_store_access():
         Permission.MANAGE_EMPLOYEES,
         Permission.MANAGE_PROMOTIONS,
         Permission.MANAGE_MENU,
-        Permission.MANAGE_REWARDS,
-        Permission.INVENTORY_CONFIGURE,
-        Permission.INVENTORY_RECEIVE,
-        Permission.INVENTORY_ISSUE,
-        Permission.INVENTORY_APPROVE,
         Permission.POS_APPROVE_REVERSAL,
-        Permission.SHIFT_REVIEW,
-        Permission.MAINTENANCE_MANAGE,
-        Permission.PROCUREMENT_VIEW,
-        Permission.PROCUREMENT_REQUEST,
-        Permission.PROCUREMENT_APPROVE,
-        Permission.PROCUREMENT_APPROVE_PAYMENT,
-        Permission.PROCUREMENT_RECEIVE,
-        Permission.PROCUREMENT_PAY,
-        Permission.PROCUREMENT_MANAGE_SUPPLIERS,
-        Permission.COMMERCIAL_VIEW,
     }
     assert ROLE_PERMISSIONS[Role.ADMIN] == ROLE_PERMISSIONS[Role.MANAGER] | {
         Permission.MANAGE_EMPLOYEE_CREDENTIALS,
         Permission.MANAGE_STORES,
         Permission.SWITCH_STORE,
-        Permission.COMMERCIAL_MANAGE,
-        Permission.COMMERCIAL_RECONCILE,
     }
-    assert can(Role.STAFF, Permission.INVENTORY_COUNT)
-    assert not can(Role.STAFF, Permission.INVENTORY_ISSUE)
-    assert not can(Role.STAFF, Permission.INVENTORY_APPROVE)
+    assert ROLE_PERMISSIONS[Role.DIRECTOR] == {
+        Permission.MANAGE_STORES,
+        Permission.SWITCH_STORE,
+        Permission.VIEW_REVENUE,
+        Permission.VIEW_CUSTOMERS,
+        Permission.MANAGE_EMPLOYEES,
+        Permission.MANAGE_PROMOTIONS,
+        Permission.EXPORT_INVOICE,
+    }
+    assert can(Role.STAFF, Permission.POS_REQUEST_REVERSAL)
+    assert not can(Role.STAFF, Permission.POS_APPROVE_REVERSAL)
+    assert can(Role.MANAGER, Permission.POS_APPROVE_REVERSAL)

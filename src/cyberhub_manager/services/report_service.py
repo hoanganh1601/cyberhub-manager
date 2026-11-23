@@ -35,7 +35,7 @@ from cyberhub_manager.repositories.machine_repository import MachineRepository
 from cyberhub_manager.repositories.session_repository import SessionRepository
 from cyberhub_manager.services.db_errors import translate_db_errors
 from cyberhub_manager.repositories.p1_repository import P1Repository
-from cyberhub_manager.domain.p1 import Permission, can, chain_director
+from cyberhub_manager.domain.p1 import Permission, business_manager, can, chain_director
 
 ActorProvider = Callable[[], EmployeeSession | None]
 
@@ -44,6 +44,7 @@ INVOICE_ROLES = frozenset({Role.STAFF, Role.MANAGER, Role.ADMIN, Role.DIRECTOR})
 REVENUE_ROLES = frozenset({Role.MANAGER, Role.ADMIN, Role.DIRECTOR})
 REPORT_ROLES = INVOICE_ROLES  # giữ tên cũ cho code đang import
 REVENUE_VIEW_AUDIT = "REVENUE_VIEW"
+INVOICE_VOID_AUDIT = "INVOICE_VOID"
 AI_REVENUE_ANALYSIS_AUDIT = "AI_REVENUE_ANALYSIS"
 
 # Asia/Ho_Chi_Minh không có giờ mùa hè; tránh phụ thuộc gói tzdata trên Windows.
@@ -240,6 +241,71 @@ class ReportService:
             ),
             ended_at=session.ended_at,
             # SES-07: tính lại từ started_at/ended_at, cùng công thức với checkout.
+            billed_minutes=session.calculate_billed_minutes(session.ended_at),
+        )
+
+    def void_invoice(
+        self,
+        invoice_id: int,
+        actor: EmployeeSession,
+    ) -> InvoiceDetail:
+        """Hủy hóa đơn PAID sang VOID; chỉ quản lý cơ sở thực hiện và luôn ghi audit."""
+        if not _is_positive_id(invoice_id):
+            raise NotFoundError(INVOICE_NOT_FOUND)
+        if not isinstance(actor, EmployeeSession):
+            raise PermissionDeniedError()
+
+        with self._database() as conn:
+            current = self._require_actor(conn, REVENUE_ROLES)
+            if (
+                current.employee_id != actor.employee_id
+                or current.store_id != actor.store_id
+                or current.role != actor.role
+                or not business_manager(current.role)
+            ):
+                raise PermissionDeniedError()
+
+            invoice = self._invoices.get_by_id(conn, invoice_id, for_update=True)
+            if invoice is None:
+                raise NotFoundError(INVOICE_NOT_FOUND)
+            if invoice.store_id != current.store_id:
+                raise PermissionDeniedError(WRONG_STORE)
+
+            invoice.void()
+            if not self._invoices.void(conn, invoice_id):
+                raise ConflictError("Hóa đơn đã bị hủy")
+            self._audit.audit(conn, current, INVOICE_VOID_AUDIT, invoice_id)
+
+            summary = self._invoices.get_summary_by_id(conn, invoice_id)
+            if summary is None:
+                raise NotFoundError(INVOICE_NOT_FOUND)
+            session = self._sessions.get_by_id(conn, summary.session_id)
+            machine = (
+                None
+                if session is None
+                else self._machines.get_by_id(conn, session.machine_id)
+            )
+            customer = self._customers.get_by_id(conn, summary.customer_id)
+
+        if session is None or machine is None or customer is None or session.ended_at is None:
+            raise ConflictError(INCONSISTENT_INVOICE)
+
+        return InvoiceDetail(
+            invoice=summary,
+            session=SessionSummary(
+                session_id=session.id,
+                session_code=session.code,
+                customer_id=customer.id,
+                customer_code=customer.code,
+                customer_name=customer.full_name,
+                machine_id=machine.id,
+                machine_code=machine.code,
+                machine_name=machine.name,
+                started_at=session.started_at,
+                hourly_rate=session.hourly_rate,
+                status=session.status,
+            ),
+            ended_at=session.ended_at,
             billed_minutes=session.calculate_billed_minutes(session.ended_at),
         )
 

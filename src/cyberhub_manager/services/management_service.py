@@ -1,5 +1,6 @@
 """Store-scoped administration shared by both clients, including audit and RBAC."""
 
+from dataclasses import replace
 from datetime import datetime, timezone
 import re
 from uuid import uuid4

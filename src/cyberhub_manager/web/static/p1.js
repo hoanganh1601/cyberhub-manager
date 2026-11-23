@@ -34,6 +34,14 @@ Object.assign(copy, {
   registerAccount:["Đăng ký tài khoản","Create account"], registerTitle:["Tạo tài khoản khách hàng","Create customer account"],
   registerSub:["Tài khoản mới có số dư 0đ. Bạn có thể nạp tiền tại quầy sau khi đăng ký.","New accounts start with a zero balance. You can top up at the counter after registration."],
   registerSuccess:["Đăng ký thành công","Account created"], confirmation:["Xác nhận mật khẩu","Confirm password"],
+  employeeAccounts:["Tài khoản nhân viên","Employee accounts"],
+  employeeAccountsSub:["Tài khoản đăng nhập, vai trò và quyền truy cập hệ thống","Sign-in accounts, roles and system access"],
+  personnelProfiles:["Hồ sơ nhân sự","Personnel profiles"],
+  personnelProfilesSub:["Hồ sơ gốc theo chi nhánh · Admin cấp tài khoản từ hồ sơ chưa liên kết","Branch HR records · Admin issues credentials from unlinked profiles"],
+  accountLink:["Tài khoản liên kết","Linked account"],
+  accountPending:["Chưa cấp","Unlinked"],
+  issueAccount:["Cấp tài khoản","Issue account"],
+  allLinked:["Đã cấp đủ tài khoản","All profiles linked"],
 });
 const managementKinds = ["employees","promotions","stores"];
 const customerRoute = () => document.body.dataset.customerPortal === "true";
@@ -71,28 +79,71 @@ function installP1Shell() {
 function selectField(name,label,options,value){
   return `<label><span>${t(label)}</span><select name="${name}">${options.map(([key,text])=>`<option value="${esc(String(key))}" ${String(key)===String(value)?"selected":""}>${esc(text)}</option>`).join("")}</select><span class="field-error" data-error="${name}"></span></label>`;
 }
+function storeLabel(id){return (state.stores||[]).find(s=>s.id===id)?.code||t("global");}
+function roleBadge(role){
+  const tone=role==="ADMIN"?"cyan":role==="DIRECTOR"?"amber":role==="MANAGER"?"green":"";
+  return `<span class="badge ${tone}">${t(role.toLowerCase())}</span>`;
+}
 function managementPage(){
   const kind=state.page;const query=state.keyword.toLocaleLowerCase();
   const all=state.items;const items=all.filter(item=>Object.values(item).join(" ").toLocaleLowerCase().includes(query));
-  const storeName=id=>(state.stores||[]).find(s=>s.id===id)?.code||t("global");
+  const storeName=storeLabel;
   const headings=kind==="employees"?["fullName","username","role","store","status"]:kind==="stores"?["code","name","address","status"]:["policyName","minimum_amount","bonus_percent","period","scope","status"];
   const rows=items.map(item=>{
-    const vals=kind==="employees"?[esc(item.full_name),esc(item.username),t(item.role.toLowerCase()),esc(storeName(item.store_id)),`${badge(item.status)}${item.credential_update_required?`<small class="amber">${t("passwordPending")}</small>`:""}`]:kind==="stores"?[esc(item.code),esc(item.name),esc(item.address),badge(item.status)]:[`${esc(item.name)}<br><small>${esc(item.code)}</small>`,money(item.minimum_amount),item.bonus_percent+"%",`${dt(item.starts_at)}<br>${dt(item.ends_at)}`,esc(storeName(item.store_id)),t(item.is_active?"on":"off")];
+    const vals=kind==="employees"?[`<span class="table-name">${esc(item.full_name)}</span>`,`<span class="mono">${esc(item.username)}</span>`,roleBadge(item.role),`<span class="mono">${esc(storeName(item.store_id))}</span>`,`<div class="actions">${badge(item.status)}${item.credential_update_required?`<span class="badge amber">${t("passwordPending")}</span>`:""}</div>`]:kind==="stores"?[`<span class="table-code mono">${esc(item.code)}</span>`,`<span class="table-name">${esc(item.name)}</span>`,esc(item.address),badge(item.status)]:[`<span class="table-name">${esc(item.name)}</span><br><small class="table-code mono">${esc(item.code)}</small>`,money(item.minimum_amount),item.bonus_percent+"%",`${dt(item.starts_at)}<br>${dt(item.ends_at)}`,`<span class="mono">${esc(storeName(item.store_id))}</span>`,badge(item.is_active?"ACTIVE":"INACTIVE")];
     const editable=kind==="employees" ? (hasPermission("manage_employee_credentials") || hasPermission("manage_employees") && item.role!=="ADMIN" && (state.actor.role==="DIRECTOR" || item.role==="STAFF")) : kind==="stores" ? hasPermission("manage_stores") : hasPermission("manage_promotions") && (hasPermission("switch_store") || item.store_id===state.actor.store_id);
     const reset=kind==="employees"&&hasPermission("manage_employee_credentials")&&item.id!==state.actor.employee_id?`<button class="btn small" data-p1="reset-password" data-id="${item.id}">${icon("lock")}${t("resetPassword")}</button>`:"";
-    const assignment=kind==="employees"&&state.mode==="mysql"&&state.rbacPolicy==="separated"&&item.role==="MANAGER"&&hasPermission("manage_employee_credentials")?`<button class="btn small" data-p1="manager-assignment" data-id="${item.id}">${state.lang==="vi"?"Cơ sở được giao":"Store access"}</button>`:"";
-    return `<tr>${vals.map(v=>`<td>${v}</td>`).join("")}<td><div class="actions"><button class="btn small" data-p1="edit" data-id="${item.id}" ${editable?"":"disabled"}>${icon("edit")}${t("edit")}</button>${reset}${assignment}</div></td></tr>`;
+    const assignment=kind==="employees"&&state.mode==="mysql"&&state.rbacPolicy==="separated"&&item.role==="MANAGER"&&hasPermission("manage_employee_credentials")?`<button class="btn small" data-p1="manager-assignment" data-id="${item.id}">${icon("store")}${state.lang==="vi"?"Cơ sở được giao":"Store access"}</button>`:"";
+    return `<tr>${vals.map(v=>`<td>${v}</td>`).join("")}<td class="actions-col"><div class="actions"><button class="btn small" data-p1="edit" data-id="${item.id}" ${editable?"":"disabled"}>${icon("edit")}${t("edit")}</button>${reset}${assignment}</div></td></tr>`;
   }).join("");
+  const showProfiles = kind==="employees"&&state.mode==="mysql"&&state.rbacPolicy==="separated";
   const mayCreate = kind!=="employees" || state.rbacPolicy!=="separated" || hasPermission("manage_employee_credentials");
-  const profileButton = kind==="employees"&&state.mode==="mysql"&&state.rbacPolicy==="separated"&&hasPermission("manage_employees")
-    ? `<button class="btn" data-p1="profile-new">${icon("plus")}${state.lang==="vi"?"Hồ sơ nhân sự":"Personnel profile"}</button>` : "";
-  const pendingProfiles = kind==="employees"&&state.mode==="mysql"&&state.rbacPolicy==="separated"
-    ? `<section class="panel"><header class="panel-heading"><h3>${state.lang==="vi"?"Hồ sơ nhân sự":"Personnel profiles"}</h3></header>${(state.employeeProfiles||[]).length?table(["code","fullName","store","status","actions"],(state.employeeProfiles||[]).map(p=>`<tr><td>${esc(p.code)}</td><td>${esc(p.full_name)}</td><td>${esc(storeName(p.home_store_id))}</td><td>${badge(p.employment_status)}</td><td>${hasPermission("manage_employees")?`<button class="btn small" data-p1="profile-edit" data-id="${p.id}">${t("edit")}</button>`:"—"}</td></tr>`).join("")):empty()}</section>` : "";
+  const profileButton = showProfiles&&hasPermission("manage_employees")
+    ? `<button class="btn" data-p1="profile-new">${icon("plus")}${t("personnelProfiles")}</button>` : "";
+  const accountHeading = showProfiles
+    ? `<header class="panel-heading"><div class="panel-heading-copy"><h3>${t("employeeAccounts")}</h3><small class="muted">${t("employeeAccountsSub")}</small></div><span class="badge cyan">${items.length} / ${all.length}</span></header>` : "";
+  let pendingProfiles = "";
+  if(showProfiles){
+    const employeeById=new Map(all.map(e=>[e.id,e]));
+    const allProfiles=[...(state.employeeProfiles||[])].sort((a,b)=>{
+      const pa=!a.employee_id&&a.employment_status==="ACTIVE"?0:1;
+      const pb=!b.employee_id&&b.employment_status==="ACTIVE"?0:1;
+      if(pa!==pb)return pa-pb;
+      return a.id-b.id;
+    });
+    const pendingCount=allProfiles.filter(p=>!p.employee_id&&p.employment_status==="ACTIVE").length;
+    const profiles=allProfiles.filter(p=>{
+      if(!query)return true;
+      const linked=p.employee_id?employeeById.get(p.employee_id):null;
+      return [p.code,p.full_name,storeName(p.home_store_id),p.employment_status,linked?.username||""].join(" ").toLocaleLowerCase().includes(query);
+    });
+    const canEditProfile=hasPermission("manage_employees");
+    const canIssueAccount=hasPermission("manage_employee_credentials");
+    const showProfileActions=canEditProfile||(canIssueAccount&&profiles.some(p=>!p.employee_id&&p.employment_status==="ACTIVE"));
+    const profileHeaders=["code","fullName","store","status","accountLink",...(showProfileActions?["actions"]:[])];
+    const profileRows=profiles.map(p=>{
+      const linked=p.employee_id?employeeById.get(p.employee_id):null;
+      const accountCell=p.employee_id
+        ? `<span class="badge cyan">${icon("check")}${esc(linked?.username||`#${p.employee_id}`)}</span>`
+        : (p.employment_status==="ACTIVE"
+          ? `<span class="badge amber">${t("accountPending")}</span>`
+          : `<span class="muted">${t("accountPending")}</span>`);
+      const btns=[];
+      if(canEditProfile) btns.push(`<button class="btn small" data-p1="profile-edit" data-id="${p.id}">${icon("edit")}${t("edit")}</button>`);
+      if(canIssueAccount&&!p.employee_id&&p.employment_status==="ACTIVE") btns.push(`<button class="btn primary small" data-p1="issue-account" data-id="${p.id}">${icon("plus")}${t("issueAccount")}</button>`);
+      const actionCell=showProfileActions?`<td class="actions-col"><div class="actions">${btns.join("")}</div></td>`:"";
+      return `<tr><td><span class="table-code mono">${esc(p.code)}</span></td><td><span class="table-name">${esc(p.full_name)}</span></td><td><span class="mono">${esc(storeName(p.home_store_id))}</span></td><td>${badge(p.employment_status)}</td><td>${accountCell}</td>${actionCell}</tr>`;
+    }).join("");
+    const profileStatusBadge=pendingCount
+      ? `<span class="badge amber">${pendingCount} ${state.lang==="vi"?"chờ cấp tài khoản":"pending account"}</span>`
+      : `<span class="badge green">${icon("check")}${t("allLinked")}</span>`;
+    pendingProfiles=`<section class="panel"><header class="panel-heading"><div class="panel-heading-copy"><h3>${t("personnelProfiles")}</h3><small class="muted">${t("personnelProfilesSub")}</small></div><div class="actions"><span class="badge">${profiles.length} / ${allProfiles.length}</span>${profileStatusBadge}</div></header>${profiles.length?table(profileHeaders,profileRows):empty()}</section>`;
+  }
   return pageHead(profileButton+(mayCreate?`<button class="btn primary" data-p1="new">${icon("plus")}${t("addNew")}</button>`:""))+
-    `<section class="metrics">${metric("total",String(all.length),"cyan","chart")}${metric("active",String(all.filter(x=>x.status?x.status==="ACTIVE":x.is_active).length),"green","check")}</section><div class="toolbar"><input id="local-search" class="input search" value="${esc(state.keyword)}" placeholder="${t("search")}"><span class="spacer"></span><small>${t("manageNote")}</small></div><section class="panel">${items.length?table([...headings,"actions"],rows):empty()}</section>${pendingProfiles}`;
+    `<section class="metrics">${metric("total",String(all.length),"cyan","chart")}${metric("active",String(all.filter(x=>x.status?x.status==="ACTIVE":x.is_active).length),"green","check")}</section><div class="toolbar"><input id="local-search" class="input search" value="${esc(state.keyword)}" placeholder="${t("search")}"><span class="spacer"></span><small>${t("manageNote")}</small></div><section class="panel">${accountHeading}${items.length?table([...headings,"actions"],rows):empty()}</section>${pendingProfiles}`;
 }
 function vietnamInput(value){return new Date(new Date(value).getTime()+7*3600000).toISOString().slice(0,16);}
-function showManagement(item=null){
+function showManagement(item=null,presetProfileId=null){
   const kind=state.page, admin=state.actor.role==="ADMIN";
   const separated=state.rbacPolicy==="separated";
   const stores=(state.stores||[]).filter(x=>x.status==="ACTIVE").map(s=>[s.id,s.code+" · "+s.name]);
@@ -106,8 +157,8 @@ function showManagement(item=null){
     else if(separated && !item && credentials && state.mode==="mysql"){
       const pending=(state.employeeProfiles||[]).filter(p=>!p.employee_id&&p.employment_status==="ACTIVE");
       if(!pending.length){toast(state.lang==="vi"?"Cần tạo hồ sơ nhân sự trước khi cấp tài khoản":"Create a personnel profile first",true);return;}
-      const first=pending[0];
-      content=selectField("profile_id","fullName",pending.map(p=>[p.id,`${p.full_name} · ${storeName(p.home_store_id)}`]),first.id)
+      const first=(presetProfileId&&pending.find(p=>p.id===presetProfileId))||pending[0];
+      content=selectField("profile_id","fullName",pending.map(p=>[p.id,`${p.full_name} · ${storeLabel(p.home_store_id)}`]),first.id)
         +hidden("full_name",first.full_name)+hidden("store_id",first.home_store_id)
         +field("username","username","")+selectField("role","role",["ADMIN","DIRECTOR","MANAGER","STAFF","KITCHEN"].map(v=>[v,t(v.toLowerCase())]),"STAFF")+status()+field("password","password","","password");
     }
@@ -233,6 +284,7 @@ document.addEventListener("click",async event=>{
   const button=event.target.closest("[data-p1]");if(!button||button.disabled)return;
   const id=Number(button.dataset.id),action=button.dataset.p1;
   if(action==="new")showManagement();
+  if(action==="issue-account")showManagement(null,id);
   if(action==="profile-new")showEmployeeProfile();
   if(action==="profile-edit")showEmployeeProfile((state.employeeProfiles||[]).find(x=>x.id===id));
   if(action==="manager-assignment")showManagerAssignment(state.items.find(x=>x.id===id));

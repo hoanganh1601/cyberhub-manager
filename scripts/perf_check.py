@@ -97,7 +97,15 @@ def cleanup(conn) -> None:
         _run(conn, "DELETE FROM invoices WHERE store_id = %s", (sid,))
         _run(
             conn,
-            "DELETE t FROM account_transactions t JOIN employees e ON e.id = t.employee_id WHERE e.store_id = %s",
+            "DELETE st FROM session_transactions st"
+            " JOIN account_transactions t ON t.id = st.transaction_id"
+            " WHERE t.store_id = %s",
+            (sid,),
+        )
+        _run(conn, "DELETE FROM account_transactions WHERE store_id = %s", (sid,))
+        _run(
+            conn,
+            "DELETE au FROM active_usage_sessions au JOIN machines m ON m.id = au.machine_id WHERE m.store_id = %s",
             (sid,),
         )
         _run(
@@ -106,7 +114,12 @@ def cleanup(conn) -> None:
             (sid,),
         )
         _run(conn, "DELETE FROM machines WHERE store_id = %s", (sid,))
-        _run(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
+        _run(
+            conn,
+            "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+            (sid,),
+        )
+        _run(conn, "DELETE FROM employee_profiles WHERE home_store_id = %s", (sid,))
         _run(conn, "DELETE FROM stores WHERE id = %s", (sid,))
     _run(conn, "DELETE a FROM accounts a JOIN customers c ON c.id = a.customer_id WHERE c.code LIKE %s", (like,))
     _run(conn, "DELETE FROM customers WHERE code LIKE %s", (like,))

@@ -7,16 +7,32 @@ ALLOWED_RESET_DATABASES = frozenset({
     "cyberhub_manager_demo",
 })
 
-# Delete dependent records before their parent records.
+# Delete dependent records before their parent records across all 25 business tables.
 RESET_TABLES = (
+    "customer_notification_reads",
+    "customer_notification_events",
+    "pos_order_reversals",
+    "menu_order_pricing",
+    "menu_order_items",
+    "menu_orders",
+    "menu_promotion_versions",
+    "menu_promotions",
+    "menu_items",
+    "menu_categories",
     "invoices",
     "session_transactions",
     "account_transactions",
+    "active_usage_sessions",
     "usage_sessions",
+    "machine_room_types",
     "machines",
+    "promotions",
+    "management_audit",
+    "employee_store_assignments",
     "accounts",
     "customers",
     "employees",
+    "employee_profiles",
     "stores",
 )
 

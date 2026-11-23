@@ -129,8 +129,6 @@ class CustomerService:
         username: str,
         password: str,
     ) -> Customer:
-        if separated_rbac():
-            raise PermissionDeniedError("Đăng ký tại quầy cần email kích hoạt; nhân viên không đặt mật khẩu khách")
         return self._create_customer(full_name, phone, username, password, require_actor=True)
 
     @retry_on_transient

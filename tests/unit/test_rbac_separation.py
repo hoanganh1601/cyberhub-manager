@@ -60,7 +60,7 @@ def test_director_can_view_business_but_cannot_manage_credentials(app):
     assert "view_revenue" in data["permissions"]
     assert client.get("/api/revenue").status_code == 200
     assert client.get("/api/customers/1").status_code == 200
-    for path in ("/api/vouchers", "/api/games", "/api/ads"):
+    for path in ("/api/stores", "/api/promotions", "/api/employees"):
         assert client.get(path).status_code == 200, path
     assert client.get("/api/employees").status_code == 200
     target = next(e for e in client.get("/api/employees").json if e["role"] == "STAFF")
@@ -122,7 +122,7 @@ def test_personnel_profile_provisioning_and_manager_store_assignment(monkeypatch
         director, None, "RBAC-02", "CyberHub Secondary", "Hanoi", "ACTIVE"
     )
     profile = services.management.save_employee_profile(
-        director, None, other_store.id, "New Inventory Employee"
+        director, None, other_store.id, "New Kitchen Employee"
     )
     assert profile["employee_id"] is None
 
@@ -131,8 +131,8 @@ def test_personnel_profile_provisioning_and_manager_store_assignment(monkeypatch
         None,
         other_store.id,
         profile["full_name"],
-        "inventory.new",
-        "INVENTORY",
+        "kitchen.new",
+        "KITCHEN",
         "ACTIVE",
         "Temporary!2026",
         profile["id"],

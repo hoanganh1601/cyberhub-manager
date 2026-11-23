@@ -31,7 +31,5 @@
   {"case_id":"customer-game-coins","question":"Khách dùng xu game để đổi voucher MEMBER_POINTS như thế nào?","role":"CUSTOMER","language":"vi","expected_source":"customer/game-center.md","expected_keywords":["voucher"]},
   {"case_id":"customer-game-cash","question":"Xu game có đổi trực tiếp thành tiền mặt không?","role":"CUSTOMER","language":"vi","expected_source":"customer/game-center.md","expected_keywords":["không đổi"]},
   {"case_id":"kitchen-permissions","question":"KITCHEN chuyển đơn NEW sang PREPARING rồi SERVED như thế nào?","role":"KITCHEN","language":"vi","expected_source":"staff/kitchen-operation.md","expected_keywords":["PREPARING"]},
-  {"case_id":"inventory-permissions","question":"Thủ kho có được xem đơn gọi món và tự duyệt kiểm kê không?","role":"INVENTORY","language":"vi","expected_source":"staff/inventory-operation.md","expected_keywords":["không được xem"]},
-  {"case_id":"inventory-stale-count","question":"Nếu tồn kho thay đổi sau khi đề xuất kiểm kê thì xử lý thế nào?","role":"INVENTORY","language":"vi","expected_source":"staff/inventory-operation.md","expected_keywords":["kiểm kê lại"]},
   {"case_id":"admin-reset-password","question":"Admin đặt lại mật khẩu tạm cho nhân viên và hệ thống lưu mật khẩu thế nào?","role":"ADMIN","language":"vi","expected_source":"admin/employee-password-reset.md","expected_keywords":["hash"]}
 ]
