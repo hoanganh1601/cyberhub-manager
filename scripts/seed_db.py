@@ -360,3 +360,7 @@ def run_seed(expected_database: str | None = None) -> None:
 
     finally:
         connection.close()
+
+
+if __name__ == "__main__":
+    run_seed()
