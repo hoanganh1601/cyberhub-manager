@@ -72,7 +72,7 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "full_name": "Họ tên.",
             "username": "Tên đăng nhập, duy nhất, 4–30 ký tự.",
             "password_hash": "Mật khẩu đã băm bcrypt; không bao giờ trả ra UI/DTO.",
-            "role": "`ADMIN` / `DIRECTOR` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác.",
+            "role": "`ADMIN` / `DIRECTOR` / `MANAGER` / `STAFF` / `KITCHEN`; backend cấp quyền tối thiểu theo từng thao tác.",
             "status": "`ACTIVE` / `INACTIVE` / `LOCKED`. Chỉ ACTIVE đăng nhập được.",
             "auth_version": "Phiên bản xác thực; tăng khi đổi/đặt lại mật khẩu để thu hồi phiên cũ.",
             "must_change_password": "TRUE khi tài khoản đang dùng mật khẩu tạm và phải đổi trước khi thao tác.",
@@ -829,8 +829,8 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: các migration `sql/001_*.sql` đến `sql/027_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
-    w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/011_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng (`machine_room_types`), khóa phiên đang hoạt động (`active_usage_sessions`) và trạng thái đã đọc thông báo (`customer_notification_reads`) dùng `CASCADE` khi bản ghi cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")
     w("")
@@ -923,7 +923,7 @@ def build_markdown(conn: Any) -> str:
         extra_indexes = [i for i in indexes if i["t"] == t and i["name"] not in constraint_names and i["name"] != "PRIMARY"]
         if extra_indexes:
             w("")
-            w("Index bổ sung (`002_indexes.sql`):")
+            w("Index bổ sung (`007_indexes.sql`):")
             w("")
             for i in extra_indexes:
                 kind = "UNIQUE INDEX" if not i["non_unique"] else "INDEX"

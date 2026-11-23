@@ -3,8 +3,8 @@
 <!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;
      sửa DESCRIPTIONS trong script rồi chạy lại. -->
 
-Nguồn: các migration `sql/001_*.sql` đến `sql/027_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
-tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.
+Nguồn: các migration `sql/001_*.sql` đến `sql/011_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:
+tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng (`machine_room_types`), khóa phiên đang hoạt động (`active_usage_sessions`) và trạng thái đã đọc thông báo (`customer_notification_reads`) dùng `CASCADE` khi bản ghi cha được phép xóa.
 
 ## 1. Danh sách bảng
 
@@ -212,7 +212,7 @@ Ràng buộc:
 - CHECK `chk_customers_phone_format`: `regexp_like(phone,'^0[0-9]{9}$','c')`
 - CHECK `chk_customers_status`: `(status in ('ACTIVE','INACTIVE'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_customers_full_name` (`full_name`)
 
@@ -276,7 +276,7 @@ Ràng buộc:
 - CHECK `chk_machines_name_not_blank`: `(char_length(trim(name)) > 0)`
 - CHECK `chk_machines_status`: `(status in ('AVAILABLE','IN_USE','MAINTENANCE'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_machines_store_active_status` (`store_id, is_active, status`)
 
@@ -313,7 +313,7 @@ Ràng buộc:
 - CHECK `chk_usage_sessions_status`: `(status in ('ACTIVE','COMPLETED','CANCELLED'))`
 - CHECK `chk_usage_sessions_time_order`: `((ended_at is null) or (ended_at >= started_at))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_usage_sessions_customer_started_at` (`customer_id, started_at`)
 - INDEX `idx_usage_sessions_machine_started_at` (`machine_id, started_at`)
@@ -350,7 +350,7 @@ Ràng buộc:
 - CHECK `chk_account_transactions_type`: `(type in ('TOP_UP','PROMOTION','USAGE_PAYMENT','DEBT_SETTLEMENT'))`
 - CHECK `chk_account_transactions_type_method`: `(((type in ('TOP_UP','DEBT_SETTLEMENT')) and (method in ('CASH','TRANSFER'))) or ((type = 'USAGE_PAYMENT') and (method = 'ACCOUNT_BALANCE')) or ((type = 'PROMOTION') and (method = 'PROMOTION')))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_account_transactions_account_created_at` (`account_id, created_at`)
 
@@ -367,7 +367,7 @@ Ràng buộc:
 
 - PRIMARY KEY (`transaction_id`)
 - FOREIGN KEY `fk_session_transactions_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
-- FOREIGN KEY `fk_session_transactions_tx` (`transaction_id`) → `account_transactions` (`id`) ON UPDATE RESTRICT ON DELETE CASCADE
+- FOREIGN KEY `fk_session_transactions_tx` (`transaction_id`) → `account_transactions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 
 ### invoices
 
@@ -402,7 +402,7 @@ Ràng buộc:
 - CHECK `chk_invoices_settlement`: `(settlement_amount <= usage_cost)`
 - CHECK `chk_invoices_status`: `(status in ('PAID','VOID'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_invoices_customer_created_at` (`customer_id, created_at`)
 - INDEX `idx_invoices_store_status_created_at` (`store_id, status, created_at`)
@@ -433,7 +433,7 @@ Ràng buộc:
 - CHECK `chk_promotions_percent`: `(bonus_percent between 0 and 100)`
 - CHECK `chk_promotions_period`: `(ends_at > starts_at)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `ix_promotions_eligible` (`store_id, is_active, minimum_amount`)
 
@@ -508,7 +508,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_customer_notification_order` (`order_id`) → `menu_orders` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_customer_notification_order_status`: `(order_status in ('NEW','PREPARING','SERVED','PAID','CANCELLED','REFUNDED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_customer_notification_order_created` (`order_id, created_at, id`)
 
@@ -550,7 +550,7 @@ Ràng buộc:
 - CHECK `chk_menu_categories_page`: `(page in ('FOOD','DRINK'))`
 - CHECK `chk_menu_categories_sort`: `(sort_order between 0 and 9999)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_menu_categories_store_page` (`store_id, page, sort_order`)
 
@@ -580,7 +580,7 @@ Ràng buộc:
 - CHECK `chk_menu_items_price`: `(price between 1000 and 10000000)`
 - CHECK `chk_menu_items_sort`: `(sort_order between 0 and 9999)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_menu_items_category_sort` (`category_id, sort_order`)
 
@@ -617,7 +617,7 @@ Ràng buộc:
 - CHECK `chk_menu_orders_status`: `(status in ('NEW','PREPARING','SERVED','PAID','CANCELLED','REFUNDED'))`
 - CHECK `chk_menu_orders_total`: `(total_amount > 0)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_menu_orders_hold_expiry` (`status, reservation_expires_at, id`)
 - INDEX `idx_menu_orders_session_status` (`session_id, status, created_at`)
@@ -675,7 +675,7 @@ Ràng buộc:
 - CHECK `chk_pos_reversal_reason_not_blank`: `(char_length(trim(reason)) > 0)`
 - CHECK `chk_pos_reversal_status`: `(status in ('PENDING','APPROVED','REJECTED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_pos_reversal_status_id` (`status, id`)
 
@@ -705,7 +705,7 @@ Ràng buộc:
 - CHECK `chk_menu_promo_kind`: `(kind in ('BOGO','PLAY_DRINK'))`
 - CHECK `chk_menu_promo_period`: `(starts_at < ends_at)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung (`007_indexes.sql`):
 
 - INDEX `idx_menu_promo_active` (`store_id, is_active, starts_at, ends_at`)
 

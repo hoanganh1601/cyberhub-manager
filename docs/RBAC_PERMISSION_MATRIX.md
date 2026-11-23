@@ -4,10 +4,11 @@ Routes and services check both role and data scope. UI visibility is not an auth
 
 | Function | Typical roles | Main tables |
 |---|---|---|
-| Stores, employees, profiles, assignments | ADMIN, DIRECTOR, MANAGER as permitted | `stores`, `employees`, `employee_profiles`, `employee_store_assignments` |
-| Customers, accounts, wallet transactions | MANAGER or STAFF as permitted; customers read their own records | `customers`, `accounts`, `account_transactions`, `customer_store_links` |
-| Machines, rooms, usage, invoices | MANAGER or STAFF as permitted | `machines`, `machine_room_types`, `usage_sessions`, `invoices` |
-| Menu and POS | MANAGER, STAFF, KITCHEN as permitted | `menu_categories`, `menu_items`, `menu_orders`, `menu_order_items`, `menu_promotions`, `menu_order_pricing`, `pos_order_reversals` |
-| Administrative and customer security audit | The relevant administrative permission | `management_audit`, `customer_security_audit` |
+| Stores, employees, profiles, assignments | `ADMIN`, `DIRECTOR`, `MANAGER` as permitted | `stores`, `employee_profiles`, `employees`, `employee_store_assignments` |
+| Customers, accounts, wallet ledger, top-up offers | `DIRECTOR`, `MANAGER`, or `STAFF` as permitted; customers read/manage their own account | `customers`, `accounts`, `promotions`, `account_transactions`, `session_transactions` |
+| Machines, room types, sessions, invoices | `MANAGER` or `STAFF` as permitted (`MANAGER` / legacy `ADMIN` for voiding invoices) | `machines`, `machine_room_types`, `usage_sessions`, `active_usage_sessions`, `invoices` |
+| Menu, POS promotions, orders, reversals | `MANAGER`, `STAFF`, `KITCHEN` as permitted; customers place orders during active sessions | `menu_categories`, `menu_items`, `menu_orders`, `menu_order_items`, `menu_promotions`, `menu_promotion_versions`, `menu_order_pricing`, `pos_order_reversals` |
+| Customer order notifications | Customers (own active/past orders) | `customer_notification_events`, `customer_notification_reads` |
+| Administrative & operational audit | Written by backend on privileged/sensitive operations | `management_audit` |
 
-ADMIN manages access and system configuration. DIRECTOR operates across the chain. MANAGER operates within assigned stores. STAFF and KITCHEN have narrower operational permissions. Customers can access records owned by their own account.
+`ADMIN` manages credentials and system configuration. `DIRECTOR` operates across the chain. `MANAGER` operates within assigned stores. `STAFF` and `KITCHEN` have narrower operational permissions. Customers can access only records owned by their own account.
