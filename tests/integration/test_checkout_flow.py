@@ -14,8 +14,8 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database import connection
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.enums import (
     InvoiceStatus,
     PaymentMethod,
@@ -29,12 +29,12 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
     ServiceUnavailableError,
 )
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
-from cyberhub_manager.repositories.machine_repository import MachineRepository
-from cyberhub_manager.repositories.session_repository import SessionRepository
-from cyberhub_manager.services.session_service import (
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.invoice_repository import InvoiceRepository
+from cyberhub_manager.infrastructure.repositories.machine_repository import MachineRepository
+from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
+from cyberhub_manager.application.services.session_service import (
     NO_ACTIVE_SESSION,
     SessionService,
 )
@@ -87,17 +87,20 @@ def db():
 
         employee_ids = {}
         for role in Role:
+            profile_id = _execute(
+                conn,
+                "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+                (f"EMP-{role.value[:3]}-{token}", store_id, f"LI07 {role.value}"),
+            )
             employee_ids[role] = _execute(
                 conn,
                 """
                 INSERT INTO employees
-                    (code, store_id, full_name, username, password_hash, role)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (profile_id, username, password_hash, role)
+                VALUES (%s, %s, %s, %s)
                 """,
                 (
-                    f"EMP-{role.value[:3]}-{token}",
-                    store_id,
-                    f"LI07 {role.value}",
+                    profile_id,
                     f"li07.{role.value.lower()}.{token}",
                     "x",
                     role.value,
@@ -167,6 +170,15 @@ def db():
                 _execute(conn, "DELETE FROM invoices WHERE store_id = %s", (sid,))
             _execute(
                 conn,
+                """
+                DELETE st FROM session_transactions AS st
+                JOIN account_transactions AS t ON t.id = st.transaction_id
+                WHERE t.account_id = %s
+                """,
+                (account_id,),
+            )
+            _execute(
+                conn,
                 "DELETE FROM account_transactions WHERE account_id = %s",
                 (account_id,),
             )
@@ -184,7 +196,12 @@ def db():
             _execute(conn, "DELETE FROM accounts WHERE id = %s", (account_id,))
             _execute(conn, "DELETE FROM customers WHERE id = %s", (customer_id,))
             for sid in store_ids:
-                _execute(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
+                _execute(
+                    conn,
+                    "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (sid,),
+                )
+                _execute(conn, "DELETE FROM employee_profiles WHERE home_store_id = %s", (sid,))
                 _execute(conn, "DELETE FROM stores WHERE id = %s", (sid,))
 
 
@@ -220,10 +237,11 @@ def _transactions(db):
         try:
             cursor.execute(
                 """
-                SELECT type, amount, method, session_id, employee_id
-                FROM account_transactions
-                WHERE account_id = %s
-                ORDER BY id
+                SELECT t.type, t.amount, t.method, st.session_id, t.employee_id
+                FROM account_transactions AS t
+                LEFT JOIN session_transactions AS st ON st.transaction_id = t.id
+                WHERE t.account_id = %s
+                ORDER BY t.id
                 """,
                 (db.account_id,),
             )

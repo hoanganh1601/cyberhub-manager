@@ -1,7 +1,7 @@
 """Initialize the database using versioned SQL migrations."""
 import hashlib
 from pathlib import Path
-from cyberhub_manager.database.connection import get_connection
+from cyberhub_manager.infrastructure.database.connection import get_connection
 from mysql.connector.pooling import PooledMySQLConnection
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

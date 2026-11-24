@@ -32,12 +32,15 @@ TABLES = (
     "accounts",
     "machines",
     "usage_sessions",
+    "active_usage_sessions",
     "account_transactions",
+    "session_transactions",
     "invoices",
     "promotions",
     "management_audit",
     "customer_notification_reads",
     "machine_room_types",
+    "loyalty_policy_versions",
     "loyalty_settings",
     "customer_avatars",
     # Đợt 1 — menu đồ ăn/đồ uống
@@ -58,6 +61,7 @@ TABLES = (
     # Hoàn/hủy và khuyến mãi POS
     "pos_order_reversals",
     "menu_promotions",
+    "menu_promotion_versions",
     "menu_order_pricing",
     # Đợt 2 — voucher và phần thưởng
     "reward_catalog",
@@ -76,6 +80,7 @@ TABLES = (
     "ad_reward_events",
     # Ca/két tiền, bảo trì và mua hàng
     "cash_shifts",
+    "active_employee_shifts",
     "cash_shift_entries",
     "machine_incidents",
     "machine_incident_parts",
@@ -118,12 +123,10 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
         },
     ),
     "employees": (
-        "Nhân viên đăng nhập ứng dụng; vai trò quyết định quyền thao tác.",
+        "Thông tin xác thực và phân quyền đăng nhập của nhân viên; thông tin nhân sự thuộc `employee_profiles` (chuẩn 3NF NF-03).",
         {
-            "id": "Khóa chính.",
-            "code": "Mã nhân viên, duy nhất.",
-            "store_id": "Cửa hàng nhân viên làm việc.",
-            "full_name": "Họ tên.",
+            "id": "Khóa chính (dùng làm khóa tham chiếu lịch sử cho mọi chứng từ).",
+            "profile_id": "Hồ sơ nhân sự duy nhất (`employee_profiles.id`); UNIQUE nên mỗi hồ sơ gắn tối đa một tài khoản đăng nhập.",
             "username": "Tên đăng nhập, duy nhất, 4–30 ký tự.",
             "password_hash": "Mật khẩu đã băm bcrypt; không bao giờ trả ra UI/DTO.",
             "role": "`ADMIN` / `DIRECTOR` / `MANAGER` / `STAFF` / `KITCHEN` / `INVENTORY`; backend cấp quyền tối thiểu theo từng thao tác.",
@@ -179,7 +182,7 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
         },
     ),
     "usage_sessions": (
-        "Một lần khách dùng một máy, từ lúc mở đến lúc checkout.",
+        "Một lần khách dùng một máy, từ lúc mở đến lúc checkout; ràng buộc chiếm dụng đang hoạt động nằm tại `active_usage_sessions` (chuẩn 3NF).",
         {
             "id": "Khóa chính.",
             "code": "Mã phiên, duy nhất (`SS-` + hex).",
@@ -192,36 +195,49 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
             "hourly_rate": "Đơn giá chụp từ máy lúc mở phiên; đổi giá máy sau đó không ảnh hưởng phiên.",
             "cost": "Tiền phí tính lúc checkout (VND); NULL khi phiên ACTIVE.",
             "status": "`ACTIVE` / `COMPLETED` / `CANCELLED`.",
-            "active_machine_id": "Cột sinh tự động: `machine_id` khi ACTIVE, ngược lại NULL. UNIQUE ⇒ mỗi máy tối đa một phiên ACTIVE.",
-            "active_customer_id": "Cột sinh tự động: `customer_id` khi ACTIVE, ngược lại NULL. UNIQUE ⇒ mỗi khách tối đa một phiên ACTIVE.",
+        },
+    ),
+    "active_usage_sessions": (
+        "Bảng chiếm dụng 3NF ghi nhận các phiên đang ACTIVE; UNIQUE trên `machine_id` và `customer_id` thay cột sinh để chặn mở trùng.",
+        {
+            "session_id": "Phiên đang ACTIVE; PK/FK tới `usage_sessions.id` (tự đồng bộ qua trigger khi mở/đóng phiên).",
+            "machine_id": "Máy đang bị chiếm dụng; UNIQUE ⇒ mỗi máy tối đa một phiên ACTIVE.",
+            "customer_id": "Khách đang chơi; UNIQUE ⇒ mỗi khách tối đa một phiên ACTIVE.",
         },
     ),
     "account_transactions": (
-        "Sổ cái biến động số dư: mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; không sửa, không xóa.",
+        "Sổ cái biến động số dư bất biến (chuẩn 3NF, bảo vệ qua trigger `trg_account_transactions_bi/bu`): mọi lần cộng/trừ `accounts.balance` đều có đúng một dòng; liên kết phiên tách sang `session_transactions` (migration 032).",
         {
             "id": "Khóa chính.",
             "code": "Mã giao dịch, duy nhất (`TX-` + hex).",
             "account_id": "Tài khoản bị thay đổi số dư.",
             "employee_id": "Nhân viên thực hiện.",
-            "session_id": "Phiên liên quan (trừ phí, bù tiền lúc checkout); NULL với nạp tiền độc lập.",
             "type": "`TOP_UP` / `PROMOTION` / `USAGE_PAYMENT` / `DEBT_SETTLEMENT`.",
             "amount": "Số tiền có dấu (VND): dương khi cộng, âm khi `USAGE_PAYMENT`.",
             "method": "`CASH` / `TRANSFER` / `ACCOUNT_BALANCE` / `PROMOTION`, phải hợp với `type`.",
             "created_at": "Thời điểm ghi (UTC).",
         },
     ),
+    "session_transactions": (
+        "Bảng phân rã 3NF liên kết giao dịch ví (`USAGE_PAYMENT`, `DEBT_SETTLEMENT`) với phiên sử dụng máy; loại bỏ cột `session_id` nullable khỏi `account_transactions` (migration 032).",
+        {
+            "transaction_id": "Giao dịch sổ cái gắn với phiên; PK và FK tới `account_transactions.id`.",
+            "session_id": "Phiên sử dụng máy tương ứng (`usage_sessions.id`); khớp `account_id` và `store_id` qua trigger `trg_session_transactions_bi/bu`.",
+        },
+    ),
     "invoices": (
-        "Hóa đơn tạo khi checkout thành công; lưu lại khách, nhân viên, cửa hàng để giữ đúng lịch sử.",
+        "Hóa đơn tạo khi checkout thành công; khóa ứng viên `session_id` (UNIQUE), tham chiếu phiên bản chính sách điểm bất biến (`loyalty_policy_versions`). Các giá trị dẫn xuất (`total_amount`, `loyalty_eligible_amount`, `loyalty_points`, `loyalty_unit`) tính qua view `v_invoices`.",
         {
             "id": "Khóa chính.",
             "code": "Mã hóa đơn, duy nhất (`INV-` + hex).",
             "session_id": "Phiên được thanh toán; UNIQUE ⇒ mỗi phiên tối đa một hóa đơn.",
-            "customer_id": "Khách (lưu thẳng để báo cáo không phải đi qua phiên).",
+            "customer_id": "Khách (khớp `usage_sessions.customer_id` nhờ trigger `trg_invoices_bi/bu`).",
             "employee_id": "Nhân viên checkout.",
-            "store_id": "Cửa hàng; dùng cho báo cáo doanh thu.",
+            "store_id": "Cửa hàng (khớp `machines.store_id` của phiên nhờ trigger `trg_invoices_bi/bu`).",
             "usage_cost": "Phí sử dụng (VND). Doanh thu ngày = tổng `usage_cost` của hóa đơn PAID.",
-            "settlement_amount": "Phần tiền bù thực ghi nhận, bằng đúng `settlement_required` khi checkout; không phải tiền khách đưa, không cộng lần nữa vào doanh thu. Schema giới hạn ≤ `usage_cost`; nợ cũ âm phải nạp bù qua ví trước checkout.",
-            "total_amount": "Tổng hóa đơn; P0 luôn bằng `usage_cost` (tiền bù không cộng lần hai).",
+            "settlement_amount": "Phần tiền bù thực ghi nhận, bằng đúng `settlement_required` khi checkout; không cộng lần nữa vào doanh thu.",
+            "bonus_used": "Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout.",
+            "loyalty_rule_version": "FK tới `loyalty_policy_versions.version` chụp bất biến tại lúc lập hóa đơn.",
             "status": "`PAID` / `VOID`.",
             "created_at": "Thời điểm checkout (UTC); báo cáo quy đổi sang giờ Việt Nam (UTC+7).",
         },
@@ -229,15 +245,18 @@ DESCRIPTIONS: dict[str, tuple[str, dict[str, str]]] = {
 }
 
 
-DESCRIPTIONS["accounts"][1].update({"bonus_balance":"Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt.","cash_balance":"Cột sinh tự động: tổng balance trừ bonus_balance; số dư chính."})
-DESCRIPTIONS["accounts"][1]["auth_version"]="Phiên bản xác thực khách hàng; tăng khi đổi mật khẩu để thu hồi các phiên cũ."
+DESCRIPTIONS["accounts"][1]["bonus_balance"] = "Số dư khuyến mãi (VND), dùng trước, không quy đổi tiền mặt. Số dư chính `cash_balance` tính qua view `v_accounts`."
+DESCRIPTIONS["accounts"][1]["auth_version"] = "Phiên bản xác thực khách hàng; tăng khi đổi mật khẩu để thu hồi các phiên cũ."
 DESCRIPTIONS["employee_profiles"] = (
-    "Hồ sơ nhân sự độc lập với thông tin xác thực; DIRECTOR/MANAGER quản lý nghiệp vụ, ADMIN chỉ gắn/cấp tài khoản.",
+    "Nguồn sự thật duy nhất về hồ sơ nhân sự (mã, tên, cơ sở chính, trạng thái làm việc); độc lập với thông tin đăng nhập tại `employees` (chuẩn 3NF NF-03).",
     {
-        "id": "Khóa chính.", "employee_id": "Tài khoản nhân viên được gắn; NULL khi mới tạo hồ sơ, UNIQUE khi đã cấp tài khoản.",
-        "code": "Mã hồ sơ nhân sự, duy nhất.", "home_store_id": "Cơ sở công tác chính.",
-        "full_name": "Họ tên nhân sự.", "employment_status": "`ACTIVE` / `INACTIVE`, tách khỏi trạng thái khóa đăng nhập.",
-        "created_at": "Thời điểm tạo (UTC).", "updated_at": "Thời điểm sửa gần nhất (UTC).",
+        "id": "Khóa chính.",
+        "code": "Mã hồ sơ nhân sự, duy nhất.",
+        "home_store_id": "Cơ sở công tác chính.",
+        "full_name": "Họ tên nhân sự.",
+        "employment_status": "`ACTIVE` / `INACTIVE`, tách khỏi trạng thái khóa đăng nhập.",
+        "created_at": "Thời điểm tạo (UTC).",
+        "updated_at": "Thời điểm sửa gần nhất (UTC).",
     },
 )
 DESCRIPTIONS["employee_store_assignments"] = (
@@ -292,45 +311,57 @@ DESCRIPTIONS["customer_security_audit"] = (
         "action": "Tên sự kiện bảo mật.", "created_at": "Thời điểm ghi audit (UTC).",
     },
 )
-DESCRIPTIONS["pos_order_reversals"] = ("Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt.", {
-    "id":"Khóa chính.", "order_id":"Đơn POS; UNIQUE nên mỗi đơn có tối đa một yêu cầu hoàn/hủy.", "store_id":"Cơ sở xử lý.",
+DESCRIPTIONS["pos_order_reversals"] = ("Yêu cầu hoàn/hủy toàn bộ đơn POS có maker-checker và quyết định hoàn kho hoặc ghi hao hụt; cơ sở suy ra từ `menu_orders` qua `usage_sessions`→`machines` (NF-02).", {
+    "id":"Khóa chính.", "order_id":"Đơn POS; UNIQUE nên mỗi đơn có tối đa một yêu cầu hoàn/hủy.",
     "requested_by":"Nhân viên đề nghị.", "reason":"Lý do bắt buộc.", "disposition":"`RESTOCK` hoặc `WASTE`.",
-    "status":"`PENDING` / `APPROVED` / `REJECTED`.", "decided_by":"Quản lý quyết định; NULL khi đang chờ.",
+    "status":"`PENDING` / `APPROVED` / `REJECTED`.", "decided_by":"Quản lý quyết định (khác `requested_by`); NULL khi đang chờ.",
     "decided_at":"Thời điểm quyết định (UTC).", "refund_amount":"Số tiền hoàn VND.", "refund_method":"`CASH` / `TRANSFER`.",
     "refund_reference":"Tham chiếu giao dịch hoàn.", "created_at":"Thời điểm tạo (UTC).",
 })
-DESCRIPTIONS["menu_promotions"] = ("Chính sách khuyến mãi POS theo cơ sở; mỗi đơn chỉ chọn một ưu đãi xác định.", {
+DESCRIPTIONS["menu_promotions"] = ("Chính sách khuyến mãi POS hiện hành theo cơ sở; mỗi lần lưu tạo một phiên bản bất biến tại `menu_promotion_versions` (NF-04).", {
     "id":"Khóa chính.", "store_id":"Cơ sở áp dụng.", "code":"Mã duy nhất trong cơ sở.",
-    "kind":"`BOGO` / `PLAY_DRINK` / `TIER_PERCENT`.", "item_id":"Món áp dụng; NULL khi ưu đãi không gắn một món.",
+    "kind":"`BOGO` / `PLAY_DRINK` / `TIER_PERCENT`.", "item_id":"Món áp dụng (cùng cơ sở nhờ trigger); NULL khi ưu đãi không gắn một món.",
     "value":"Giá trị cấu hình theo loại ưu đãi.", "minimum_tier":"Hạng tối thiểu nếu có.",
     "starts_at":"Bắt đầu hiệu lực (UTC).", "ends_at":"Kết thúc hiệu lực (UTC).", "is_active":"Bật/tắt chính sách.",
 })
-DESCRIPTIONS["menu_order_pricing"] = ("Snapshot kết quả tính giá POS bất biến tại thời điểm đặt/thanh toán.", {
-    "order_id":"Đơn POS; khóa chính/FK.", "promotion_id":"Khuyến mãi được chọn; NULL nếu không áp dụng.",
-    "promotion_code":"Mã khuyến mãi chụp lại.", "promotion_kind":"Loại khuyến mãi chụp lại.",
-    "discount_amount":"Tổng giảm giá VND.", "final_amount":"Thành tiền sau giảm VND.",
-    "snapshot_json":"Chi tiết đầu vào và kết quả tính giá để audit.",
+DESCRIPTIONS["menu_promotion_versions"] = ("Phiên bản bất biến của chính sách khuyến mãi POS để hóa đơn/đơn hàng lịch sử tham chiếu đúng quy tắc đã áp dụng (NF-04).", {
+    "id":"Khóa chính.", "promotion_id":"Chính sách khuyến mãi cha.", "version":"Số phiên bản tăng dần (≥ 1); cùng `promotion_id` là UNIQUE.",
+    "code":"Mã khuyến mãi chụp tại phiên bản.", "kind":"Loại ưu đãi chụp tại phiên bản.",
+    "item_id":"Món áp dụng chụp tại phiên bản; NULL nếu không gắn món.", "value":"Giá trị ưu đãi chụp tại phiên bản.",
+    "minimum_tier":"Hạng tối thiểu chụp tại phiên bản.", "starts_at":"Bắt đầu hiệu lực (UTC).",
+    "ends_at":"Kết thúc hiệu lực (UTC).", "created_at":"Thời điểm tạo phiên bản (UTC).",
 })
-DESCRIPTIONS["cash_shifts"] = ("Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở.", {
+DESCRIPTIONS["menu_order_pricing"] = ("Kết quả định giá POS dạng cấu trúc chuẩn 3NF (không còn `snapshot_json` hay cột dẫn xuất `final_amount`, đọc qua `v_menu_order_pricing`).", {
+    "order_id":"Đơn POS; khóa chính/FK.", "promotion_version_id":"Phiên bản khuyến mãi bất biến đã chọn; NULL nếu không áp dụng.",
+    "applied_source":"Nguồn ưu đãi đang hiệu lực: `NONE` / `PROMOTION` / `VOUCHER`.",
+    "member_tier":"Hạng thành viên tại lúc đặt đơn (`BRONZE` / `SILVER` / `GOLD` / `PLATINUM`).",
+    "discount_amount":"Số tiền giảm từ khuyến mãi POS (VND).", "voucher_id":"Voucher đồ ăn/đồ uống đã áp nếu có.",
+    "voucher_discount_amount":"Số tiền giảm từ voucher (VND).",
+})
+DESCRIPTIONS["cash_shifts"] = ("Ca làm việc và đối chiếu két tiền của một nhân viên tại một cơ sở; chênh lệch `variance` tính qua `v_cash_shifts`, chiếm dụng ca mở nằm tại `active_employee_shifts`.", {
     "id":"Khóa chính.", "code":"Mã ca duy nhất.", "store_id":"Cơ sở mở ca.", "employee_id":"Nhân viên chịu trách nhiệm ca.",
     "status":"`OPEN` / `PENDING_REVIEW` / `CLOSED`.", "opening_cash":"Tiền mặt đầu ca.", "expected_cash":"Tiền mặt hệ thống tính cuối ca.",
-    "counted_cash":"Tiền mặt thực đếm cuối ca.", "variance":"Chênh lệch thực tế trừ hệ thống.", "opened_at":"Thời điểm mở ca (UTC).",
-    "submitted_at":"Thời điểm nhân viên nộp đối chiếu (UTC).", "closed_at":"Thời điểm đóng ca (UTC).", "reviewed_by":"Quản lý duyệt chênh lệch.",
-    "review_note":"Ghi chú duyệt.", "active_employee_id":"Cột sinh giữ employee_id khi ca còn OPEN/PENDING_REVIEW; UNIQUE ngăn mở hai ca đồng thời.",
+    "counted_cash":"Tiền mặt thực đếm cuối ca.", "opened_at":"Thời điểm mở ca (UTC).",
+    "submitted_at":"Thời điểm nhân viên nộp đối chiếu (UTC).", "closed_at":"Thời điểm đóng ca (UTC).", "reviewed_by":"Quản lý duyệt chênh lệch (khác `employee_id`).",
+    "review_note":"Ghi chú duyệt.",
 })
-DESCRIPTIONS["cash_shift_entries"] = ("Sổ bất biến thu, chi, hoàn và điều chỉnh theo ca; chống ghi trùng bằng nguồn nghiệp vụ.", {
-    "id":"Khóa chính.", "shift_id":"Ca sở hữu bút toán.", "store_id":"Cơ sở phát sinh.", "employee_id":"Nhân viên ghi nhận.",
+DESCRIPTIONS["active_employee_shifts"] = ("Bảng chiếm dụng 3NF bảo đảm mỗi nhân viên chỉ có tối đa một ca `OPEN`/`PENDING_REVIEW` cùng lúc (thay cột sinh `active_employee_id`).", {
+    "shift_id":"Ca đang mở hoặc chờ duyệt; PK/FK tới `cash_shifts.id` (tự đồng bộ qua trigger).",
+    "employee_id":"Nhân viên đang mở ca; UNIQUE ⇒ không thể mở đồng thời hai ca.",
+})
+DESCRIPTIONS["cash_shift_entries"] = ("Sổ bất biến thu, chi, hoàn và điều chỉnh theo ca; cơ sở suy ra từ `cash_shifts.store_id` (NF-02).", {
+    "id":"Khóa chính.", "shift_id":"Ca sở hữu bút toán.", "employee_id":"Nhân viên ghi nhận.",
     "kind":"`RECEIPT` / `EXPENSE` / `REFUND` / `ADJUSTMENT_IN` / `ADJUSTMENT_OUT`.", "payment_method":"`CASH` / `TRANSFER`.",
     "amount":"Số tiền dương (VND).", "source_type":"Loại chứng từ nguồn.", "source_id":"Mã nguồn; kết hợp phương thức thanh toán để chống ghi trùng.",
     "note":"Ghi chú nghiệp vụ.", "created_at":"Thời điểm ghi sổ (UTC).",
 })
-DESCRIPTIONS["machine_incidents"] = ("Phiếu sự cố và vòng đời bảo trì máy từ báo lỗi đến nghiệm thu.", {
-    "id":"Khóa chính.", "code":"Mã sự cố duy nhất.", "store_id":"Cơ sở có máy lỗi.", "machine_id":"Máy gặp sự cố.",
+DESCRIPTIONS["machine_incidents"] = ("Phiếu sự cố và vòng đời bảo trì máy từ báo lỗi đến nghiệm thu; cơ sở suy ra từ `machines.store_id` (NF-02).", {
+    "id":"Khóa chính.", "code":"Mã sự cố duy nhất.", "machine_id":"Máy gặp sự cố.",
     "reported_by":"Người báo lỗi.", "assigned_to":"Người được phân công; có thể NULL trước khi phân công.", "severity":"`LOW` / `MEDIUM` / `HIGH` / `CRITICAL`.",
     "status":"`REPORTED` / `ASSIGNED` / `IN_PROGRESS` / `WAITING_PARTS` / `COMPLETED` / `VERIFIED` / `CANCELLED`.",
     "title":"Tiêu đề ngắn.", "description":"Mô tả lỗi.", "resolution":"Kết quả xử lý.", "labor_cost":"Chi phí nhân công.", "parts_cost":"Chi phí linh kiện.",
     "reported_at":"Thời điểm báo (UTC).", "started_at":"Thời điểm bắt đầu sửa (UTC).", "completed_at":"Thời điểm hoàn thành sửa (UTC).",
-    "verified_at":"Thời điểm nghiệm thu (UTC).", "verified_by":"Người nghiệm thu.",
+    "verified_at":"Thời điểm nghiệm thu (UTC).", "verified_by":"Người nghiệm thu (khác `assigned_to`).",
 })
 DESCRIPTIONS["machine_incident_parts"] = ("Linh kiện sử dụng cho một phiếu sửa máy.", {
     "id":"Khóa chính.", "incident_id":"Phiếu sự cố.", "name":"Tên linh kiện.", "quantity":"Số lượng.", "unit_cost":"Đơn giá VND.",
@@ -344,43 +375,37 @@ DESCRIPTIONS["suppliers"] = ("Nhà cung cấp theo cơ sở và điều khoản 
     "phone":"Số điện thoại.", "email":"Email liên hệ.", "address":"Địa chỉ.", "payment_terms_days":"Số ngày công nợ.",
     "is_active":"FALSE khi ngừng giao dịch mới.", "created_at":"Thời điểm tạo (UTC).",
 })
-DESCRIPTIONS["purchase_requests"] = ("Đề nghị nhập hàng có người lập và người quyết định.", {
+DESCRIPTIONS["purchase_requests"] = ("Đề nghị nhập hàng có người lập và người quyết định (tách nhiệm vụ `decided_by <> requested_by`).", {
     "id":"Khóa chính.", "code":"Mã đề nghị duy nhất.", "store_id":"Cơ sở đề nghị.", "requested_by":"Người lập.",
     "status":"`PENDING` / `APPROVED` / `REJECTED` / `ORDERED`.", "reason":"Lý do nhập.", "decided_by":"Người duyệt/từ chối.",
     "decided_at":"Thời điểm quyết định (UTC).", "created_at":"Thời điểm tạo (UTC).",
 })
 DESCRIPTIONS["purchase_request_lines"] = ("Nguyên liệu và số lượng trong đề nghị nhập.", {
-    "request_id":"Đề nghị; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu; phần thứ hai khóa chính.", "quantity":"Số lượng đề nghị.",
+    "request_id":"Đề nghị; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu (cùng cơ sở nhờ trigger); phần thứ hai khóa chính.", "quantity":"Số lượng đề nghị.",
 })
-DESCRIPTIONS["purchase_orders"] = ("Đơn mua hàng tạo từ đề nghị đã duyệt và gắn nhà cung cấp.", {
-    "id":"Khóa chính.", "code":"Mã đơn mua duy nhất.", "store_id":"Cơ sở mua.", "request_id":"Đề nghị nguồn; UNIQUE.",
-    "supplier_id":"Nhà cung cấp.", "created_by":"Người tạo đơn.", "status":"`OPEN` / `PARTIALLY_RECEIVED` / `RECEIVED` / `CANCELLED`.",
+DESCRIPTIONS["purchase_orders"] = ("Đơn mua hàng tạo từ đề nghị đã duyệt và gắn nhà cung cấp; cơ sở suy ra từ `purchase_requests.store_id` (NF-02).", {
+    "id":"Khóa chính.", "code":"Mã đơn mua duy nhất.", "request_id":"Đề nghị nguồn; UNIQUE.",
+    "supplier_id":"Nhà cung cấp (cùng cơ sở với đề nghị nhờ trigger).", "created_by":"Người tạo đơn.", "status":"`OPEN` / `PARTIALLY_RECEIVED` / `RECEIVED` / `CANCELLED`.",
     "ordered_at":"Thời điểm đặt (UTC).", "expected_at":"Thời điểm dự kiến nhận (UTC).", "total_amount":"Tổng giá trị VND.",
 })
 DESCRIPTIONS["purchase_order_lines"] = ("Dòng đơn mua và tiến độ nhận theo nguyên liệu.", {
-    "order_id":"Đơn mua; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu; phần thứ hai khóa chính.", "quantity":"Số lượng đặt.",
+    "order_id":"Đơn mua; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu (cùng cơ sở nhờ trigger); phần thứ hai khóa chính.", "quantity":"Số lượng đặt.",
     "unit_cost":"Đơn giá nhập.", "received_quantity":"Số lượng đã nhận đạt.", "damaged_quantity":"Số lượng đã nhận hỏng.",
 })
-DESCRIPTIONS["goods_receipts"] = ("Phiếu nhận hàng idempotent, tạo nhập kho và công nợ theo số lượng đạt.", {
-    "id":"Khóa chính.", "code":"Mã phiếu nhận duy nhất.", "order_id":"Đơn mua.", "store_id":"Cơ sở nhận.", "received_by":"Người nhận.",
+DESCRIPTIONS["goods_receipts"] = ("Phiếu nhận hàng idempotent, tạo nhập kho và công nợ theo số lượng đạt; cơ sở suy ra từ `purchase_orders`→`purchase_requests` (NF-02).", {
+    "id":"Khóa chính.", "code":"Mã phiếu nhận duy nhất.", "order_id":"Đơn mua.", "received_by":"Người nhận.",
     "request_id":"Khóa idempotency của yêu cầu nhận.", "note":"Ghi chú.", "received_at":"Thời điểm nhận (UTC).", "accepted_amount":"Giá trị hàng đạt được nhận.",
 })
 DESCRIPTIONS["goods_receipt_lines"] = ("Chi tiết hàng đạt, hỏng và thiếu trong một lần nhận.", {
-    "receipt_id":"Phiếu nhận; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu; phần thứ hai khóa chính.",
+    "receipt_id":"Phiếu nhận; phần thứ nhất khóa chính.", "ingredient_id":"Nguyên liệu (cùng cơ sở nhờ trigger); phần thứ hai khóa chính.",
     "accepted_quantity":"Số lượng đạt nhập kho.", "damaged_quantity":"Số lượng hỏng.", "missing_quantity":"Số lượng thiếu.", "unit_cost":"Đơn giá chụp khi nhận.",
 })
-DESCRIPTIONS["supplier_payables"] = ("Công nợ phát sinh từ phiếu nhận hàng và trạng thái thanh toán.", {
-    "id":"Khóa chính.", "receipt_id":"Phiếu nhận nguồn; UNIQUE.", "supplier_id":"Nhà cung cấp.", "store_id":"Cơ sở chịu công nợ.",
+DESCRIPTIONS["supplier_payables"] = ("Công nợ phát sinh từ phiếu nhận hàng và trạng thái thanh toán; cơ sở và nhà cung cấp suy ra từ `goods_receipts`→`purchase_orders`→`purchase_requests` (NF-02).", {
+    "id":"Khóa chính.", "receipt_id":"Phiếu nhận nguồn; UNIQUE.",
     "amount":"Tổng phải trả.", "paid_amount":"Số đã trả.", "due_date":"Hạn thanh toán.", "status":"`UNPAID` / `PAID`.",
-    "paid_at":"Thời điểm thanh toán (UTC).", "paid_by":"Người thanh toán.", "payment_method":"`CASH` / `TRANSFER`; NULL khi chưa trả.",
+    "paid_at":"Thời điểm thanh toán (UTC).", "paid_by":"Người thanh toán (khác người duyệt nhờ trigger).", "payment_method":"`CASH` / `TRANSFER`; NULL khi chưa trả.",
 })
-DESCRIPTIONS["invoices"][1].update({
-    "loyalty_eligible_amount":"Phí trả bằng tiền chính/tiền bù (không gồm bonus_used), chụp khi lập hóa đơn; chỉ cộng PAID vào xét hạng.",
-    "loyalty_points":"Điểm chụp lúc lập hóa đơn; chỉ cộng PAID, VOID có hiệu lực 0 điểm. Không đổi ra tiền.",
-    "loyalty_unit":"Số VND hợp lệ cho một điểm tại thời điểm hóa đơn, không đổi khi cập nhật cấu hình.",
-    "loyalty_rule_version":"Phiên bản cấu hình tại lúc lập hóa đơn."})
-DESCRIPTIONS["invoices"][1]["bonus_used"] = "Phần phí sử dụng trừ từ khuyến mãi, chụp tại checkout."
-DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh.","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
+DESCRIPTIONS["account_transactions"][1].update({"store_id":"Cơ sở ghi nhận giao dịch tại thời điểm phát sinh (NOT NULL sau migration 032).","promotion_id":"Chính sách thưởng đã áp dụng, NULL với giao dịch thường."})
 DESCRIPTIONS["promotions"] = ("Chính sách thưởng theo mốc nạp, phạm vi và thời gian.",{
     "id":"Khóa chính.","code":"Mã chính sách duy nhất.","name":"Tên chính sách.","store_id":"Cơ sở áp dụng; NULL = toàn hệ thống.",
     "minimum_amount":"Mốc tiền nạp tối thiểu (VND).","bonus_percent":"Phần trăm thưởng, số nguyên 0–100.",
@@ -402,11 +427,26 @@ DESCRIPTIONS["promotions"][1].update({
     "minimum_tier":"Hạng tối thiểu (BRONZE/SILVER/GOLD/PLATINUM); mặc định BRONZE.",
     "minimum_points":"Điểm được tính tối thiểu để đủ đối tượng ưu đãi; không tiêu điểm.",
     "target_customer_id":"Khách nhận riêng; NULL áp dụng cho mọi khách đủ các điều kiện còn lại."})
-DESCRIPTIONS["loyalty_settings"]=("Cấu hình toàn hệ thống, một dòng id=1; chỉ Admin được sửa, có version chống ghi đè.",{
-    "id":"Singleton id=1.","enabled":"Bật/tắt tích điểm cho hóa đơn mới, không xóa điểm cũ hoặc ngừng xét chi tiêu hạng.",
-    "unit_amount":"VND hợp lệ / 1 điểm, làm tròn xuống theo từng hóa đơn.","silver_spend":"Mốc chi tiêu hợp lệ hạng Bạc.",
-    "gold_spend":"Mốc chi tiêu hợp lệ hạng Vàng.","platinum_spend":"Mốc chi tiêu hợp lệ hạng Kim cương (mã PLATINUM).",
-    "version":"Tăng sau mỗi lần cập nhật, được chụp vào hóa đơn mới.","updated_at":"Thời điểm cập nhật UTC."})
+DESCRIPTIONS["loyalty_policy_versions"] = (
+    "Phiên bản bất biến của chính sách tích điểm và xét hạng thành viên; hóa đơn lịch sử tham chiếu đúng version đã áp dụng (NF-01/NF-04).",
+    {
+        "version": "Khóa chính — số phiên bản tăng dần (≥ 1).",
+        "enabled": "Bật/tắt tích điểm cho hóa đơn mới thuộc phiên bản này.",
+        "unit_amount": "VND hợp lệ / 1 điểm, làm tròn xuống theo từng hóa đơn.",
+        "silver_spend": "Mốc chi tiêu hợp lệ hạng Bạc.",
+        "gold_spend": "Mốc chi tiêu hợp lệ hạng Vàng.",
+        "platinum_spend": "Mốc chi tiêu hợp lệ hạng Kim cương (mã PLATINUM).",
+        "created_at": "Thời điểm ban hành phiên bản (UTC).",
+    },
+)
+DESCRIPTIONS["loyalty_settings"] = (
+    "Con trỏ singleton (id=1) trỏ tới phiên bản chính sách tích điểm đang hiệu lực; chỉ Admin được cập nhật kèm khóa lạc quan theo version.",
+    {
+        "id": "Singleton id=1.",
+        "current_version": "FK tới `loyalty_policy_versions.version` đang áp dụng.",
+        "updated_at": "Thời điểm cập nhật con trỏ gần nhất (UTC).",
+    },
+)
 DESCRIPTIONS["customer_avatars"]=("Ảnh đại diện riêng theo tài khoản; WebP 512×512 đã chuẩn hóa, không giữ tên file hay metadata gốc.",{
     "account_id":"Tài khoản sở hữu ảnh; PK/FK, CASCADE chỉ dọn ảnh khi tài khoản được phép xóa.",
     "image_data":"Nội dung WebP tối đa 300.000 byte sau chuẩn hóa.","digest":"SHA-256 của nội dung ảnh chuẩn hóa.",
@@ -418,9 +458,9 @@ DESCRIPTIONS["menu_categories"] = ("Nhóm món theo cơ sở, xếp vào trang �
     "page": "`FOOD` (trang 1) / `DRINK` (trang 2) của menu sách lật.",
     "name": "Tên nhóm, duy nhất trong một cơ sở.", "sort_order": "Thứ tự hiển thị 0–9999, nhỏ đứng trước.",
     "is_active": "FALSE thì toàn bộ món trong nhóm bị ẩn với khách.", "created_at": "Thời điểm tạo (UTC)."})
-DESCRIPTIONS["menu_items"] = ("Món ăn/đồ uống của cơ sở; không xóa cứng, chỉ ẩn để giữ lịch sử gọi món.", {
-    "id": "Khóa chính.", "store_id": "Cơ sở bán món; menu khác nhau giữa các cơ sở.",
-    "category_id": "Nhóm món; service bảo đảm cùng cơ sở với món.",
+DESCRIPTIONS["menu_items"] = ("Món ăn/đồ uống của cơ sở; cơ sở suy ra từ `menu_categories.store_id` (NF-02), tên món duy nhất toàn cơ sở qua trigger `trg_menu_items_bi/bu`.", {
+    "id": "Khóa chính.",
+    "category_id": "Nhóm món (xác định cơ sở bán món).",
     "name": "Tên món, duy nhất trong một cơ sở.", "description": "Mô tả ngắn hiển thị cho khách.",
     "price": "Giá bán (VND, 1.000–10.000.000); backend đọc lại khi khách đặt.",
     "sort_order": "Thứ tự trong nhóm.", "is_visible": "FALSE = ẩn khỏi menu khách.",
@@ -435,13 +475,12 @@ DESCRIPTIONS["menu_item_changes"] = ("Lịch sử thay đổi giá, tên, nhóm,
     "field": "`CREATE` / `NAME` / `CATEGORY` / `PRICE` / `AVAILABLE` / `VISIBLE` / `IMAGE`.",
     "old_value": "Giá trị cũ (dạng chữ), NULL khi tạo mới.", "new_value": "Giá trị mới (dạng chữ).",
     "created_at": "Thời điểm thay đổi (UTC)."})
-DESCRIPTIONS["menu_orders"] = ("Đơn POS đồ ăn/thức uống của khách đang chơi; thanh toán tại quầy, không trừ ví giờ chơi.", {
+DESCRIPTIONS["menu_orders"] = ("Đơn POS đồ ăn/thức uống của khách đang chơi; cơ sở, máy và tài khoản suy ra từ `usage_sessions` (NF-02), đọc đầy đủ qua `v_menu_orders`.", {
     "id": "Khóa chính.", "code": "Mã yêu cầu, duy nhất (`ORD-` + hex).",
-    "store_id": "Cơ sở của máy đang dùng.", "account_id": "Tài khoản khách đặt món.",
-    "session_id": "Phiên ACTIVE lúc đặt.", "machine_id": "Máy giao món tới.",
+    "session_id": "Phiên ACTIVE lúc đặt (xác định khách, máy và cơ sở phục vụ).",
     "note": "Ghi chú của khách (≤ 200 ký tự).", "total_amount": "Tổng tiền theo giá chụp lúc đặt (VND).",
-    "status": "`NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED`.", "handled_by": "Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW.",
-    "payment_method": "`CASH` / `TRANSFER` khi đã thanh toán; NULL trước đó.",
+    "status": "`NEW` / `PREPARING` / `SERVED` / `PAID` / `CANCELLED` / `REFUNDED`.", "handled_by": "Nhân viên tiếp nhận/phục vụ/hủy; NULL khi còn NEW.",
+    "payment_method": "`CASH` / `TRANSFER` khi đã thanh toán (bắt buộc NOT NULL); NULL trước đó.",
     "paid_at": "Thời điểm thanh toán tại quầy (UTC).", "paid_by": "Nhân viên xác nhận thanh toán.",
     "cancel_reason": "Lý do hủy đơn; giữ được cả với đơn cũ chưa có ảnh chụp công thức.",
     "reservation_expires_at": "Hạn giữ tồn cho đơn mới (UTC); tác vụ timeout dùng để giải phóng idempotent.",
@@ -484,10 +523,9 @@ DESCRIPTIONS["menu_order_recipe_snapshots"] = (
     },
 )
 DESCRIPTIONS["inventory_movements"] = (
-    "Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh.",
+    "Sổ cái kho bất biến: nhập, giữ chỗ, hoàn giữ chỗ, tiêu thụ, hao hụt, trả và điều chỉnh; cơ sở suy ra từ `inventory_ingredients.store_id` (NF-02).",
     {
         "id": "Khóa chính.",
-        "store_id": "Cửa hàng phát sinh; cùng `ingredient_id` bảo đảm nguyên liệu đúng cửa hàng.",
         "ingredient_id": "Nguyên liệu bị thay đổi.",
         "order_id": "Đơn POS liên quan; NULL với nhập/kiểm kê độc lập.",
         "employee_id": "Nhân viên thực hiện hoặc phê duyệt; NULL với tác vụ hệ thống.",
@@ -503,10 +541,9 @@ DESCRIPTIONS["inventory_movements"] = (
     },
 )
 DESCRIPTIONS["inventory_counts"] = (
-    "Phiếu kiểm kê đề xuất; người khác có thẩm quyền phải phê duyệt trước khi tạo điều chỉnh kho.",
+    "Phiếu kiểm kê đề xuất; cơ sở suy ra từ `inventory_ingredients.store_id` (NF-02), người phê duyệt bắt buộc khác `proposed_by` (CHECK SoD).",
     {
         "id": "Khóa chính.",
-        "store_id": "Cửa hàng kiểm kê; cùng `ingredient_id` khóa đúng nguyên liệu.",
         "ingredient_id": "Nguyên liệu được kiểm kê.",
         "request_id": "Khóa yêu cầu duy nhất để chống tạo phiếu trùng.",
         "expected_on_hand": "Tồn thực tế hệ thống tại lúc đề xuất.",
@@ -583,7 +620,7 @@ DESCRIPTIONS["game_wallets"] = ("Ví xu game của tài khoản; xu không phả
 DESCRIPTIONS["game_sessions"] = ("Lịch sử từng lượt quay; kết quả do máy chủ bốc thăm và được chụp lại.", {
     "id": "Khóa chính.", "account_id": "Tài khoản chơi.", "game_id": "Game.",
     "prize_index": "Ô trúng (chụp).", "prize_label": "Nhãn ô trúng (chụp).", "coins": "Xu nhận được (chụp).",
-    "played_on": "Ngày chơi theo giờ Việt Nam, dùng đếm lượt.", "created_at": "Thời điểm quay (UTC)."})
+    "created_at": "Thời điểm quay (UTC); ngày nghiệp vụ UTC+7 được suy ra khi đọc."})
 DESCRIPTIONS["game_coin_ledger"] = ("Sổ cái xu: mọi thay đổi số dư xu có đúng một dòng; chỉ thêm.", {
     "id": "Khóa chính.", "account_id": "Tài khoản.", "delta": "Số xu cộng (+) hoặc trừ (−), khác 0.",
     "reason": "`PLAY` / `REDEEM` / `AD` / `ADJUST`.",
@@ -607,7 +644,7 @@ DESCRIPTIONS["ad_reward_events"] = ("Mỗi lần bắt đầu xem quảng cáo; 
     "account_id": "Tài khoản xem.", "creative_id": "Nội dung đã phát.", "provider": "`HOUSE` / `NETWORK`.",
     "reward_type": "Loại thưởng (chụp từ cấu hình).", "reward_amount": "Số lượng thưởng (chụp).",
     "status": "`ISSUED` / `COMPLETED` / `REJECTED`; hết hạn suy ra từ `expires_at`.",
-    "played_on": "Ngày theo giờ Việt Nam, dùng giới hạn mỗi ngày.", "issued_at": "Thời điểm cấp token (UTC).",
+    "issued_at": "Thời điểm cấp token (UTC); ngày nghiệp vụ UTC+7 được suy ra khi đọc.",
     "min_complete_at": "Sớm nhất được nhận thưởng = bắt đầu + thời lượng (UTC).",
     "expires_at": "Hạn token (UTC).", "completed_at": "Thời điểm hoàn thành hợp lệ (UTC).",
     "provider_txn_id": "Mã giao dịch của mạng quảng cáo; UNIQUE chống gửi lại.",
@@ -665,8 +702,8 @@ DESCRIPTIONS["commercial_play_sessions"] = ("Phiên chơi ngoài có token một
     "issued_at": "Thời điểm phát hành (UTC).", "expires_at": "Hạn token (UTC).",
     "completed_at": "Thời điểm hoàn tất đã xác minh (UTC).",
 })
-DESCRIPTIONS["commercial_events"] = ("Sổ sự kiện impression/start/complete/click, chống ghi trùng.", {
-    "id": "Khóa chính.", "placement_id": "Vị trí phát sinh sự kiện.", "campaign_id": "Chiến dịch được chụp.",
+DESCRIPTIONS["commercial_events"] = ("Sổ sự kiện impression/start/complete/click, chống ghi trùng; chiến dịch suy ra từ `commercial_placements.campaign_id` (NF-02).", {
+    "id": "Khóa chính.", "placement_id": "Vị trí phát sinh sự kiện.",
     "play_session_id": "Phiên chơi liên quan; có thể NULL.", "account_id": "Tài khoản liên quan; có thể NULL.",
     "event_type": "`IMPRESSION` / `START` / `COMPLETE` / `CLICK`.",
     "event_key": "Khóa idempotency nội bộ, duy nhất.",
@@ -678,25 +715,24 @@ DESCRIPTIONS["commercial_events"] = ("Sổ sự kiện impression/start/complete
 })
 DESCRIPTIONS["commercial_reward_grants"] = ("Outbox phần thưởng; callback không được cộng xu/phát voucher trực tiếp.", {
     "id": "Khóa chính.", "event_id": "COMPLETE event đã xác minh; duy nhất.",
-    "account_id": "Tài khoản nhận thưởng.", "reward_type": "`COINS` / `VOUCHER` / `EXTRA_SPIN`.",
+    "account_id": "Tài khoản nhận thưởng (khớp sự kiện nhờ trigger `trg_commercial_reward_grants_bi`).", "reward_type": "`COINS` / `VOUCHER` / `EXTRA_SPIN`.",
     "reward_amount": "Số lượng thưởng.", "status": "`PENDING` / `APPLIED` / `FAILED`.",
     "attempts": "Số lần worker thử áp dụng.", "created_at": "Thời điểm tạo (UTC).",
     "applied_at": "Thời điểm áp dụng thành công (UTC).", "failure_reason": "Lý do thất bại cuối cùng.",
 })
-DESCRIPTIONS["commercial_settlements"] = ("Kỳ đối soát doanh thu có maker-checker.", {
+DESCRIPTIONS["commercial_settlements"] = ("Kỳ đối soát doanh thu có maker-checker; `net_amount` tính qua `v_commercial_settlements` (NF-01).", {
     "id": "Khóa chính.", "contract_id": "Hợp đồng được đối soát.",
     "period_start": "Ngày đầu kỳ.", "period_end": "Ngày cuối kỳ.",
     "gross_amount": "Doanh thu gộp tính từ snapshot sự kiện.", "adjustment_amount": "Điều chỉnh có dấu.",
-    "adjustment_reason": "Lý do bắt buộc khi điều chỉnh khác 0.", "net_amount": "Doanh thu ròng = gộp + điều chỉnh.",
+    "adjustment_reason": "Lý do bắt buộc (NOT NULL, ≥ 5 ký tự) khi điều chỉnh khác 0.",
     "status": "`DRAFT` / `APPROVED` / `PAID` / `VOID`.", "generated_by": "Nhân viên tạo kỳ.",
-    "reviewed_by": "Người duyệt, phải khác người tạo theo service.", "reviewed_at": "Thời điểm duyệt (UTC).",
+    "reviewed_by": "Người duyệt (khác `generated_by` nhờ CHECK SoD).", "reviewed_at": "Thời điểm duyệt (UTC).",
     "paid_at": "Thời điểm ghi nhận đã thanh toán (UTC).", "created_at": "Thời điểm tạo (UTC).",
 })
-DESCRIPTIONS["commercial_settlement_lines"] = ("Dòng snapshot đối soát theo vị trí và loại sự kiện.", {
+DESCRIPTIONS["commercial_settlement_lines"] = ("Dòng snapshot đối soát theo vị trí và loại sự kiện; thành tiền `amount` tính qua `v_commercial_settlement_lines` (NF-01).", {
     "settlement_id": "Kỳ đối soát.", "placement_id": "Vị trí được tính tiền.",
     "event_type": "`IMPRESSION` / `CLICK` / `COMPLETE` / `FIXED`.",
     "units": "Số đơn vị hợp lệ.", "unit_rate": "Đơn giá VND chụp từ hợp đồng.",
-    "amount": "Thành tiền của dòng.",
 })
 
 _KIND_ORDER = {"PRIMARY KEY": 0, "UNIQUE": 1, "FOREIGN KEY": 2, "CHECK": 3}
@@ -810,7 +846,7 @@ def build_markdown(conn: Any) -> str:
     w("<!-- File sinh tự động bởi scripts/gen_data_dictionary.py từ schema MySQL. Không sửa tay;")
     w("     sửa DESCRIPTIONS trong script rồi chạy lại. -->")
     w("")
-    w("Nguồn: các migration `sql/001_*.sql` đến `sql/027_*.sql` (MySQL 8.4, InnoDB, utf8mb4). Quy ước:")
+    w("Nguồn: các migration `sql/001_*.sql` đến `sql/032_*.sql` (MySQL 8.4, InnoDB, utf8mb4, chuẩn 3NF nghiêm ngặt — 75 bảng nghiệp vụ, 18 view `v_*`, 28 trigger). Quy ước:")
     w("tiền là `BIGINT` đơn vị VND, thời gian là `DATETIME` lưu UTC. Lịch sử nghiệp vụ dùng `RESTRICT`; chỉ ánh xạ phân phòng và ảnh đại diện dùng `CASCADE` khi entity cha được phép xóa.")
     w("")
     w("## 1. Danh sách bảng")
@@ -904,7 +940,7 @@ def build_markdown(conn: Any) -> str:
         extra_indexes = [i for i in indexes if i["t"] == t and i["name"] not in constraint_names and i["name"] != "PRIMARY"]
         if extra_indexes:
             w("")
-            w("Index bổ sung (`002_indexes.sql`):")
+            w("Index bổ sung:")
             w("")
             for i in extra_indexes:
                 kind = "UNIQUE INDEX" if not i["non_unique"] else "INDEX"
@@ -914,13 +950,21 @@ def build_markdown(conn: Any) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows PowerShell may expose a legacy cp1252 stream even though the
+    # generated Markdown is UTF-8. Do not turn a successful schema check into
+    # a UnicodeEncodeError merely because the status message is Vietnamese.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description="Sinh docs/diagrams/data_dictionary.md từ schema MySQL")
     parser.add_argument("--check", action="store_true", help="chỉ kiểm tra, không ghi file")
     parser.add_argument("--database", default=DEFAULT_DATABASE, help="database đã migrate để đọc schema")
     args = parser.parse_args(argv)
 
     os.environ["MYSQL_DATABASE"] = args.database
-    from cyberhub_manager.database.connection import get_connection
+    from cyberhub_manager.infrastructure.database.connection import get_connection
 
     conn = get_connection()
     try:

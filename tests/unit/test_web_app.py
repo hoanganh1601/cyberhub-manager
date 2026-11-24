@@ -8,7 +8,7 @@ import pytest
 
 pytest.importorskip("flask")
 
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def test_web_starts_without_tk_or_display():
     }
     code = """
 import sys
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 app = create_app({'WEB_MODE': 'demo', 'ASSISTANT_ENABLED': False})
 assert app.test_client().get('/').status_code == 200
 assert 'tkinter' not in sys.modules

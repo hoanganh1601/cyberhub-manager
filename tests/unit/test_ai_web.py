@@ -11,15 +11,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from cyberhub_manager.ai.errors import ProviderTimeoutError
-from cyberhub_manager.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
-from cyberhub_manager.ai.models import KnowledgeDocument
-from cyberhub_manager.ai.gemini import GeminiLLMProvider
-from cyberhub_manager.ai.policy_store import AssistantLimits
-from cyberhub_manager.ai.retrieval import KnowledgeRetriever
-from cyberhub_manager.ai.service import RAGAssistantService
+from cyberhub_manager.domain.ai.errors import ProviderTimeoutError
+from cyberhub_manager.application.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
+from cyberhub_manager.domain.ai.models import KnowledgeDocument
+from cyberhub_manager.infrastructure.ai.gemini import GeminiLLMProvider
+from cyberhub_manager.infrastructure.ai.policy_store import AssistantLimits
+from cyberhub_manager.application.ai.retrieval import KnowledgeRetriever
+from cyberhub_manager.application.ai.service import RAGAssistantService
 from cyberhub_manager.domain.enums import Role
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 @pytest.fixture
@@ -286,7 +286,7 @@ def test_feature_disabled_by_default_and_misconfiguration_fails_startup(tmp_path
     with pytest.raises(ValueError, match="outside web and asset"):
         create_app({"WEB_MODE": "demo", "ASSISTANT_ENABLED": True,
                     "ASSISTANT_SERVICE_FACTORY": lambda sink: None,
-                    "ASSISTANT_AUDIT_PATH": str(files("cyberhub_manager.ui.assets").joinpath("unsafe.sqlite3"))})
+                    "ASSISTANT_AUDIT_PATH": str(files("cyberhub_manager.presentation.desktop.assets").joinpath("unsafe.sqlite3"))})
 
 
 def test_live_widget_is_loaded_only_with_configured_backend(ctx):

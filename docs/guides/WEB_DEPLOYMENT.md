@@ -20,5 +20,3 @@ MySQL mode bắt buộc `CYBERHUB_SECRET_KEY` ổn định, ít nhất 32 ký t�
 **Giới hạn cần biết:** image trong `Dockerfile.web` hiện chỉ copy `src/`, `scripts/` và `sql/`, chưa copy `docs/knowledge-base/`. Nếu bật trợ lý RAG trong container, cần đóng gói hoặc mount kho tri thức đã duyệt và đặt `CYBERHUB_KNOWLEDGE_ROOT` tới vị trí đó. Dự báo cũng cần chạy job offline và cung cấp `runtime/forecasting/` hoặc `CYBERHUB_FORECAST_DIR`; web chỉ đọc artifact đã tạo.
 
 Sau deploy, kiểm tra `/healthz`, đăng nhập, một luồng đọc và một luồng ghi phù hợp với mode, rồi xác nhận dữ liệu sau restart. Với MySQL, kiểm tra database đích và quyền người dùng DB trước khi chạy migration/seed.
-
-Hướng dẫn nền tảng chi tiết của đợt trước được giữ tại [tư liệu lịch sử](../../history/docs/guides/WEB_DEPLOYMENT.md); bước trên dashboard, giá và hạn mức có thể thay đổi.

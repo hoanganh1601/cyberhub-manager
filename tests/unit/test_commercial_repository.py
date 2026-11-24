@@ -1,7 +1,7 @@
 """Unit tests for commercial repository query scope."""
 
-import cyberhub_manager.repositories.commercial_repository as repository_module
-from cyberhub_manager.repositories.commercial_repository import CommercialRepository
+import cyberhub_manager.infrastructure.repositories.commercial_repository as repository_module
+from cyberhub_manager.infrastructure.repositories.commercial_repository import CommercialRepository
 
 
 def test_manager_overview_limits_placements_to_global_and_own_store(monkeypatch):

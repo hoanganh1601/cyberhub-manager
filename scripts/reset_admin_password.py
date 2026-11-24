@@ -11,10 +11,10 @@ from __future__ import annotations
 import argparse
 from getpass import getpass
 
-from cyberhub_manager.database.connection import get_connection
+from cyberhub_manager.infrastructure.database.connection import get_connection
 from cyberhub_manager.domain.exceptions import NotFoundError, ValidationError
-from cyberhub_manager.repositories.p1_repository import execute, rows
-from cyberhub_manager.security import hash_password
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
+from cyberhub_manager.infrastructure.security import hash_password
 
 
 def reset_admin_password(conn, database: str, username: str, password: str) -> int:
@@ -35,8 +35,9 @@ def reset_admin_password(conn, database: str, username: str, password: str) -> i
 
     matches = rows(
         conn,
-        """SELECT id,store_id FROM employees
-           WHERE username=%s AND role='ADMIN' AND status='ACTIVE'
+        """SELECT e.id,p.home_store_id AS store_id FROM employees e
+           JOIN employee_profiles p ON p.id=e.profile_id
+           WHERE e.username=%s AND e.role='ADMIN' AND e.status='ACTIVE'
            FOR UPDATE""",
         (username.strip(),),
     )

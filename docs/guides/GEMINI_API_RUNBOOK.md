@@ -1,77 +1,69 @@
-# CyberHub với Gemini API
+# Trợ lý CyberHub với Gemini API (RAG & Phân tích)
 
-Ứng dụng chạy cả embedding và sinh câu trả lời qua Google API, không tải model và không cần GPU.
-Bộ kiểm tra nguồn, phân quyền và audit của ứng dụng vẫn áp dụng.
+Ứng dụng sử dụng Google Gemini API cho cả embedding, sinh câu trả lời và kiểm chứng nguồn — không cần tải model cục bộ hay GPU. Mọi lớp kiểm tra phân quyền, phạm vi cơ sở, lọc nguồn `APPROVED` và audit đều chạy ở backend.
 
-## Khởi động trong Terminal VS Code
+## 1. Khởi động nhanh
 
-1. Tạo key cho project của bạn tại [Google AI Studio](https://aistudio.google.com/api-keys).
-2. Trong `.env` ở thư mục project, thêm:
+1. Tạo API key tại [Google AI Studio](https://aistudio.google.com/api-keys) và thêm vào `.env` (không commit `.env`):
 
    ```dotenv
    GEMINI_API_KEY=key_cua_ban
    ```
 
-3. Dừng web cũ bằng Ctrl+C rồi chạy trong venv:
+2. Chạy ứng dụng web kèm trợ lý Gemini:
 
    ```powershell
    python -m scripts.run_rag_gemini --port 8059
    ```
 
-4. Đợi `Gemini RAG ready`, mở `http://127.0.0.1:8059`, đăng nhập và chọn Hỏi CyberHub.
-   Helper mặc định dùng dữ liệu demo. Có thể đóng phần mềm chạy model cũ để giải phóng RAM/VRAM.
+3. Chờ thông báo `Gemini RAG ready`, mở `http://127.0.0.1:8059`, đăng nhập và bấm **Hỏi CyberHub** (thêm `?assistant=1` để mở khung chat ngay).
+   - Mặc định helper chạy chế độ `demo` (`quanly01`, `nhanvien01`, `admin01`, `nguyenvanan` / `demo123`).
+   - Thêm `--mode mysql` để chạy với cơ sở dữ liệu MySQL thật.
+   - Thêm `--runtime-dir <thư_mục>` để đổi nơi lưu audit SQLite (không đặt trong `static/` hay `assets/`).
 
-Không cần cài SDK Google. Không gửi key trong chat, JavaScript hoặc commit `.env` vào Git.
+## 2. Chế độ hoạt động & Quyền dữ liệu
 
-## Model và free tier
+- **Tài liệu (RAG):** Chỉ nạp và giải thích nguồn có `status: APPROVED` trong `docs/knowledge-base/` đúng với `audience` của vai trò đang đăng nhập. Các tài liệu `DRAFT` (như `manager/revenue-policy.md`) không được lập chỉ mục.
+- **Phân tích & Gợi ý:** Backend lọc sẵn snapshot doanh thu/máy theo vai trò và cơ sở (cho `DIRECTOR`/`MANAGER`, hoặc `ADMIN` ở `legacy`) hoặc gợi ý menu/ưu đãi/voucher/game cho chính khách hàng đang đăng nhập trước khi gửi lên model.
+- **Giới hạn an toàn:** Trợ lý chỉ đọc — không thực hiện nạp tiền, checkout, hủy đơn, thay đổi tồn kho, sinh SQL hay thay đổi quyền. Không nhận key, model URL, đường dẫn tài liệu hoặc role từ request client.
 
-Mặc định `GEMINI_MODEL=gemini-3.1-flash-lite` và `GEMINI_EMBEDDING_MODEL=gemini-embedding-001`.
-Theo [bảng giá Google](https://ai.google.dev/gemini-api/docs/pricing), các model này có free tier
-tại thời điểm cập nhật hướng dẫn (10/11/2026). Khả năng truy cập và quota phụ thuộc project/tài khoản;
-key không đảm bảo mọi request đều miễn phí hoặc luôn có quota. Kiểm tra tier/quota của project
-trong AI Studio; ứng dụng không tự bật billing, đổi model hay chuyển sang nhà cung cấp khác.
+## 3. Model, hạn mức và cấu hình triển khai
 
-Mỗi lượt trả lời thường dùng một request embedding và hai request sinh/kiểm chứng.
-Khởi động tạo index từ các chunk tài liệu bằng embedding theo lô. Cache trong RAM tái sử dụng
-chunk không đổi khi tài liệu được cập nhật, nhưng khởi động lại sẽ tạo cache mới.
+- Mặc định: `GEMINI_MODEL=gemini-3.1-flash-lite`, `GEMINI_EMBEDDING_MODEL=gemini-embedding-001`, ngưỡng tương đồng `CYBERHUB_GEMINI_MIN_SIMILARITY=0.6`.
+- Mỗi lượt hỏi sử dụng tối đa 1 request embedding và 2 request LLM (sinh câu trả lời + kiểm chứng). Timeout mỗi API call: 30s; deadline toàn lượt: 60s.
+- Hạn mức nội bộ mặc định: 10 request/phút/actor, 100/ngày/actor, 1.000/ngày toàn ứng dụng. Khi hết quota từ Google, backend trả mã `429`.
+- Audit được ghi vào SQLite riêng (`runtime/assistant/audit.sqlite3` hoặc `CYBERHUB_ASSISTANT_AUDIT_PATH`), **không** lưu câu hỏi, prompt, câu trả lời hay API key.
+- Khi chạy qua WSGI/production: cấu hình `CYBERHUB_ASSISTANT_ENABLED=true`, `CYBERHUB_ASSISTANT_PROVIDER=gemini`, `GEMINI_API_KEY`, và `CYBERHUB_ASSISTANT_AUDIT_PATH` (đường dẫn tuyệt đối).
 
-Ngưỡng truy xuất Gemini mặc định `0.6`, có thể cấu hình qua
-`CYBERHUB_GEMINI_MIN_SIMILARITY`. Đây là ngưỡng ban đầu, chưa được hiệu chỉnh bằng API key thật;
-cần chạy bộ đánh giá trước khi kết luận chất lượng với model/tài khoản cụ thể.
+> **Lưu ý dữ liệu gửi ra ngoài:** Toàn bộ tài liệu `APPROVED` được gửi tới Google để tạo embedding; câu hỏi và snapshot đã lọc theo quyền được gửi khi trả lời. Kiểm tra chính sách gói API trước khi bật trên dữ liệu thật.
 
-## Dữ liệu gửi tới Google
+## 4. Kiểm thử và đánh giá
 
-Toàn bộ tài liệu APPROVED được gửi để tạo embedding. Khi hỏi, chỉ các nguồn đúng quyền mới
-được đưa vào prompt trả lời. Câu hỏi, các đoạn nguồn và phần kiểm chứng được gửi tới Google.
-Chế độ Phân tích/Gợi ý cho tôi cũng gửi snapshot đã được backend lọc theo quyền.
-Free tier có thể dùng nội dung để cải thiện sản phẩm theo chính sách của Google; ưu tiên dữ liệu demo.
-Backend audit chỉ lưu metadata, không lưu key hoặc nội dung hội thoại.
+Chạy kiểm thử tự động (không gọi API thật, không tốn quota):
 
-## Cấu hình khác và xử lý lỗi
+```powershell
+$aiTests = Get-ChildItem tests/unit/test_ai_*.py | Select-Object -ExpandProperty FullName
+python -m pytest @aiTests -q
+```
 
-- `--mode mysql`: dùng dịch vụ nghiệp vụ thật, yêu cầu cấu hình MySQL và secret key hiện có.
-- `--runtime-dir <thư_mục>`: đổi nơi lưu audit. Không đặt audit trong thư mục web/static/assets.
-- Web thường/WSGI: đặt `CYBERHUB_ASSISTANT_ENABLED=true`,
-  `CYBERHUB_ASSISTANT_PROVIDER=gemini`, `GEMINI_API_KEY` và
-  `CYBERHUB_ASSISTANT_AUDIT_PATH` là đường dẫn tuyệt đối tới file audit riêng.
-- Thiếu key: helper dừng trước khi tạo app và hướng dẫn đặt `GEMINI_API_KEY`.
-- Key/quyền không hợp lệ: kiểm tra key và API/project trong AI Studio; thông tin lỗi thô không đưa ra UI.
-- Hết quota: backend trả 429, UI thông báo hạn mức và chờ ít nhất 60 giây trước khi thử lại.
-  Quota theo ngày cần chờ lâu hơn hoặc kiểm tra dashboard; retry không tự tạo thêm quota.
-- Timeout/mất mạng: kiểm tra kết nối; ứng dụng không tự khởi động model trên máy hoặc đổi nhà cung cấp.
+Đánh giá retrieval offline:
 
-Các lệnh cũ `scripts.run_rag_local` và `scripts.evaluate_rag_local` hiện chuyển tiếp sang Gemini API.
-Adapter model trên máy đã được gỡ khỏi source; giữ các lệnh chuyển tiếp để tránh đứt workflow cũ.
+```powershell
+python -m scripts.evaluate_rag --output "$env:TEMP\rag-offline.json"
+```
 
-## Đánh giá bằng API thật
-
-Các lệnh sau tiêu thụ quota Gemini, chỉ chạy khi đã có key và muốn đánh giá:
+Đánh giá với Gemini API thật (có tiêu thụ quota):
 
 ```powershell
 python -m scripts.evaluate_rag_gemini --limit 3 --output "$env:TEMP\rag-gemini-check.json"
 python -m scripts.evaluate_rag_gemini --retrieve-only --limit 3 --output "$env:TEMP\rag-gemini-retrieval.json"
 ```
 
-Báo cáo ghi rõ `gemini-api-real-model`; kết quả cũ trong `history/docs/testing/RAG_LOCAL_*.json`
-là số đo lịch sử của model trước đây và không chứng minh Gemini đã được nghiệm thu.
-Xem [các lựa chọn API miễn phí](../../history/docs/guides/FREE_API_OPTIONS.md) khi cần nhà cung cấp dự phòng.
+## 5. Checklist xác minh nhanh trên giao diện
+
+1. Hỏi *"Cần bao nhiêu số dư để mở phiên?"* → giải thích quy tắc đủ 30 phút theo đơn giá máy.
+2. Hỏi *"Nạp tiền hỗ trợ phương thức nào?"* → `CASH` hoặc `TRANSFER`.
+3. Hỏi *"Tiền bù và tiền khách đưa khác nhau thế nào?"* → tiền bù đúng khoản thiếu, tiền dư trả lại.
+4. Khách hàng hỏi cách sửa điện thoại → nhắc yêu cầu xác nhận mật khẩu hiện tại.
+5. Bật **Xem nguồn** để kiểm tra citation (`path`, `section`, `version`) đúng phạm vi vai trò.
+6. Đăng xuất/đổi vai trò khi đang chờ trả lời → phản hồi cũ bị chặn và xóa khung chat.

@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from .exceptions import ValidationError
+from cyberhub_manager.domain.exceptions import ValidationError
 
 
 def _require_positive_id(value: int, field: str) -> None:

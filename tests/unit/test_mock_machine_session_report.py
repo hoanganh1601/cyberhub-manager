@@ -22,20 +22,20 @@ from cyberhub_manager.domain.exceptions import (
     SettlementRequiredError,
     ValidationError,
 )
-from cyberhub_manager.services.mocks.auth import MockAuthService
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.customers import MockCustomerService
-from cyberhub_manager.services.mocks.fixtures import (
+from cyberhub_manager.application.services.mocks.auth import MockAuthService
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.customers import MockCustomerService
+from cyberhub_manager.application.services.mocks.fixtures import (
     DEMO_PASSWORD,
     seed_empty,
     seed_success,
 )
-from cyberhub_manager.services.mocks.machines import MockMachineService
-from cyberhub_manager.services.mocks.reports import MockReportService
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.services.mocks.sessions import MockSessionService
-from cyberhub_manager.services.mocks.store import MockDataStore
-from cyberhub_manager.services.mocks.wallet import MockWalletService
+from cyberhub_manager.application.services.mocks.machines import MockMachineService
+from cyberhub_manager.application.services.mocks.reports import MockReportService
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.application.services.mocks.sessions import MockSessionService
+from cyberhub_manager.application.services.mocks.store import MockDataStore
+from cyberhub_manager.application.services.mocks.wallet import MockWalletService
 
 
 @dataclass

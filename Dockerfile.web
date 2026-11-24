@@ -8,4 +8,4 @@ COPY sql ./sql
 RUN pip install --no-cache-dir ".[web]" && useradd --create-home cyberhub
 USER cyberhub
 EXPOSE 8000
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --access-logfile - cyberhub_manager.web.wsgi:app"]
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --access-logfile - cyberhub_manager.presentation.web.wsgi:app"]

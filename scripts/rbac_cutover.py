@@ -11,10 +11,10 @@ import json
 import os
 from pathlib import Path
 
-from cyberhub_manager.config import load_settings
-from cyberhub_manager.database.connection import get_connection
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.security import verify_password
+from cyberhub_manager.infrastructure.config import load_settings
+from cyberhub_manager.infrastructure.database.connection import get_connection
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.security import verify_password
 
 
 ALLOWED_TARGETS = {"ADMIN", "DIRECTOR", "MANAGER"}
@@ -80,7 +80,8 @@ def apply_mapping(conn, changes, actor_id):
             if cur.rowcount != 1:
                 raise ValueError("Account changed during cutover; transaction rolled back")
             cur.execute("INSERT INTO management_audit(employee_id,store_id,action,entity_id) "
-                        "SELECT %s,store_id,'RBAC_CUTOVER',id FROM employees WHERE id=%s",
+                        "SELECT %s,p.home_store_id,'RBAC_CUTOVER',e.id "
+                        "FROM employees e JOIN employee_profiles p ON p.id=e.profile_id WHERE e.id=%s",
                         (actor_id,change["employee_id"]))
     finally:
         cur.close()

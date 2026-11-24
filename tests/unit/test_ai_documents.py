@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from cyberhub_manager.ai.documents import (
+from cyberhub_manager.infrastructure.ai.documents import (
     DEFAULT_KNOWLEDGE_ROOT,
     MAX_METADATA_BYTES,
     KnowledgeDocumentLoader,
 )
-from cyberhub_manager.ai.errors import (
+from cyberhub_manager.domain.ai.errors import (
     DocumentTooLargeError,
     DuplicateDocumentError,
     InvalidMetadataError,

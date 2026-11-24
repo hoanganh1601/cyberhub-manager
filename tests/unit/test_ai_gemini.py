@@ -9,16 +9,16 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from cyberhub_manager.ai.errors import (
+from cyberhub_manager.domain.ai.errors import (
     InsufficientContextError, InvalidProviderResponseError, ProviderAuthenticationError,
     ProviderRateLimitError, ProviderTimeoutError, ProviderUnavailableError,
 )
-from cyberhub_manager.ai.gemini import GeminiEmbeddingProvider, GeminiLLMProvider, GeminiTransport
-from cyberhub_manager.ai import runtime
-from cyberhub_manager.ai.models import AIAccessContext, KnowledgeDocument
-from cyberhub_manager.ai.retrieval import KnowledgeRetriever
-from cyberhub_manager.ai.service import RAGAssistantService
-from cyberhub_manager.web import create_app
+from cyberhub_manager.infrastructure.ai.gemini import GeminiEmbeddingProvider, GeminiLLMProvider, GeminiTransport
+from cyberhub_manager.application.ai import runtime
+from cyberhub_manager.domain.ai.models import AIAccessContext, KnowledgeDocument
+from cyberhub_manager.application.ai.retrieval import KnowledgeRetriever
+from cyberhub_manager.application.ai.service import RAGAssistantService
+from cyberhub_manager.presentation.web import create_app
 
 QUOTE = "Số dư tối thiểu đủ 30 phút theo đơn giá máy."
 PROMPT = f'<request language="vi"><question>Cần số dư bao nhiêu?</question><authorized_context><document ref="S1">{QUOTE}</document></authorized_context></request>'
@@ -221,7 +221,7 @@ def test_untrusted_model_cannot_change_endpoint_or_receive_credentials(model):
 
 
 def test_runtime_defaults_to_api_provider_without_starting_model_processes(tmp_path, monkeypatch):
-    from cyberhub_manager.ai import gemini
+    from cyberhub_manager.infrastructure.ai import gemini
     import subprocess
     transport = Transport()
     monkeypatch.setattr(gemini, "GeminiTransport", lambda *args, **kwargs: transport)

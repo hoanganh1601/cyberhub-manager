@@ -6,8 +6,8 @@ không thể vô tình trỏ sang database development.
 
 import pytest
 
-from cyberhub_manager.database import connection
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database import connection
+from cyberhub_manager.infrastructure.database.transaction import transaction
 
 TEST_DATABASE = "cyberhub_manager_test"
 REFUSED = "Refusing to run integration tests outside cyberhub_manager_test"

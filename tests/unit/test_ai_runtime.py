@@ -4,10 +4,10 @@ from dataclasses import replace
 
 import pytest
 
-from cyberhub_manager.ai.errors import KnowledgeAccessError, KnowledgeIndexUnavailableError
-from cyberhub_manager.ai.fakes import FakeEmbeddingProvider
-from cyberhub_manager.ai.models import AIAccessContext, KnowledgeDocument
-from cyberhub_manager.ai.runtime import LiveKnowledgeRetriever, configure_assistant
+from cyberhub_manager.domain.ai.errors import KnowledgeAccessError, KnowledgeIndexUnavailableError
+from cyberhub_manager.application.ai.fakes import FakeEmbeddingProvider
+from cyberhub_manager.domain.ai.models import AIAccessContext, KnowledgeDocument
+from cyberhub_manager.application.ai.runtime import LiveKnowledgeRetriever, configure_assistant
 
 
 def test_live_retriever_revokes_edited_documents_and_loader_errors():

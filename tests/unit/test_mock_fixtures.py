@@ -10,9 +10,9 @@ from cyberhub_manager.domain.enums import (
     MachineStatus,
     SessionStatus,
 )
-from cyberhub_manager.services.mocks.clock import DEFAULT_NOW
-from cyberhub_manager.services.mocks.fixtures import seed_empty, seed_success
-from cyberhub_manager.services.mocks.store import MockDataStore, local_date
+from cyberhub_manager.application.services.mocks.clock import DEFAULT_NOW
+from cyberhub_manager.application.services.mocks.fixtures import seed_empty, seed_success
+from cyberhub_manager.application.services.mocks.store import MockDataStore, local_date
 
 
 def make_success_data() -> MockDataStore:

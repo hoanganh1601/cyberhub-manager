@@ -24,9 +24,9 @@ from cyberhub_manager.domain.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from cyberhub_manager.services import contracts
-from cyberhub_manager.services.contracts import ServiceBundle
-from cyberhub_manager.services.mocks import (
+from cyberhub_manager.application.services import contracts
+from cyberhub_manager.application.services.contracts import ServiceBundle
+from cyberhub_manager.application.services.mocks import (
     AFFECTED_OPERATIONS,
     DEMO_PASSWORD,
     MockClock,
@@ -88,10 +88,12 @@ OPERATION_CALLS: dict[str, Callable[[ServiceBundle, MockClock], object]] = {
     "complete_checkout": lambda b, c: b.sessions.complete_checkout(
         PC05, manager(b), 0, None
     ),
+    "cancel_session": lambda b, c: b.sessions.cancel_session(PC05, manager(b)),
     "list_invoices": lambda b, c: b.reports.list_invoices(
         manager(b).store_id, InvoiceFilters()
     ),
     "get_invoice": lambda b, c: b.reports.get_invoice(1),
+    "void_invoice": lambda b, c: b.reports.void_invoice(1, manager(b)),
     "daily_revenue": lambda b, c: b.reports.daily_revenue(
         manager(b).store_id, date(2026, 10, 16), date(2026, 10, 18)
     ),
@@ -259,11 +261,11 @@ def test_outputs_do_not_expose_password_fields() -> None:
 def test_mock_package_does_not_load_mysql_env_or_ui() -> None:
     script = (
         "import sys\n"
-        "from cyberhub_manager.services.mocks import build_mock_services\n"
+        "from cyberhub_manager.application.services.mocks import build_mock_services\n"
         "build_mock_services()\n"
         "forbidden = ('mysql', 'dotenv', 'customtkinter', 'tkinter',\n"
-        "             'cyberhub_manager.config', 'cyberhub_manager.database',\n"
-        "             'cyberhub_manager.ui')\n"
+        "             'cyberhub_manager.infrastructure.config', 'cyberhub_manager.infrastructure.database',\n"
+        "             'cyberhub_manager.presentation.desktop')\n"
         "loaded = sorted(m for m in sys.modules if m.startswith(forbidden))\n"
         "print(','.join(loaded))\n"
     )

@@ -29,7 +29,7 @@ và mọi API quản trị đều kiểm tra permission ở service, không tin 
    bí mật callback hoặc đối soát toàn hệ thống.
 5. `ADMIN` tạo đối soát từ event đã xác minh; người tạo không được tự duyệt.
 
-Permission được cấp tường minh trong `domain/p1.py`. Việc thêm permission mới
+Permission được cấp tường minh trong `domain/policies.py`. Việc thêm permission mới
 không tự động trao quyền cho `MANAGER` hoặc `ADMIN`.
 
 ## Ranh giới an toàn của game ngoài

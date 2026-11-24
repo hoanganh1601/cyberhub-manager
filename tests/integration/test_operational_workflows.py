@@ -6,10 +6,10 @@ import pytest
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError
-from cyberhub_manager.repositories.sql import execute, rows
-from cyberhub_manager.services.cash_shift_service import CashShiftService
-from cyberhub_manager.services.maintenance_service import MaintenanceService
-from cyberhub_manager.services.procurement_service import ProcurementService
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
+from cyberhub_manager.application.services.cash_shift_service import CashShiftService
+from cyberhub_manager.application.services.maintenance_service import MaintenanceService
+from cyberhub_manager.application.services.procurement_service import ProcurementService
 
 
 def _actor(conn, scenario, *, role, name, scenario_staff=True):
@@ -17,10 +17,13 @@ def _actor(conn, scenario, *, role, name, scenario_staff=True):
         employee_id = scenario.employee_id
     else:
         token = uuid4().hex[:8]
+        profile_id = execute(conn,
+            "INSERT INTO employee_profiles(code,home_store_id,full_name) VALUES(%s,%s,%s)",
+            (f"OP-{token}", scenario.store_id, name))
         employee_id = execute(conn,
-            "INSERT INTO employees(code,store_id,full_name,username,password_hash,role) "
-            "VALUES(%s,%s,%s,%s,'x',%s)",
-            (f"OP-{token}",scenario.store_id,name,f"op.{token}",role.value))
+            "INSERT INTO employees(profile_id,username,password_hash,role) "
+            "VALUES(%s,%s,'x',%s)",
+            (profile_id, f"op.{token}", role.value))
     return EmployeeSession(employee_id,f"EMP-{employee_id}",name,f"user{employee_id}",
         scenario.store_id,"STORE","Test store",role,0)
 

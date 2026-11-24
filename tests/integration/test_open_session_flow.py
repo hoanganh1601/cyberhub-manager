@@ -13,18 +13,18 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.enums import MachineStatus, Role, SessionStatus
 from cyberhub_manager.domain.exceptions import (
     ConflictError,
     InsufficientBalanceError,
     PermissionDeniedError,
 )
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.machine_repository import MachineRepository
-from cyberhub_manager.repositories.session_repository import SessionRepository
-from cyberhub_manager.services.machine_service import MachineService
-from cyberhub_manager.services.session_service import (
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.machine_repository import MachineRepository
+from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
+from cyberhub_manager.application.services.machine_service import MachineService
+from cyberhub_manager.application.services.session_service import (
     ACCOUNT_LOCKED,
     CUSTOMER_BUSY,
     CUSTOMER_INACTIVE,
@@ -79,17 +79,20 @@ def db():
 
         employee_ids = {}
         for role in Role:
+            profile_id = _execute(
+                conn,
+                "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+                (f"EMP-{role.value[:3]}-{token}", store_id, f"LI06 {role.value}"),
+            )
             employee_ids[role] = _execute(
                 conn,
                 """
                 INSERT INTO employees
-                    (code, store_id, full_name, username, password_hash, role)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (profile_id, username, password_hash, role)
+                VALUES (%s, %s, %s, %s)
                 """,
                 (
-                    f"EMP-{role.value[:3]}-{token}",
-                    store_id,
-                    f"LI06 {role.value}",
+                    profile_id,
                     f"li06.{role.value.lower()}.{token}",
                     "x",
                     role.value,
@@ -199,7 +202,12 @@ def db():
                 _execute(conn, "DELETE FROM accounts WHERE customer_id = %s", (cid,))
                 _execute(conn, "DELETE FROM customers WHERE id = %s", (cid,))
             for sid in store_ids:
-                _execute(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
+                _execute(
+                    conn,
+                    "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (sid,),
+                )
+                _execute(conn, "DELETE FROM employee_profiles WHERE home_store_id = %s", (sid,))
                 _execute(conn, "DELETE FROM stores WHERE id = %s", (sid,))
 
 

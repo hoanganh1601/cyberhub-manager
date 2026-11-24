@@ -13,7 +13,7 @@ from cyberhub_manager.domain.commercial import (
 )
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import ValidationError
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 
 
 def test_external_game_origin_and_sandbox_are_restricted():

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from flask import Flask, jsonify
 
-from cyberhub_manager.web.feature_routes import register_feature_routes
+from cyberhub_manager.presentation.web.feature_routes import register_feature_routes
 
 
 class CallbackService:

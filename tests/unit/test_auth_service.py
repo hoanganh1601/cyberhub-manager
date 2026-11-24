@@ -11,10 +11,10 @@ from cyberhub_manager.domain.exceptions import (
     AuthenticationError,
     ServiceUnavailableError,
 )
-from cyberhub_manager.repositories.auth_repository import AuthRecord
-from cyberhub_manager.security import hash_password
-from cyberhub_manager.services.auth_service import AuthService
-from cyberhub_manager.services.contracts import AuthServiceProtocol
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRecord
+from cyberhub_manager.infrastructure.security import hash_password
+from cyberhub_manager.application.services.auth_service import AuthService
+from cyberhub_manager.application.services.contracts import AuthServiceProtocol
 
 USERNAME = "staff01"
 PASSWORD = "secret123"

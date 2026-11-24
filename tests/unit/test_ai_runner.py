@@ -5,8 +5,8 @@ import time
 
 import pytest
 
-from cyberhub_manager.ai.errors import ProviderBusyError, ProviderTimeoutError, ProviderUnavailableError
-from cyberhub_manager.ai.runner import BoundedProviderRunner
+from cyberhub_manager.domain.ai.errors import ProviderBusyError, ProviderTimeoutError, ProviderUnavailableError
+from cyberhub_manager.application.ai.runner import BoundedProviderRunner
 
 
 def test_runner_returns_value_and_releases_single_worker_slot():
@@ -65,7 +65,7 @@ def test_runner_rejects_invalid_capacity(value):
 
 
 def test_worker_start_failure_releases_capacity_and_uses_safe_error(monkeypatch):
-    import cyberhub_manager.ai.runner as module
+    import cyberhub_manager.application.ai.runner as module
     runner = BoundedProviderRunner(max_concurrent=1)
     original = module.Thread
     class BrokenThread:

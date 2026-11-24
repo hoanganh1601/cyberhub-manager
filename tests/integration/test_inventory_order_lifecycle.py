@@ -6,9 +6,9 @@ import pytest
 
 from cyberhub_manager.domain.exceptions import ConflictError
 from cyberhub_manager.domain.menu import MenuOrderLine, MenuOrderStatus, MenuPage
-from cyberhub_manager.repositories.inventory_repository import InventoryRepository
-from cyberhub_manager.repositories.menu_repository import MenuRepository
-from cyberhub_manager.repositories.p1_repository import rows
+from cyberhub_manager.infrastructure.repositories.inventory_repository import InventoryRepository
+from cyberhub_manager.infrastructure.repositories.menu_repository import MenuRepository
+from cyberhub_manager.infrastructure.repositories.sql import rows
 
 
 @pytest.fixture
@@ -211,6 +211,22 @@ def test_count_approval_rejects_stale_movement_even_when_balance_matches(stock_o
 
 def test_count_approval_records_adjustment_once(stock_order):
     conn, actor, _menu, stock, _item_id, ingredient_id, _create, balance = stock_order
+    # Maker-checker (INT-02): người duyệt kiểm kê phải khác người đề xuất.
+    tok = uuid4().hex[:8]
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, 'Count Approver')",
+            (f"APPR-{tok}", actor.store_id),
+        )
+        profile_id = int(cur.lastrowid)
+        cur.execute(
+            "INSERT INTO employees (profile_id, username, password_hash, role) VALUES (%s, %s, 'x', 'MANAGER')",
+            (profile_id, f"appr.{tok}"),
+        )
+        approver_id = int(cur.lastrowid)
+    finally:
+        cur.close()
     count, created = stock.propose_count(
         conn, ingredient=stock.get_ingredient(conn, ingredient_id, lock=True),
         counted_on_hand=80, reason="Kiểm kê cuối ca",
@@ -220,7 +236,7 @@ def test_count_approval_records_adjustment_once(stock_order):
     decided = stock.decide_count(
         conn, count=stock.get_count(conn, count["id"], lock=True),
         ingredient=stock.get_ingredient(conn, ingredient_id, lock=True),
-        employee_id=actor.employee_id, approve=True,
+        employee_id=approver_id, approve=True,
     )
     assert decided["status"] == "APPROVED"
     assert balance() == {"on_hand": 80, "reserved": 0}
@@ -232,7 +248,7 @@ def test_count_approval_records_adjustment_once(stock_order):
         stock.decide_count(
             conn, count=stock.get_count(conn, count["id"], lock=True),
             ingredient=stock.get_ingredient(conn, ingredient_id, lock=True),
-            employee_id=actor.employee_id, approve=True,
+            employee_id=approver_id, approve=True,
         )
 
 

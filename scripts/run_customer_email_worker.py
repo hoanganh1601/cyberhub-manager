@@ -13,9 +13,9 @@ from time import sleep
 
 from dotenv import load_dotenv
 
-from cyberhub_manager.database.transaction import transaction
-from cyberhub_manager.repositories.customer_email_repository import CustomerEmailRepository
-from cyberhub_manager.services.customer_email_service import token_from_nonce
+from cyberhub_manager.infrastructure.database.transaction import transaction
+from cyberhub_manager.infrastructure.repositories.customer_email_repository import CustomerEmailRepository
+from cyberhub_manager.application.services.customer_email_service import token_from_nonce
 
 
 def settings():

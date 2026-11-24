@@ -51,7 +51,5 @@ Trợ lý không tự tạo, khóa hoặc nâng quyền tài khoản.
 
 ## Nguồn đối chiếu
 
-- `src/cyberhub_manager/services/management_service.py` — save_employee
-- `src/cyberhub_manager/services/access.py`
-- `history/docs/reference/P1_DESKTOP_WEB.md` — Phân quyền
-- `history/docs/features/EMPLOYEE_PASSWORD_RESET.md` — Luồng mật khẩu tạm và audit
+- `src/cyberhub_manager/application/services/management_service.py` — save_employee
+- `src/cyberhub_manager/application/services/access.py`

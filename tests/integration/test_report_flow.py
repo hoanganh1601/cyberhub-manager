@@ -12,14 +12,14 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database import connection
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.dtos import DailyRevenue, InvoiceFilters
 from cyberhub_manager.domain.enums import InvoiceStatus, Role, SessionStatus
 from cyberhub_manager.domain.exceptions import NotFoundError, PermissionDeniedError
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.invoice_repository import InvoiceRepository
-from cyberhub_manager.services.report_service import ReportService
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.invoice_repository import InvoiceRepository
+from cyberhub_manager.application.services.report_service import ReportService
 
 TEST_DATABASE = "cyberhub_manager_test"
 UNKNOWN_ID = 999_999_999_999
@@ -64,17 +64,20 @@ def db():
             ("staff", store_id, Role.MANAGER),  # Đợt 0: doanh thu chỉ cho MANAGER/ADMIN
             ("other", other_store_id, Role.MANAGER),
         ):
+            profile_id = _execute(
+                conn,
+                "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+                (f"EMP-{key[:3]}-{token}", sid, f"LI08 {key}"),
+            )
             employee_ids[key] = _execute(
                 conn,
                 """
                 INSERT INTO employees
-                    (code, store_id, full_name, username, password_hash, role)
-                VALUES (%s, %s, %s, %s, 'x', %s)
+                    (profile_id, username, password_hash, role)
+                VALUES (%s, %s, 'x', %s)
                 """,
                 (
-                    f"EMP-{key[:3]}-{token}",
-                    sid,
-                    f"LI08 {key}",
+                    profile_id,
                     f"li08.{key}.{token}",
                     role.value,
                 ),
@@ -195,7 +198,12 @@ def db():
             for sid in store_ids:
                 # Xem doanh thu ghi management_audit (FK RESTRICT tới employees): xóa trước.
                 _execute(conn, "DELETE FROM management_audit WHERE store_id = %s", (sid,))
-                _execute(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
+                _execute(
+                    conn,
+                    "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (sid,),
+                )
+                _execute(conn, "DELETE FROM employee_profiles WHERE home_store_id = %s", (sid,))
                 _execute(conn, "DELETE FROM stores WHERE id = %s", (sid,))
 
 

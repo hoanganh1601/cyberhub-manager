@@ -38,5 +38,5 @@ tra từng permission. Quyền mới không tự động cấp cho role hiện c
 
 ## Nguồn đối chiếu
 
-- `src/cyberhub_manager/domain/p1.py` — Ma trận permission hiện hành
+- `src/cyberhub_manager/domain/policies.py` — Ma trận permission hiện hành
 - `docs/features/POS_INVENTORY_LIFECYCLE.md` — Phân quyền POS và kho

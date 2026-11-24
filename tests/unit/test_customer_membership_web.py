@@ -4,7 +4,7 @@ from io import BytesIO
 from random import Random
 import pytest
 from PIL import Image
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ import pytest
 from PIL import Image
 
 from cyberhub_manager.domain.loyalty import LoyaltySettings, membership
-from cyberhub_manager.domain.p1 import Promotion
+from cyberhub_manager.domain.policies import Promotion
 from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
@@ -15,9 +15,9 @@ from cyberhub_manager.domain.exceptions import (
     ConflictError,
     NotFoundError,
 )
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.avatar import normalize_avatar
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.infrastructure.avatar import normalize_avatar
 
 
 @pytest.fixture

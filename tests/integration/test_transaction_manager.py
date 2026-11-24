@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database import connection
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database import connection
+from cyberhub_manager.infrastructure.database.transaction import transaction
 
 
 def _execute(conn, sql, params=()):

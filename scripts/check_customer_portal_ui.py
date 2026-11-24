@@ -1,7 +1,7 @@
 """Exercise the customer portal in Chromium and save optional visual evidence.
 
 Requires the optional local tool Playwright and its Chromium browser.
-Run: python scripts/check_customer_portal_ui.py --screenshots history/docs/testing/customer-phase1
+Run: python scripts/check_customer_portal_ui.py --screenshots runtime/screenshots/customer-portal
 Uses an ephemeral local HTTP server and isolated demo data, never the configured MySQL.
 """
 
@@ -12,7 +12,7 @@ from threading import Thread
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server, WSGIRequestHandler
 
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 class QuietHandler(WSGIRequestHandler):

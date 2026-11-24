@@ -7,14 +7,15 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from cyberhub_manager.repositories.p1_repository import P1Repository, execute, rows
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.domain.p1 import Promotion, CustomerSession
+from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
+from cyberhub_manager.infrastructure.repositories.sql import execute, rows
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.domain.policies import Promotion, CustomerSession
 from cyberhub_manager.domain.enums import PaymentMethod
-from cyberhub_manager.services.portal_service import PortalService
-from cyberhub_manager.services.management_service import ManagementService
-from cyberhub_manager.services.wallet_service import WalletService
-from cyberhub_manager.services.session_service import SessionService
+from cyberhub_manager.application.services.portal_service import PortalService
+from cyberhub_manager.application.services.management_service import ManagementService
+from cyberhub_manager.application.services.wallet_service import WalletService
+from cyberhub_manager.application.services.session_service import SessionService
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 
 
@@ -76,7 +77,7 @@ def test_real_targeted_topup_uses_server_membership_and_excludes_other_customer(
         yield db_conn
 
     now = datetime.now(timezone.utc)
-    P1Repository().save_promotion(
+    ManagementRepository().save_promotion(
         db_conn,
         Promotion(
             0,

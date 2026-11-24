@@ -6,7 +6,7 @@ services:
     plan: free
     branch: develop
     buildCommand: pip install ".[web]"
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --access-logfile - cyberhub_manager.web.wsgi:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --access-logfile - cyberhub_manager.presentation.web.wsgi:app
     healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION

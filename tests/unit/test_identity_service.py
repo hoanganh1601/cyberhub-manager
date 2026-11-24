@@ -6,7 +6,7 @@ import pytest
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
-from cyberhub_manager.services.identity_service import IdentityService
+from cyberhub_manager.application.services.identity_service import IdentityService
 
 
 def actor(*, role=Role.MANAGER, store_id=1, auth_version=3):

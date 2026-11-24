@@ -10,11 +10,11 @@ import customtkinter as ctk
 import pytest
 
 from cyberhub_manager.domain.enums import Role
-from cyberhub_manager.services.mocks.factory import build_mock_services
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD
-from cyberhub_manager.ui import app_shell as app_shell_module
-from cyberhub_manager.ui.app_shell import AppShell, PlaceholderView, initials
-from cyberhub_manager.ui.navigation import (
+from cyberhub_manager.application.services.mocks.factory import build_mock_services
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD
+from cyberhub_manager.presentation.desktop import app_shell as app_shell_module
+from cyberhub_manager.presentation.desktop.app_shell import AppShell, PlaceholderView, initials
+from cyberhub_manager.presentation.desktop.navigation import (
     NAV_ITEMS,
     NavKey,
     can_access,

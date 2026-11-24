@@ -133,7 +133,7 @@ chuẩn bị, phục vụ đơn và xem tồn. `INVENTORY` có không gian **Kho
 cấu hình nguyên liệu/công thức, nhập, xuất, xem sổ biến động và đề xuất kiểm kê; role này
 không được xem hoặc xử lý đơn POS, không duyệt phiếu và không thu tiền. Quyền của
 `MANAGER` và `ADMIN`
-vẫn liệt kê tường minh trong `domain/p1.py`; thêm quyền mới không tự động cấp cho
+vẫn liệt kê tường minh trong `domain/policies.py`; thêm quyền mới không tự động cấp cho
 role nào. Chỉ `ADMIN` được tạo tài khoản role chuyên trách.
 
 Migration `017_pos_hold_timeout.sql` thêm `reservation_expires_at` cho đơn mới.

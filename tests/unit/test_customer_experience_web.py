@@ -1,7 +1,7 @@
 """HTTP isolation, CSRF and pagination for customer self-service."""
 
 import pytest
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 @pytest.fixture

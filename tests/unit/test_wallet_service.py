@@ -23,9 +23,9 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Account, Customer
-from cyberhub_manager.services import db_errors
-from cyberhub_manager.services.contracts import WalletServiceProtocol
-from cyberhub_manager.services.wallet_service import (
+from cyberhub_manager.infrastructure import db_errors
+from cyberhub_manager.application.services.contracts import WalletServiceProtocol
+from cyberhub_manager.application.services.wallet_service import (
     MAX_TOP_UP_AMOUNT,
     WalletService,
     new_transaction_code,
@@ -109,7 +109,7 @@ class FakeAccountRepository:
         return True
 
     def insert_top_up_transaction(
-        self, conn, *, code, account_id, employee_id, amount, method
+        self, conn, *, code, account_id, employee_id, amount, method, store_id=None
     ):
         if self.insert_error is not None:
             raise self.insert_error

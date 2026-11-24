@@ -20,9 +20,9 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Account, Customer
-from cyberhub_manager.services import customer_service as module
-from cyberhub_manager.services.contracts import CustomerServiceProtocol
-from cyberhub_manager.services.customer_service import (
+from cyberhub_manager.application.services import customer_service as module
+from cyberhub_manager.application.services.contracts import CustomerServiceProtocol
+from cyberhub_manager.application.services.customer_service import (
     PHONE_TAKEN,
     USERNAME_TAKEN,
     CustomerService,

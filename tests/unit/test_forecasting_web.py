@@ -9,7 +9,7 @@ import pytest
 
 pytest.importorskip("flask")
 
-from cyberhub_manager.web import create_app
+from cyberhub_manager.presentation.web import create_app
 
 
 def _write_forecast(directory, days: int) -> None:

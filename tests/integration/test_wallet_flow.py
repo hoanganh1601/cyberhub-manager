@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.database.transaction import transaction
+from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.enums import (
     AccountStatus,
     PaymentMethod,
@@ -22,11 +22,11 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.repositories.account_repository import AccountRepository
-from cyberhub_manager.repositories.auth_repository import AuthRepository
-from cyberhub_manager.repositories.customer_repository import CustomerRepository
-from cyberhub_manager.security import hash_password
-from cyberhub_manager.services.wallet_service import WalletService
+from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
+from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
+from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository
+from cyberhub_manager.infrastructure.security import hash_password
+from cyberhub_manager.application.services.wallet_service import WalletService
 
 TEST_DATABASE = "cyberhub_manager_test"
 EMPLOYEE_NAME = "LI04 Test Employee"
@@ -61,17 +61,20 @@ def wallet_db():
             "INSERT INTO stores (code, name, address) VALUES (%s, %s, %s)",
             ("SX-" + token[:16], "LI04 Other Store", "Test address"),
         )
+        profile_id = _execute(
+            conn,
+            "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s, %s, %s)",
+            ("EMP-" + token[:16], store_id, EMPLOYEE_NAME),
+        )
         employee_id = _execute(
             conn,
             """
             INSERT INTO employees
-                (code, store_id, full_name, username, password_hash, role)
-            VALUES (%s, %s, %s, %s, %s, 'STAFF')
+                (profile_id, username, password_hash, role)
+            VALUES (%s, %s, %s, 'STAFF')
             """,
             (
-                "EMP-" + token[:16],
-                store_id,
-                EMPLOYEE_NAME,
+                profile_id,
                 "li04e." + token[:12],
                 password_hash,
             ),
@@ -115,6 +118,7 @@ def wallet_db():
             _execute(conn, "DELETE FROM accounts WHERE id = %s", (account_id,))
             _execute(conn, "DELETE FROM customers WHERE id = %s", (customer_id,))
             _execute(conn, "DELETE FROM employees WHERE id = %s", (employee_id,))
+            _execute(conn, "DELETE FROM employee_profiles WHERE id = %s", (profile_id,))
             _execute(conn, "DELETE FROM stores WHERE id = %s", (store_id,))
             _execute(conn, "DELETE FROM stores WHERE id = %s", (other_store_id,))
 
@@ -332,7 +336,8 @@ def test_inactive_store_is_denied(wallet_db):
 
 def test_employee_moved_to_other_store_is_denied(wallet_db):
     _update(
-        "UPDATE employees SET store_id = %s WHERE id = %s",
+        "UPDATE employee_profiles p JOIN employees e ON e.profile_id = p.id"
+        " SET p.home_store_id = %s WHERE e.id = %s",
         (wallet_db.other_store_id, wallet_db.employee_id),
     )
 

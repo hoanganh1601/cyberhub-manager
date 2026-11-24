@@ -1,37 +1,21 @@
 # CyberHub Manager — Hệ thống quản lý quán Net
 
-CyberHub Manager hỗ trợ vận hành quán net qua desktop CustomTkinter và web Flask,
-dùng chung service nghiệp vụ Python/MySQL. Hệ thống có cổng khách hàng, quản lý
-máy/phiên, thanh toán, POS/kho, ca/két, bảo trì, mua hàng, game/quảng cáo,
-trợ lý Gemini và dự báo offline.
+CyberHub Manager hỗ trợ vận hành quán net đa cơ sở qua giao diện **Desktop CustomTkinter** và **Web Flask**, dùng chung tầng Application và Domain (Python / MySQL 8.4). Hệ thống bao gồm cổng khách hàng, quản lý máy & phiên sử dụng, ví điện tử & hóa đơn, POS đồ ăn & tồn kho nguyên liệu, ca/két tiền, bảo trì thiết bị, mua hàng & công nợ nhà cung cấp, voucher/game/quảng cáo nhận thưởng, trợ lý RAG Gemini và dự báo doanh thu offline.
 
-**Bắt đầu tại [tài liệu hiện hành](docs/README.md):** [chạy nhanh](docs/guides/QUICKSTART.md),
-[kiến trúc](docs/architecture/OVERVIEW.md), [luồng nghiệp vụ](docs/architecture/BUSINESS_FLOWS.md)
-và [mô hình dữ liệu](docs/architecture/DATA_MODEL.md). Các báo cáo và tài liệu từng đợt
-được giữ trong [history](history/README.md).
-
-RBAC có vai trò `DIRECTOR` và chế độ chuyển đổi an toàn, không tự đổi quyền tài khoản đang hoạt động.
-Đọc [thiết kế RBAC](docs/RBAC_DESIGN.md) và [ma trận quyền](docs/RBAC_PERMISSION_MATRIX.md)
-trước khi bật `CYBERHUB_RBAC_POLICY=separated`.
+- **Bắt đầu tại [tài liệu hiện hành](docs/README.md):** [chạy nhanh](docs/guides/QUICKSTART.md), [kiến trúc bốn tầng](docs/architecture/OVERVIEW.md), [luồng nghiệp vụ](docs/architecture/BUSINESS_FLOWS.md), [mô hình dữ liệu](docs/architecture/DATA_MODEL.md), [ERD hiện hành](docs/diagrams/current_erd.md) và [chứng minh 3NF](docs/architecture/DATABASE_3NF_PROOFS.md).
+- **Phân quyền RBAC:** Hỗ trợ 6 vai trò nhân viên (`ADMIN`, `DIRECTOR`, `MANAGER`, `STAFF`, `KITCHEN`, `INVENTORY`) và principal khách hàng riêng (`CUSTOMER`), cùng hai chính sách `CYBERHUB_RBAC_POLICY=legacy` (mặc định) và `separated`. Xem [thiết kế RBAC](docs/RBAC_DESIGN.md) và [ma trận quyền](docs/RBAC_PERMISSION_MATRIX.md).
 
 ## Công nghệ
 
-- Python 3.11 trở lên
-- CustomTkinter
-- MySQL 8.4 LTS
-- mysql-connector-python
+- Python 3.11+
+- Flask (Web) & CustomTkinter (Desktop)
+- MySQL 8.4 LTS (`mysql-connector-python`, 75 bảng nghiệp vụ chuẩn 3NF, 18 view, 28 trigger)
 - pytest
-- Docker Desktop và Docker Compose
+- Docker Desktop & Docker Compose
 
 ## Yêu cầu môi trường
 
-Cài đặt trước:
-
-- Git
-- Python 3.11 trở lên
-- Docker Desktop
-
-Kiểm tra:
+Cài đặt trước: Git, Python 3.11+ và Docker Desktop. Kiểm tra nhanh:
 
 ```powershell
 git --version
@@ -42,400 +26,178 @@ docker compose version
 
 ## Cài đặt trên Windows
 
-### 1. Clone repository
+### 1. Clone repository & tạo virtual environment
 
 ```powershell
 git clone <repository-url>
 cd cyberhub-manager
-```
-
-### 2. Tạo virtual environment
-
-```powershell
 py -m venv .venv
-```
-
-Nếu PowerShell chặn script, cho phép trong terminal hiện tại:
-
-```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-```
-
-Kích hoạt môi trường:
-
-```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-### 3. Cài dependencies
+### 2. Cài dependencies
 
 ```powershell
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
-```
-
-Kiểm tra dependencies:
-
-```powershell
 python -m pip check
 ```
 
-## Cấu hình môi trường
+## Chạy nhanh (Demo không cần MySQL)
 
-### Chạy bản web (không cần màn hình desktop hoặc MySQL để demo)
+### Web demo
 
-```bash
-python -m pip install -e '.[web]'
-python -m cyberhub_manager.web --host 0.0.0.0 --port 8000
+```powershell
+python -m pip install -e ".[web]"
+$env:CYBERHUB_WEB_MODE="demo"
+python -m cyberhub_manager.presentation.web --host 0.0.0.0 --port 8000
 ```
 
-Mở `http://localhost:8000`, đăng nhập `quanly01 / demo123` hoặc `nhanvien01 / demo123`.
-Demo có dữ liệu riêng cho mỗi phiên đăng nhập và mất khi server khởi động lại.
-Xem [WEB_DEPLOYMENT.md](docs/guides/WEB_DEPLOYMENT.md) để dùng MySQL thật, triển khai Render
-qua `render.yaml` hoặc Railway qua `railway.json` / `Dockerfile.web`.
+Mở `http://localhost:8000` (nhân viên: `admin01`, `giamdoc01`, `quanly01`, `nhanvien01`, `bep01`, `thukho01` / `demo123`) hoặc `http://localhost:8000/customer` (khách hàng: `nguyenvanan` / `demo123`). Chế độ demo lưu dữ liệu trong bộ nhớ theo từng phiên và mất khi khởi động lại server. Xem [hướng dẫn triển khai web](docs/guides/WEB_DEPLOYMENT.md) cho MySQL thật, Render (`render.yaml`) hoặc Railway (`railway.json` / `Dockerfile.web`).
 
-### Xem Login và full UI không cần MySQL
+### Desktop demo
 
 ```powershell
 python -m cyberhub_manager.app --mock
+python -m cyberhub_manager.app --mock --lang en
 ```
 
-Manager: `quanly01 / demo123`; Staff: `nhanvien01 / demo123`.
-Chạy `python -m cyberhub_manager.app` để dùng cấu hình MySQL thật bên dưới.
-Xem [hướng dẫn Login desktop](history/docs/guides/LOGIN_DESKTOP.md) để thử VI/EN, validation và các trạng thái UI.
-Xem [hướng dẫn giao diện và biểu đồ](history/docs/reference/WORKSPACE_UI.md) để kiểm tra các màn nghiệp vụ,
-chế độ EN và hộp thoại. Thêm `--lang en` vào lệnh trên để bắt đầu bằng tiếng Anh.
+## Cấu hình & vận hành với MySQL 8.4
 
-Tạo `.env` từ file mẫu:
+### 1. Tạo tệp `.env`
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Mở `.env` và cập nhật các giá trị local nếu cần.
+Cập nhật thông số kết nối trong `.env` (không commit `.env`). Nếu cổng `3306` đã bận, đổi `MYSQL_PORT=3307` trong `.env`.
 
-Không commit file `.env` vì file này có thể chứa mật khẩu.
-
-Nếu cổng MySQL `3306` đã được chương trình khác sử dụng, đổi trong `.env`:
-
-```dotenv
-MYSQL_PORT=3307
-```
-
-Không cần đổi `.env.example`; cổng mặc định của repository vẫn là `3306`.
-
-## Khởi động MySQL
-
-Đảm bảo Docker Desktop đang chạy, sau đó thực hiện:
+### 2. Khởi động MySQL bằng Docker
 
 ```powershell
 docker compose up -d mysql
+docker compose ps   # chờ trạng thái healthy
 ```
 
-Kiểm tra trạng thái:
-
-```powershell
-docker compose ps
-```
-
-MySQL sẵn sàng khi trạng thái hiển thị:
-
-```text
-healthy
-```
-
-Dừng container mà vẫn giữ dữ liệu:
+Dừng container nhưng giữ nguyên dữ liệu volume:
 
 ```powershell
 docker compose down
 ```
 
-## Chuẩn bị database ứng dụng (lần đầu)
-
-Database `cyberhub_manager` trong container mới chưa có bảng. Tạo bảng và dữ liệu demo
-một lần trước khi chạy ứng dụng:
+### 3. Áp dụng migration & nạp dữ liệu mẫu lần đầu
 
 ```powershell
 python scripts/init_db.py
 python -c "from scripts.seed_db import run_seed; run_seed(expected_database='cyberhub_manager')"
 ```
 
-- `init_db.py` áp dụng các file trong `sql/` theo thứ tự; chạy lại sẽ bỏ qua migration đã áp dụng.
-- Seed hỏi **mật khẩu demo** hai lần (không phải mật khẩu MySQL). Mật khẩu này dùng cho
-  mọi tài khoản demo bên dưới. Seed chạy lại không tạo bản ghi trùng.
+- `scripts/init_db.py` áp dụng tuần tự các migration `sql/001`–`032`; chạy lại sẽ tự bỏ qua migration đã áp dụng.
+- `seed_db` hỏi mật khẩu demo 2 lần và không tạo trùng bản ghi khi chạy lại.
 
-| Dữ liệu demo | Giá trị |
+| Dữ liệu seed | Giá trị |
 |---|---|
 | Quản lý | `demo.manager` |
 | Nhân viên | `demo.staff01`, `demo.staff02` |
 | Khách hàng | `DEMO_CUS_01` đến `DEMO_CUS_05`, số dư 0đ |
-| Máy | `DEMO_PC_01` đến `DEMO_PC_20`, 10.000đ/giờ |
+| Máy trạm | `DEMO_PC_01` đến `DEMO_PC_20`, 10.000đ/giờ |
 
-Nếu bỏ qua bước này, màn đăng nhập sẽ báo *Service is temporarily unavailable* vì chưa có bảng.
-
-## Chạy ứng dụng
-
-Đảm bảo virtual environment đang hoạt động, MySQL đang chạy và database đã được chuẩn bị:
+### 4. Khởi chạy ứng dụng với MySQL thật
 
 ```powershell
+# Desktop
 cyberhub-manager
+
+# Web
+$env:CYBERHUB_WEB_MODE="mysql"
+python -m cyberhub_manager.presentation.web --port 8000
 ```
 
-Ứng dụng sẽ mở cửa sổ desktop có tiêu đề `CyberHub Manager`. Đăng nhập bằng `demo.manager`
-và mật khẩu demo đã nhập khi seed.
-
-| Lệnh | Mục đích |
-|---|---|
-| `cyberhub-manager` | Chạy với MySQL theo `.env` |
-| `cyberhub-manager --mock` | Demo giao diện không cần MySQL/`.env` (`quanly01` hoặc `nhanvien01`, mật khẩu `demo123`) |
-| `cyberhub-manager --lang en` | Mở giao diện tiếng Anh |
-
-Thiếu biến cấu hình bắt buộc thì lệnh dừng trước khi mở cửa sổ (exit code 2),
-hướng dẫn cấu hình `.env` hoặc dùng `--mock`.
-
-### Menu sách lật trên web
-
-Chạy web ở chế độ demo rồi mở `http://127.0.0.1:8000/customer`, đăng nhập tài khoản khách demo và chọn **Menu đồ ăn**:
-
-```powershell
-$env:CYBERHUB_WEB_MODE="demo"
-python -m cyberhub_manager.web --port 8000
-```
-
-Desktop hiển thị hai trang cạnh nhau; điện thoại hiển thị một trang. Dùng nút **Trang trước/Trang sau**, phím mũi tên hoặc vuốt để lật. Menu, giá, trạng thái còn món và ảnh do quản lý tải lên vẫn lấy từ dữ liệu của từng cơ sở; giỏ món được giữ khi chuyển trang. Hiệu ứng dùng CSS/JavaScript của dự án, không cần nhúng dịch vụ Heyzine.
-
-## Chuẩn bị và chạy kiểm thử
-
-Docker/MySQL là bước **chuẩn bị môi trường**, không phải chạy lại trước mọi lần
-pytest. Sau khi môi trường đã sẵn sàng, toàn bộ automated test chạy bằng đúng một
-lệnh: `python -m pytest -q`.
+## Kiểm thử tự động
 
 | Loại test | Thư mục | Cần MySQL |
 |---|---|---|
-| Unit test | `tests/unit/` | Không |
-| Integration test | `tests/integration/` | Có, database `cyberhub_manager_test` |
-| Manual acceptance | `tests/manual/CHECKLIST.md` | Có, chạy ứng dụng thật |
+| Unit & Desktop UI test | `tests/unit/` | Không |
+| Integration test | `tests/integration/` | Có (`cyberhub_manager_test`) |
 
-### 1. Cài dependencies
-
-```powershell
-python -m pip install -e ".[dev]"
-```
-
-### 2. Chuẩn bị MySQL test (lần đầu hoặc khi schema thay đổi)
+### Chuẩn bị MySQL test (lần đầu hoặc khi có migration mới)
 
 ```powershell
 docker compose up -d mysql
-docker compose ps
 python scripts/prepare_test_db.py
 ```
 
-MySQL chỉ được coi là sẵn sàng khi container ở trạng thái `healthy`.
-
-`scripts/prepare_test_db.py` đọc thông tin kết nối từ `.env`, tạo
-`cyberhub_manager_test` nếu chưa có và áp dụng migration theo thứ tự. Script chạy
-lại nhiều lần được, không seed dữ liệu demo và từ chối mọi database khác.
-
-Nếu tài khoản ứng dụng không có quyền tạo database, script in sẵn các lệnh `CREATE
-DATABASE` và `GRANT` cần chạy bằng tài khoản root.
-
-### 3. Chạy test
-
-Toàn bộ automated test:
+### Chạy kiểm thử
 
 ```powershell
-python -m pytest -q
-```
+$env:PYTHONPATH="src"
+$env:CYBERHUB_RBAC_POLICY="legacy"
 
-Một file test:
-
-```powershell
-python -m pytest tests/integration/test_customer_flow.py -q
-```
-
-Một test riêng lẻ:
-
-```powershell
-python -m pytest tests/integration/test_customer_flow.py::test_login_returns_session_for_active_employee -q
-```
-
-Chỉ chạy unit test (không cần MySQL):
-
-```powershell
+# Toàn bộ unit test (không cần MySQL)
 python -m pytest tests/unit -q
+
+# Toàn bộ integration test trên cyberhub_manager_test
+python -m pytest tests/integration -q
+
+# Kiểm tra kiến trúc 4 tầng & đồng bộ data dictionary
+python -m pytest tests/unit/test_layered_architecture.py -q
+python scripts/gen_data_dictionary.py --check --database cyberhub_manager_test
 ```
 
-Kèm báo cáo coverage (chỉ báo hỗ trợ, không thay thế việc kiểm tra đúng nghiệp vụ):
+### Đo hiệu năng & `EXPLAIN` truy vấn
+
+Script chỉ chạy trên `cyberhub_manager_test`, tự tạo dữ liệu có tiền tố `PF...` rồi dọn sạch sau khi đo:
 
 ```powershell
-python -m pytest --cov=cyberhub_manager --cov-report=term-missing
+$env:MYSQL_DATABASE="cyberhub_manager_test"
+python scripts/perf_check.py --scale 0.2
 ```
-
-Đo thời gian thao tác và `EXPLAIN` các câu SELECT trên dữ liệu lớn (HA-09). Script chỉ chạy
-trên `cyberhub_manager_test`, in namespace duy nhất dạng `PF...`, tạo dữ liệu riêng rồi tự xóa.
-Nếu `.env` đang trỏ database ứng dụng, đặt `MYSQL_DATABASE=cyberhub_manager_test` trong
-terminal riêng trước khi chạy; script sẽ từ chối database khác:
-
-```powershell
-$env:MYSQL_DATABASE = "cyberhub_manager_test"
-python scripts/perf_check.py              # 5.000 khách, 60.000 phiên/hóa đơn
-python scripts/perf_check.py --scale 0.2  # nhanh hơn
-```
-
-Kết quả review database: [history/docs/testing/HA09_DB_REVIEW.md](history/docs/testing/HA09_DB_REVIEW.md).
-Tình trạng toàn bộ task HA/LI/NG và kết quả bản tích hợp:
-[HA_LI_NG_RELEASE_AUDIT.md](history/docs/testing/HA_LI_NG_RELEASE_AUDIT.md).
 
 ### Quy tắc database test
 
-- `cyberhub_manager`: database development/ứng dụng, **cấm** dùng cho test.
-- `cyberhub_manager_test`: database duy nhất của automated test.
-- `cyberhub_manager_migration_test`: chỉ dành cho kiểm tra thủ công migration/reset
-  của HA-03 (xem mục Migration và dữ liệu demo).
+- `cyberhub_manager`: database vận hành/trình diễn, **cấm** dùng cho automated test.
+- `cyberhub_manager_test`: database duy nhất cho `tests/integration/` (`tests/conftest.py` tự ép và từ chối mọi database khác).
+- `cyberhub_manager_migration_test`: chỉ dùng cho diễn tập migration/reset thủ công (`scripts/reset_demo.py`).
 
-`tests/conftest.py` luôn ép `MYSQL_DATABASE=cyberhub_manager_test`, không cần sửa
-`.env`, và từ chối chạy trên database khác với thông báo
-`Refusing to run integration tests outside cyberhub_manager_test`.
-
-Test không phụ thuộc dữ liệu demo: mỗi test tự tạo dữ liệu với mã duy nhất rồi tự
-rollback hoặc xóa đúng các dòng đã tạo. Fixture dùng chung nằm trong
-`tests/conftest.py`: `db_conn` (connection trong transaction, luôn rollback) và
-`test_scenario` (tạo store, nhân viên, khách, account, máy cho một test).
-
-### Xử lý lỗi thường gặp
-
-| Thông báo | Nguyên nhân | Cách xử lý |
-|---|---|---|
-| `MySQL test database is unavailable.` | MySQL chưa chạy, sai host/port, hoặc chưa có `cyberhub_manager_test` | Bật Docker Desktop, `docker compose up -d mysql`, đợi `healthy`, rồi `python scripts/prepare_test_db.py` |
-| `cyberhub_manager_test has no schema yet` | Chưa áp dụng migration | `python scripts/prepare_test_db.py` |
-| Lỗi cột hoặc bảng không tồn tại sau khi pull code | Có migration mới | `python scripts/prepare_test_db.py` |
-| `Refusing to run integration tests outside cyberhub_manager_test` | Test tự đổi `MYSQL_DATABASE` | Bỏ đoạn đổi database trong test; `conftest.py` đã cấu hình sẵn |
-
-Unit test vẫn chạy được khi MySQL tắt; khi đó chỉ các integration test báo lỗi với
-hướng dẫn trên.
-
-Kết quả kiểm thử của từng phiên bản ghi tại
-[history/docs/testing/LI09_TEST_REPORT.md](history/docs/testing/LI09_TEST_REPORT.md).
-
-## Cấu trúc chính
+## Cấu trúc dự án (Kiến trúc bốn tầng)
 
 ```text
 cyberhub-manager/
 ├── docs/
-├── scripts/
-├── sql/
-├── src/
-│   └── cyberhub_manager/
-├── tests/
-│   ├── integration/
-│   ├── manual/
-│   └── unit/
-├── .env.example
-├── .gitignore
-├── docker-compose.yml
-├── pyproject.toml
-├── README.md
-└── requirements.txt
+│   ├── architecture/      # OVERVIEW, BUSINESS_FLOWS, DATA_MODEL, 3NF proofs & plan
+│   ├── diagrams/          # current_erd.md, system_uml.md, data_dictionary.md
+│   ├── features/          # POS_INVENTORY_LIFECYCLE, OPERATIONS, COMMERCIAL_PARTNERS, FORECASTING
+│   ├── guides/            # QUICKSTART, DEVELOPMENT, WEB_DEPLOYMENT, GEMINI_API_RUNBOOK
+│   └── knowledge-base/    # Kho tri thức phân quyền cho trợ lý RAG
+├── scripts/               # Migration, seed, reset, perf_check, data dictionary, forecasting, RAG
+├── sql/                   # Migrations 001–032 (MySQL 8.4 InnoDB, utf8mb4_0900_ai_ci)
+├── src/cyberhub_manager/
+│   ├── presentation/      # Flask web routes/static/templates & CustomTkinter desktop UI
+│   ├── application/       # Services, forecasting, AI RAG orchestration, in-memory mocks
+│   ├── infrastructure/    # MySQL repositories, transaction manager, Gemini/SQLite/bcrypt adapters
+│   └── domain/            # Entities, enums, DTOs, policies (RBAC & money rules), exceptions
+└── tests/
+    ├── unit/
+    └── integration/
 ```
 
-## Kiến trúc
+Quy tắc phụ thuộc bắt buộc (được kiểm tra tự động bằng AST trong `tests/unit/test_layered_architecture.py`):
+- **Presentation** gọi **Application** và dùng DTO/enum của **Domain**; không mở transaction hoặc chạy SQL.
+- **Application** sở hữu use case, phân quyền và biên giao dịch (`with transaction() as conn:`); không import Flask/Tk hay chạy SQL trực tiếp.
+- **Infrastructure** chỉ truy cập dữ liệu/adapter kỹ thuật, không tự `commit`/`rollback`.
+- **Domain** thuần Python, không phụ thuộc 3 tầng còn lại hay thư viện lưu trữ/framework.
 
-Dự án sử dụng Layered Architecture. Desktop và Flask web là hai adapter dùng
-chung service layer:
+## Trợ lý Gemini API & Dự báo offline
 
-```text
-CustomTkinter UI ─┐
-Flask Web ────────┼─> Service → Repository → Database
-                  └─> AI/RAG (read-only theo quyền truy cập)
-```
+- **Trợ lý RAG & Phân tích (Gemini API):** Thêm `GEMINI_API_KEY=...` vào `.env` rồi chạy `python -m scripts.run_rag_gemini --port 8059`. Xem chi tiết tại [hướng dẫn trợ lý Gemini](docs/guides/GEMINI_API_RUNBOOK.md).
+- **Dự báo doanh thu offline:** Chạy `python -m scripts.run_forecasting --source demo --history-days 180` (hoặc `--source mysql`). Xem chi tiết tại [tài liệu dự báo](docs/features/FORECASTING.md).
 
-Quy tắc bắt buộc:
+## Tài liệu tham khảo chính
 
-- UI/web không mở transaction hoặc gọi repository trực tiếp.
-- Service sở hữu use case, authorization và transaction boundary.
-- Repository chỉ nhận connection từ caller, chạy SQL và map dữ liệu.
-- `database.transaction.transaction()` là cơ chế commit/rollback chuẩn.
-- Cấu hình web nằm tại `web/config.py`; `.env` thật và `runtime/` không commit.
-
-## Tài liệu dự án
-
-1. [Mục lục hiện hành](docs/README.md)
-2. [Quickstart](docs/guides/QUICKSTART.md)
-3. [Kiến trúc và luồng nghiệp vụ](docs/architecture/OVERVIEW.md)
-4. [Mô hình dữ liệu](docs/architecture/DATA_MODEL.md)
-5. [Hướng dẫn mở rộng](docs/guides/DEVELOPMENT.md)
-6. [Tư liệu lịch sử và bằng chứng nghiệm thu](history/README.md)
-
-Mọi thay đổi tên bảng, field, service contract hoặc theme phải được cập nhật trong tài liệu liên quan trước khi merge.
-
-## Connection và transaction — HA-04
-Cấu hình kết nối được đọc từ `.env`.
-
-Service mở transaction bằng `with transaction() as conn` và truyền
-cùng `conn` cho các repository tham gia một nghiệp vụ.
-
-Repository không tự commit, rollback hoặc đóng connection.
-Transaction manager chịu trách nhiệm commit khi thành công,
-rollback khi có lỗi và trả connection về pool khi kết thúc.
-
-### Kiểm thử transaction
-
-Chuẩn bị database theo mục Chuẩn bị và chạy kiểm thử, rồi chạy:
-
-```powershell
-python -m pytest tests/integration/test_transaction_manager.py -q
-```
-
-Ba kiểm thử xác nhận:
-- Thành công thì commit toàn bộ thay đổi.
-- Có exception thì rollback toàn bộ thay đổi.
-- Connection được trả về pool sau cả hai trường hợp.
-
-## Migration và dữ liệu demo (PowerShell)
-
-Mục này chỉ dùng để kiểm tra migration/reset của HA-03; automated test không dùng database này (xem mục Chuẩn bị và chạy kiểm thử).
-
-Cần chạy MySQL bằng Docker, cấu hình kết nối trong `.env`, và tạo sẵn database `cyberhub_manager_migration_test` với quyền cho `cyberhub_app`. Đây là database trong MySQL, không phải thư mục của dự án.
-
-Chạy migration:
-
-```powershell
-python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration_test'; from scripts.init_db import run_migrations; run_migrations()"
-```
-
-Thêm dữ liệu demo (chương trình sẽ yêu cầu nhập mật khẩu demo):
-
-```powershell
-python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration_test'; from scripts.seed_db import run_seed; run_seed(expected_database='cyberhub_manager_migration_test')"
-```
-
-Có thể chạy lại migration và seed: migration đã áp dụng sẽ được bỏ qua; seed không tạo bản ghi trùng.
-
-Chỉ khi muốn **xóa dữ liệu nghiệp vụ** trong database thử nghiệm, chạy:
-
-```powershell
-python -c "import os; os.environ['MYSQL_DATABASE'] = 'cyberhub_manager_migration_test'; from scripts.reset_demo import run_reset; run_reset(expected_database='cyberhub_manager_migration_test')"
-```
-
-Để xác nhận, nhập chính xác `RESET cyberhub_manager_migration_test`. Reset giữ nguyên cấu trúc bảng và lịch sử migration, nhưng xóa dữ liệu nghiệp vụ trong database này. Có thể chạy seed lại để lấy lại dữ liệu demo ban đầu; dữ liệu phát sinh sau đó không được khôi phục bằng seed. **Không chạy reset trên database chứa dữ liệu cần giữ.**
-
-## Trợ lý Gemini API cho máy cấu hình thấp
-
-Tạo API key tại [Google AI Studio](https://aistudio.google.com/api-keys), thêm
-`GEMINI_API_KEY=key_cua_ban` vào `.env`, rồi chạy:
-
-```powershell
-python -m scripts.run_rag_gemini --port 8059
-```
-
-Không cần GPU hoặc tải model. Mặc định dùng Gemini Flash-Lite và Gemini embedding;
-free tier có giới hạn và gửi dữ liệu tới Google. Xem [hướng dẫn Gemini API](docs/guides/GEMINI_API_RUNBOOK.md)
-để cấu hình model, quyền dữ liệu và xử lý lỗi key/quota.
-
-5A giải thích tài liệu đúng quyền; 5B phân tích
-snapshot doanh thu/máy đã lọc cho MANAGER/ADMIN; 5C gợi ý menu, ưu đãi, voucher và
-game cho chính khách hàng đang đăng nhập. Xem [thiết kế và cách kiểm tra 5B–5C](history/docs/features/AI_PHASES_5B_5C.md).
-AI không được thao tác nạp tiền, checkout, đặt món hay dùng voucher. Mặc định app
-thường chỉ bật trợ lý khi cấu hình API key, cờ bật và audit path; helper Gemini tự đặt cờ/audit path.
-Lệnh cũ `python -m scripts.run_rag_local` cũng chuyển tiếp sang Gemini API.
-Xem [các lựa chọn API miễn phí](history/docs/guides/FREE_API_OPTIONS.md) khi cần dự phòng hạn mức.
+1. [Mục lục tài liệu hiện hành](docs/README.md)
+2. [Chạy nhanh](docs/guides/QUICKSTART.md)
+3. [Kiến trúc bốn tầng](docs/architecture/OVERVIEW.md) & [Luồng nghiệp vụ](docs/architecture/BUSINESS_FLOWS.md)
+4. [Mô hình dữ liệu](docs/architecture/DATA_MODEL.md), [ERD hiện hành](docs/diagrams/current_erd.md) & [Data Dictionary](docs/diagrams/data_dictionary.md)
+5. [Chứng minh chuẩn hóa 3NF (75/75 bảng)](docs/architecture/DATABASE_3NF_PROOFS.md)
+6. [Hướng dẫn phát triển & kiểm thử](docs/guides/DEVELOPMENT.md)

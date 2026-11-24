@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from .enums import InvoiceStatus, PaymentMethod, TransactionType
-from .exceptions import ConflictError, ValidationError
-from .model_base import Entity, _require_datetime, _require_positive_id
+from cyberhub_manager.domain.enums import InvoiceStatus, PaymentMethod, TransactionType
+from cyberhub_manager.domain.exceptions import ConflictError, ValidationError
+from cyberhub_manager.domain.model_base import Entity, _require_datetime, _require_positive_id
 
 
 class AccountTransaction(Entity):

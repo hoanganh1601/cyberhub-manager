@@ -5,10 +5,10 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from .enums import EmployeeStatus, Role, StoreStatus
-from .exceptions import ValidationError
-from .p1 import Permission, can
-from .model_base import (
+from cyberhub_manager.domain.enums import EmployeeStatus, Role, StoreStatus
+from cyberhub_manager.domain.exceptions import ValidationError
+from cyberhub_manager.domain.policies import Permission, can
+from cyberhub_manager.domain.model_base import (
     Entity,
     Person,
     _require_datetime,

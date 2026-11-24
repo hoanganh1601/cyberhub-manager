@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from cyberhub_manager.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
-from cyberhub_manager.ai.models import KnowledgeDocument
+from cyberhub_manager.application.ai.fakes import FakeEmbeddingProvider, FakeLLMProvider
+from cyberhub_manager.domain.ai.models import KnowledgeDocument
 from scripts import evaluate_rag_gemini
 
 

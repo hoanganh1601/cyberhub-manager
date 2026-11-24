@@ -9,7 +9,7 @@ from cyberhub_manager.domain.commercial import (
     partner_event_signature,
 )
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
-from cyberhub_manager.services.commercial_service import CommercialService
+from cyberhub_manager.application.services.commercial_service import CommercialService
 
 
 NOW = datetime(2026, 11, 16, 9, 0, tzinfo=timezone.utc)

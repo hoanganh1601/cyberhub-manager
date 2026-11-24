@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from cyberhub_manager.services import contracts
-from cyberhub_manager.services.mocks import DEFAULT_NOW, MockClock, MockScenario
-from cyberhub_manager.services.mocks.scenarios import (
+from cyberhub_manager.application.services import contracts
+from cyberhub_manager.application.services.mocks import DEFAULT_NOW, MockClock, MockScenario
+from cyberhub_manager.application.services.mocks.scenarios import (
     AFFECTED_OPERATIONS,
     scenario_error,
 )

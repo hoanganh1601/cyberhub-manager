@@ -21,8 +21,8 @@ from uuid import uuid4
 import pytest
 from mysql.connector import Error as MySQLError
 
-from cyberhub_manager.config import load_settings
-from cyberhub_manager.database import connection
+from cyberhub_manager.infrastructure.config import load_settings
+from cyberhub_manager.infrastructure.database import connection
 
 TEST_DATABASE = "cyberhub_manager_test"
 INTEGRATION_DIR = Path(__file__).resolve().parent / "integration"
@@ -179,14 +179,21 @@ def test_scenario() -> Callable[..., SimpleNamespace]:
             "INSERT INTO stores (code, name, address) VALUES (%s, %s, %s)",
             (f"TEST-ST-{token}", "Test store", "Test address"),
         )
+        profile_id = _insert(
+            conn,
+            """
+            INSERT INTO employee_profiles (code, home_store_id, full_name, employment_status)
+            VALUES (%s, %s, %s, 'ACTIVE')
+            """,
+            (f"TEST-EMP-{token}", store_id, "Test employee"),
+        )
         employee_id = _insert(
             conn,
             """
-            INSERT INTO employees
-                (code, store_id, full_name, username, password_hash, role)
-            VALUES (%s, %s, %s, %s, 'x', 'STAFF')
+            INSERT INTO employees (profile_id, username, password_hash, role)
+            VALUES (%s, %s, 'x', 'STAFF')
             """,
-            (f"TEST-EMP-{token}", store_id, "Test employee", f"test.e.{token}"),
+            (profile_id, f"test.e.{token}"),
         )
         customer_id = _insert(
             conn,

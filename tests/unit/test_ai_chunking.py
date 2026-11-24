@@ -7,10 +7,10 @@ import re
 
 import pytest
 
-from cyberhub_manager.ai.chunking import MarkdownChunker
-from cyberhub_manager.ai.documents import KnowledgeDocumentLoader
-from cyberhub_manager.ai.errors import ChunkingError
-from cyberhub_manager.ai.models import KnowledgeDocument
+from cyberhub_manager.application.ai.chunking import MarkdownChunker
+from cyberhub_manager.infrastructure.ai.documents import KnowledgeDocumentLoader
+from cyberhub_manager.domain.ai.errors import ChunkingError
+from cyberhub_manager.domain.ai.models import KnowledgeDocument
 
 
 def document(content="# Thanh toán\n\nChỉ xác nhận khi đã nhận đủ tiền.", **changes):

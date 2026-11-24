@@ -47,6 +47,4 @@ Tiền thưởng dùng trước cho phí chơi, không đổi tiền mặt.
 
 ## Nguồn đối chiếu
 
-- `history/docs/features/CUSTOMER_PORTAL_PHASE1.md` — Nghiệp vụ được áp dụng
-- `history/docs/features/CUSTOMER_PORTAL_PHASE3.md` — Ưu đãi cá nhân hóa
-- `src/cyberhub_manager/domain/p1.py` — quote_top_up
+- `src/cyberhub_manager/domain/policies.py` — quote_top_up

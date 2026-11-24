@@ -8,11 +8,11 @@ import argparse
 from getpass import getpass
 from uuid import uuid4
 
-from cyberhub_manager.database.connection import get_connection
-from cyberhub_manager.repositories.p1_repository import rows, execute
-from cyberhub_manager.security import hash_password
+from cyberhub_manager.infrastructure.database.connection import get_connection
+from cyberhub_manager.infrastructure.repositories.sql import rows, execute
+from cyberhub_manager.infrastructure.security import hash_password
 from cyberhub_manager.domain.exceptions import ConflictError, ValidationError
-from cyberhub_manager.services.management_service import text
+from cyberhub_manager.application.services.management_service import text
 import re
 
 
@@ -52,13 +52,16 @@ def bootstrap(conn, database, store_code, username, name, password):
     )
     if not stores:
         raise ValidationError("Choose an existing active store code")
+    profile_id = execute(
+        conn,
+        "INSERT INTO employee_profiles(code,home_store_id,full_name,employment_status) VALUES(%s,%s,%s,'ACTIVE')",
+        ("NV-" + uuid4().hex[:17], stores[0]["id"], name),
+    )
     employee_id = execute(
         conn,
-        "INSERT INTO employees(code,store_id,full_name,username,password_hash,role,status) VALUES(%s,%s,%s,%s,%s,'ADMIN','ACTIVE')",
+        "INSERT INTO employees(profile_id,username,password_hash,role,status) VALUES(%s,%s,%s,'ADMIN','ACTIVE')",
         (
-            "NV-" + uuid4().hex[:17],
-            stores[0]["id"],
-            name,
+            profile_id,
             username,
             hash_password(password),
         ),

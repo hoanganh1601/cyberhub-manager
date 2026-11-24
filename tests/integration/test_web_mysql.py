@@ -6,9 +6,9 @@ import pytest
 
 pytest.importorskip("flask")
 
-from cyberhub_manager.database.transaction import transaction
-from cyberhub_manager.security import hash_password
-from cyberhub_manager.web import create_app
+from cyberhub_manager.infrastructure.database.transaction import transaction
+from cyberhub_manager.infrastructure.security import hash_password
+from cyberhub_manager.presentation.web import create_app
 
 
 def execute(sql, params=()):
@@ -55,6 +55,12 @@ def mysql_web(test_scenario):
                 )
                 for cid in customer_ids:
                     cursor.execute(
+                        "DELETE st FROM session_transactions st "
+                        "JOIN account_transactions t ON t.id = st.transaction_id "
+                        "JOIN accounts a ON a.id = t.account_id WHERE a.customer_id = %s",
+                        (cid,),
+                    )
+                    cursor.execute(
                         "DELETE t FROM account_transactions t JOIN accounts a ON a.id = t.account_id WHERE a.customer_id = %s",
                         (cid,),
                     )
@@ -80,7 +86,12 @@ def mysql_web(test_scenario):
                     "DELETE FROM cash_shifts WHERE store_id = %s", (records.store_id,)
                 )
                 cursor.execute(
-                    "DELETE FROM employees WHERE store_id = %s", (records.store_id,)
+                    "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+                    (records.store_id,),
+                )
+                cursor.execute(
+                    "DELETE FROM employee_profiles WHERE home_store_id = %s",
+                    (records.store_id,),
                 )
                 cursor.execute("DELETE FROM stores WHERE id = %s", (records.store_id,))
             finally:
@@ -101,7 +112,7 @@ def signed_in(app, username, password):
 
 def test_mysql_actor_lookup_outage_is_safe_and_session_can_recover(mysql_web, monkeypatch, caplog):
     from mysql.connector import OperationalError
-    from cyberhub_manager.repositories.auth_repository import AuthRepository
+    from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 
     app, records, username, password, token, customer_ids = mysql_web
     c, csrf = signed_in(app, username, password)

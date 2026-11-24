@@ -1,7 +1,7 @@
 import pytest
 from flask import Flask
 
-from cyberhub_manager.web.config import configure_web_app
+from cyberhub_manager.presentation.web.config import configure_web_app
 
 
 @pytest.mark.parametrize("value,expected", [("true", True), (" TRUE ", True), ("false", False)])
@@ -26,7 +26,7 @@ def test_allowed_hosts_are_trimmed_and_empty_entries_removed(monkeypatch):
 
 
 def test_mysql_mode_requires_a_stable_secret(monkeypatch):
-    monkeypatch.setattr("cyberhub_manager.web.config.load_dotenv", lambda: None)
+    monkeypatch.setattr("cyberhub_manager.presentation.web.config.load_dotenv", lambda: None)
     monkeypatch.delenv("CYBERHUB_SECRET_KEY", raising=False)
     with pytest.raises(RuntimeError, match="stable CYBERHUB_SECRET_KEY"):
         configure_web_app(Flask(__name__), {"WEB_MODE": "mysql"})

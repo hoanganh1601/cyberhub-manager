@@ -27,10 +27,10 @@ TEST_DATABASE = "cyberhub_manager_test"
 
 from mysql.connector import cursor as py_cursor  # noqa: E402
 
-from cyberhub_manager.database import connection  # noqa: E402
+from cyberhub_manager.infrastructure.database import connection  # noqa: E402
 from cyberhub_manager.domain.dtos import InvoiceFilters  # noqa: E402
 from cyberhub_manager.domain.enums import PaymentMethod  # noqa: E402
-from cyberhub_manager.security import hash_password  # noqa: E402
+from cyberhub_manager.infrastructure.security import hash_password  # noqa: E402
 
 try:
     from mysql.connector import cursor_cext
@@ -94,19 +94,35 @@ def cleanup(conn) -> None:
     store = _run(conn, "SELECT id FROM stores WHERE code = %s", (f"{PREFIX}_STORE",))
     if store:
         sid = store[0][0]
+        _run(conn, "DELETE FROM management_audit WHERE store_id = %s", (sid,))
+        _run(
+            conn,
+            "DELETE e FROM cash_shift_entries e JOIN cash_shifts s ON s.id = e.shift_id WHERE s.store_id = %s",
+            (sid,),
+        )
+        _run(conn, "DELETE FROM cash_shifts WHERE store_id = %s", (sid,))
+        _run(conn, "DELETE FROM customer_store_links WHERE store_id = %s", (sid,))
         _run(conn, "DELETE FROM invoices WHERE store_id = %s", (sid,))
         _run(
             conn,
-            "DELETE t FROM account_transactions t JOIN employees e ON e.id = t.employee_id WHERE e.store_id = %s",
+            "DELETE st FROM session_transactions st"
+            " JOIN usage_sessions s ON s.id = st.session_id"
+            " JOIN machines m ON m.id = s.machine_id WHERE m.store_id = %s",
             (sid,),
         )
+        _run(conn, "DELETE FROM account_transactions WHERE store_id = %s", (sid,))
         _run(
             conn,
             "DELETE s FROM usage_sessions s JOIN machines m ON m.id = s.machine_id WHERE m.store_id = %s",
             (sid,),
         )
         _run(conn, "DELETE FROM machines WHERE store_id = %s", (sid,))
-        _run(conn, "DELETE FROM employees WHERE store_id = %s", (sid,))
+        _run(
+            conn,
+            "DELETE e FROM employees e JOIN employee_profiles p ON p.id = e.profile_id WHERE p.home_store_id = %s",
+            (sid,),
+        )
+        _run(conn, "DELETE FROM employee_profiles WHERE home_store_id = %s", (sid,))
         _run(conn, "DELETE FROM stores WHERE id = %s", (sid,))
     _run(conn, "DELETE a FROM accounts a JOIN customers c ON c.id = a.customer_id WHERE c.code LIKE %s", (like,))
     _run(conn, "DELETE FROM customers WHERE code LIKE %s", (like,))
@@ -126,10 +142,16 @@ def seed(conn, scale: float) -> dict[str, Any]:
     pw = hash_password(PASSWORD)
     _many(
         conn,
-        "INSERT INTO employees (code, store_id, full_name, username, password_hash, role) VALUES (%s,%s,%s,%s,%s,%s)",
-        [(f"{PREFIX}_EMP_1", store_id, "Perf manager", f"{PREFIX}.manager", pw, "MANAGER")],
+        "INSERT INTO employee_profiles (code, home_store_id, full_name) VALUES (%s,%s,%s)",
+        [(f"{PREFIX}_EMP_1", store_id, "Perf manager")],
     )
-    employee_id = _run(conn, "SELECT id FROM employees WHERE code = %s", (f"{PREFIX}_EMP_1",))[0][0]
+    profile_id = _run(conn, "SELECT id FROM employee_profiles WHERE code = %s", (f"{PREFIX}_EMP_1",))[0][0]
+    _many(
+        conn,
+        "INSERT INTO employees (profile_id, username, password_hash, role) VALUES (%s,%s,%s,%s)",
+        [(profile_id, f"{PREFIX}.manager", pw, "MANAGER")],
+    )
+    employee_id = _run(conn, "SELECT id FROM employees WHERE profile_id = %s", (profile_id,))[0][0]
 
     used_phones = {row[0] for row in _run(conn, "SELECT phone FROM customers")}
     phones = []
@@ -150,6 +172,11 @@ def seed(conn, scale: float) -> dict[str, Any]:
         conn,
         "INSERT INTO accounts (code, customer_id, username, password_hash, balance) VALUES (%s,%s,%s,%s,%s)",
         [(f"{PREFIX}_ACC_{i:05d}", cid, f"{PREFIX}.cus{i:05d}", pw, 200_000) for i, cid in enumerate(customer_ids)],
+    )
+    _many(
+        conn,
+        "INSERT INTO customer_store_links (customer_id, store_id, source) VALUES (%s,%s,'INVOICE')",
+        [(cid, store_id) for cid in customer_ids],
     )
     accounts = dict(_run(conn, "SELECT customer_id, id FROM accounts WHERE code LIKE %s", (PREFIX + "%",)))
 
@@ -181,22 +208,33 @@ def seed(conn, scale: float) -> dict[str, Any]:
     )
     _many(
         conn,
-        "INSERT INTO invoices (code, session_id, customer_id, employee_id, store_id, usage_cost, total_amount, created_at)"
-        " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-        [(f"{PREFIX}I{sid:07d}", sid, cid, employee_id, store_id, cost, cost, ended) for sid, cid, ended, cost in rows],
+        "INSERT INTO invoices (code, session_id, customer_id, employee_id, store_id, usage_cost, created_at)"
+        " VALUES (%s,%s,%s,%s,%s,%s,%s)",
+        [(f"{PREFIX}I{sid:07d}", sid, cid, employee_id, store_id, cost, ended) for sid, cid, ended, cost in rows],
     )
-    tx = [(f"{PREFIX}U{sid:07d}", accounts[cid], employee_id, sid, "USAGE_PAYMENT", -cost, "ACCOUNT_BALANCE", ended)
+    usage_code_to_sid = {f"{PREFIX}U{sid:07d}": sid for sid, _, _, cost in rows if cost > 0}
+    tx = [(f"{PREFIX}U{sid:07d}", accounts[cid], employee_id, store_id, "USAGE_PAYMENT", -cost, "ACCOUNT_BALANCE", ended)
           for sid, cid, ended, cost in rows if cost > 0]
-    tx += [(f"{PREFIX}T{i:07d}", accounts[rng.choice(customer_ids)], employee_id, None, "TOP_UP", 50_000, "CASH",
+    tx += [(f"{PREFIX}T{i:07d}", accounts[rng.choice(customer_ids)], employee_id, store_id, "TOP_UP", 50_000, "CASH",
             now - timedelta(minutes=rng.randint(1, 90 * 24 * 60))) for i in range(n_topups)]
     _many(
         conn,
-        "INSERT INTO account_transactions (code, account_id, employee_id, session_id, type, amount, method, created_at)"
+        "INSERT INTO account_transactions (code, account_id, employee_id, store_id, type, amount, method, created_at)"
         " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
         tx,
     )
+    usage_tx_rows = _run(
+        conn,
+        "SELECT id, code FROM account_transactions WHERE store_id = %s AND type = 'USAGE_PAYMENT'",
+        (store_id,),
+    )
+    _many(
+        conn,
+        "INSERT INTO session_transactions (transaction_id, session_id) VALUES (%s,%s)",
+        [(tx_id, usage_code_to_sid[code]) for tx_id, code in usage_tx_rows if code in usage_code_to_sid],
+    )
     conn.commit()
-    for table in ("customers", "accounts", "machines", "usage_sessions", "invoices", "account_transactions"):
+    for table in ("customers", "accounts", "machines", "usage_sessions", "invoices", "account_transactions", "session_transactions"):
         _run(conn, f"ANALYZE TABLE {table}")
     return {
         "store_id": store_id, "customers": n_customers, "sessions": n_sessions, "transactions": len(tx),
@@ -232,7 +270,7 @@ def _benchmark(conn, args) -> int:
     print(f"Seed: {info['customers']} khách, {info['sessions']} phiên/hóa đơn, "
           f"{info['transactions']} giao dịch ({time.perf_counter() - t0:.1f}s)")
 
-    from cyberhub_manager.services.bootstrap import create_service_bundle
+    from cyberhub_manager.application.services.bootstrap import create_service_bundle
 
     state = {"actor": None}
     svc = create_service_bundle(actor_provider=lambda: state["actor"])
@@ -242,6 +280,7 @@ def _benchmark(conn, args) -> int:
     with capture_selects():
         actor = timed("login", lambda: svc.auth.login(f"{PREFIX}.manager", PASSWORD), results)
         state["actor"] = actor
+        svc.shifts.open_shift(actor, 0)
         timed("list_machines", lambda: svc.machines.list_machines(store_id), results)
         timed("search_customers (tên)", lambda: svc.customers.search_customers("perf 0123"), results)
         timed("search_customers (sđt)", lambda: svc.customers.search_customers(info["phone"]), results)

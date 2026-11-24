@@ -19,13 +19,13 @@ from cyberhub_manager.domain.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from cyberhub_manager.services.mocks.auth import MockAuthService
-from cyberhub_manager.services.mocks.clock import MockClock
-from cyberhub_manager.services.mocks.customers import MockCustomerService
-from cyberhub_manager.services.mocks.fixtures import DEMO_PASSWORD, seed_success
-from cyberhub_manager.services.mocks.scenarios import MockScenario
-from cyberhub_manager.services.mocks.store import MockDataStore
-from cyberhub_manager.services.mocks.wallet import MockWalletService
+from cyberhub_manager.application.services.mocks.auth import MockAuthService
+from cyberhub_manager.application.services.mocks.clock import MockClock
+from cyberhub_manager.application.services.mocks.customers import MockCustomerService
+from cyberhub_manager.application.services.mocks.fixtures import DEMO_PASSWORD, seed_success
+from cyberhub_manager.application.services.mocks.scenarios import MockScenario
+from cyberhub_manager.application.services.mocks.store import MockDataStore
+from cyberhub_manager.application.services.mocks.wallet import MockWalletService
 
 
 @dataclass

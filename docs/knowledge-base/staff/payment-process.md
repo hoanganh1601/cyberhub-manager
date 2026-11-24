@@ -76,8 +76,4 @@ hoặc hoàn tiền thay nhân viên. Không cần cung cấp dữ liệu khách
 
 ## Nguồn đối chiếu
 
-- `src/cyberhub_manager/services/session_service.py`
-- `history/docs/reference/P1_DESKTOP_WEB.md` — Checkout và tiền bù
-- `history/docs/reference/01_REQUIREMENTS.md` — SES-08
-- `history/docs/reference/07_DTO_UI_HANDOFF.md` — settlement_amount và cash_received
-- `history/docs/features/CUSTOMER_PORTAL_PHASE3.md` — Chính sách thành viên
+- `src/cyberhub_manager/application/services/session_service.py`

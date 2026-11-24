@@ -7,16 +7,16 @@ from threading import Event, Thread
 
 import pytest
 
-from cyberhub_manager.ai.chunking import MarkdownChunker
-from cyberhub_manager.ai.documents import KnowledgeDocumentLoader
-from cyberhub_manager.ai.errors import (
+from cyberhub_manager.application.ai.chunking import MarkdownChunker
+from cyberhub_manager.infrastructure.ai.documents import KnowledgeDocumentLoader
+from cyberhub_manager.domain.ai.errors import (
     ChunkingError, DuplicateDocumentError, InvalidMetadataError,
     InvalidProviderResponseError, InvalidQuestionError, KnowledgeAccessError,
     KnowledgeIndexUnavailableError, ProviderTimeoutError,
 )
-from cyberhub_manager.ai.fakes import FakeEmbeddingProvider
-from cyberhub_manager.ai.models import AIAccessContext, KnowledgeDocument
-from cyberhub_manager.ai.retrieval import (
+from cyberhub_manager.application.ai.fakes import FakeEmbeddingProvider
+from cyberhub_manager.domain.ai.models import AIAccessContext, KnowledgeDocument
+from cyberhub_manager.application.ai.retrieval import (
     CosineKnowledgeIndex, KnowledgeRetriever, is_allowed, normalize_question,
 )
 
@@ -62,7 +62,7 @@ def test_explicit_audience_matrix_has_no_implicit_role_inheritance(role, audienc
 
 
 def test_staff_cannot_retrieve_manager_document_even_when_it_scores_highest(monkeypatch):
-    import cyberhub_manager.ai.retrieval as module
+    import cyberhub_manager.application.ai.retrieval as module
     docs = [
         document("staff", ("STAFF",)), document("manager", ("MANAGER", "ADMIN")),
         document("shared", ("STAFF", "MANAGER", "ADMIN", "CUSTOMER")),

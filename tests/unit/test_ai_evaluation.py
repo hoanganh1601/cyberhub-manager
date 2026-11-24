@@ -7,10 +7,10 @@ import socket
 
 import pytest
 
-from cyberhub_manager.ai.documents import KnowledgeDocumentLoader
-from cyberhub_manager.ai.evaluation import EvaluationQuestion, evaluate, load_questions
-from cyberhub_manager.ai.lexical import LexicalEmbeddingProvider
-from cyberhub_manager.ai.providers import validate_embedding_batch
+from cyberhub_manager.infrastructure.ai.documents import KnowledgeDocumentLoader
+from cyberhub_manager.application.ai.evaluation import EvaluationQuestion, evaluate, load_questions
+from cyberhub_manager.application.ai.lexical import LexicalEmbeddingProvider
+from cyberhub_manager.domain.ai.providers import validate_embedding_batch
 
 QUESTIONS = Path(__file__).resolve().parents[1] / "fixtures/ai/evaluation_questions.json"
 

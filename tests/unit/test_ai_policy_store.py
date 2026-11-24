@@ -8,9 +8,9 @@ from uuid import uuid4
 
 import pytest
 
-from cyberhub_manager.ai.audit import AssistantAuditEvent
-from cyberhub_manager.ai.models import AIAccessContext
-from cyberhub_manager.ai.policy_store import (
+from cyberhub_manager.domain.ai.audit import AssistantAuditEvent
+from cyberhub_manager.domain.ai.models import AIAccessContext
+from cyberhub_manager.infrastructure.ai.policy_store import (
     AssistantLimits, AssistantQuotaExceeded, SQLiteAssistantPolicyStore,
 )
 

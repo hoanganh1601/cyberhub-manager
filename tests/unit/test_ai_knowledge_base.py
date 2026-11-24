@@ -10,7 +10,7 @@ import re
 
 import pytest
 
-from cyberhub_manager.ai import KnowledgeDocument
+from cyberhub_manager.application.ai import KnowledgeDocument
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
