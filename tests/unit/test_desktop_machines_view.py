@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberhub_manager.domain.dtos import MachineArchiveResult
+from cyberhub_manager.domain.dtos import InvoiceFilters, MachineArchiveResult
 from cyberhub_manager.domain.enums import MachineArchiveAction, MachineStatus, Role
 from cyberhub_manager.domain.exceptions import ServiceUnavailableError
 from cyberhub_manager.application.services.mocks.factory import build_mock_services
@@ -184,12 +184,43 @@ def test_cancel_end_maintenance_changes_nothing(tk_root) -> None:
 def test_open_and_checkout_use_callbacks(tk_root) -> None:
     opened: list[int] = []
     checked_out: list[int] = []
-    view, services, session = _dashboard(tk_root, on_open_session=opened.append, on_checkout=checked_out.append)
+    cancelled: list[int] = []
+    view, services, session = _dashboard(
+        tk_root,
+        on_open_session=opened.append,
+        on_checkout=checked_out.append,
+        on_cancel_session=cancelled.append,
+    )
     pc01, pc02 = _machine(services, session, "PC01"), _machine(services, session, "PC02")
     view.card_for(pc01.machine_id)._on_click()
     assert opened == [pc01.machine_id]
     view.card_for(pc02.machine_id)._on_click()  # PC02 đang dùng -> Thanh toán
     assert checked_out == [pc02.machine_id]
+    view.card_for(pc02.machine_id)._on_cancel_click()
+    assert cancelled == [pc02.machine_id]
+    view.destroy()
+
+
+def test_dashboard_cancel_session_confirms_and_frees_machine(tk_root) -> None:
+    view, services, session = _dashboard(tk_root)
+    pc01 = _machine(services, session, "PC01")
+    pc02 = _machine(services, session, "PC02")
+    pc03 = _machine(services, session, "PC03")
+    assert view.card_for(pc02.machine_id).cancel_button.winfo_manager() == "pack"
+    assert view.card_for(pc01.machine_id).cancel_button.winfo_manager() == ""
+    assert view.card_for(pc03.machine_id).cancel_button.winfo_manager() == ""
+
+    with patch.object(dashboard_module.ConfirmDialog, "ask", return_value=False):
+        view.card_for(pc02.machine_id)._on_cancel_click()
+    assert _machine(services, session, "PC02").status == MachineStatus.IN_USE
+
+    before_invoices = len(services.reports.list_invoices(session.store_id, InvoiceFilters()))
+    with patch.object(dashboard_module.ConfirmDialog, "ask", return_value=True) as ask:
+        view.card_for(pc02.machine_id)._on_cancel_click()
+        assert ask.call_args.kwargs["is_danger"] is True
+    assert _machine(services, session, "PC02").status == MachineStatus.AVAILABLE
+    assert view._kpi_labels["in_use"].cget("text") == "1"
+    assert len(services.reports.list_invoices(session.store_id, InvoiceFilters())) == before_invoices
     view.destroy()
 
 

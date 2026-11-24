@@ -28,7 +28,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Machine, UsageSession, estimate_live_usage
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.infrastructure.repositories.machine_repository import MachineRepository

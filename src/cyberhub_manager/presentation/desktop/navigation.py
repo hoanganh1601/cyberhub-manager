@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from cyberhub_manager.domain.enums import Role
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 
 
 class NavKey(StrEnum):

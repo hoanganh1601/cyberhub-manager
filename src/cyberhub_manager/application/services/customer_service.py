@@ -22,7 +22,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import Customer
-from cyberhub_manager.domain.p1 import Permission, can, separated_rbac, chain_director
+from cyberhub_manager.domain.policies import Permission, can, separated_rbac, chain_director
 from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository

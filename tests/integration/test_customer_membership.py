@@ -10,7 +10,7 @@ from PIL import Image
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.infrastructure.repositories.sql import execute, rows
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
-from cyberhub_manager.domain.p1 import Promotion, CustomerSession
+from cyberhub_manager.domain.policies import Promotion, CustomerSession
 from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.application.services.portal_service import PortalService
 from cyberhub_manager.application.services.management_service import ManagementService

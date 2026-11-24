@@ -2,7 +2,7 @@
 
 Ngày rà soát: **21/11/2026**. Nhánh làm việc: `refactor/four-layer-architecture`, sau commit `472958b`.
 
-**Trạng thái: ĐÃ TRIỂN KHAI CHUẨN HÓA 3NF (`028`–`031`)** — Các migration `028`–`030` xử lý cột dẫn xuất, phụ thuộc bắc cầu, định danh nhân sự, policy version và ràng buộc toàn vẹn. Migration [`031_strict_3nf_game_ad_business_day.sql`](../../sql/031_strict_3nf_game_ad_business_day.sql) loại tiếp `game_sessions.played_on` và `ad_reward_events.played_on`, vốn phụ thuộc hàm vào timestamp UTC theo quy tắc UTC+7. Toàn bộ 74/74 phiếu chứng minh 3NF được lưu tại [DATABASE_3NF_PROOFS.md](DATABASE_3NF_PROOFS.md).
+**Trạng thái: ĐÃ TRIỂN KHAI CHUẨN HÓA 3NF (`028`–`032`)** — Các migration `028`–`030` xử lý cột dẫn xuất, phụ thuộc bắc cầu, định danh nhân sự, policy version và ràng buộc toàn vẹn. Migration [`031_strict_3nf_game_ad_business_day.sql`](../../sql/031_strict_3nf_game_ad_business_day.sql) loại tiếp `game_sessions.played_on` và `ad_reward_events.played_on`, vốn phụ thuộc hàm vào timestamp UTC theo quy tắc UTC+7. Migration [`032_strict_3nf_ledger_and_immutability.sql`](../../sql/032_strict_3nf_ledger_and_immutability.sql) tách cột thưa `account_transactions.session_id` sang bảng liên kết 1–1 `session_transactions`, chuẩn hóa `account_transactions.store_id NOT NULL` và bổ sung 4 trigger bất biến append-only cho `account_transactions` và `inventory_movements`. Toàn bộ 75/75 phiếu chứng minh 3NF được lưu tại [DATABASE_3NF_PROOFS.md](DATABASE_3NF_PROOFS.md).
 
 ## 1. Mục tiêu và giới hạn của kết luận
 
@@ -25,20 +25,20 @@ Nguồn đối chiếu:
 - [Repository](../../src/cyberhub_manager/infrastructure/repositories/) và [application services](../../src/cyberhub_manager/application/services/).
 - [Integration tests](../../tests/integration/) và [quy định database test](../../tests/conftest.py).
 
-Truy vấn chỉ đọc `INFORMATION_SCHEMA` trước và sau triển khai `028`–`030` xác nhận:
+Truy vấn chỉ đọc `INFORMATION_SCHEMA` trước và sau triển khai `028`–`032` xác nhận:
 
-| Chỉ tiêu | Trước chuẩn hóa (`027`) | Sau chuẩn hóa (`030`) |
-|---|---:|---:|
-| Bảng vật lý (gồm `schema_migrations`) | 71 | **75** |
-| Bảng nghiệp vụ cơ sở | 70 | **74** |
-| View đọc tương thích (`v_*`) | 0 | **18** |
-| Trigger toàn vẹn & chiếm dụng | 0 | **24** |
-| Migration được ghi nhận | 27 (`027`) | **30 (`030`)** |
-| PRIMARY KEY | 71 | **75** |
-| UNIQUE constraint | 62 | **62** |
-| FOREIGN KEY constraint | 152 | **149** |
-| CHECK constraint | 170 | **186** |
-| Cột sinh (GENERATED COLUMN) / Cột JSON trong bảng cơ sở | 4 / 1 | **0 / 0** |
+| Chỉ tiêu | Trước chuẩn hóa (`027`) | Sau chuẩn hóa (`030`) | Hiện hành (`032`) |
+|---|---:|---:|---:|
+| Bảng vật lý (gồm `schema_migrations`) | 71 | 75 | **76** |
+| Bảng nghiệp vụ cơ sở | 70 | 74 | **75** |
+| View đọc tương thích (`v_*`) | 0 | 18 | **18** |
+| Trigger toàn vẹn, chiếm dụng & bất biến | 0 | 24 | **28** |
+| Migration được ghi nhận | 27 (`027`) | 30 (`030`) | **32 (`032`)** |
+| PRIMARY KEY | 71 | 75 | **76** |
+| UNIQUE constraint | 62 | 62 | **62** |
+| FOREIGN KEY constraint | 152 | 149 | **150** |
+| CHECK constraint | 170 | 186 | **186** |
+| Cột sinh (GENERATED COLUMN) / Cột JSON trong bảng cơ sở | 4 / 1 | 0 / 0 | **0 / 0** |
 
 Các con số này mô tả database đang kết nối; chưa thay thế việc đối chiếu toàn bộ DDL với một database sạch và checksum migration. Chưa kiểm tra toàn bộ bản ghi trùng, orphan hoặc số dư trong lượt lập tài liệu này.
 
@@ -339,26 +339,26 @@ Integration test chỉ ghi vào `cyberhub_manager_test` hoặc database thử ng
 ## 12. Điều kiện nghiệm thu để đưa vào BTL
 
 - [x] Có phạm vi nghiệp vụ và quyết định B01–B10 đã được xác nhận — [DATABASE_3NF_PROOFS.md §2](DATABASE_3NF_PROOFS.md).
-- [x] Mỗi quan hệ logic (74/74 bảng nghiệp vụ) có đầy đủ FD, mọi candidate key và phân tích 1NF/2NF/3NF; đã rà các FD suy diễn trong `F+` — [DATABASE_3NF_PROOFS.md §4](DATABASE_3NF_PROOFS.md).
-- [x] Mọi phân rã dọc (`028`, `029`) có bằng chứng nối không mất mát và bảo toàn phụ thuộc; hai bảng chiếm dụng được mô tả đúng là projection trạng thái có trigger/UNIQUE, không gọi nhầm là phép phân rã theo Định lý Heath — [DATABASE_3NF_PROOFS.md §3](DATABASE_3NF_PROOFS.md).
-- [x] Phân biệt rõ mô hình logic 3NF (0 generated column, 0 JSON trên 74 bảng cơ sở, 18 view `v_*`) với các số dư tổng hợp liên bảng NF-05 được công bố tường minh — [DATABASE_3NF_PROOFS.md §1](DATABASE_3NF_PROOFS.md).
+- [x] Mỗi quan hệ logic (75/75 bảng nghiệp vụ) có đầy đủ FD, mọi candidate key và phân tích 1NF/2NF/3NF; đã rà các FD suy diễn trong `F+` — [DATABASE_3NF_PROOFS.md §4](DATABASE_3NF_PROOFS.md).
+- [x] Mọi phân rã dọc (`028`, `029`, `032`) có bằng chứng nối không mất mát và bảo toàn phụ thuộc; hai bảng chiếm dụng được mô tả đúng là projection trạng thái có trigger/UNIQUE, không gọi nhầm là phép phân rã theo Định lý Heath — [DATABASE_3NF_PROOFS.md §3](DATABASE_3NF_PROOFS.md).
+- [x] Phân biệt rõ mô hình logic 3NF (0 generated column, 0 JSON trên 75 bảng cơ sở, 18 view `v_*`) với các số dư tổng hợp liên bảng NF-05 được công bố tường minh — [DATABASE_3NF_PROOFS.md §1](DATABASE_3NF_PROOFS.md).
 - [x] Mỗi thuộc tính có một ngữ nghĩa và nguồn sở hữu duy nhất (`employee_profiles` vs `employees` tại `029`); snapshot chính sách có phiên bản bất biến (`loyalty_policy_versions`, `menu_promotion_versions`) — [`028`](../../sql/028_3nf_derived_and_transitive_cleanup.sql), [`029`](../../sql/029_3nf_hr_identity_and_policy_versions.sql).
 - [x] Không có dữ liệu sai cơ sở, sai chủ, trùng nghiệp vụ, orphan hoặc lệch tổng chưa giải trình — kiểm chứng qua 11 trigger INT-01 tại [`030`](../../sql/030_strict_integrity_checks_and_cross_store_guards.sql) và đối soát clone `cyberhub_manager` đạt 0 sai lệch trên 402 hóa đơn, 11 ví, 254 đơn POS, 10 ca, 2 kỳ đối soát.
 - [x] Các tổ hợp NULL/trạng thái được kiểm tra đúng (chống lỗ hổng `UNKNOWN` của MySQL CHECK) và tách nhiệm vụ SoD ở cả DB lẫn backend — [`test_3nf_and_integrity.py`](../../tests/integration/test_3nf_and_integrity.py).
 - [x] Dòng tiền, doanh thu, tiền nạp, bonus, điểm và xu được phân biệt, không cộng trùng — xác minh bằng đối soát số liệu trước/sau migration và B08/B09.
 - [x] Luồng tiền/kho/chứng từ/điểm/notification nguyên tử và idempotent; có test concurrent bằng nhiều connection — `test_wallet_flow.py`, `test_open_session_flow.py`, `test_inventory_order_lifecycle.py`, `test_3nf_and_integrity.py`.
 - [x] Quyền và tách nhiệm vụ được kiểm tra tại backend và ràng buộc DB; đã thử truy cập trái phép — `test_rbac_followup_mysql.py`, `test_3nf_and_integrity.py` (lưu ý: tách user DB runtime chỉ-INSERT cho audit/ledger vẫn là giới hạn môi trường demo đã công bố).
-- [x] Migration dữ liệu cũ `028`–`031` đã được backup, diễn tập trên bản sao `cyberhub_manager_migration_test` (0 sai lệch) và áp dụng thành công vào cả `cyberhub_manager_test` lẫn database demo `cyberhub_manager` (đối soát và chuẩn hóa minh bạch 4 dòng seed UTC cũ `game_sessions.id = 1..4` trước preflight `031`).
-- [x] ERD ([`current_erd.md`](../diagrams/current_erd.md)), UML ([`system_uml.md`](../diagrams/system_uml.md)), data dictionary ([`data_dictionary.md`](../diagrams/data_dictionary.md)), source và migrations `001`–`031` khớp 100% schema `cyberhub_manager_test` và `cyberhub_manager` (`scripts/gen_data_dictionary.py --check` đạt).
+- [x] Migration dữ liệu cũ `028`–`032` đã được backup và áp dụng thành công vào cả `cyberhub_manager_test` lẫn database demo `cyberhub_manager` với 0 sai lệch dữ liệu.
+- [x] ERD ([`current_erd.md`](../diagrams/current_erd.md)), UML ([`system_uml.md`](../diagrams/system_uml.md)), data dictionary ([`data_dictionary.md`](../diagrams/data_dictionary.md)), source và migrations `001`–`032` khớp 100% schema `cyberhub_manager_test` và `cyberhub_manager` (`scripts/gen_data_dictionary.py --check` đạt).
 - [x] Các khả năng chưa triển khai và giới hạn demo được công bố trung thực — [DATABASE_3NF_PROOFS.md §1](DATABASE_3NF_PROOFS.md).
 
 ## 13. Cách trình bày báo cáo
 
-Phần chính nên trình bày phạm vi nghiệp vụ, các FD tiêu biểu, phép phân rã có chứng minh, ERD chia theo phân hệ, các transaction quan trọng và kết quả kiểm thử. Đưa toàn bộ danh sách 74 quan hệ, candidate key, FD và dictionary vào phụ lục ([DATABASE_3NF_PROOFS.md](DATABASE_3NF_PROOFS.md) và [data_dictionary.md](../diagrams/data_dictionary.md)).
+Phần chính nên trình bày phạm vi nghiệp vụ, các FD tiêu biểu, phép phân rã có chứng minh, ERD chia theo phân hệ, các transaction quan trọng và kết quả kiểm thử. Đưa toàn bộ danh sách 75 quan hệ, candidate key, FD và dictionary vào phụ lục ([DATABASE_3NF_PROOFS.md](DATABASE_3NF_PROOFS.md) và [data_dictionary.md](../diagrams/data_dictionary.md)).
 
 **Mô tả chuẩn mực để đưa trực tiếp vào báo cáo BTL (đã điền số liệu thật và giới hạn):**
 
-> Mô hình quan hệ gồm **74 bảng nghiệp vụ cơ sở** (cùng 1 bảng kỹ thuật `schema_migrations`, 18 view đọc `v_*` và 24 trigger toàn vẹn) ở phiên bản migration `001`–`031` (MySQL 8.4, 100% InnoDB, `utf8mb4_0900_ai_ci`) đạt **chuẩn 3NF nghiêm ngặt** theo tập phụ thuộc hàm nghiệp vụ và quyết định B01–B10 tại phụ lục `DATABASE_3NF_PROOFS.md`. Migration `031` loại hai cột ngày phụ thuộc hàm vào timestamp UTC; ngày Việt Nam được suy ra ở read model và các truy vấn ngày dùng khoảng UTC có index. Các cột dẫn xuất, phụ thuộc bắc cầu, nguồn nhân sự lặp và JSON bán cấu trúc đã được loại khỏi bảng cơ sở. Các số dư/tổng tổng hợp liên bảng được công bố là projection đồng bộ nguyên tử với sổ cái dưới khóa hàng `FOR UPDATE`. Toàn bộ kiểm thử nghiệm thu sau migration `031` (`CYBERHUB_RBAC_POLICY=legacy`, ngày 22/11/2026) đạt **1.907/1.907 unit test** (5 test symlink bỏ qua do giới hạn quyền symlink trên Windows) và **260/260 integration test** trên MySQL 8.4 (`cyberhub_manager_test`); nhóm 54 test game/quảng cáo/`business_time` đạt **54/54** trên cả hai cấu hình `legacy` và `separated`; database trình diễn `cyberhub_manager` đã được backup, diễn tập nâng cấp trên bản sao và áp dụng `031` thành công với 0 sai lệch dữ liệu.
+> Mô hình quan hệ gồm **75 bảng nghiệp vụ cơ sở** (cùng 1 bảng kỹ thuật `schema_migrations`, 18 view đọc `v_*`, 28 trigger toàn vẹn/chiếm dụng/bất biến, 150 khóa ngoại và 186 ràng buộc `CHECK`) ở phiên bản migration `001`–`032` (MySQL 8.4, 100% InnoDB, `utf8mb4_0900_ai_ci`) đạt **chuẩn 3NF nghiêm ngặt** theo tập phụ thuộc hàm nghiệp vụ và quyết định B01–B10 tại phụ lục `DATABASE_3NF_PROOFS.md`. Migration `031` loại hai cột ngày phụ thuộc hàm vào timestamp UTC; migration `032` tách cột thưa `account_transactions.session_id` sang bảng liên kết 1–1 `session_transactions`, đặt `account_transactions.store_id NOT NULL` và khóa bất biến append-only cho hai sổ cái cốt lõi (`account_transactions`, `inventory_movements`). Các cột dẫn xuất, phụ thuộc bắc cầu, nguồn nhân sự lặp và JSON bán cấu trúc đã được loại khỏi bảng cơ sở. Các số dư/tổng tổng hợp liên bảng được công bố là projection đồng bộ nguyên tử với sổ cái dưới khóa hàng `FOR UPDATE`. Toàn bộ kiểm thử nghiệm thu sau migration `032` (`CYBERHUB_RBAC_POLICY=legacy`) đạt 100% unit test (kèm Desktop Tk; 5 test symlink bỏ qua trên Windows) và 100% integration test trên MySQL 8.4 (`cyberhub_manager_test`); database trình diễn `cyberhub_manager` đã được backup và nâng cấp lên `032` thành công với 0 sai lệch dữ liệu.
 
 ## 14. Tài liệu tham khảo
 

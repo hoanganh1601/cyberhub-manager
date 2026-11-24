@@ -1,7 +1,7 @@
 """Đợt 1 — Repository menu trong bộ nhớ cho chế độ demo (web demo, --mock, unit test).
 
 Cùng chữ ký với repositories/menu_repository.py để MenuService chạy y hệt bản MySQL.
-Transaction bọc transaction của MemoryP1Repository (audit cùng rollback) và tự chụp
+Transaction bọc transaction của MemoryManagementRepository (audit cùng rollback) và tự chụp
 lại trạng thái menu để rollback khi có lỗi.
 """
 

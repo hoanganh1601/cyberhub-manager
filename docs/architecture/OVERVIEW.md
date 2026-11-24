@@ -55,7 +55,7 @@ Entry point mới: `python -m cyberhub_manager.presentation.web --port 8000`. L�
 
 ## Ranh giới cần giữ khi sửa code
 
-- Chỉ service quyết định có được đổi trạng thái hay ghi tiền/kho. UI ẩn nút không thay thế kiểm tra quyền ở backend. Quyền nghiệp vụ tập trung trong `domain/p1.py`.
+- Chỉ service quyết định có được đổi trạng thái hay ghi tiền/kho. UI ẩn nút không thay thế kiểm tra quyền ở backend. Quyền nghiệp vụ tập trung trong `domain/policies.py`.
 - Với MySQL, service mở transaction, repository dùng cùng connection, thành công thì commit và lỗi thì rollback. Không commit trong repository.
 - Demo có dữ liệu theo phiên và không phải môi trường nghiệm thu transaction hay lưu trữ bền vững. Các luồng kho, ca/két, bảo trì, mua hàng cần kiểm tra trên MySQL.
 - Trợ lý chỉ đọc tri thức được phép tại `docs/knowledge-base/`. Dự báo đọc artifact trong `runtime/forecasting/`; web không huấn luyện model trong HTTP request.

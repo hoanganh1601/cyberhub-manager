@@ -410,4 +410,10 @@ ENGLISH.update({
     "Giao quyền vận hành":"Grant operating access", "Thu hồi quyền vận hành":"Revoke operating access",
     "Không có cơ sở phụ":"No additional store", "Mã hồ sơ":"Profile code", "Cơ sở chính":"Home store",
     "Tài khoản":"Account", "Chưa cấp":"Not provisioned", "Chưa có hồ sơ nhân sự phù hợp.":"No matching personnel profiles.",
+    "Hủy phiên":"Cancel session",
+    "Hủy phiên đang chạy trên máy {v0}? Không trừ tiền và không lập hóa đơn.":"Cancel the active session on machine {v0}? No charge or invoice will be recorded.",
+    "Đã hủy phiên. Máy đã trở về trạng thái trống.":"Session cancelled. The machine is now available.",
+    "Hủy hóa đơn":"Void invoice",
+    "Hủy hóa đơn {v0}? Hóa đơn sẽ không còn tính vào doanh thu và điểm thành viên.":"Void invoice {v0}? It will be excluded from revenue and loyalty points.",
+    "Đã hủy hóa đơn {v0}.":"Invoice {v0} voided.",
 })

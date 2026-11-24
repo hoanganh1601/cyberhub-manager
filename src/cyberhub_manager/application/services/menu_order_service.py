@@ -9,7 +9,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.menu import MenuOrderStatus, MenuPaymentMethod
-from cyberhub_manager.domain.p1 import Permission
+from cyberhub_manager.domain.policies import Permission
 
 from cyberhub_manager.application.services.menu_shared import (
     ORDER_ALREADY_HANDLED,
@@ -17,7 +17,7 @@ from cyberhub_manager.application.services.menu_shared import (
     positive_id as _positive_id,
     text as _text,
 )
-from cyberhub_manager.application.services.p1_runtime import retry_on_transient
+from cyberhub_manager.application.services.service_runtime import retry_on_transient
 
 
 class MenuOrderMixin:

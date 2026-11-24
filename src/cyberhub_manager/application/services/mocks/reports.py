@@ -16,7 +16,7 @@ from cyberhub_manager.domain.dtos import (
 from cyberhub_manager.domain.dtos import EmployeeSession
 from cyberhub_manager.domain.enums import InvoiceStatus, Role
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
-from cyberhub_manager.domain.p1 import Permission, business_manager, can, chain_director
+from cyberhub_manager.domain.policies import Permission, business_manager, can, chain_director
 
 from cyberhub_manager.application.services.mocks.base import MockServiceBase, clean_text, raise_if_errors
 from cyberhub_manager.application.services.mocks.store import VN_TZ, local_date

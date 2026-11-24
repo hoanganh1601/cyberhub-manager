@@ -19,7 +19,7 @@ import customtkinter as ctk
 
 from cyberhub_manager.domain.dtos import EmployeeSession, MachineSummary
 from cyberhub_manager.domain.enums import MachineStatus
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.presentation.desktop.formatters import format_duration, format_money
 from cyberhub_manager.presentation.desktop.i18n import UIStrings
 from cyberhub_manager.presentation.desktop.messages import MSG_PROCESSING
@@ -97,6 +97,7 @@ class StitchMachineCard(ctk.CTkFrame):
         *,
         on_open: Callable[[int], None] | None = None,
         on_checkout: Callable[[int], None] | None = None,
+        on_cancel: Callable[[int], None] | None = None,
         on_maintenance: Callable[[int], None] | None = None,
         language: str = "vi",
         **kwargs: Any,
@@ -114,10 +115,12 @@ class StitchMachineCard(ctk.CTkFrame):
         self._t = UIStrings(language)
         self._machine: MachineSummary | None = None
         self._action: str | None = None
+        self._can_cancel = False
         self._busy = False
         self._callbacks: dict[str, Callable[[int], None] | None] = {
             "open": on_open,
             "checkout": on_checkout,
+            "cancel": on_cancel,
             "maintenance": on_maintenance,
         }
 
@@ -144,13 +147,28 @@ class StitchMachineCard(ctk.CTkFrame):
         self._info_box.pack(fill="x")
 
         # Nút luôn nằm ở đáy card.
+        self._action_row = ctk.CTkFrame(inner, fg_color="transparent")
         self._button = ctk.CTkButton(
-            inner,
+            self._action_row,
             text="",
             height=30,
             corner_radius=STITCH_RADIUS,
             font=FONT_ST_BODY_STRONG,
             command=self._on_click,
+        )
+        self._cancel_button = ctk.CTkButton(
+            self._action_row,
+            text=self._t("Hủy phiên"),
+            width=78,
+            height=30,
+            corner_radius=STITCH_RADIUS,
+            fg_color=STITCH_BADGE_DANGER_BG,
+            hover_color=STITCH_ROSE_HOVER,
+            border_width=1,
+            border_color=STITCH_BADGE_DANGER_BORDER,
+            text_color=STITCH_DANGER,
+            font=FONT_ST_BODY_STRONG,
+            command=self._on_cancel_click,
         )
         self._note_label = ctk.CTkLabel(
             inner, text=self._t('▲  Đang bảo trì'), font=FONT_ST_BODY_STRONG, text_color=STITCH_WARNING, height=30
@@ -168,6 +186,9 @@ class StitchMachineCard(ctk.CTkFrame):
     def set_on_checkout(self, callback: Callable[[int], None] | None) -> None:
         self._callbacks["checkout"] = callback
 
+    def set_on_cancel(self, callback: Callable[[int], None] | None) -> None:
+        self._callbacks["cancel"] = callback
+
     def set_on_maintenance(self, callback: Callable[[int], None] | None) -> None:
         self._callbacks["maintenance"] = callback
 
@@ -184,6 +205,10 @@ class StitchMachineCard(ctk.CTkFrame):
         return self._button
 
     @property
+    def cancel_button(self) -> ctk.CTkButton:
+        return self._cancel_button
+
+    @property
     def is_busy(self) -> bool:
         return self._busy
 
@@ -197,9 +222,14 @@ class StitchMachineCard(ctk.CTkFrame):
             text=MSG_PROCESSING if busy else self._t(label),
             state="disabled" if busy else "normal",
         )
+        self._cancel_button.configure(
+            text=self._t("Hủy phiên"),
+            state="disabled" if busy else "normal",
+        )
 
     def render(self, machine: MachineSummary, actor: EmployeeSession) -> None:
         self._machine = machine
+        self._can_cancel = can(actor.role, Permission.OPERATE)
         self._code_label.configure(text=machine.machine_code)
         self._name_label.configure(text=machine.name)
 
@@ -264,19 +294,33 @@ class StitchMachineCard(ctk.CTkFrame):
 
     def _render_action(self, action: str | None) -> None:
         self._action = action
+        self._action_row.pack_forget()
         self._button.pack_forget()
+        self._cancel_button.pack_forget()
         self._note_label.pack_forget()
         if action is None:
             self._note_label.pack(side="bottom", fill="x")
             return
         _label, bg, hover, text_color = _ACTIONS[action]
         self._button.configure(fg_color=bg, hover_color=hover, text_color=text_color)
-        self._button.pack(side="bottom", fill="x")
+        self._action_row.pack(side="bottom", fill="x")
+        if action == "checkout" and self._can_cancel and self._callbacks.get("cancel") is not None:
+            self._button.pack(side="left", fill="x", expand=True, padx=(0, 6))
+            self._cancel_button.pack(side="right")
+        else:
+            self._button.pack(side="left", fill="x", expand=True)
         self.set_busy(self._busy)  # gắn nhãn đúng: "Processing…" nếu đang bận, ngược lại nhãn gốc
 
     def _on_click(self) -> None:
         if self._busy or self._machine is None or self._action is None:
             return
         callback = self._callbacks.get(self._action)
+        if callback is not None:
+            callback(self._machine.machine_id)
+
+    def _on_cancel_click(self) -> None:
+        if self._busy or self._machine is None or self._action != "checkout" or not self._can_cancel:
+            return
+        callback = self._callbacks.get("cancel")
         if callback is not None:
             callback(self._machine.machine_id)

@@ -1,4 +1,4 @@
-"""P1 public contracts and deterministic money rules shared by desktop/web/DB/demo."""
+"""Domain policies, RBAC permissions, and deterministic money rules shared by desktop/web/DB/demo."""
 
 from dataclasses import dataclass
 from datetime import datetime

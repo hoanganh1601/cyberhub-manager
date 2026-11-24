@@ -15,7 +15,7 @@ from cyberhub_manager.application.ai.policy import create_policy_store
 from cyberhub_manager.application.ai.retrieval import normalize_question
 from cyberhub_manager.application.ai.service import RAGAssistantService
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
-from cyberhub_manager.domain.p1 import chain_director
+from cyberhub_manager.domain.policies import chain_director
 from cyberhub_manager.presentation.web.assistant_context import analytics_sources, personalized_sources, validate_mode
 
 _blueprint = Blueprint("assistant", __name__)

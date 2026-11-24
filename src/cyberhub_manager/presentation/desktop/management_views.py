@@ -12,7 +12,7 @@ import customtkinter as ctk
 
 from cyberhub_manager.domain.enums import Role
 from cyberhub_manager.domain.exceptions import ApplicationError, ValidationError
-from cyberhub_manager.domain.p1 import Permission, Promotion, can, separated_rbac, chain_director
+from cyberhub_manager.domain.policies import Permission, Promotion, can, separated_rbac, chain_director
 from cyberhub_manager.application.services.invoice_export import invoice_html, invoice_csv
 import cyberhub_manager.presentation.desktop.theme as t
 from cyberhub_manager.presentation.desktop.background import default_runner

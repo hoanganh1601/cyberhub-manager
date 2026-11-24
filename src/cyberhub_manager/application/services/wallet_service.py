@@ -15,7 +15,7 @@ from cyberhub_manager.domain.identifiers import (
     TRANSACTION_CODE_PREFIX,
     new_transaction_code,
 )
-from cyberhub_manager.domain.p1 import Permission, can, quote_top_up, separated_rbac, chain_director
+from cyberhub_manager.domain.policies import Permission, can, quote_top_up, separated_rbac, chain_director
 from cyberhub_manager.domain.loyalty import personalized
 from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository

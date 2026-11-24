@@ -2,7 +2,7 @@
 
 from datetime import timezone
 
-from cyberhub_manager.domain.p1 import CustomerSession
+from cyberhub_manager.domain.policies import CustomerSession
 from cyberhub_manager.infrastructure.repositories.sql import execute, rows, utc
 
 

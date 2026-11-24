@@ -23,13 +23,15 @@ import customtkinter as ctk
 from cyberhub_manager.domain.dtos import InvoiceDetail, InvoiceFilters, InvoiceSummary
 from cyberhub_manager.domain.enums import InvoiceStatus
 from cyberhub_manager.domain.exceptions import ValidationError
+from cyberhub_manager.domain.policies import business_manager
 from cyberhub_manager.presentation.desktop.app_shell import ViewContext
 from cyberhub_manager.presentation.desktop.i18n import UIStrings
 from cyberhub_manager.presentation.desktop.background import TaskRunner, default_runner
-from cyberhub_manager.presentation.desktop.components import ToastManager
+from cyberhub_manager.presentation.desktop.components import ConfirmDialog, ToastManager
 from cyberhub_manager.presentation.desktop.components.stitch_button import stitch_button
 from cyberhub_manager.presentation.desktop.components.workspace import PageHeader, MetricTile, icon_action, surface
 import cyberhub_manager.presentation.desktop.theme as workspace_theme
+from cyberhub_manager.presentation.desktop.feedback import notify_error, notify_success
 from cyberhub_manager.presentation.desktop.formatters import format_datetime, format_duration, format_money
 from cyberhub_manager.presentation.desktop.messages import MSG_LOADING, MSG_NO_DATA, MSG_RETRY, get_field_errors_safe, get_user_friendly_error
 from cyberhub_manager.presentation.desktop.report_filters import default_range, format_vn_date, local_today, validate_range
@@ -184,6 +186,7 @@ class InvoicesView(ctk.CTkFrame):
         self._applied: InvoiceFilters | None = None
         self._tab_buttons: dict[InvoiceStatus | None, ctk.CTkButton] = {}
         self._kpi_labels: dict[str, ctk.CTkLabel] = {}
+        self._void_button: Any = None
         self._compact = False
 
         self.grid_columnconfigure(0, weight=1)
@@ -232,6 +235,10 @@ class InvoicesView(ctk.CTkFrame):
     @property
     def filter_error(self) -> str:
         return self._filter_error.cget("text")
+
+    @property
+    def void_button(self) -> Any:
+        return self._void_button
 
     # ------------------------------------------------------------------
     # Dựng giao diện
@@ -585,6 +592,7 @@ class InvoicesView(ctk.CTkFrame):
             child.destroy()
 
     def _render_detail(self, *, loading: bool = False, error: str | None = None) -> None:
+        self._void_button = None
         for child in self._detail_frame.winfo_children():
             child.destroy()
         panel = ctk.CTkFrame(self._detail_frame, fg_color="transparent")
@@ -616,7 +624,7 @@ class InvoicesView(ctk.CTkFrame):
             return
         session = detail.session
         inv = detail.invoice
-        from cyberhub_manager.presentation.desktop.p1_views import export_detail
+        from cyberhub_manager.presentation.desktop.management_views import export_detail
         exports = ctk.CTkFrame(panel,fg_color="transparent")
         exports.pack(fill="x",pady=(0,10))
         icon_action(exports,self._t("Xuất hóa đơn"),"invoices",command=lambda:export_detail(self,detail,self._t.language),width=130).pack(side="left")
@@ -676,8 +684,60 @@ class InvoicesView(ctk.CTkFrame):
             ctk.CTkLabel(
                 note, text=self._t('⚠  Hóa đơn đã hủy — không tính vào doanh thu.'), font=FONT_ST_BODY_STRONG, text_color=STITCH_DANGER, anchor="w"
             ).pack(fill="x", padx=10, pady=6)
+        elif inv.status == InvoiceStatus.PAID and business_manager(self._context.session.role):
+            self._void_button = icon_action(
+                panel,
+                self._t("Hủy hóa đơn"),
+                "archive",
+                kind="danger",
+                command=lambda invoice_id=inv.invoice_id, invoice_code=inv.invoice_code: self._void_invoice(invoice_id, invoice_code),
+                width=160,
+            )
+            self._void_button.pack(fill="x", pady=(10, 0))
 
     # ------------------------------------------------------------------
+    def _void_invoice(self, invoice_id: int, invoice_code: str) -> None:
+        if self._closed:
+            return
+        confirmed = ConfirmDialog.ask(
+            self.winfo_toplevel(),
+            title=self._t("Hủy hóa đơn"),
+            message=self._t(
+                "Hủy hóa đơn {v0}? Hóa đơn sẽ không còn tính vào doanh thu và điểm thành viên.",
+                v0=invoice_code,
+            ),
+            confirm_label=self._t("Hủy hóa đơn"),
+            cancel_label=self._t("Hủy"),
+            is_danger=True,
+        )
+        if not confirmed:
+            return
+        button = self._void_button
+        if button is not None:
+            button.set_busy(True, busy_text="…")
+        reports, session = self._context.services.reports, self._context.session
+
+        def done(_voided: Any) -> None:
+            if self._closed:
+                return
+            self._selected_id = invoice_id
+            notify_success(self, self._t("Đã hủy hóa đơn {v0}.", v0=invoice_code))
+            self.reload()
+
+        def failed(error: Exception) -> None:
+            if self._closed:
+                return
+            if button is not None and button.winfo_exists():
+                button.set_busy(False)
+            notify_error(self, error, conflict_as_alert=True)
+            self.reload()
+
+        self._runner.submit(
+            self,
+            lambda: reports.void_invoice(invoice_id, session),
+            done,
+            failed,
+        )
     def copy_invoice_code(self) -> None:
         invoice = self.selected_invoice
         if invoice is None:

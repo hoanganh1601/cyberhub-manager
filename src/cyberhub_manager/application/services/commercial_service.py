@@ -36,7 +36,7 @@ from cyberhub_manager.domain.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from cyberhub_manager.domain.p1 import Permission, can, chain_director
+from cyberhub_manager.domain.policies import Permission, can, chain_director
 from cyberhub_manager.infrastructure.repositories.commercial_repository import CommercialRepository
 
 from cyberhub_manager.application.services.operational_base import OperationalServiceBase

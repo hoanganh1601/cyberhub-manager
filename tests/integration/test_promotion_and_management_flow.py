@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import replace
 import pytest
 from cyberhub_manager.domain.enums import Role, PaymentMethod
-from cyberhub_manager.domain.p1 import Promotion, CustomerSession
+from cyberhub_manager.domain.policies import Promotion, CustomerSession
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository

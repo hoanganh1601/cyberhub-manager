@@ -38,9 +38,9 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.game import LedgerReason
-from cyberhub_manager.domain.p1 import Permission, chain_director
+from cyberhub_manager.domain.policies import Permission, chain_director
 
-from cyberhub_manager.application.services.p1_runtime import errors, retry_on_transient
+from cyberhub_manager.application.services.service_runtime import errors, retry_on_transient
 
 TOKEN_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 TXN_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{4,80}$")

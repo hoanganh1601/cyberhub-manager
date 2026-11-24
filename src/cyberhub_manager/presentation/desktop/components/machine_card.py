@@ -16,7 +16,7 @@ import customtkinter as ctk
 
 from cyberhub_manager.domain.dtos import EmployeeSession, MachineSummary
 from cyberhub_manager.domain.enums import MachineStatus, Role
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.presentation.desktop.formatters import format_duration, format_money
 from cyberhub_manager.presentation.desktop.theme import (
     BG_ALERT_DANGER,

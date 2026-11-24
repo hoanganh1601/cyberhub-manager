@@ -26,7 +26,7 @@ from cyberhub_manager.application.services.contracts import ServiceBundle
 from cyberhub_manager.presentation.desktop.components import ConfirmDialog, ToastManager
 from cyberhub_manager.presentation.desktop.components.sidebar_button import SidebarButton
 from cyberhub_manager.domain.enums import Role
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.presentation.desktop.sidebar_icons import sidebar_icon
 from cyberhub_manager.presentation.desktop.i18n import Language, normalize_language, translate
 from cyberhub_manager.presentation.desktop.messages import MSG_CANCEL, MSG_OPERATION_FAILED, get_user_friendly_error
@@ -626,7 +626,7 @@ class AppShell(ctk.CTkFrame):
     # ------------------------------------------------------------------
     def _choose_store(self) -> None:
         from cyberhub_manager.presentation.desktop.background import default_runner
-        from cyberhub_manager.presentation.desktop.p1_views import StorePicker
+        from cyberhub_manager.presentation.desktop.management_views import StorePicker
         from cyberhub_manager.presentation.desktop.feedback import notify_error
         default_runner().submit(self, lambda: self._services.management.list_stores(self._session),
             lambda stores: StorePicker(self.winfo_toplevel(),self._services,self._session,stores,self._on_store_change,self.language),

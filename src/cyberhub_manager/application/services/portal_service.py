@@ -4,19 +4,19 @@ from cyberhub_manager.domain.exceptions import (
     AuthenticationError,
     PermissionDeniedError,
 )
-from cyberhub_manager.domain.p1 import CustomerSession
+from cyberhub_manager.domain.policies import CustomerSession
 from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.infrastructure.repositories.portal_repository import PortalRepository
 from cyberhub_manager.infrastructure.security import verify_password
-from cyberhub_manager.application.services.p1_runtime import errors
+from cyberhub_manager.application.services.service_runtime import errors
 from cyberhub_manager.application.services.portal_experience import PortalExperienceMixin
-from cyberhub_manager.application.services.portal_phase2 import PortalPhase2Mixin
+from cyberhub_manager.application.services.portal_profile import PortalProfileMixin
 from cyberhub_manager.application.services.portal_membership import PortalMembershipMixin
 from datetime import datetime, timezone
 
 
-class PortalService(PortalExperienceMixin, PortalPhase2Mixin, PortalMembershipMixin):
+class PortalService(PortalExperienceMixin, PortalProfileMixin, PortalMembershipMixin):
     def __init__(
         self,
         repo=None,

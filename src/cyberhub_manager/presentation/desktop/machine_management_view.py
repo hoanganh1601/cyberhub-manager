@@ -21,7 +21,7 @@ import customtkinter as ctk
 from cyberhub_manager.domain.dtos import MachineArchiveResult, MachineSummary
 from cyberhub_manager.domain.enums import MachineArchiveAction, MachineStatus
 from cyberhub_manager.domain.models import Machine
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.presentation.desktop.app_shell import ViewContext, role_label
 from cyberhub_manager.presentation.desktop.i18n import UIStrings
 from cyberhub_manager.presentation.desktop.background import TaskRunner, default_runner

@@ -3,7 +3,7 @@
 from datetime import timezone
 from uuid import uuid4
 
-from cyberhub_manager.domain.p1 import EmployeeSummary, Promotion, StoreSummary
+from cyberhub_manager.domain.policies import EmployeeSummary, Promotion, StoreSummary
 
 from cyberhub_manager.infrastructure.repositories.sql import execute, rows, utc
 

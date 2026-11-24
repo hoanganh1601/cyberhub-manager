@@ -35,10 +35,10 @@ from cyberhub_manager.domain.game import (
     LedgerReason,
     expected_coins,
 )
-from cyberhub_manager.domain.p1 import Permission, can, chain_director
+from cyberhub_manager.domain.policies import Permission, can, chain_director
 from cyberhub_manager.domain.voucher import VoucherSource
 
-from cyberhub_manager.application.services.p1_runtime import errors, retry_on_transient
+from cyberhub_manager.application.services.service_runtime import errors, retry_on_transient
 
 REQUEST_KEY = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 

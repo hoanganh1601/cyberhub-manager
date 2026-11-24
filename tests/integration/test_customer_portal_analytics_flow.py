@@ -7,7 +7,7 @@ import pytest
 
 from cyberhub_manager.domain.enums import PaymentMethod
 from cyberhub_manager.domain.exceptions import ValidationError, PermissionDeniedError
-from cyberhub_manager.domain.p1 import CustomerSession, Promotion
+from cyberhub_manager.domain.policies import CustomerSession, Promotion
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.infrastructure.repositories.sql import execute, rows

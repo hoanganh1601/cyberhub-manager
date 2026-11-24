@@ -20,7 +20,7 @@ from cyberhub_manager.application.services.mocks.repositories import (
     MemoryGameRepository,
     MemoryInventoryRepository,
     MemoryMenuRepository,
-    MemoryP1Repository,
+    MemoryManagementRepository,
     MemoryVoucherRepository,
 )
 
@@ -76,16 +76,16 @@ def build_mock_services(
         data.customer_password_hashes.update({c.account.id:password_hash for c in data.customers.values()})
         if customer_offers:
             from datetime import timedelta
-            from cyberhub_manager.domain.p1 import Promotion
+            from cyberhub_manager.domain.policies import Promotion
 
             for code, threshold, percent in (("DEMO100", 100000, 10), ("DEMO200", 200000, 20)):
                 entity_id = data.next_id("promotion")
                 data.promotions[entity_id] = Promotion(
                     entity_id, code, "CyberHub " + str(percent) + "%", None,
                     threshold, percent, clock.now()-timedelta(days=1), clock.now()+timedelta(days=7))
-    repo = MemoryP1Repository(data)
+    repo = MemoryManagementRepository(data)
     if customer_offers and data.customers:
-        from cyberhub_manager.domain.p1 import Promotion
+        from cyberhub_manager.domain.policies import Promotion
         from datetime import timedelta
         entity_id=data.next_id('promotion')
         data.promotions[entity_id]=Promotion(entity_id,'DEMO-PERSONAL','Ưu đãi thành viên CyberHub',None,300000,25,

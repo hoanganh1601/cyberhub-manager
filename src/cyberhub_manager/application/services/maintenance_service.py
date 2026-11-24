@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from cyberhub_manager.domain.exceptions import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
 from cyberhub_manager.domain.maintenance import IncidentSeverity, IncidentStatus, require_incident_transition
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.infrastructure.repositories.maintenance_repository import MaintenanceRepository
 
 from cyberhub_manager.application.services.operational_base import OperationalServiceBase

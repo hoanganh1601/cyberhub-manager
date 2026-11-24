@@ -1,6 +1,6 @@
 # UML hệ thống CyberHub Manager
 
-Tài liệu này mô tả cấu trúc source và hai luồng game/quảng cáo sau migration `031`.
+Tài liệu này mô tả cấu trúc source bốn tầng và các luồng nghiệp vụ trọng tâm sau migration `032` (75 bảng nghiệp vụ, 18 view đọc, 28 trigger).
 ERD đầy đủ nằm tại [current_erd.md](current_erd.md); kiểu cột và ràng buộc vật lý nằm tại
 [data_dictionary.md](data_dictionary.md). Các sơ đồ Mermaid có thể xem trực tiếp trên GitHub.
 
@@ -93,6 +93,8 @@ flowchart LR
     end
 
     subgraph A[Application]
+        SessionReport[SessionService & ReportService]
+        PortalSvc[PortalService + portal_profile]
         GameService[GameService]
         AdService[AdService]
         OtherServices[Services nghiệp vụ khác]
@@ -100,14 +102,15 @@ flowchart LR
 
     subgraph D[Domain]
         Entities[Entities + enums]
-        Policies[RBAC + business policies]
+        Policies[domain/policies.py: RBAC + money]
         BusinessTime[Business time UTC+7]
     end
 
     subgraph I[Infrastructure]
+        CoreRepos[Session / Invoice / Account Repos]
+        MgmtRepos[Management / Portal / Loyalty Repos]
         GameRepo[GameRepository]
         AdRepo[AdRepository]
-        OtherRepos[Repositories khác]
         Tx[Transaction manager]
         MySQL[(MySQL 8.4)]
     end
@@ -115,21 +118,29 @@ flowchart LR
     actorCustomer --> Web
     actorEmployee --> Web
     actorEmployee --> Desktop
+    Web --> SessionReport
+    Web --> PortalSvc
     Web --> GameService
     Web --> AdService
+    Desktop --> SessionReport
     Desktop --> OtherServices
+    SessionReport --> Policies
+    PortalSvc --> MgmtRepos
     GameService --> Policies
     AdService --> Policies
     GameService --> BusinessTime
     AdService --> BusinessTime
+    SessionReport --> CoreRepos
     GameService --> GameRepo
     AdService --> AdRepo
     AdService --> GameRepo
-    OtherServices --> OtherRepos
+    OtherServices --> MgmtRepos
+    CoreRepos --> Tx
+    MgmtRepos --> Tx
     GameRepo --> Tx
     AdRepo --> Tx
-    OtherRepos --> Tx
     Tx --> MySQL
+    SessionReport --> Entities
     GameService --> Entities
     AdService --> Entities
 ```
@@ -282,10 +293,9 @@ stateDiagram-v2
     REJECTED --> [*]
 ```
 
-## 7. Quy tắc dữ liệu sau migration 031
+## 7. Quy tắc dữ liệu sau migration `031`–`032`
 
-- Timestamp trong bảng cơ sở là nguồn sự thật và được lưu theo UTC.
-- Ngày nghiệp vụ là `DATE(timestamp + INTERVAL 7 HOUR)` trong read model.
-- Truy vấn đếm theo ngày dùng khoảng UTC nửa mở để tránh áp hàm lên cột index.
-- Migration chỉ xóa cột sau khi kiểm tra toàn bộ dữ liệu cũ khớp quy tắc UTC+7.
-- Giới hạn lượt, cập nhật ví và ghi ledger vẫn nằm trong cùng transaction có khóa hàng.
+- Timestamp trong bảng cơ sở là nguồn sự thật và được lưu theo UTC (`031`); ngày nghiệp vụ là `DATE(timestamp + INTERVAL 7 HOUR)` trong read model và truy vấn đếm theo ngày dùng khoảng UTC nửa mở có index.
+- Sổ cái ví `account_transactions` luôn gắn `store_id NOT NULL` và tách liên kết phiên tùy chọn sang bảng 1–1 `session_transactions(transaction_id PK, session_id)` (`032`), loại bỏ cột `session_id` nullable/thưa trên sổ cái.
+- Hai bảng sổ cái cốt lõi (`account_transactions`, `inventory_movements`) được bảo vệ bất biến (append-only) ở mức trigger MySQL (`BEFORE UPDATE` / `BEFORE DELETE` phát `SQLSTATE '45000'`).
+- Giới hạn lượt, cập nhật ví, hủy phiên (`CANCELLED`), hủy hóa đơn (`VOID`) và ghi ledger đều chạy trong cùng transaction có khóa hàng `FOR UPDATE`.

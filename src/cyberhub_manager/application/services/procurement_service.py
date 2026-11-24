@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
 from cyberhub_manager.domain.exceptions import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
-from cyberhub_manager.domain.p1 import Permission, can, separated_rbac
+from cyberhub_manager.domain.policies import Permission, can, separated_rbac
 from cyberhub_manager.domain.procurement import parse_quantity_lines
 from cyberhub_manager.infrastructure.repositories.procurement_repository import ProcurementRepository
 

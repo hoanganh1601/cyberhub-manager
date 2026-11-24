@@ -35,7 +35,7 @@ from cyberhub_manager.infrastructure.repositories.machine_repository import Mach
 from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
 from cyberhub_manager.infrastructure.db_errors import translate_db_errors
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
-from cyberhub_manager.domain.p1 import Permission, business_manager, can, chain_director
+from cyberhub_manager.domain.policies import Permission, business_manager, can, chain_director
 
 ActorProvider = Callable[[], EmployeeSession | None]
 

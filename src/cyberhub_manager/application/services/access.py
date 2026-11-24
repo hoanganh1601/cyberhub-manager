@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 from cyberhub_manager.domain.dtos import EmployeeSession
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 

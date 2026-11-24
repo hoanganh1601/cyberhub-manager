@@ -34,4 +34,4 @@ python -m pip install -e ".[forecast]"
 python -m scripts.run_forecasting --source demo --history-days 180
 ```
 
-Đăng nhập tài khoản có quyền `VIEW_REVENUE` (`DIRECTOR`/`MANAGER` khi dùng RBAC tách quyền), mở **Phân tích & Dự báo**. File sinh ra nằm trong `runtime/forecasting/`, không commit; bản demo gắn `is_simulated=true`. Xem [hướng dẫn dự báo](../features/FORECASTING_PHASE5.md).
+Đăng nhập tài khoản có quyền `VIEW_REVENUE` (`DIRECTOR`/`MANAGER` khi dùng RBAC tách quyền), mở **Phân tích & Dự báo**. File sinh ra nằm trong `runtime/forecasting/`, không commit; bản demo gắn `is_simulated=true`. Xem [hướng dẫn dự báo](../features/FORECASTING.md).

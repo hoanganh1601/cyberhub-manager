@@ -7,7 +7,7 @@ from datetime import datetime
 
 from cyberhub_manager.domain.enums import EmployeeStatus, Role, StoreStatus
 from cyberhub_manager.domain.exceptions import ValidationError
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.domain.model_base import (
     Entity,
     Person,

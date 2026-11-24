@@ -22,7 +22,7 @@ import customtkinter as ctk
 from cyberhub_manager.domain.dtos import CustomerSummary, TopUpResult, TransactionSummary
 from cyberhub_manager.domain.enums import AccountStatus, CustomerStatus, PaymentMethod, TransactionType
 from cyberhub_manager.domain.models import Customer
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.presentation.desktop.app_shell import ViewContext, initials
 from cyberhub_manager.presentation.desktop.i18n import UIStrings
 from cyberhub_manager.presentation.desktop.background import TaskRunner, default_runner

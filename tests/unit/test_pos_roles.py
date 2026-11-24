@@ -1,7 +1,7 @@
 """Dedicated POS roles grant only the capabilities needed for each job."""
 
 from cyberhub_manager.domain.enums import Role
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.application.services.mocks.factory import build_mock_services
 from uuid import uuid4

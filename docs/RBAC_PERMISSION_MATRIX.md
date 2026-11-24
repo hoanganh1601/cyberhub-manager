@@ -7,7 +7,7 @@
 - **Hiện tại:** `A` = ADMIN, `M` = MANAGER, `S` = STAFF, `K` = KITCHEN, `I` = INVENTORY. `C` = khách hàng xác thực. `*` = mọi nhân viên đã đăng nhập. `—` = không có quyền. `D` chưa tồn tại.
 - **Đề xuất:** `A` = ADMIN kỹ thuật, `D` = DIRECTOR, `M` = MANAGER, `S/K/I` giữ vai trò vận hành hiện có cho đến khi duyệt chuyển đổi. Dấu `?` cần chính sách cụ thể trước triển khai. Các chữ ở cột đề xuất **không cấp quyền** cho tài khoản nào ở giai đoạn tài liệu.
 - `cơ sở` = đúng cơ sở đang thao tác và được giao; `chuỗi` = các cơ sở thuộc chuỗi; `bản thân` = principal của chính người dùng. Bất kỳ quyền nào cũng cần trạng thái tài khoản hợp lệ, kiểm tra scope và điều kiện nghiệp vụ tại Service. Quyền UI không thay thế guard backend.
-- Tên `Permission.*` là hằng số hiện có trong [`domain/p1.py`](../src/cyberhub_manager/domain/p1.py). “role cứng” hoặc “actor hợp lệ” nghĩa là hiện chưa có permission chuyên biệt, cần tách khi triển khai.
+- Tên `Permission.*` là hằng số hiện có trong [`domain/policies.py`](../src/cyberhub_manager/domain/policies.py). “role cứng” hoặc “actor hợp lệ” nghĩa là hiện chưa có permission chuyên biệt, cần tách khi triển khai.
 
 ## 1. Xác thực, cơ sở, nhân sự
 
@@ -104,7 +104,7 @@ Nguồn: [`menu_inventory_service.py`](../src/cyberhub_manager/application/servi
 | Khách xem/sửa hồ sơ của mình, tự đổi mật khẩu, lịch sử, đơn và hóa đơn | C | C | Bản thân; không trộn với role nhân viên. |
 | Khách tự đăng ký bằng mật khẩu rồi vào cổng ngay | Khách chưa đăng nhập | Giữ đến khi duyệt chuyển sang email `?` | Hiện chưa xác minh email; không đổi trải nghiệm khách cũ âm thầm. |
 
-Nguồn: [`commercial_service.py`](../src/cyberhub_manager/application/services/commercial_service.py), [`assistant.py`](../src/cyberhub_manager/presentation/web/assistant.py), [`assistant_context.py`](../src/cyberhub_manager/presentation/web/assistant_context.py), [`application.py`](../src/cyberhub_manager/presentation/web/application.py), [`portal_phase2.py`](../src/cyberhub_manager/application/services/portal_phase2.py).
+Nguồn: [`commercial_service.py`](../src/cyberhub_manager/application/services/commercial_service.py), [`assistant.py`](../src/cyberhub_manager/presentation/web/assistant.py), [`assistant_context.py`](../src/cyberhub_manager/presentation/web/assistant_context.py), [`application.py`](../src/cyberhub_manager/presentation/web/application.py), [`portal_profile.py`](../src/cyberhub_manager/application/services/portal_profile.py).
 
 ## 6. Quyền chưa tồn tại trong source: không cấp ở giai đoạn này
 

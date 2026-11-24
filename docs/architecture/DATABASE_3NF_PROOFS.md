@@ -438,7 +438,7 @@ Tất cả 75 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Đã chứng minh chi tiết bằng Định lý Heath tại Mục 3 ở trên; đối soát clone dữ liệu thật đạt 0 sai lệch.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_menu_items_category_name`(`category_id,name`); FK `fk_menu_items_category`(`category_id` → `menu_categories.id`, ON DELETE RESTRICT); CHECK `chk_menu_items_name`; CHECK `chk_menu_items_price`; CHECK `chk_menu_items_sort`; TRIGGER `trg_menu_items_bi`; TRIGGER `trg_menu_items_bu`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** `MenuCatalogMixin.save_item` kiểm tra danh mục cùng cơ sở và ghi nhật ký `menu_item_changes` trong cùng transaction.
-- **Test và bằng chứng dữ liệu:** `test_dot1_menu_repository.py`, `test_3nf_and_integrity.py`.
+- **Test và bằng chứng dữ liệu:** `test_menu_repository.py`, `test_3nf_and_integrity.py`.
 - **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.22. `menu_item_images`
@@ -486,7 +486,7 @@ Tất cả 75 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Đã chứng minh chi tiết bằng Định lý Heath tại Mục 3 ở trên; đối soát clone dữ liệu thật đạt 0 sai lệch.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`id`); UK `uq_menu_orders_code`(`code`); FK `fk_menu_orders_handled_by`(`handled_by` → `employees.id`, ON DELETE RESTRICT); FK `fk_menu_orders_paid_by`(`paid_by` → `employees.id`, ON DELETE RESTRICT); FK `fk_menu_orders_session`(`session_id` → `usage_sessions.id`, ON DELETE RESTRICT); CHECK `chk_menu_orders_handled`; CHECK `chk_menu_orders_payment`; CHECK `chk_menu_orders_status`; CHECK `chk_menu_orders_total`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** NF-05: `total_amount` là tổng tiền snapshot chụp từ `menu_order_items` lúc đặt; mọi chuyển trạng thái đơn và giữ/xuất kho nguyên liệu chạy nguyên tử trong cùng transaction.
-- **Test và bằng chứng dữ liệu:** `test_dot1_menu_repository.py`, `test_inventory_order_lifecycle.py`, `test_3nf_and_integrity.py`.
+- **Test và bằng chứng dữ liệu:** `test_menu_repository.py`, `test_inventory_order_lifecycle.py`, `test_3nf_and_integrity.py`.
 - **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.25. `menu_order_items`
@@ -502,7 +502,7 @@ Tất cả 75 bảng nghiệp vụ (theo đúng thứ tự trình bày của `sc
 - **Chứng minh nối không mất mát và bảo toàn phụ thuộc:** Không phân rã bảng; quan hệ giữ nguyên toàn bộ thuộc tính và phụ thuộc hàm gốc.
 - **PK / UNIQUE / FK / CHECK / TRIGGER hiện thực hóa:** PK(`order_id,item_id`); FK `fk_menu_order_items_item`(`item_id` → `menu_items.id`, ON DELETE RESTRICT); FK `fk_menu_order_items_order`(`order_id` → `menu_orders.id`, ON DELETE RESTRICT); CHECK `chk_menu_order_items_price`; CHECK `chk_menu_order_items_quantity`.
 - **Quy tắc cần transaction hoặc service hỗ trợ:** Ghi bất biến trong cùng transaction tạo `menu_orders` và `menu_order_recipe_snapshots`.
-- **Test và bằng chứng dữ liệu:** `test_dot1_menu_repository.py`, `test_inventory_order_lifecycle.py`.
+- **Test và bằng chứng dữ liệu:** `test_menu_repository.py`, `test_inventory_order_lifecycle.py`.
 - **Kết luận, người rà soát, ngày rà soát:** **ĐẠT 3NF NGHIÊM NGẶT** — Rà soát & kiểm chứng tự động trên MySQL 8.4 (`cyberhub_manager_test`), ngày **21/11/2026**.
 
 ### 4.26. `inventory_ingredients`

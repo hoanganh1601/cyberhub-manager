@@ -11,7 +11,7 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     NotFoundError,
 )
-from cyberhub_manager.domain.p1 import Promotion, quote_top_up, Permission, ROLE_PERMISSIONS, can
+from cyberhub_manager.domain.policies import Promotion, quote_top_up, Permission, ROLE_PERMISSIONS, can
 from cyberhub_manager.application.services.mocks.factory import build_mock_services
 from cyberhub_manager.application.services.invoice_export import invoice_html, invoice_csv
 

@@ -940,7 +940,7 @@ def build_markdown(conn: Any) -> str:
         extra_indexes = [i for i in indexes if i["t"] == t and i["name"] not in constraint_names and i["name"] != "PRIMARY"]
         if extra_indexes:
             w("")
-            w("Index bổ sung (`002_indexes.sql`):")
+            w("Index bổ sung:")
             w("")
             for i in extra_indexes:
                 kind = "UNIQUE INDEX" if not i["non_unique"] else "INDEX"

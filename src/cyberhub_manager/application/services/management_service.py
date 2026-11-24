@@ -12,11 +12,11 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.domain.p1 import Permission, Promotion, can, chain_director, separated_rbac
+from cyberhub_manager.domain.policies import Permission, Promotion, can, chain_director, separated_rbac
 from cyberhub_manager.infrastructure.repositories.loyalty_repository import LoyaltyRepository
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 from cyberhub_manager.infrastructure.security import hash_password
-from cyberhub_manager.application.services.p1_runtime import errors, retry_on_transient
+from cyberhub_manager.application.services.service_runtime import errors, retry_on_transient
 from cyberhub_manager.domain.loyalty import TIERS, LoyaltySettings
 
 

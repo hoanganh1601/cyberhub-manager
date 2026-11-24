@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from hashlib import sha256
 
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
-from cyberhub_manager.domain.p1 import CustomerSession, quote_top_up
+from cyberhub_manager.domain.policies import CustomerSession, quote_top_up
 from cyberhub_manager.domain.loyalty import audience_matches
 
 VIETNAM = timezone(timedelta(hours=7))

@@ -39,11 +39,11 @@ from cyberhub_manager.domain.menu import (
     MenuPaymentMethod,
     MenuPage,
 )
-from cyberhub_manager.domain.p1 import CustomerSession, Permission, can
+from cyberhub_manager.domain.policies import CustomerSession, Permission, can
 from cyberhub_manager.domain.loyalty import TIERS
 from cyberhub_manager.application.services.pos_pricing import price_order
 
-from cyberhub_manager.application.services.p1_runtime import errors, retry_on_transient
+from cyberhub_manager.application.services.service_runtime import errors, retry_on_transient
 
 from cyberhub_manager.application.services.menu_shared import (
     ITEM_NOT_FOUND,

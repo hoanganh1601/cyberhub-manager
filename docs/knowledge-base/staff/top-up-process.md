@@ -58,6 +58,6 @@ không áp dụng thưởng nạp tiền và không cộng lần thứ hai vào 
 ## Nguồn đối chiếu
 
 - `src/cyberhub_manager/application/services/wallet_service.py`
-- `src/cyberhub_manager/domain/p1.py` — quote_top_up
+- `src/cyberhub_manager/domain/policies.py` — quote_top_up
 - `history/docs/reference/P1_DESKTOP_WEB.md` — Quy tắc nghiệp vụ
 - `history/docs/features/CUSTOMER_PORTAL_PHASE3.md` — Ưu đãi cá nhân hóa

@@ -177,6 +177,7 @@ class DashboardView(ctk.CTkFrame):
         refresh_ms: int = REFRESH_MS,
         on_open_session: Callable[[int], None] | None = None,
         on_checkout: Callable[[int], None] | None = None,
+        on_cancel_session: Callable[[int], None] | None = None,
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self._context = context
@@ -185,6 +186,7 @@ class DashboardView(ctk.CTkFrame):
         self._refresh_ms = refresh_ms
         self._on_open_session = on_open_session
         self._on_checkout = on_checkout
+        self._on_cancel_session = on_cancel_session
 
         self._machines: list[MachineSummary] = []
         self._status_filter: MachineStatus | None = None
@@ -489,7 +491,9 @@ class DashboardView(ctk.CTkFrame):
                     self._grid,
                     on_open=self._open_session,
                     on_checkout=self._checkout,
-                    on_maintenance=self._end_maintenance, language=self._t.language,
+                    on_cancel=self._cancel_session,
+                    on_maintenance=self._end_maintenance,
+                    language=self._t.language,
                 )
                 self._cards[machine.machine_id] = card
             card.render(machine, actor)
@@ -571,6 +575,46 @@ class DashboardView(ctk.CTkFrame):
             runner=self._runner,
             on_completed=lambda _result: self.refresh(),
             on_conflict=self.refresh,
+        )
+
+    def _cancel_session(self, machine_id: int) -> None:
+        if self._on_cancel_session is not None:
+            self._on_cancel_session(machine_id)
+            return
+        card = self._cards.get(machine_id)
+        if card is None or card.is_busy or card.machine is None:
+            return
+        confirmed = ConfirmDialog.ask(
+            self.winfo_toplevel(),
+            title=self._t("Hủy phiên"),
+            message=self._t(
+                "Hủy phiên đang chạy trên máy {v0}? Không trừ tiền và không lập hóa đơn.",
+                v0=card.machine.machine_code,
+            ),
+            confirm_label=self._t("Hủy phiên"),
+            cancel_label=self._t("Hủy"),
+            is_danger=True,
+        )
+        if not confirmed:
+            return
+        card.set_busy(True)
+        services, session = self._context.services, self._context.session
+
+        def done(_cancelled: Any) -> None:
+            card.set_busy(False)
+            notify_success(self, self._t("Đã hủy phiên. Máy đã trở về trạng thái trống."))
+            self.refresh()
+
+        def failed(error: Exception) -> None:
+            card.set_busy(False)
+            notify_error(self, error, conflict_as_alert=True)
+            self.refresh()
+
+        self._runner.submit(
+            self,
+            lambda: services.sessions.cancel_session(machine_id, session),
+            done,
+            failed,
         )
 
     def _end_maintenance(self, machine_id: int) -> None:

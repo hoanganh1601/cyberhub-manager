@@ -4,7 +4,7 @@
 
 1. Viết rõ actor, cửa hàng, điều kiện đầu vào, trạng thái, tiền/kho bị tác động và điều kiện rollback trong [luồng nghiệp vụ](../architecture/BUSINESS_FLOWS.md) hoặc tài liệu chuyên sâu phù hợp.
 2. Nếu cần dữ liệu mới, thêm migration số tiếp theo trong `sql/`; giữ file cũ và checksum. Cập nhật [mô hình dữ liệu](../architecture/DATA_MODEL.md).
-3. Đặt quy tắc thuần trong `domain/`, use case trong `application/services/` và quyền trong `domain/p1.py`. Truy vấn nằm trong `infrastructure/repositories/`; nghiệp vụ có nhiều bước ghi dùng cùng `infrastructure/database/transaction.py`.
+3. Đặt quy tắc thuần trong `domain/`, use case trong `application/services/` và quyền trong `domain/policies.py`. Truy vấn nằm trong `infrastructure/repositories/`; nghiệp vụ có nhiều bước ghi dùng cùng `infrastructure/database/transaction.py`.
 4. Ghép service ở `application/services/bootstrap.py`; web đăng ký route theo nhóm trong `presentation/web/`, desktop trong `presentation/desktop/`. Frontend dùng hợp đồng Application, không gọi Infrastructure. Thư viện MySQL, SQLite, bcrypt và sklearn nằm trong Infrastructure.
 5. Thêm test cho trường hợp thành công, từ chối quyền, sai trạng thái, rollback và yêu cầu lặp. Với MySQL, kiểm tra cả phạm vi cửa hàng và transaction trên database test.
 

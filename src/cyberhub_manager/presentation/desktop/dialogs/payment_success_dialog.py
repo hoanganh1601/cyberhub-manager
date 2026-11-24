@@ -176,7 +176,7 @@ class PaymentSuccessDialog(StitchDialog):
         _row(payment, self._t('Số dư tài khoản còn lại:'), format_money(result.balance_after, language=self._t.language), STITCH_TEXT_STRONG, strong=True)
 
         self._build_confirmations(columns)
-        from cyberhub_manager.presentation.desktop.p1_views import export_detail
+        from cyberhub_manager.presentation.desktop.management_views import export_detail
         from cyberhub_manager.presentation.desktop.components.workspace import icon_action
         actions = ctk.CTkFrame(self.body,fg_color="transparent")
         actions.pack(fill="x",pady=(12,0))

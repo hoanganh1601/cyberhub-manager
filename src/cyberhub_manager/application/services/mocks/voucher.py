@@ -1,7 +1,7 @@
 """Đợt 2 — Repository voucher trong bộ nhớ cho chế độ demo và unit test.
 
 Cùng chữ ký với repositories/voucher_repository.py. Transaction bọc transaction của
-MemoryP1Repository (khách, tài khoản, audit) và tự chụp lại trạng thái voucher, giao dịch ví,
+MemoryManagementRepository (khách, tài khoản, audit) và tự chụp lại trạng thái voucher, giao dịch ví,
 điểm tặng để rollback khi lỗi.
 """
 

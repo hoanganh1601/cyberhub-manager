@@ -8,7 +8,7 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 
 from cyberhub_manager.application.services.menu_shared import (
     ITEM_NOT_FOUND,
@@ -18,7 +18,7 @@ from cyberhub_manager.application.services.menu_shared import (
     stock_quantity as _stock_quantity,
     text as _text,
 )
-from cyberhub_manager.application.services.p1_runtime import retry_on_transient
+from cyberhub_manager.application.services.service_runtime import retry_on_transient
 
 
 class MenuInventoryMixin:

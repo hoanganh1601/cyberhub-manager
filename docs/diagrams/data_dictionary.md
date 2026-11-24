@@ -321,7 +321,7 @@ Ràng buộc:
 - CHECK `chk_employee_profiles_full_name_not_blank`: `(char_length(trim(full_name)) > 0)`
 - CHECK `chk_employee_profiles_status`: `(employment_status in ('ACTIVE','INACTIVE'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_employee_profiles_store_status` (`home_store_id, employment_status`)
 
@@ -369,7 +369,7 @@ Ràng buộc:
 - CHECK `chk_customers_phone_format`: `regexp_like(phone,'^0[0-9]{9}$','c')`
 - CHECK `chk_customers_status`: `(status in ('ACTIVE','INACTIVE'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_customers_full_name` (`full_name`)
 
@@ -451,7 +451,7 @@ Ràng buộc:
 - CHECK `chk_machines_name_not_blank`: `(char_length(trim(name)) > 0)`
 - CHECK `chk_machines_status`: `(status in ('AVAILABLE','IN_USE','MAINTENANCE'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_machines_store_active_status` (`store_id, is_active, status`)
 
@@ -488,7 +488,7 @@ Ràng buộc:
 - CHECK `chk_usage_sessions_status`: `(status in ('ACTIVE','COMPLETED','CANCELLED'))`
 - CHECK `chk_usage_sessions_time_order`: `((ended_at is null) or (ended_at >= started_at))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_usage_sessions_customer_started_at` (`customer_id, started_at`)
 - INDEX `idx_usage_sessions_machine_started_at` (`machine_id, started_at`)
@@ -544,7 +544,7 @@ Ràng buộc:
 - CHECK `chk_account_transactions_type`: `(type in ('TOP_UP','PROMOTION','USAGE_PAYMENT','DEBT_SETTLEMENT'))`
 - CHECK `chk_account_transactions_type_method`: `(((type in ('TOP_UP','DEBT_SETTLEMENT')) and (method in ('CASH','TRANSFER'))) or ((type = 'USAGE_PAYMENT') and (method = 'ACCOUNT_BALANCE')) or ((type = 'PROMOTION') and (method = 'PROMOTION')))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_account_transactions_account_created_at` (`account_id, created_at`)
 
@@ -563,7 +563,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_session_transactions_session` (`session_id`) → `usage_sessions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - FOREIGN KEY `fk_session_transactions_tx` (`transaction_id`) → `account_transactions` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_session_transactions_session` (`session_id`)
 
@@ -602,7 +602,7 @@ Ràng buộc:
 - CHECK `chk_invoices_settlement`: `(settlement_amount <= usage_cost)`
 - CHECK `chk_invoices_status`: `(status in ('PAID','VOID'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_invoices_customer_created_at` (`customer_id, created_at`)
 - INDEX `idx_invoices_store_status_created_at` (`store_id, status, created_at`)
@@ -639,7 +639,7 @@ Ràng buộc:
 - CHECK `chk_promotions_percent`: `(bonus_percent between 0 and 100)`
 - CHECK `chk_promotions_period`: `(ends_at > starts_at)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `ix_promotions_eligible` (`store_id, is_active, minimum_amount`)
 
@@ -768,7 +768,7 @@ Ràng buộc:
 - CHECK `chk_menu_categories_page`: `(page in ('FOOD','DRINK'))`
 - CHECK `chk_menu_categories_sort`: `(sort_order between 0 and 9999)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_menu_categories_store_page` (`store_id, page, sort_order`)
 
@@ -799,7 +799,7 @@ Ràng buộc:
 - CHECK `chk_menu_items_price`: `(price between 1000 and 10000000)`
 - CHECK `chk_menu_items_sort`: `(sort_order between 0 and 9999)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_menu_items_category_sort` (`category_id, sort_order`)
 
@@ -840,7 +840,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_menu_item_changes_item` (`item_id`) → `menu_items` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_menu_item_changes_field`: `(field in ('CREATE','NAME','CATEGORY','PRICE','AVAILABLE','VISIBLE','IMAGE'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_menu_item_changes_item` (`item_id, created_at`)
 
@@ -877,7 +877,7 @@ Ràng buộc:
 - CHECK `chk_menu_orders_status`: `(status in ('NEW','PREPARING','SERVED','PAID','CANCELLED','REFUNDED'))`
 - CHECK `chk_menu_orders_total`: `(total_amount > 0)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_menu_orders_hold_expiry` (`status, reservation_expires_at, id`)
 - INDEX `idx_menu_orders_paid_at` (`paid_at`)
@@ -995,7 +995,7 @@ Ràng buộc:
 - CHECK `chk_inventory_movements_kind`: `(kind in ('RECEIVE','RESERVE','RELEASE','CONSUME','WASTE','RETURN','ADJUST','ISSUE'))`
 - CHECK `chk_inventory_movements_quantity`: `(quantity > 0)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_inventory_movements_ingredient_id` (`ingredient_id, id`)
 - INDEX `idx_inventory_movements_time` (`created_at, id`)
@@ -1031,7 +1031,7 @@ Ràng buộc:
 - CHECK `chk_inventory_counts_quantities`: `((expected_on_hand >= 0) and (expected_reserved >= 0) and (counted_on_hand >= 0))`
 - CHECK `chk_inventory_counts_status`: `(status in ('PENDING','APPROVED','REJECTED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_inventory_counts_status` (`status, created_at, id`)
 
@@ -1057,7 +1057,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_customer_notification_event_account` (`account_id`) → `accounts` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 - FOREIGN KEY `fk_customer_notification_event_store` (`store_id`) → `stores` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_customer_notification_account_created` (`account_id, created_at, id`)
 
@@ -1094,7 +1094,7 @@ Ràng buộc:
 - CHECK `chk_pos_reversal_sod`: `((decided_by is null) or (decided_by <> requested_by))`
 - CHECK `chk_pos_reversal_status`: `(status in ('PENDING','APPROVED','REJECTED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_pos_reversal_status` (`status, id`)
 
@@ -1125,7 +1125,7 @@ Ràng buộc:
 - CHECK `chk_menu_promo_period`: `(starts_at < ends_at)`
 - CHECK `chk_menu_promo_tier`: `((minimum_tier is null) or (minimum_tier in ('BRONZE','SILVER','GOLD','PLATINUM')))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_menu_promo_active` (`store_id, is_active, starts_at, ends_at`)
 
@@ -1260,7 +1260,7 @@ Ràng buộc:
 - CHECK `chk_customer_vouchers_used`: `(((status = 'USED') and (used_at is not null) and (used_by is not null) and (used_store_id is not null)) or ((status <> 'USED') and (used_at is null) and (used_by is null) and (used_store_id is null) and (used_order_id is null)))`
 - CHECK `chk_customer_vouchers_value`: `(value between 1 and 1000000)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_customer_vouchers_account` (`account_id, status, expires_at`)
 
@@ -1286,7 +1286,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_voucher_events_voucher` (`voucher_id`) → `customer_vouchers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_voucher_events_action`: `(action in ('ISSUE','REDEEM','REVOKE','REJECT'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_voucher_events_store` (`store_id, created_at`)
 - INDEX `idx_voucher_events_voucher` (`voucher_id, created_at`)
@@ -1313,7 +1313,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_loyalty_point_grants_voucher` (`voucher_id`) → `customer_vouchers` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_loyalty_point_grants_points`: `(points between 1 and 1000000)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_loyalty_point_grants_customer` (`customer_id`)
 
@@ -1403,7 +1403,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_game_sessions_game` (`game_id`) → `games` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT
 - CHECK `chk_game_sessions_coins`: `(coins between 0 and 1000)`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_game_sessions_account_game_time` (`account_id, game_id, created_at`)
 - INDEX `idx_game_sessions_game_time` (`game_id, created_at`)
@@ -1433,7 +1433,7 @@ Ràng buộc:
 - CHECK `chk_game_coin_ledger_delta`: `(delta <> 0)`
 - CHECK `chk_game_coin_ledger_reason`: `(reason in ('PLAY','REDEEM','AD','ADJUST'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_game_coin_ledger_account` (`account_id, created_at`)
 
@@ -1515,7 +1515,7 @@ Ràng buộc:
 - CHECK `chk_ad_reward_events_reward`: `((reward_type in ('EXTRA_SPIN','COINS')) and (reward_amount > 0))`
 - CHECK `chk_ad_reward_events_status`: `(status in ('ISSUED','COMPLETED','REJECTED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_ad_reward_events_account_time` (`account_id, issued_at`)
 - INDEX `idx_ad_reward_events_issued_at` (`issued_at`)
@@ -1551,7 +1551,7 @@ Ràng buộc:
 - CHECK `chk_cash_shifts_close`: `((((status = 'OPEN') and (expected_cash is null) and (counted_cash is null) and (submitted_at is null) and (closed_at is null) and (reviewed_by is null) and (review_note is null)) or ((status = 'PENDING_REVIEW') and (expected_cash is not null) and (counted_cash is not null) and (submitted_at is not null) and (closed_at is null) and (reviewed_by is null)) or ((status = 'CLOSED') and (expected_cash is not null) and (counted_cash is not null) and (submitted_at is not null) and (closed_at is not null) and (((reviewed_by is null) and (review_note is null)) or ((reviewed_by is not null) and (reviewed_by <> employee_id) and (review_note is not null) and (char_length(trim(review_note)) > 0))))) and ((submitted_at is null) or (submitted_at >= opened_at)) and ((closed_at is null) or ((submitted_at is not null) and (closed_at >= submitted_at))))`
 - CHECK `chk_cash_shifts_status`: `(status in ('OPEN','PENDING_REVIEW','CLOSED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_cash_shifts_store_time` (`store_id, opened_at, id`)
 
@@ -1598,7 +1598,7 @@ Ràng buộc:
 - CHECK `chk_cash_entries_kind`: `(kind in ('RECEIPT','EXPENSE','REFUND','ADJUSTMENT_IN','ADJUSTMENT_OUT'))`
 - CHECK `chk_cash_entries_method`: `(payment_method in ('CASH','TRANSFER'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_cash_entries_shift_time` (`shift_id, created_at, id`)
 
@@ -1639,7 +1639,7 @@ Ràng buộc:
 - CHECK `chk_incidents_severity`: `(severity in ('LOW','MEDIUM','HIGH','CRITICAL'))`
 - CHECK `chk_incidents_status`: `(status in ('REPORTED','ASSIGNED','IN_PROGRESS','WAITING_PARTS','COMPLETED','VERIFIED','CANCELLED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_incidents_machine_history` (`machine_id, reported_at, id`)
 - INDEX `idx_incidents_status_time` (`status, reported_at, id`)
@@ -1683,7 +1683,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_incident_events_employee` (`employee_id`) → `employees` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 - FOREIGN KEY `fk_incident_events_incident` (`incident_id`) → `machine_incidents` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_incident_events_history` (`incident_id, created_at, id`)
 
@@ -1873,7 +1873,7 @@ Ràng buộc:
 - CHECK `chk_supplier_payables_state`: `(((status = 'UNPAID') and (paid_amount = 0) and (paid_at is null) and (paid_by is null) and (payment_method is null)) or ((status = 'PAID') and (paid_amount = amount) and (paid_at is not null) and (paid_by is not null) and (payment_method is not null) and (payment_method in ('CASH','TRANSFER'))))`
 - CHECK `chk_supplier_payables_status`: `(status in ('UNPAID','PAID'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_supplier_payables_status_due` (`status, due_date`)
 
@@ -1998,7 +1998,7 @@ Ràng buộc:
 - CHECK `chk_commercial_placements_surface`: `(surface in ('PORTAL_BANNER','REWARDED_AD','GAME_CENTER'))`
 - CHECK `chk_commercial_placements_type`: `(placement_type in ('AD','GAME'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_commercial_placements_store` (`store_id, status`)
 
@@ -2029,7 +2029,7 @@ Ràng buộc:
 - CHECK `chk_commercial_play_sessions_reward`: `(((reward_type = 'NONE') and (reward_amount = 0)) or ((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0)))`
 - CHECK `chk_commercial_play_sessions_status`: `(status in ('ISSUED','COMPLETED','EXPIRED','REJECTED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_commercial_play_sessions_account` (`account_id, status, issued_at`)
 
@@ -2066,7 +2066,7 @@ Ràng buộc:
 - CHECK `chk_commercial_events_verification`: `(verification_method in ('CLIENT','SERVER','SSV'))`
 - CHECK `chk_commercial_events_verified`: `(((verification_method = 'CLIENT') and (verified_at is null)) or ((verification_method in ('SERVER','SSV')) and (verified_at is not null)))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_commercial_events_placement_time` (`placement_id, event_type, accepted, occurred_at`)
 
@@ -2096,7 +2096,7 @@ Ràng buộc:
 - CHECK `chk_commercial_reward_grants_reward`: `((reward_type in ('COINS','VOUCHER','EXTRA_SPIN')) and (reward_amount > 0))`
 - CHECK `chk_commercial_reward_grants_status`: `(status in ('PENDING','APPLIED','FAILED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_commercial_reward_grants_pending` (`status, created_at`)
 
@@ -2192,7 +2192,7 @@ Ràng buộc:
 - CHECK `chk_customer_email_token_purpose`: `(purpose in ('ACTIVATE','RESET'))`
 - CHECK `chk_customer_email_token_times`: `((expires_at > created_at) and ((used_at is null) or (used_at >= created_at)))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_customer_email_token_account` (`account_id, purpose, created_at`)
 
@@ -2217,7 +2217,7 @@ Ràng buộc:
 - FOREIGN KEY `fk_customer_mail_outbox_token` (`token_id`) → `customer_email_tokens` (`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
 - CHECK `chk_customer_mail_outbox_status`: `(status in ('PENDING','SENDING','SENT','FAILED'))`
 
-Index bổ sung (`002_indexes.sql`):
+Index bổ sung:
 
 - INDEX `idx_customer_mail_outbox_due` (`status, next_attempt_at`)
 

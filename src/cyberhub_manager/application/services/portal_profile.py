@@ -12,7 +12,7 @@ from cyberhub_manager.infrastructure.security import hash_password, verify_passw
 from cyberhub_manager.application.services.portal_experience import local_midnight
 
 
-class PortalPhase2Mixin:
+class PortalProfileMixin:
     def availability(self, principal, store_id):
         with self._errors(), self._transaction() as conn:
             self._principal(conn, principal)

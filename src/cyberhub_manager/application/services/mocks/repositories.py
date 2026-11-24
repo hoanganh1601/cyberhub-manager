@@ -8,7 +8,7 @@ from cyberhub_manager.application.services.mocks.ad import MemoryAdRepository
 from cyberhub_manager.application.services.mocks.game import MemoryGameRepository
 from cyberhub_manager.application.services.mocks.inventory import MemoryInventoryRepository
 from cyberhub_manager.application.services.mocks.menu import MemoryMenuRepository
-from cyberhub_manager.application.services.mocks.p1 import MemoryP1Repository
+from cyberhub_manager.application.services.mocks.management import MemoryManagementRepository
 from cyberhub_manager.application.services.mocks.voucher import MemoryVoucherRepository
 
 __all__ = [
@@ -16,6 +16,6 @@ __all__ = [
     "MemoryGameRepository",
     "MemoryInventoryRepository",
     "MemoryMenuRepository",
-    "MemoryP1Repository",
+    "MemoryManagementRepository",
     "MemoryVoucherRepository",
 ]

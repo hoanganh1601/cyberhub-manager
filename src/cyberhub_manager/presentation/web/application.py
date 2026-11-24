@@ -35,8 +35,8 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.application.services.bootstrap import create_service_bundle
-from cyberhub_manager.domain.p1 import CustomerSession
-from cyberhub_manager.domain.p1 import Permission, can, permissions_for
+from cyberhub_manager.domain.policies import CustomerSession
+from cyberhub_manager.domain.policies import Permission, can, permissions_for
 from cyberhub_manager.presentation.web.demo import DemoRegistry, build_demo_bundle
 from cyberhub_manager.presentation.web.config import configure_web_app
 from cyberhub_manager.presentation.web.serialization import serialize

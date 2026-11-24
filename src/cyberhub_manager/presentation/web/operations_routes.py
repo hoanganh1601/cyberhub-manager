@@ -12,7 +12,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.loyalty import LoyaltySettings
-from cyberhub_manager.domain.p1 import Permission, Promotion, permissions_for
+from cyberhub_manager.domain.policies import Permission, Promotion, permissions_for
 from cyberhub_manager.application.services.invoice_export import invoice_csv, invoice_html
 from cyberhub_manager.presentation.web.serialization import customer_public, machine_public, serialize
 

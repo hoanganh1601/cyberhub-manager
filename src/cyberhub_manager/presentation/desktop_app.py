@@ -113,9 +113,9 @@ class CyberHubApp(ctk.CTk):
         from cyberhub_manager.presentation.desktop.views import default_view_factories
 
         self._dispose_view()
-        from cyberhub_manager.domain.p1 import CustomerSession
+        from cyberhub_manager.domain.policies import CustomerSession
         if isinstance(session, CustomerSession):
-            from cyberhub_manager.presentation.desktop.p1_views import CustomerPortalView
+            from cyberhub_manager.presentation.desktop.management_views import CustomerPortalView
             self._session = None
             self.title(f"CyberHub — {session.full_name}")
             self._content = CustomerPortalView(self,self._services,session,language=self._language,on_logout=self._show_login,runner=self._runner)

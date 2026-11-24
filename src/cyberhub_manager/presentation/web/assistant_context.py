@@ -14,7 +14,7 @@ import json
 from cyberhub_manager.domain.ai.models import AIAccessContext, DynamicAssistantSource
 from cyberhub_manager.domain.exceptions import PermissionDeniedError, ValidationError
 from cyberhub_manager.domain.enums import Role
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 
 VN = timezone(timedelta(hours=7))
 _MODES = frozenset({"knowledge", "analytics", "personalized"})

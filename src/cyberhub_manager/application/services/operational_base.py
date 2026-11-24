@@ -3,7 +3,7 @@
 from contextlib import contextmanager
 
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
-from cyberhub_manager.domain.p1 import can
+from cyberhub_manager.domain.policies import can
 from cyberhub_manager.infrastructure.repositories.auth_repository import AuthRepository
 from cyberhub_manager.infrastructure.repositories.management_repository import ManagementRepository
 

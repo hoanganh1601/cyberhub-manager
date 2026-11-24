@@ -14,7 +14,7 @@ from cyberhub_manager.presentation.desktop.machine_management_view import Machin
 from cyberhub_manager.presentation.desktop.navigation import NavKey
 from cyberhub_manager.presentation.desktop.reports_view import ReportsView
 from functools import partial
-from cyberhub_manager.presentation.desktop.p1_views import ManagementView
+from cyberhub_manager.presentation.desktop.management_views import ManagementView
 
 
 def default_view_factories() -> dict[NavKey, ViewFactory]:

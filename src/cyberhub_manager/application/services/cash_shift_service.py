@@ -13,7 +13,7 @@ from cyberhub_manager.domain.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 from cyberhub_manager.infrastructure.repositories.cash_shift_repository import CashShiftRepository
 
 from cyberhub_manager.application.services.operational_base import OperationalServiceBase

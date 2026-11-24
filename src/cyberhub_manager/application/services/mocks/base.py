@@ -21,7 +21,7 @@ from cyberhub_manager.domain.exceptions import (
     ValidationError,
 )
 from cyberhub_manager.domain.models import AccountTransaction, Employee
-from cyberhub_manager.domain.p1 import Permission, can
+from cyberhub_manager.domain.policies import Permission, can
 
 from cyberhub_manager.application.services.mocks.clock import MockClock
 from cyberhub_manager.application.services.mocks.scenarios import MockScenario, scenario_error

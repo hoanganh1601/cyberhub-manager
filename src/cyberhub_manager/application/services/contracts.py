@@ -32,7 +32,7 @@ from cyberhub_manager.domain.dtos import (
 )
 from cyberhub_manager.domain.enums import CustomerStatus, PaymentMethod
 from cyberhub_manager.domain.models import Customer, Machine
-from cyberhub_manager.domain.p1 import (
+from cyberhub_manager.domain.policies import (
     CustomerSession,
     StoreSummary,
     EmployeeSummary,

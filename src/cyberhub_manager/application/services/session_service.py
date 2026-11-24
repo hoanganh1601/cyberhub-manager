@@ -58,7 +58,7 @@ from cyberhub_manager.infrastructure.repositories.management_repository import M
 from cyberhub_manager.infrastructure.repositories.session_repository import SessionRepository
 from cyberhub_manager.infrastructure.db_errors import retry_on_transient, translate_db_errors
 from cyberhub_manager.domain.identifiers import new_transaction_code
-from cyberhub_manager.domain.p1 import Permission, can, separated_rbac, chain_director
+from cyberhub_manager.domain.policies import Permission, can, separated_rbac, chain_director
 
 ActorProvider = Callable[[], EmployeeSession | None]
 

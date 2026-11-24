@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from cyberhub_manager.infrastructure.database.transaction import transaction
 from cyberhub_manager.domain.exceptions import ConflictError, PermissionDeniedError, ValidationError
-from cyberhub_manager.domain.p1 import Permission
+from cyberhub_manager.domain.policies import Permission
 from cyberhub_manager.infrastructure.repositories.account_repository import AccountRepository
 from cyberhub_manager.infrastructure.repositories.customer_repository import CustomerRepository
 from cyberhub_manager.infrastructure.repositories.customer_email_repository import CustomerEmailRepository

@@ -22,7 +22,7 @@ from cyberhub_manager.application.services.menu_order_service import MenuOrderMi
 from cyberhub_manager.application.services.menu_service import MenuService
 from cyberhub_manager.application.services.mocks.application_services import MockAuthService
 from cyberhub_manager.application.services.mocks.demo_data import MockScenario
-from cyberhub_manager.application.services.mocks.repositories import MemoryP1Repository
+from cyberhub_manager.application.services.mocks.repositories import MemoryManagementRepository
 
 
 def test_domain_models_keeps_the_legacy_import_contract():
@@ -47,4 +47,4 @@ def test_domain_repositories_are_standalone_classes():
 def test_demo_namespaces_expose_services_data_and_repositories():
     assert MockAuthService.__name__ == "MockAuthService"
     assert MockScenario.SUCCESS.value == "SUCCESS"
-    assert MemoryP1Repository.__name__ == "MemoryP1Repository"
+    assert MemoryManagementRepository.__name__ == "MemoryManagementRepository"

@@ -220,6 +220,32 @@ def test_invoices_copy_code(tk_root, _silence_toasts) -> None:
     assert _silence_toasts.call_args.args[1] == invoices_module.CODE_COPIED
 
 
+def test_invoices_void_button_visibility_and_confirm_flow(tk_root) -> None:
+    staff_view, _, _ = _invoices(tk_root, "nhanvien01")
+    assert staff_view.selected_invoice.status == InvoiceStatus.PAID
+    assert staff_view.void_button is None
+    staff_view.destroy()
+
+    view, _, _ = _invoices(tk_root, "quanly01")
+    assert view.selected_invoice.invoice_code == "HD0004"
+    assert view.void_button is not None
+
+    with patch.object(invoices_module.ConfirmDialog, "ask", return_value=False):
+        view._void_invoice(view.selected_invoice.invoice_id, view.selected_invoice.invoice_code)
+    assert view.selected_invoice.status == InvoiceStatus.PAID
+    assert view._kpi_labels["paid"].cget("text") == "60.000 VND"
+
+    with patch.object(invoices_module.ConfirmDialog, "ask", return_value=True) as ask:
+        view._void_invoice(view.selected_invoice.invoice_id, view.selected_invoice.invoice_code)
+        assert ask.call_args.kwargs["is_danger"] is True
+    assert view.selected_invoice.invoice_code == "HD0004"
+    assert view.selected_invoice.status == InvoiceStatus.VOID
+    assert view.void_button is None
+    assert view._kpi_labels["paid"].cget("text") == "50.000 VND"
+    assert view._kpi_labels["void"].cget("text") == "2 đơn"
+    view.destroy()
+
+
 # ----------------------------------------------------------------------
 # 4. Màn Doanh thu
 # ----------------------------------------------------------------------

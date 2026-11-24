@@ -11,7 +11,7 @@
 | Xem migration, quan hệ và giới hạn của sơ đồ | [Mô hình dữ liệu](architecture/DATA_MODEL.md), [ERD hiện hành](diagrams/current_erd.md), [UML hệ thống](diagrams/system_uml.md) |
 | Thêm một nghiệp vụ hoặc kiểm thử thay đổi | [Hướng dẫn phát triển](guides/DEVELOPMENT.md) |
 | Cấu hình web/MySQL hoặc Gemini | [Vận hành web](guides/WEB_DEPLOYMENT.md), [Gemini](guides/GEMINI_API_RUNBOOK.md), [RAG](guides/RAG_5A_RUNBOOK.md) |
-| Xem quy tắc chuyên sâu | [POS và tồn kho](features/POS_INVENTORY_LIFECYCLE.md), [ca/bảo trì/mua hàng](features/OPERATIONS_PHASE7.md), [đối tác](features/COMMERCIAL_PARTNERS.md), [dự báo](features/FORECASTING_PHASE5.md) |
+| Xem quy tắc chuyên sâu | [POS và tồn kho](features/POS_INVENTORY_LIFECYCLE.md), [ca/bảo trì/mua hàng](features/OPERATIONS.md), [đối tác](features/COMMERCIAL_PARTNERS.md), [dự báo](features/FORECASTING.md) |
 
 **Nguồn sự thật:** trạng thái triển khai là mã trong `src/`, migration theo thứ tự trong `sql/` và test trong `tests/`. Tài liệu ở đây mô tả bản hiện tại theo mã nguồn tại ngày 23/11/2026. [Data dictionary](diagrams/data_dictionary.md) được sinh và kiểm tra trực tiếp từ schema MySQL test sau migration `001`–`032` (75 bảng nghiệp vụ, 18 view, 28 trigger); [ERD hiện hành](diagrams/current_erd.md) là bản tổng quan để đọc nhanh và cần cập nhật khi quan hệ nghiệp vụ thay đổi.
 

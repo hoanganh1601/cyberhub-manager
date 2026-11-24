@@ -15,7 +15,7 @@ from cyberhub_manager.domain.enums import (
 )
 from cyberhub_manager.domain.exceptions import PermissionDeniedError
 from cyberhub_manager.domain.models import Employee, Store
-from cyberhub_manager.domain.p1 import (
+from cyberhub_manager.domain.policies import (
     CustomerSession,
     EmployeeSummary,
     StoreSummary,
@@ -28,7 +28,7 @@ from cyberhub_manager.application.services.mocks.portal import MemoryPortalRepos
 from cyberhub_manager.application.services.mocks.loyalty import MemoryLoyaltyRepositoryMixin
 
 
-class MemoryP1Repository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixin):
+class MemoryManagementRepository(MemoryPortalRepositoryMixin,MemoryLoyaltyRepositoryMixin):
     def customer_invoice(self, conn, principal, invoice_id):
         from cyberhub_manager.domain.exceptions import NotFoundError
 
