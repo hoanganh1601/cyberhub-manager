@@ -53,6 +53,5 @@ quảng cáo, cộng xu hay đổi voucher thay khách.
 
 ## Nguồn đối chiếu
 
-- `history/docs/features/GAME_CENTER_PHASE6.md` — Phạm vi Game Center và mô hình tài trợ
 - `src/cyberhub_manager/application/services/game_service.py` — Lượt chơi, ví xu và đổi thưởng
 - `src/cyberhub_manager/application/services/ad_service.py` — Quảng cáo nhận thưởng

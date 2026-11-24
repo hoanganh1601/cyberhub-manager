@@ -1,7 +1,6 @@
 """Cyber Ops Dark design system tokens cho CyberHub Manager.
 
 Toàn bộ view và component phải tham chiếu token tại đây; không hard-code màu hoặc font.
-Nguồn quy chuẩn: history/docs/reference/03_UI_THEME.md
 """
 
 from __future__ import annotations

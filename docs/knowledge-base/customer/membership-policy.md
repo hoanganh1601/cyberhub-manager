@@ -58,7 +58,6 @@ trong ảnh chụp danh mục tại thời điểm xem, không phải tỷ lệ 
 
 ## Nguồn đối chiếu
 
-- `history/docs/features/CUSTOMER_PORTAL_PHASE3.md` — Chính sách được người dùng phê duyệt
 - `src/cyberhub_manager/domain/loyalty.py`
 - `src/cyberhub_manager/application/services/game_service.py`
 - `src/cyberhub_manager/application/services/voucher_service.py`

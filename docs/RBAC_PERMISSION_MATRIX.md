@@ -1,13 +1,12 @@
-# Ma trận quyền RBAC cho chức năng hiện có
+# Ma trận quyền RBAC hiện hành (`legacy` vs `separated`)
 
-**Trạng thái:** Ma trận thiết kế và đối chiếu. Cột “Hiện tại” phản ánh khảo sát `develop` (`960beb1`); cột “Đề xuất” là đích nghiệp vụ. Một phần quyền đã được triển khai ở chế độ `CYBERHUB_RBAC_POLICY=separated`; xem [trạng thái chuyển đổi](RBAC_DESIGN.md#7-trạng-thái-triển-khai-và-chuyển-đổi). Các hàng có dấu `?` vẫn cần quyết định nghiệp vụ và chưa được triển khai đầy đủ.
+**Trạng thái:** Đối chiếu trực tiếp với mã nguồn sau migration `025`–`032` ([`domain/policies.py`](../src/cyberhub_manager/domain/policies.py)). Cột **Chế độ `legacy`** là chính sách tương thích mặc định; cột **Chế độ `separated`** là chính sách tách biệt quản trị kỹ thuật (`ADMIN`) và điều hành kinh doanh (`DIRECTOR`/`MANAGER`) được kích hoạt bằng `CYBERHUB_RBAC_POLICY=separated`. Xem chi tiết chuyển đổi tại [RBAC_DESIGN.md](RBAC_DESIGN.md#7-trạng-thái-triển-khai-và-chuyển-đổi).
 
 ## Cách đọc
 
-- **Hiện tại:** `A` = ADMIN, `M` = MANAGER, `S` = STAFF, `K` = KITCHEN, `I` = INVENTORY. `C` = khách hàng xác thực. `*` = mọi nhân viên đã đăng nhập. `—` = không có quyền. `D` chưa tồn tại.
-- **Đề xuất:** `A` = ADMIN kỹ thuật, `D` = DIRECTOR, `M` = MANAGER, `S/K/I` giữ vai trò vận hành hiện có cho đến khi duyệt chuyển đổi. Dấu `?` cần chính sách cụ thể trước triển khai. Các chữ ở cột đề xuất **không cấp quyền** cho tài khoản nào ở giai đoạn tài liệu.
-- `cơ sở` = đúng cơ sở đang thao tác và được giao; `chuỗi` = các cơ sở thuộc chuỗi; `bản thân` = principal của chính người dùng. Bất kỳ quyền nào cũng cần trạng thái tài khoản hợp lệ, kiểm tra scope và điều kiện nghiệp vụ tại Service. Quyền UI không thay thế guard backend.
-- Tên `Permission.*` là hằng số hiện có trong [`domain/policies.py`](../src/cyberhub_manager/domain/policies.py). “role cứng” hoặc “actor hợp lệ” nghĩa là hiện chưa có permission chuyên biệt, cần tách khi triển khai.
+- **Ký hiệu vai trò:** `A` = `ADMIN`, `D` = `DIRECTOR`, `M` = `MANAGER`, `S` = `STAFF`, `K` = `KITCHEN`, `I` = `INVENTORY`, `C` = khách hàng xác thực, `*` = mọi nhân viên đang đăng nhập, `—` = không có quyền.
+- `cơ sở` = đúng cơ sở đang thao tác và được giao; `chuỗi` = các cơ sở thuộc chuỗi; `bản thân` = principal của chính người dùng. Dấu `?` đánh dấu điểm cần thống nhất thêm khi mở rộng vận hành thực tế.
+- Tên `Permission.*` là hằng số trong [`domain/policies.py`](../src/cyberhub_manager/domain/policies.py). Quyền UI chỉ hỗ trợ trải nghiệm, không thay thế kiểm tra ở Service/API và trigger DB.
 
 ## 1. Xác thực, cơ sở, nhân sự
 
@@ -36,8 +35,9 @@ Nguồn: [`management_service.py`](../src/cyberhub_manager/application/services/
 | Xem trước/nạp tiền ví, đọc giao dịch | `*` | M, S | Cơ sở thu tiền; ca phải mở nếu nghiệp vụ yêu cầu; giữ ledger và audit. |
 | Xem máy, phòng, trạng thái | `*` | D xem tổng hợp; M, S xem cơ sở | K/I chỉ khi chức năng liên quan nhiệm vụ. |
 | Thêm/sửa giá/phòng/bảo trì/archive máy `MANAGE_MACHINES` hoặc role cứng | A, M | M; D chỉ chính sách giá chuỗi nếu có chức năng riêng `?` | Cơ sở được giao; không sửa máy đang chạy trái quy tắc snapshot. |
-| Mở phiên, xem trước checkout, checkout | A, M, S (role cứng) | M, S | Đúng cơ sở/máy, tiền và hóa đơn; D/A không tác nghiệp quầy mặc định. |
-| Xem/xuất hóa đơn `EXPORT_INVOICE` và role cứng | A, M, S | D, M, S | D: chuỗi; M/S: cơ sở; xuất tài liệu chỉ sau guard xem chính hóa đơn đó. |
+| Mở phiên, xem trước checkout, checkout, hủy phiên (`CANCELLED`) | A, M, S | M, S | Đúng cơ sở/máy, tiền và hóa đơn; hủy phiên bị chặn nếu đã có đơn POS; D/A không tác nghiệp quầy mặc định. |
+| Xem/xuất hóa đơn `EXPORT_INVOICE` | A, M, S | D, M, S | D: chuỗi; M/S: cơ sở; xuất tài liệu chỉ sau guard xem chính hóa đơn đó. |
+| Hủy hóa đơn (`VOID`, `business_manager`) | A, D, M | D, M | Chỉ hủy hóa đơn `PAID` đúng cơ sở, ghi `management_audit_logs`, tự loại khỏi doanh thu và điểm thành viên. |
 | Xem báo cáo doanh thu | A, M | D, M | D: chuỗi; M: cơ sở; A không xem dữ liệu doanh thu. |
 | Xem phân tích & dự báo | A, M (`manager_only`) | D, M | D: chuỗi; M: cơ sở; file dự báo demo/real phải khớp store scope. |
 | Xem/thay đổi chính sách nạp tiền `MANAGE_PROMOTIONS` | A, M | D: chuỗi; M: cơ sở nếu được giao chính sách `?` | Không cho M sửa chính sách toàn chuỗi; giá trị ưu đãi cần audit. |

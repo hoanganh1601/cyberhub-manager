@@ -61,6 +61,3 @@ Trợ lý không được tự ghi giao dịch, sửa trạng thái tài khoản
 
 - `src/cyberhub_manager/domain/enums.py`
 - `src/cyberhub_manager/domain/policies.py`
-- `history/docs/reference/07_DTO_UI_HANDOFF.md` — Tiền bù, tiền khách đưa và tiền thừa
-- `history/docs/features/CUSTOMER_PORTAL_PHASE2.md`
-- `history/docs/features/CUSTOMER_PORTAL_PHASE3.md`

@@ -1,6 +1,5 @@
 """ConfirmDialog component cho CyberHub Manager.
 
-Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 7 và history/docs/reference/03_UI_THEME.md mục 3.4.
 - API: ConfirmDialog.ask(parent, title: str, message: str, ...) -> bool.
 - Gọi từ UI thread, modal chặn tương tác cửa sổ cha, không trực tiếp thực hiện nghiệp vụ.
 """
@@ -175,7 +174,7 @@ class ConfirmDialog(ctk.CTkToplevel):
     ) -> None:
         """Hiển thị hộp thoại cảnh báo / báo lỗi modal (1 nút đóng).
 
-        Dùng cho business conflict hoặc lỗi nghiêm trọng theo quy chuẩn history/docs/reference/03_UI_THEME.md mục 3.4.
+        Dùng cho business conflict hoặc lỗi nghiêm trọng.
         """
         # Nếu parent là Mock hoặc không có Tkinter runtime thật, bỏ qua để không lỗi trong unit test
         if getattr(parent, "tk", None) is None:

@@ -51,4 +51,3 @@ vào kho tri thức. AI không tự thay cấu hình hoặc sửa số dư/đi�
 
 - `src/cyberhub_manager/application/services/management_service.py` — update_loyalty_settings
 - `src/cyberhub_manager/domain/loyalty.py`
-- `history/docs/features/CUSTOMER_PORTAL_PHASE3.md` — Cấu hình quản trị

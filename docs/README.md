@@ -10,9 +10,9 @@
 | Hiểu khách hàng, máy, POS, kho, ca, bảo trì, mua hàng, game và AI | [Luồng nghiệp vụ](architecture/BUSINESS_FLOWS.md) |
 | Xem migration, quan hệ và giới hạn của sơ đồ | [Mô hình dữ liệu](architecture/DATA_MODEL.md), [ERD hiện hành](diagrams/current_erd.md), [UML hệ thống](diagrams/system_uml.md) |
 | Thêm một nghiệp vụ hoặc kiểm thử thay đổi | [Hướng dẫn phát triển](guides/DEVELOPMENT.md) |
-| Cấu hình web/MySQL hoặc Gemini | [Vận hành web](guides/WEB_DEPLOYMENT.md), [Gemini](guides/GEMINI_API_RUNBOOK.md), [RAG](guides/RAG_5A_RUNBOOK.md) |
+| Cấu hình web/MySQL hoặc trợ lý Gemini | [Vận hành web](guides/WEB_DEPLOYMENT.md), [Trợ lý Gemini & RAG](guides/GEMINI_API_RUNBOOK.md) |
 | Xem quy tắc chuyên sâu | [POS và tồn kho](features/POS_INVENTORY_LIFECYCLE.md), [ca/bảo trì/mua hàng](features/OPERATIONS.md), [đối tác](features/COMMERCIAL_PARTNERS.md), [dự báo](features/FORECASTING.md) |
 
-**Nguồn sự thật:** trạng thái triển khai là mã trong `src/`, migration theo thứ tự trong `sql/` và test trong `tests/`. Tài liệu ở đây mô tả bản hiện tại theo mã nguồn tại ngày 23/11/2026. [Data dictionary](diagrams/data_dictionary.md) được sinh và kiểm tra trực tiếp từ schema MySQL test sau migration `001`–`032` (75 bảng nghiệp vụ, 18 view, 28 trigger); [ERD hiện hành](diagrams/current_erd.md) là bản tổng quan để đọc nhanh và cần cập nhật khi quan hệ nghiệp vụ thay đổi.
+**Nguồn sự thật:** trạng thái triển khai là mã trong `src/`, migration theo thứ tự trong `sql/` và test trong `tests/`. [Data dictionary](diagrams/data_dictionary.md) được sinh và kiểm tra trực tiếp từ schema MySQL sau migration `001`–`032` (75 bảng nghiệp vụ, 18 view, 28 trigger, 150 FK, 186 CHECK); [ERD hiện hành](diagrams/current_erd.md) là bản tổng quan để đọc nhanh và cần cập nhật khi quan hệ nghiệp vụ thay đổi.
 
-[Kho tri thức](knowledge-base/README.md) là bộ tài liệu có phân quyền mà chatbot đọc lúc chạy; giữ nguyên đường dẫn này. [Tư liệu lịch sử](../history/README.md) chứa ảnh, phiếu giao việc, báo cáo nghiệm thu và tài liệu P0/đợt cũ. Không dùng những tài liệu đó để suy ra hành vi hiện tại khi mã nguồn đã thay đổi.
+[Kho tri thức](knowledge-base/README.md) là bộ tài liệu có phân quyền mà trợ lý RAG đọc lúc chạy; giữ nguyên đường dẫn này.

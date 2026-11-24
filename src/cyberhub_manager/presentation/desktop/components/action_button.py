@@ -1,6 +1,5 @@
 """ActionButton component cho CyberHub Manager.
 
-Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 7 và history/docs/reference/03_UI_THEME.md mục 3.4.
 - Các kiểu (kind): primary, secondary, success, danger, ghost.
 - API: set_busy(busy: bool), set_enabled(enabled: bool), set_kind(kind: str).
 - Busy giữ nhãn gốc để phục hồi; chặn double click khi đang bận.

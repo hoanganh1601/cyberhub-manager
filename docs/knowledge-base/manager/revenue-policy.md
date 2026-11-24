@@ -43,5 +43,5 @@ sau khi merge, rồi cập nhật trạng thái, ngày và tăng version tài li
 
 ## Nguồn đối chiếu
 
-- `history/docs/archive/HANDOVER_BUSINESS_DISCUSSION.md` — Đợt 0 và Đợt 5
-- `history/docs/reference/P1_DESKTOP_WEB.md` — Quyền cũ cần rà soát
+- `src/cyberhub_manager/application/services/report_service.py` — Báo cáo doanh thu và hóa đơn
+- `src/cyberhub_manager/domain/policies.py` — Permission.VIEW_REVENUE

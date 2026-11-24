@@ -53,5 +53,3 @@ thay mốc/đối tượng.
 ## Nguồn đối chiếu
 
 - `src/cyberhub_manager/application/services/management_service.py` — save_promotion
-- `history/docs/features/CUSTOMER_PORTAL_PHASE3.md` — Ưu đãi cá nhân hóa
-- `history/docs/reference/P1_DESKTOP_WEB.md` — Phân quyền và thời gian khuyến mãi

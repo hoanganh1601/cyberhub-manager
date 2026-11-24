@@ -1,6 +1,5 @@
 """StatusBadge component cho CyberHub Manager.
 
-Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 7 & 8.
 - StatusBadge.set_status(status) nhận enum nghiệp vụ, tự chọn nhãn / icon / token màu.
 - Luôn hiển thị chữ + icon, không chỉ dùng màu.
 """

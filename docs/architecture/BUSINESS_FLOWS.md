@@ -58,5 +58,5 @@ Các nghiệp vụ này chỉ chạy trên MySQL. Người tạo không tự duy
 ## Tương tác khách hàng và phân tích
 
 - **Game, quảng cáo, voucher:** `GameService`, `AdService`, `VoucherService` xử lý lượt chơi/thưởng; đối tác thương mại đi qua hợp đồng, chiến dịch, event xác minh và đối soát tại `CommercialService`. Game ngoài không được gọi API cộng xu trực tiếp. Xem [đối tác game/quảng cáo](../features/COMMERCIAL_PARTNERS.md).
-- **Trợ lý:** `infrastructure/ai/` nạp tài liệu được duyệt theo vai trò từ `docs/knowledge-base/`, tạo chỉ mục và gọi Gemini khi bật. Câu trả lời không thực hiện nạp tiền, thanh toán hay thao tác kho. Xem [RAG](../guides/RAG_5A_RUNBOOK.md).
+- **Trợ lý:** `infrastructure/ai/` nạp tài liệu được duyệt theo vai trò từ `docs/knowledge-base/`, tạo chỉ mục và gọi Gemini khi bật. Câu trả lời không thực hiện nạp tiền, thanh toán hay thao tác kho. Xem [hướng dẫn trợ lý Gemini](../guides/GEMINI_API_RUNBOOK.md).
 - **Dự báo:** `scripts/run_forecasting.py` huấn luyện offline từ dữ liệu demo hoặc MySQL, xuất artifact 7/30 ngày; `presentation/web/forecasting_routes.py` yêu cầu quyền `VIEW_REVENUE` (DIRECTOR/MANAGER trong chính sách tách quyền; ADMIN chỉ còn quyền này ở chế độ legacy). Dữ liệu mô phỏng được gắn `is_simulated=true`. Xem [dự báo](../features/FORECASTING.md).

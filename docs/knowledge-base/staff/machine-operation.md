@@ -56,5 +56,3 @@ báo đã checkout, đối chiếu hóa đơn và trạng thái mới trước k
 
 - `src/cyberhub_manager/application/services/session_service.py`
 - `src/cyberhub_manager/domain/models.py` — minimum_balance, UsageSession
-- `history/docs/reference/P1_DESKTOP_WEB.md` — Phân quyền
-- `history/docs/features/CUSTOMER_PORTAL_PHASE2.md` — Quản lý phân loại phòng

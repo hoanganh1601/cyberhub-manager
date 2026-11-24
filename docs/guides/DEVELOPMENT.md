@@ -18,6 +18,6 @@ python -m pytest tests/integration -q
 
 Bộ regression cũ dùng chính sách `legacy`; các test `separated` tự đặt chính sách riêng bằng fixture. Chạy trong terminal test riêng để giá trị môi trường của terminal chạy web không bị ảnh hưởng. Kiểm tra ranh giới bốn tầng bằng `python -m pytest tests/unit/test_layered_architecture.py -q`; test kiểm tra cả import trong hàm và cấm SQL trong Presentation/Application.
 
-Integration test dùng **chỉ** `cyberhub_manager_test`; cần MySQL test đang chạy và migration mới nhất. Đọc `tests/conftest.py` trước khi đổi cấu hình test. Test giao diện thủ công theo [checklist](../../tests/manual/CHECKLIST.md); báo cáo nghiệm thu cũ ở [history](../../history/README.md) chỉ là bằng chứng tại thời điểm viết.
+Integration test dùng **chỉ** `cyberhub_manager_test`; cần MySQL test đang chạy và migration mới nhất (`001`–`032`). Đọc `tests/conftest.py` trước khi đổi cấu hình test.
 
 Sau khi thay đổi tài liệu, kiểm tra các liên kết Markdown và `git diff --check`. Không chuyển `docs/knowledge-base/` vì loader RAG đọc đường dẫn này. Khi thay đổi nội dung tri thức, kiểm tra phân quyền, nguồn đã duyệt và câu trả lời của trợ lý.

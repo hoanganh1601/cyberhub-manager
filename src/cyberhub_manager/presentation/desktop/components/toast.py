@@ -1,6 +1,5 @@
 """ToastManager component cho CyberHub Manager.
 
-Quy định: history/docs/reference/07_DTO_UI_HANDOFF.md mục 7 và history/docs/reference/03_UI_THEME.md mục 3.4.
 - API: ToastManager.show(message: str, kind: str = "info"); kind info/success/warning/error.
 - Hiển thị góc trên bên phải màn hình, tự động ẩn sau 3–5 giây.
 """
